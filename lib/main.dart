@@ -142,6 +142,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   String _eightDemandOverlayMessage = '';
   bool _isRoundInfoOverlayVisible = false;
   String _roundInfoOverlayMessage = '';
+  int _humanScore = 0;
+  int _botScore = 0;
 
   @override
   void initState() {
@@ -377,7 +379,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
     final result = await _applyCardEffects(card: card, currentTurn: PlayerTurn.human, sourceLabel: 'Vous');
 
-    if (_checkVictory(player: 'Vous', hand: _humanHand, lastPlayed: card)) {
+    if (_checkVictory(winner: PlayerTurn.human, hand: _humanHand, lastPlayed: card)) {
       return;
     }
 
@@ -801,7 +803,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         _botMustAnswerAce = false;
       });
 
-      if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: botAce)) {
+      if (_checkVictory(winner: PlayerTurn.bot, hand: _botHand, lastPlayed: botAce)) {
         return;
       }
       final outcome = await _applyCardEffects(card: botAce, currentTurn: PlayerTurn.bot, sourceLabel: 'Le bot');
@@ -851,7 +853,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     _playCard(hand: _botHand, card: chosen, playerName: 'Le bot');
     final outcome = await _applyCardEffects(card: chosen, currentTurn: PlayerTurn.bot, sourceLabel: 'Le bot');
 
-    if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: chosen)) {
+    if (_checkVictory(winner: PlayerTurn.bot, hand: _botHand, lastPlayed: chosen)) {
       return;
     }
 
@@ -868,7 +870,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     _switchToHuman();
   }
 
-  bool _checkVictory({required String player, required List<PlayingCard> hand, required PlayingCard lastPlayed}) {
+  bool _checkVictory({
+    required PlayerTurn winner,
+    required List<PlayingCard> hand,
+    required PlayingCard lastPlayed,
+  }) {
     if (hand.isNotEmpty) {
       return false;
     }
@@ -878,8 +884,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
 
     setState(() {
+      if (winner == PlayerTurn.human) {
+        _humanScore++;
+      } else {
+        _botScore++;
+      }
       _gameOver = true;
-      _status = '$player a gagné !';
+      _status = '${_turnLabel(winner)} a gagné !';
     });
     return true;
   }
@@ -958,59 +969,80 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _botHandArea(),
-                  const SizedBox(height: 12),
-                  _centerArea(),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Votre main',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                  if (_activeSuitConstraint != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Enseigne demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
-                      style: TextStyle(color: _suitColor(_activeSuitConstraint!), fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  Text(
-                    _status,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  if (_humanMustAnswerAce) ...[
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.amber.withValues(alpha: 0.7)),
-                      ),
-                      child: Text(
-                        'Vous pouvez répondre avec un As, un joker de même couleur, ou choisir de piocher.',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
+                  _scoreBar(),
+                  const SizedBox(height: 10),
                   Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: _humanHand
-                            .map(
-                              (card) => Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: CardView(
-                                  card: card,
-                                  enabled: canInteract && _isCardPlayableForHuman(card),
-                                  onTap: () => _onHumanTapCard(card),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
+                    flex: 3,
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: _botHandArea(),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: _centerArea(),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Votre main',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        if (_activeSuitConstraint != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Enseigne demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
+                            style: TextStyle(color: _suitColor(_activeSuitConstraint!), fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        Text(
+                          _status,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        if (_humanMustAnswerAce) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.amber.withValues(alpha: 0.7)),
+                            ),
+                            child: const Text(
+                              'Vous pouvez répondre avec un As, un joker de même couleur, ou choisir de piocher.',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: _humanHand
+                                  .map(
+                                    (card) => Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: CardView(
+                                        card: card,
+                                        enabled: canInteract && _isCardPlayableForHuman(card),
+                                        onTap: () => _onHumanTapCard(card),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   if (_gameOver)
@@ -1123,36 +1155,58 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     final shouldHighlightDraw = _shouldHighlightDrawPile();
     final canDraw = _canHumanDrawNow();
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GestureDetector(
-              onTap: canDraw ? _onHumanDraw : null,
-              child: Stack(
-                clipBehavior: Clip.none,
+    return SizedBox(
+      height: 140,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final drawOffset = min(90.0, constraints.maxWidth * 0.22);
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _DrawPileView(highlight: shouldHighlightDraw),
-                  Positioned(
-                    right: -8,
-                    top: -10,
-                    child: _CountBadge(count: _drawPile.length),
+                  const Text('Défausse', style: TextStyle(color: Colors.white)),
+                  const SizedBox(height: 8),
+                  CardView(card: _topDiscard),
+                ],
+              ),
+              Positioned(
+                left: (constraints.maxWidth / 2) - drawOffset - 35,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: canDraw ? _onHumanDraw : null,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          _DrawPileView(highlight: shouldHighlightDraw),
+                          Positioned(
+                            right: -8,
+                            top: -10,
+                            child: _CountBadge(count: _drawPile.length),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Défausse', style: TextStyle(color: Colors.white)),
-            const SizedBox(height: 8),
-            CardView(card: _topDiscard),
-          ],
-        ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _scoreBar() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _ScorePill(label: 'Joueur', value: _humanScore),
+        const SizedBox(width: 10),
+        _ScorePill(label: 'Bot', value: _botScore),
       ],
     );
   }
@@ -1198,6 +1252,29 @@ class _CountBadge extends StatelessWidget {
         '$count',
         textAlign: TextAlign.center,
         style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w700, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _ScorePill extends StatelessWidget {
+  const _ScorePill({required this.label, required this.value});
+
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Text(
+        '$label : $value',
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
       ),
     );
   }
