@@ -131,12 +131,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   bool _isResolvingTurn = false;
 
   int _forcedHumanDrawRemaining = 0;
-  bool _humanMustAnswerEight = false;
   bool _humanMustAnswerAce = false;
-  int? _botAskedRank;
+  Suit? _activeSuitConstraint;
 
-  bool _showBotEightOverlay = false;
-  int? _botEightOverlayRank;
+  bool _isEightDemandOverlayVisible = false;
+  Suit? _eightDemandOverlaySuit;
+  String _eightDemandOverlayMessage = '';
 
   @override
   void initState() {
@@ -163,11 +163,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       _gameOver = false;
       _isResolvingTurn = false;
       _forcedHumanDrawRemaining = 0;
-      _humanMustAnswerEight = false;
       _humanMustAnswerAce = false;
-      _botAskedRank = null;
-      _showBotEightOverlay = false;
-      _botEightOverlayRank = null;
+      _activeSuitConstraint = null;
+      _isEightDemandOverlayVisible = false;
+      _eightDemandOverlaySuit = null;
+      _eightDemandOverlayMessage = '';
     });
   }
 
@@ -224,14 +224,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       return false;
     }
 
+    if (card.rank == 8) {
+      return true;
+    }
+
+    if (_activeSuitConstraint != null) {
+      return !card.isJoker && card.suit == _activeSuitConstraint;
+    }
+
     final top = _topDiscard;
 
     if (card.isJoker) {
       return _sameColor(card, top);
-    }
-
-    if (card.rank == 8) {
-      return true;
     }
 
     if (top.isJoker) {
@@ -245,9 +249,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     if (_humanMustAnswerAce) {
       return !card.isJoker && card.rank == 1;
     }
-    if (_humanMustAnswerEight) {
-      return false;
-    }
     if (_forcedHumanDrawRemaining > 0) {
       return false;
     }
@@ -255,7 +256,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   Future<void> _onHumanTapCard(PlayingCard card) async {
-    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _forcedHumanDrawRemaining > 0 || _humanMustAnswerEight) {
+    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _forcedHumanDrawRemaining > 0) {
       return;
     }
     if (!_isCardPlayableForHuman(card)) {
@@ -297,7 +298,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   Future<void> _onHumanDraw() async {
-    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _humanMustAnswerEight || _humanMustAnswerAce) {
+    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _humanMustAnswerAce) {
       return;
     }
 
@@ -387,6 +388,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     setState(() {
       hand.remove(card);
       _discardPile.add(card);
+      if (card.rank != 8) {
+        _activeSuitConstraint = null;
+      }
       _status = '$playerName joue ${card.label}.';
     });
   }
@@ -396,9 +400,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     required PlayerTurn currentTurn,
     required String sourceLabel,
   }) async {
-    final opponentHand = currentTurn == PlayerTurn.human ? _botHand : _humanHand;
-    final opponentLabel = currentTurn == PlayerTurn.human ? 'Le bot' : 'Vous';
-
     if (card.rank == 1) {
       if (currentTurn == PlayerTurn.human) {
         setState(() {
@@ -489,84 +490,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
 
     if (card.rank == 8) {
-      final askedRank = await _getAskedRank(currentTurn);
+      final askedSuit = await _getAskedSuit(currentTurn);
       if (_gameOver || !mounted) {
         return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
 
-      final demander = currentTurn == PlayerTurn.human ? 'Vous demandez ${_rankName(askedRank)}.' : 'Le bot demande ${_rankName(askedRank)}.';
+      final demander = currentTurn == PlayerTurn.human
+          ? 'Vous demandez ${_suitName(askedSuit)}.'
+          : 'Le bot demande ${_suitName(askedSuit)}.';
       setState(() {
+        _activeSuitConstraint = askedSuit;
         _status = demander;
       });
-
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-      final forcedCard = _findRequestedCard(opponentHand, askedRank);
-
-      if (forcedCard == null) {
-        if (currentTurn == PlayerTurn.human) {
-          final drawn = _drawCards(_botHand, 1).length;
-          setState(() {
-            _status = 'Le bot ne possède pas la carte demandée et pioche $drawn carte.';
-          });
-          return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
-        }
-
-        final drawn = _drawCards(_humanHand, 1).length;
-        setState(() {
-          _status = 'Vous n\'avez pas ${_rankName(askedRank)} : vous piochez $drawn carte.';
-        });
-        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
-      }
-
-      if (currentTurn == PlayerTurn.human) {
-        _playCard(hand: _botHand, card: forcedCard, playerName: opponentLabel);
-      } else {
-        final selected = await _promptHumanCardForEight(askedRank);
-        if (selected == null) {
-          return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
-        }
-        _playCard(hand: _humanHand, card: selected, playerName: opponentLabel);
-      }
-
-      final playedCard = currentTurn == PlayerTurn.human ? forcedCard : _discardPile.last;
-
-      setState(() {
-        _status = '$opponentLabel possède la carte demandée et la joue (${playedCard.label}).';
-      });
-
-      final nested = await _applyCardEffects(
-        card: playedCard,
-        currentTurn: currentTurn == PlayerTurn.human ? PlayerTurn.bot : PlayerTurn.human,
-        sourceLabel: opponentLabel,
-      );
-
-      if (currentTurn == PlayerTurn.human) {
-        if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: playedCard)) {
-          return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
-        }
-      } else {
-        if (_checkVictory(player: 'Vous', hand: _humanHand, lastPlayed: playedCard)) {
-          return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
-        }
-      }
-
-      if (nested.extraTurn) {
-        if (currentTurn == PlayerTurn.human) {
-          setState(() {
-            _turn = PlayerTurn.bot;
-            _status = 'Le bot rejoue après la carte demandée.';
-          });
-          await _runBotTurn();
-          return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
-        }
-
-        setState(() {
-          _turn = PlayerTurn.human;
-          _status = 'Vous rejouez après la carte demandée.';
-        });
-        return const _PlayResolution(extraTurn: true, skipTurnSwitch: true);
-      }
-
       return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
 
@@ -604,64 +539,59 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
   }
 
-  Future<int> _getAskedRank(PlayerTurn player) async {
+  Future<Suit> _getAskedSuit(PlayerTurn player) async {
     if (player == PlayerTurn.human) {
-      return _showRankChooserDialog();
+      return _showSuitChooserDialog();
     }
 
-    final bestRank = _chooseRequestedRankForBot(_botHand);
-    await _showBotEightDemandOverlay(bestRank);
-    return bestRank;
+    final bestSuit = _chooseRequestedSuitForBot(_botHand);
+    await _showEightDemandOverlay(
+      suit: bestSuit,
+      message: 'Le bot demande ${_suitName(bestSuit)}',
+    );
+    return bestSuit;
   }
 
-  Future<void> _showBotEightDemandOverlay(int rank) async {
+  Future<void> _showEightDemandOverlay({required Suit suit, required String message}) async {
     setState(() {
-      _botEightOverlayRank = rank;
-      _showBotEightOverlay = true;
+      _eightDemandOverlaySuit = suit;
+      _eightDemandOverlayMessage = message;
+      _isEightDemandOverlayVisible = true;
     });
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) {
       return;
     }
     setState(() {
-      _showBotEightOverlay = false;
+      _isEightDemandOverlayVisible = false;
     });
     await Future<void>.delayed(const Duration(milliseconds: 220));
     if (!mounted) {
       return;
     }
     setState(() {
-      _botEightOverlayRank = null;
+      _eightDemandOverlaySuit = null;
+      _eightDemandOverlayMessage = '';
     });
   }
 
-  Future<PlayingCard?> _promptHumanCardForEight(int askedRank) async {
-    final candidates = _humanHand.where((card) => !card.isJoker && card.rank == askedRank).toList();
-    if (candidates.isEmpty) {
-      return null;
-    }
-
-    setState(() {
-      _humanMustAnswerEight = true;
-      _botAskedRank = askedRank;
-    });
-
-    final selected = await showDialog<PlayingCard>(
+  Future<Suit> _showSuitChooserDialog() async {
+    final selected = await showDialog<Suit>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title: Text('Le bot demande ${_rankName(askedRank)}'),
+          title: const Text('Choisissez une enseigne'),
           content: SizedBox(
-            width: 340,
+            width: 360,
             child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: candidates
+              spacing: 12,
+              runSpacing: 12,
+              children: Suit.values
                   .map(
-                    (card) => GestureDetector(
-                      onTap: () => Navigator.of(context).pop(card),
-                      child: CardView(card: card, enabled: true),
+                    (suit) => _SuitChoiceTile(
+                      suit: suit,
+                      onTap: () => Navigator.of(context).pop(suit),
                     ),
                   )
                   .toList(),
@@ -671,71 +601,37 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       },
     );
 
-    if (!mounted) {
-      return null;
-    }
-
-    setState(() {
-      _humanMustAnswerEight = false;
-      _botAskedRank = null;
-    });
-    return selected;
-  }
-
-  Future<int> _showRankChooserDialog() async {
-    final ranks = List<int>.generate(13, (index) => index + 1);
-
-    final selected = await showDialog<int>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Choisissez une valeur à demander'),
-          content: SizedBox(
-            width: 320,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: ranks
-                  .map(
-                    (rank) => FilledButton.tonal(
-                      onPressed: () => Navigator.of(context).pop(rank),
-                      child: Text(_rankTitle(rank)),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-        );
-      },
+    final chosenSuit = selected ?? Suit.spades;
+    await _showEightDemandOverlay(
+      suit: chosenSuit,
+      message: 'Vous demandez ${_suitName(chosenSuit)}',
     );
-
-    return selected ?? 13;
+    return chosenSuit;
   }
 
-  int _chooseRequestedRankForBot(List<PlayingCard> hand) {
-    final counts = <int, int>{};
+  Suit _chooseRequestedSuitForBot(List<PlayingCard> hand) {
+    final counts = <Suit, int>{};
     for (final card in hand) {
-      if (!card.isJoker && card.rank != 8) {
-        counts[card.rank!] = (counts[card.rank!] ?? 0) + 1;
+      if (!card.isJoker) {
+        counts[card.suit!] = (counts[card.suit!] ?? 0) + 1;
       }
     }
 
     if (counts.isEmpty) {
-      return _random.nextInt(13) + 1;
+      return Suit.values[_random.nextInt(Suit.values.length)];
     }
 
-    int bestRank = counts.keys.first;
-    int bestCount = counts[bestRank] ?? 0;
+    Suit bestSuit = counts.keys.first;
+    int bestCount = counts[bestSuit] ?? 0;
 
-    counts.forEach((rank, count) {
+    counts.forEach((suit, count) {
       if (count > bestCount) {
-        bestRank = rank;
+        bestSuit = suit;
         bestCount = count;
       }
     });
 
-    return bestRank;
+    return bestSuit;
   }
 
   PlayingCard? _findRequestedCard(List<PlayingCard> hand, int rank) {
@@ -764,7 +660,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
   Future<void> _runBotTurn() async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (!mounted || _gameOver || _turn != PlayerTurn.bot || _humanMustAnswerEight) {
+    if (!mounted || _gameOver || _turn != PlayerTurn.bot) {
       return;
     }
 
@@ -846,42 +742,30 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     });
   }
 
-  String _rankName(int rank) {
-    switch (rank) {
-      case 1:
-        return 'un As';
-      case 11:
-        return 'un Valet';
-      case 12:
-        return 'une Dame';
-      case 13:
-        return 'un Roi';
-      default:
-        return 'un $rank';
-    }
-  }
+  String _suitName(Suit suit) => switch (suit) {
+        Suit.spades => 'pique',
+        Suit.hearts => 'cœur',
+        Suit.diamonds => 'carreau',
+        Suit.clubs => 'trèfle',
+      };
 
-  String _rankTitle(int rank) {
-    switch (rank) {
-      case 1:
-        return 'As';
-      case 11:
-        return 'Valet';
-      case 12:
-        return 'Dame';
-      case 13:
-        return 'Roi';
-      default:
-        return '$rank';
-    }
-  }
+  String _suitSymbol(Suit suit) => switch (suit) {
+        Suit.spades => '♠',
+        Suit.hearts => '♥',
+        Suit.diamonds => '♦',
+        Suit.clubs => '♣',
+      };
+
+  Color _suitColor(Suit suit) => switch (suit) {
+        Suit.hearts || Suit.diamonds => Colors.red.shade700,
+        Suit.spades || Suit.clubs => Colors.black87,
+      };
 
   @override
   Widget build(BuildContext context) {
     final canInteract = _turn == PlayerTurn.human &&
         !_gameOver &&
         !_isResolvingTurn &&
-        !_humanMustAnswerEight &&
         _forcedHumanDrawRemaining == 0;
 
     final mustDraw = _turn == PlayerTurn.human && !_gameOver && _forcedHumanDrawRemaining > 0;
@@ -907,9 +791,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                   _centerArea(),
                   const SizedBox(height: 12),
                   ElevatedButton(
-                    onPressed: (_turn == PlayerTurn.human && !_gameOver && !_humanMustAnswerEight && !_humanMustAnswerAce)
-                        ? _onHumanDraw
-                        : null,
+                    onPressed: (_turn == PlayerTurn.human && !_gameOver && !_humanMustAnswerAce) ? _onHumanDraw : null,
                     child: Text(mustDraw ? 'Piocher (reste $_forcedHumanDrawRemaining)' : 'Piocher'),
                   ),
                   const SizedBox(height: 12),
@@ -917,7 +799,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                     'Votre main',
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
-                  if (_humanMustAnswerEight || _botAskedRank != null || _humanMustAnswerAce) ...[
+                  if (_humanMustAnswerAce) ...[
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -927,9 +809,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                         border: Border.all(color: Colors.amber.withValues(alpha: 0.7)),
                       ),
                       child: Text(
-                        _humanMustAnswerAce
-                            ? 'Réponse obligatoire : jouez un As.'
-                            : 'Le bot demande ${_rankName(_botAskedRank ?? 1)} : choisissez une vraie carte correspondante.',
+                        'Réponse obligatoire : jouez un As.',
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
@@ -966,10 +846,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
               ),
             ),
           ),
-          if (_showBotEightOverlay && _botEightOverlayRank != null)
+          if (_isEightDemandOverlayVisible && _eightDemandOverlaySuit != null)
             Positioned.fill(
               child: AnimatedOpacity(
-                opacity: _showBotEightOverlay ? 1 : 0,
+                opacity: _isEightDemandOverlayVisible ? 1 : 0,
                 duration: const Duration(milliseconds: 220),
                 child: Container(
                   color: Colors.black.withValues(alpha: 0.55),
@@ -990,28 +870,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
-                              'Le bot joue un 8',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                            ),
+                            const Text('Nouvelle enseigne', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                             const SizedBox(height: 10),
-                            Container(
-                              width: 110,
-                              height: 130,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.blueGrey, width: 1.6),
-                                color: Colors.blueGrey.shade50,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  _rankTitle(_botEightOverlayRank!),
-                                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                            ),
+                            _EightSuitCard(suit: _eightDemandOverlaySuit!),
                             const SizedBox(height: 10),
-                            Text('Le bot demande ${_rankName(_botEightOverlayRank!)}.'),
+                            Text(_eightDemandOverlayMessage),
                           ],
                         ),
                       ),
@@ -1049,6 +912,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           ),
           const SizedBox(height: 4),
           Text('Défausse : ${_topDiscard.label}', style: const TextStyle(color: Colors.white)),
+          if (_activeSuitConstraint != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Enseigne active (8) : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
+              style: TextStyle(color: _suitColor(_activeSuitConstraint!), fontWeight: FontWeight.bold),
+            ),
+          ],
           const SizedBox(height: 4),
           Text('Statut : $_status', style: const TextStyle(color: Colors.white)),
           if (forcedText != null) ...[
@@ -1181,5 +1051,100 @@ class CardView extends StatelessWidget {
     );
 
     return GestureDetector(onTap: onTap, child: cardWidget);
+  }
+}
+
+class _SuitChoiceTile extends StatelessWidget {
+  const _SuitChoiceTile({required this.suit, required this.onTap});
+
+  final Suit suit;
+  final VoidCallback onTap;
+
+  String get _symbol => switch (suit) {
+        Suit.spades => '♠',
+        Suit.hearts => '♥',
+        Suit.diamonds => '♦',
+        Suit.clubs => '♣',
+      };
+
+  String get _name => switch (suit) {
+        Suit.spades => 'pique',
+        Suit.hearts => 'cœur',
+        Suit.diamonds => 'carreau',
+        Suit.clubs => 'trèfle',
+      };
+
+  Color get _color => switch (suit) {
+        Suit.hearts || Suit.diamonds => Colors.red.shade700,
+        Suit.spades || Suit.clubs => Colors.black87,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 156,
+        height: 124,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _color.withValues(alpha: 0.55), width: 1.8),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(1, 2))],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_symbol, style: TextStyle(color: _color, fontSize: 44, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text(_name, style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EightSuitCard extends StatelessWidget {
+  const _EightSuitCard({required this.suit});
+
+  final Suit suit;
+
+  String get _symbol => switch (suit) {
+        Suit.spades => '♠',
+        Suit.hearts => '♥',
+        Suit.diamonds => '♦',
+        Suit.clubs => '♣',
+      };
+
+  Color get _color => switch (suit) {
+        Suit.hearts || Suit.diamonds => Colors.red.shade700,
+        Suit.spades || Suit.clubs => Colors.black87,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 112,
+      height: 146,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blueGrey, width: 1.6),
+        color: Colors.white,
+      ),
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('8', style: TextStyle(color: _color, fontSize: 26, fontWeight: FontWeight.w700)),
+          const Spacer(),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Text(_symbol, style: TextStyle(color: _color, fontSize: 44, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
   }
 }
