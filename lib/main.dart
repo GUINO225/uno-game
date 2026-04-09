@@ -1365,17 +1365,35 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     final bool hasDiscard = _discardPile.isNotEmpty;
 
     return SizedBox(
-      height: 170,
+      height: 210,
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          const double cardWidth = 52;
-          const double cardHorizontalMargin = 12;
-          const double idealOffsetFromCenter = 72;
-          final double maxVisibleOffset = max(
+          const double drawPileWidth = 52;
+          const double drawPileHeight = 72;
+          const double horizontalMargin = 12;
+          const double topMargin = 10;
+          const double idealHorizontalOffset = 96;
+          const double idealVerticalOffset = 44;
+          final double maxHorizontalOffset = max(
             0,
-            (constraints.maxWidth / 2) - (cardWidth / 2) - cardHorizontalMargin,
+            (constraints.maxWidth / 2) -
+                (drawPileWidth / 2) -
+                horizontalMargin,
           );
-          final double drawOffset = min(idealOffsetFromCenter, maxVisibleOffset);
+          final double maxVerticalOffset = max(
+            0,
+            (constraints.maxHeight / 2) -
+                (drawPileHeight / 2) -
+                topMargin,
+          );
+          final double drawHorizontalOffset = min(
+            idealHorizontalOffset,
+            maxHorizontalOffset,
+          );
+          final double drawVerticalOffset = min(
+            idealVerticalOffset,
+            maxVerticalOffset,
+          );
 
           return Stack(
             alignment: Alignment.center,
@@ -1390,14 +1408,20 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                     ),
                     const SizedBox(height: 8),
                     if (hasDiscard)
-                      CardView(card: _topDiscard)
+                      Transform.scale(
+                        scale: 1.1,
+                        child: CardView(card: _topDiscard),
+                      )
                     else
-                      const _EmptyCardSlot(label: 'Vide'),
+                      Transform.scale(
+                        scale: 1.1,
+                        child: const _EmptyCardSlot(label: 'Vide'),
+                      ),
                   ],
                 ),
               ),
               Transform.translate(
-                offset: Offset(drawOffset, 0),
+                offset: Offset(-drawHorizontalOffset, -drawVerticalOffset),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
