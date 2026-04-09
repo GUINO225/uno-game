@@ -1486,14 +1486,12 @@ class CardBackView extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[Color(0xFF1E3A8A), Color(0xFF172554)],
-        ),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white70),
-      ),
-      child: const Center(
-        child: Icon(Icons.style, color: Colors.white70, size: 18),
+        image: const DecorationImage(
+          image: AssetImage('assets/img/card_back.jpeg'),
+          fit: BoxFit.cover,
+        ),
       ),
     );
   }
