@@ -33,6 +33,8 @@ enum JokerKind { red, black }
 
 enum PlayerTurn { human, bot }
 
+enum DealerChoice { human, bot, random }
+
 class PlayingCard {
   const PlayingCard._({this.suit, this.rank, this.jokerKind});
 
@@ -126,11 +128,17 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   final List<PlayingCard> _botHand = [];
 
   PlayerTurn _turn = PlayerTurn.human;
+  PlayerTurn _dealer = PlayerTurn.human;
+  PlayerTurn _startingPlayer = PlayerTurn.bot;
+  DealerChoice _dealerChoice = DealerChoice.random;
   String _status = '';
   bool _gameOver = false;
   bool _isResolvingTurn = false;
 
-  int _forcedHumanDrawRemaining = 0;
+  int _forcedDrawCount = 0;
+  PlayerTurn? _forcedDrawTarget;
+  PlayerTurn? _forcedDrawSource;
+  bool _playerMustWaitAfterForcedDraw = false;
   bool _humanMustAnswerAce = false;
   bool _botMustAnswerAce = false;
   Suit? _activeSuitConstraint;
@@ -146,6 +154,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   void _startNewGame() {
+    final dealer = _resolveDealerFromChoice();
+    final startingPlayer = _opponentOf(dealer);
+
     _drawPile = _createDeck();
     _shuffleDeck(_drawPile);
     _discardPile.clear();
@@ -156,14 +167,20 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       ..clear()
       ..addAll(_dealCards(_drawPile, 7));
 
-    _openFirstDiscardCard();
+    final openingCard = _openFirstDiscardCard();
 
     setState(() {
-      _turn = PlayerTurn.human;
-      _status = 'À vous de jouer';
+      _dealer = dealer;
+      _startingPlayer = startingPlayer;
+      _turn = startingPlayer;
+      _status =
+          'Donneur : ${_turnLabel(_dealer)}. ${_turnLabel(_startingPlayer)} commence.';
       _gameOver = false;
       _isResolvingTurn = false;
-      _forcedHumanDrawRemaining = 0;
+      _forcedDrawCount = 0;
+      _forcedDrawTarget = null;
+      _forcedDrawSource = null;
+      _playerMustWaitAfterForcedDraw = false;
       _humanMustAnswerAce = false;
       _botMustAnswerAce = false;
       _activeSuitConstraint = null;
@@ -171,6 +188,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       _eightDemandOverlaySuit = null;
       _eightDemandOverlayMessage = '';
     });
+
+    _applyOpeningCardPenaltyIfNeeded(openingCard, startingPlayer: startingPlayer, dealer: dealer);
+
+    if (_turn == PlayerTurn.bot && !_gameOver) {
+      _runBotTurn();
+    }
   }
 
   List<PlayingCard> _createDeck() {
@@ -189,6 +212,22 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     deck.shuffle(_random);
   }
 
+  PlayerTurn _resolveDealerFromChoice() {
+    return switch (_dealerChoice) {
+      DealerChoice.human => PlayerTurn.human,
+      DealerChoice.bot => PlayerTurn.bot,
+      DealerChoice.random => _random.nextBool() ? PlayerTurn.human : PlayerTurn.bot,
+    };
+  }
+
+  PlayerTurn _opponentOf(PlayerTurn player) {
+    return player == PlayerTurn.human ? PlayerTurn.bot : PlayerTurn.human;
+  }
+
+  String _turnLabel(PlayerTurn turn) {
+    return turn == PlayerTurn.human ? 'Vous' : 'Le bot';
+  }
+
   List<PlayingCard> _dealCards(List<PlayingCard> deck, int count) {
     final dealt = <PlayingCard>[];
     for (int i = 0; i < count && deck.isNotEmpty; i++) {
@@ -197,20 +236,48 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     return dealt;
   }
 
-  void _openFirstDiscardCard() {
+  PlayingCard _openFirstDiscardCard() {
     while (_drawPile.isNotEmpty) {
       final card = _drawPile.removeLast();
-      if (card.rank == 8 || card.rank == 10 || card.rank == 11 || card.isJoker) {
+      if (card.rank == 8 || card.rank == 10 || card.rank == 11) {
         _drawPile.insert(0, card);
         _shuffleDeck(_drawPile);
       } else {
         _discardPile.add(card);
-        return;
+        return card;
       }
     }
+    final fallback = const PlayingCard.normal(suit: Suit.spades, rank: 3);
+    _discardPile.add(fallback);
+    return fallback;
   }
 
   PlayingCard get _topDiscard => _discardPile.last;
+
+  void _applyOpeningCardPenaltyIfNeeded(
+    PlayingCard openingCard, {
+    required PlayerTurn startingPlayer,
+    required PlayerTurn dealer,
+  }) {
+    if (openingCard.rank == 2) {
+      _setForcedDraw(
+        target: startingPlayer,
+        source: dealer,
+        count: 2,
+        announcement: '${_turnLabel(startingPlayer)} commence, mais la carte d’ouverture est un 2.',
+      );
+      return;
+    }
+
+    if (openingCard.isJoker) {
+      _setForcedDraw(
+        target: startingPlayer,
+        source: dealer,
+        count: 9,
+        announcement: '${_turnLabel(startingPlayer)} commence, mais la carte d’ouverture est un joker.',
+      );
+    }
+  }
 
   bool _sameColor(PlayingCard a, PlayingCard b) {
     return a.isRed == b.isRed;
@@ -251,7 +318,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     if (_humanMustAnswerAce) {
       return _isValidAceResponse(card);
     }
-    if (_forcedHumanDrawRemaining > 0) {
+    if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.human) {
       return false;
     }
     return _isCardPlayableForHand(card, _humanHand);
@@ -270,8 +337,36 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     return false;
   }
 
+  void _setForcedDraw({
+    required PlayerTurn target,
+    required PlayerTurn source,
+    required int count,
+    required String announcement,
+  }) {
+    final starter = count > 1 ? 'cartes' : 'carte';
+    setState(() {
+      _forcedDrawCount = count;
+      _forcedDrawTarget = target;
+      _forcedDrawSource = source;
+      _playerMustWaitAfterForcedDraw = true;
+      _status = '$announcement ${_turnLabel(target)} doit d’abord piocher $count $starter.';
+    });
+  }
+
+  bool _isHumanForcedToDrawNow() {
+    return _forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.human && _turn == PlayerTurn.human;
+  }
+
+  String _forcedDrawRemainingText() {
+    if (_forcedDrawCount <= 0 || _forcedDrawTarget == null) {
+      return '';
+    }
+    final unit = _forcedDrawCount > 1 ? 'cartes' : 'carte';
+    return '${_turnLabel(_forcedDrawTarget!)} doit d’abord piocher $_forcedDrawCount $unit.';
+  }
+
   Future<void> _onHumanTapCard(PlayingCard card) async {
-    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _forcedHumanDrawRemaining > 0) {
+    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _isHumanForcedToDrawNow()) {
       return;
     }
     if (!_isCardPlayableForHuman(card)) {
@@ -317,23 +412,26 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       return;
     }
 
-    if (_forcedHumanDrawRemaining > 0) {
+    if (_isHumanForcedToDrawNow()) {
       final card = _drawOneCard();
       if (card == null) {
         setState(() {
-          _status = 'Pioche vide pendant la contrainte de joker.';
-          _forcedHumanDrawRemaining = 0;
+          _status = 'Pioche vide pendant la pioche forcée.';
+          _forcedDrawCount = 0;
         });
+        _finishForcedDrawIfNeeded();
         return;
       }
 
       setState(() {
         _humanHand.add(card);
-        _forcedHumanDrawRemaining--;
-        _status = _forcedHumanDrawRemaining > 0
-            ? 'Vous devez d\'abord piocher $_forcedHumanDrawRemaining carte(s).'
-            : 'Contrainte terminée. À vous de jouer.';
+        _forcedDrawCount--;
+        final unit = _forcedDrawCount > 1 ? 'cartes' : 'carte';
+        _status = _forcedDrawCount > 0
+            ? 'Vous devez d’abord piocher $_forcedDrawCount $unit.'
+            : 'Pioche forcée terminée.';
       });
+      _finishForcedDrawIfNeeded();
       return;
     }
 
@@ -445,30 +543,42 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
     if (card.rank == 2) {
       if (currentTurn == PlayerTurn.human) {
-        setState(() {
-          _status = '$sourceLabel joue un 2 : le bot doit piocher 2 cartes.';
-        });
-        await _botDrawWithVisual(2);
+        _setForcedDraw(
+          target: PlayerTurn.bot,
+          source: PlayerTurn.human,
+          count: 2,
+          announcement: 'Vous jouez un 2 : le bot doit piocher 2 cartes.',
+        );
+        await _runForcedDrawForBot();
+        return const _PlayResolution(extraTurn: true, skipTurnSwitch: false);
       } else {
-        final drawn = _drawCards(_humanHand, 2).length;
-        setState(() {
-          _status = '$sourceLabel joue un 2 : vous devez piocher $drawn cartes.';
-        });
+        _setForcedDraw(
+          target: PlayerTurn.human,
+          source: PlayerTurn.bot,
+          count: 2,
+          announcement: 'Le bot joue un 2 : vous devez piocher 2 cartes.',
+        );
       }
       return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
 
     if (card.isJoker) {
       if (currentTurn == PlayerTurn.human) {
-        setState(() {
-          _status = '$sourceLabel joue un Joker : le bot pioche 8 cartes.';
-        });
-        await _botDrawWithVisual(8);
+        _setForcedDraw(
+          target: PlayerTurn.bot,
+          source: PlayerTurn.human,
+          count: 9,
+          announcement: 'Vous jouez un joker : le bot doit piocher 9 cartes.',
+        );
+        await _runForcedDrawForBot();
+        return const _PlayResolution(extraTurn: true, skipTurnSwitch: false);
       } else {
-        setState(() {
-          _forcedHumanDrawRemaining = 8;
-          _status = 'Le bot joue un Joker : vous devez d\'abord piocher 8 cartes.';
-        });
+        _setForcedDraw(
+          target: PlayerTurn.human,
+          source: PlayerTurn.bot,
+          count: 9,
+          announcement: 'Le bot joue un joker : vous devez piocher 9 cartes.',
+        );
       }
       return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
@@ -501,26 +611,48 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
   }
 
-  Future<void> _botDrawWithVisual(int count) async {
-    for (int i = 0; i < count; i++) {
-      if (_gameOver) {
-        return;
-      }
+  void _finishForcedDrawIfNeeded() {
+    if (_forcedDrawCount > 0 || _forcedDrawSource == null) {
+      return;
+    }
+
+    final source = _forcedDrawSource!;
+    final target = _forcedDrawTarget;
+    setState(() {
+      _status = '${target != null ? _turnLabel(target) : 'Le joueur pénalisé'} a terminé la pioche forcée. '
+          'Le tour reste à ${_turnLabel(source)}.';
+      _forcedDrawTarget = null;
+      _forcedDrawSource = null;
+      _playerMustWaitAfterForcedDraw = false;
+      _turn = source;
+    });
+
+    if (_turn == PlayerTurn.bot && !_gameOver) {
+      _runBotTurn();
+    }
+  }
+
+  Future<void> _runForcedDrawForBot() async {
+    while (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.bot && !_gameOver) {
       final card = _drawOneCard();
       if (card == null) {
         setState(() {
           _status = 'Pioche vide pendant la pénalité du bot.';
+          _forcedDrawCount = 0;
         });
-        return;
+        break;
       }
-
       setState(() {
         _botHand.add(card);
-        final remaining = count - i - 1;
-        _status = remaining > 0 ? 'Le bot pioche ${remaining + 1} cartes... ($remaining restantes)' : 'Le bot a terminé sa pioche forcée.';
+        _forcedDrawCount--;
+        final unit = _forcedDrawCount > 1 ? 'cartes' : 'carte';
+        _status = _forcedDrawCount > 0
+            ? 'Le bot doit encore piocher $_forcedDrawCount $unit.'
+            : 'Le bot a terminé sa pioche forcée.';
       });
-      await Future<void>.delayed(const Duration(milliseconds: 260));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
     }
+    _finishForcedDrawIfNeeded();
   }
 
   Future<Suit> _getAskedSuit(PlayerTurn player) async {
@@ -635,6 +767,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       return;
     }
 
+    if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.bot) {
+      await _runForcedDrawForBot();
+      return;
+    }
+
     if (_botMustAnswerAce) {
       final aceResponses = _botHand.where(_isValidAceResponse).toList();
       final chooseToDraw = aceResponses.isEmpty || _random.nextBool();
@@ -743,9 +880,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     setState(() {
       _turn = PlayerTurn.human;
       if (!_gameOver) {
-        _status = _forcedHumanDrawRemaining > 0
-            ? 'Vous devez d\'abord piocher $_forcedHumanDrawRemaining carte(s).'
-            : 'À vous de jouer';
+        _status = _isHumanForcedToDrawNow() ? _forcedDrawRemainingText() : 'À vous de jouer';
       }
     });
   }
@@ -774,9 +909,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     final canInteract = _turn == PlayerTurn.human &&
         !_gameOver &&
         !_isResolvingTurn &&
-        _forcedHumanDrawRemaining == 0;
+        !_isHumanForcedToDrawNow();
 
-    final mustDraw = _turn == PlayerTurn.human && !_gameOver && _forcedHumanDrawRemaining > 0;
+    final mustDraw = _isHumanForcedToDrawNow();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B3D2E),
@@ -800,7 +935,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: (_turn == PlayerTurn.human && !_gameOver) ? _onHumanDraw : null,
-                    child: Text(mustDraw ? 'Piocher (reste $_forcedHumanDrawRemaining)' : 'Piocher'),
+                    child: Text(mustDraw ? 'Piocher (reste $_forcedDrawCount)' : 'Piocher'),
                   ),
                   const SizedBox(height: 12),
                   const Text(
@@ -897,9 +1032,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   Widget _infoPanel() {
-    final forcedText = _forcedHumanDrawRemaining > 0
-        ? 'Contrainte Joker : piochez $_forcedHumanDrawRemaining carte(s) avant de jouer.'
-        : null;
+    final forcedText = _forcedDrawCount > 0 ? _forcedDrawRemainingText() : null;
 
     return Container(
       decoration: BoxDecoration(
@@ -913,6 +1046,34 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           Text('Cartes du bot : ${_botHand.length}', style: const TextStyle(color: Colors.white)),
           const SizedBox(height: 4),
           Text('Pioche : ${_drawPile.length}', style: const TextStyle(color: Colors.white)),
+          const SizedBox(height: 4),
+          Text('Donneur : ${_turnLabel(_dealer)}', style: const TextStyle(color: Colors.white)),
+          const SizedBox(height: 4),
+          Text('Commence : ${_turnLabel(_startingPlayer)}', style: const TextStyle(color: Colors.white)),
+          const SizedBox(height: 6),
+          const Text('Donneur (prochaine manche)', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 4),
+          SegmentedButton<DealerChoice>(
+            segments: const [
+              ButtonSegment<DealerChoice>(value: DealerChoice.human, label: Text('Vous')),
+              ButtonSegment<DealerChoice>(value: DealerChoice.bot, label: Text('Bot')),
+              ButtonSegment<DealerChoice>(value: DealerChoice.random, label: Text('Aléatoire')),
+            ],
+            selected: {_dealerChoice},
+            onSelectionChanged: (selection) {
+              setState(() {
+                _dealerChoice = selection.first;
+              });
+            },
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              onPressed: _startNewGame,
+              child: const Text('Nouvelle manche'),
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
             'Tour : ${_turn == PlayerTurn.human ? 'Joueur' : 'Bot'}',
@@ -932,6 +1093,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           if (forcedText != null) ...[
             const SizedBox(height: 6),
             Text(forcedText, style: const TextStyle(color: Colors.amberAccent)),
+          ],
+          if (_playerMustWaitAfterForcedDraw) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'Après la pioche forcée, le joueur pénalisé doit attendre.',
+              style: TextStyle(color: Colors.white70),
+            ),
           ],
         ],
       ),
