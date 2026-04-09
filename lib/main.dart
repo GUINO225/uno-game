@@ -1211,20 +1211,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
-                              children: _humanHand
-                                  .map(
-                                    (PlayingCard card) => Padding(
-                                  padding:
-                                  const EdgeInsets.only(right: 8),
-                                  child: CardView(
-                                    card: card,
-                                    enabled: canInteract &&
-                                        _isCardPlayableForHuman(card),
-                                    onTap: () => _onHumanTapCard(card),
+                              children: <Widget>[
+                                for (final PlayingCard card in _humanHand)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: CardView(
+                                      card: card,
+                                      enabled:
+                                          canInteract &&
+                                          _isCardPlayableForHuman(card),
+                                      onTap: () => _onHumanTapCard(card),
+                                    ),
                                   ),
-                                ),
-                              )
-                                  .toList(),
+                              ],
                             ),
                           ),
                         ),
@@ -1363,13 +1362,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   Widget _centerArea() {
     final bool shouldHighlightDraw = _shouldHighlightDrawPile();
     final bool canDraw = _canHumanDrawNow();
+    final bool hasDiscard = _discardPile.isNotEmpty;
+    final Widget discardWidget = hasDiscard
+        ? CardView(card: _topDiscard)
+        : const _EmptyCardSlot(label: 'Vide');
+    final Widget drawWidget = _drawPile.isNotEmpty
+        ? _DrawPileView(highlight: shouldHighlightDraw)
+        : const _EmptyCardSlot(label: '0');
 
     return SizedBox(
-      height: 140,
+      height: 170,
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final double drawOffset =
-          min(90.0, constraints.maxWidth * 0.22);
+          final double drawOffset = min(92.0, constraints.maxWidth * 0.24);
 
           return Stack(
             alignment: Alignment.center,
@@ -1382,20 +1387,25 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                     style: TextStyle(color: Colors.white),
                   ),
                   const SizedBox(height: 8),
-                  CardView(card: _topDiscard),
+                  discardWidget,
                 ],
               ),
               Positioned(
-                left: (constraints.maxWidth / 2) - drawOffset - 35,
+                left: (constraints.maxWidth / 2) - drawOffset - 36,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
+                    const Text(
+                      'Pioche',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
                     GestureDetector(
                       onTap: canDraw ? _onHumanDraw : null,
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: <Widget>[
-                          _DrawPileView(highlight: shouldHighlightDraw),
+                          drawWidget,
                           Positioned(
                             right: -8,
                             top: -10,
@@ -1578,6 +1588,34 @@ class _DrawPileViewState extends State<_DrawPileView>
         );
       },
       child: const CardBackView(width: 70, height: 100),
+    );
+  }
+}
+
+class _EmptyCardSlot extends StatelessWidget {
+  const _EmptyCardSlot({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 70,
+      height: 100,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white38),
+      ),
+      child: Center(
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }
