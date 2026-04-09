@@ -36,8 +36,7 @@ enum PlayerTurn { human, bot }
 class PlayingCard {
   const PlayingCard._({this.suit, this.rank, this.jokerKind});
 
-  const PlayingCard.normal({required Suit suit, required int rank})
-    : this._(suit: suit, rank: rank);
+  const PlayingCard.normal({required Suit suit, required int rank}) : this._(suit: suit, rank: rank);
 
   const PlayingCard.joker({required JokerKind kind}) : this._(jokerKind: kind);
 
@@ -104,10 +103,11 @@ class PlayingCard {
   }
 }
 
-class _PlayOutcome {
-  const _PlayOutcome({required this.extraTurn});
+class _PlayResolution {
+  const _PlayResolution({required this.extraTurn, required this.skipTurnSwitch});
 
   final bool extraTurn;
+  final bool skipTurnSwitch;
 }
 
 class CrazyEightsPage extends StatefulWidget {
@@ -129,6 +129,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   String _status = '';
   bool _gameOver = false;
   bool _isResolvingTurn = false;
+
+  int _forcedHumanDrawRemaining = 0;
+  bool _humanMustAnswerEight = false;
+  int? _botAskedRank;
+
+  bool _showBotEightOverlay = false;
+  int? _botEightOverlayRank;
 
   @override
   void initState() {
@@ -154,6 +161,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       _status = 'À vous de jouer';
       _gameOver = false;
       _isResolvingTurn = false;
+      _forcedHumanDrawRemaining = 0;
+      _humanMustAnswerEight = false;
+      _botAskedRank = null;
+      _showBotEightOverlay = false;
+      _botEightOverlayRank = null;
     });
   }
 
@@ -228,11 +240,17 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   bool _isCardPlayableForHuman(PlayingCard card) {
+    if (_humanMustAnswerEight) {
+      return false;
+    }
+    if (_forcedHumanDrawRemaining > 0) {
+      return false;
+    }
     return _isCardPlayableForHand(card, _humanHand);
   }
 
   Future<void> _onHumanTapCard(PlayingCard card) async {
-    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn) {
+    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _forcedHumanDrawRemaining > 0 || _humanMustAnswerEight) {
       return;
     }
     if (!_isCardPlayableForHuman(card)) {
@@ -247,11 +265,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   Future<void> _humanPlayCard(PlayingCard card) async {
     _playCard(hand: _humanHand, card: card, playerName: 'Vous');
 
-    final result = await _applyCardEffects(
-      card: card,
-      currentTurn: PlayerTurn.human,
-      sourceLabel: 'Vous',
-    );
+    final result = await _applyCardEffects(card: card, currentTurn: PlayerTurn.human, sourceLabel: 'Vous');
 
     if (_checkVictory(player: 'Vous', hand: _humanHand, lastPlayed: card)) {
       return;
@@ -264,11 +278,35 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       return;
     }
 
+    if (result.skipTurnSwitch) {
+      return;
+    }
+
     _endHumanTurn();
   }
 
-  void _onHumanDraw() {
-    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn) {
+  Future<void> _onHumanDraw() async {
+    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _humanMustAnswerEight) {
+      return;
+    }
+
+    if (_forcedHumanDrawRemaining > 0) {
+      final card = _drawOneCard();
+      if (card == null) {
+        setState(() {
+          _status = 'Pioche vide pendant la contrainte de joker.';
+          _forcedHumanDrawRemaining = 0;
+        });
+        return;
+      }
+
+      setState(() {
+        _humanHand.add(card);
+        _forcedHumanDrawRemaining--;
+        _status = _forcedHumanDrawRemaining > 0
+            ? 'Vous devez d\'abord piocher $_forcedHumanDrawRemaining carte(s).'
+            : 'Contrainte terminée. À vous de jouer.';
+      });
       return;
     }
 
@@ -286,11 +324,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     });
 
     if (_isCardPlayableForHuman(drawn.first)) {
-      Future<void>(() async {
-        _isResolvingTurn = true;
-        await _humanPlayCard(drawn.first);
-        _isResolvingTurn = false;
-      });
+      _isResolvingTurn = true;
+      await _humanPlayCard(drawn.first);
+      _isResolvingTurn = false;
     } else {
       _endHumanTurn();
     }
@@ -344,7 +380,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     });
   }
 
-  Future<_PlayOutcome> _applyCardEffects({
+  Future<_PlayResolution> _applyCardEffects({
     required PlayingCard card,
     required PlayerTurn currentTurn,
     required String sourceLabel,
@@ -353,63 +389,115 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     final opponentLabel = currentTurn == PlayerTurn.human ? 'Le bot' : 'Vous';
 
     if (card.rank == 2) {
-      final drawn = _drawCards(opponentHand, 2).length;
-      setState(() {
-        _status = '$sourceLabel joue un 2 : $opponentLabel pioche $drawn cartes.';
-      });
-      return const _PlayOutcome(extraTurn: false);
+      if (currentTurn == PlayerTurn.human) {
+        setState(() {
+          _status = '$sourceLabel joue un 2 : le bot doit piocher 2 cartes.';
+        });
+        await _botDrawWithVisual(2);
+      } else {
+        final drawn = _drawCards(_humanHand, 2).length;
+        setState(() {
+          _status = '$sourceLabel joue un 2 : vous devez piocher $drawn cartes.';
+        });
+      }
+      return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
 
     if (card.isJoker) {
-      final drawn = _drawCards(opponentHand, 9).length;
-      setState(() {
-        _status = '$sourceLabel joue un Joker : $opponentLabel pioche $drawn cartes.';
-      });
-      return const _PlayOutcome(extraTurn: false);
+      if (currentTurn == PlayerTurn.human) {
+        setState(() {
+          _status = '$sourceLabel joue un Joker : le bot pioche 8 cartes.';
+        });
+        await _botDrawWithVisual(8);
+      } else {
+        setState(() {
+          _forcedHumanDrawRemaining = 8;
+          _status = 'Le bot joue un Joker : vous devez d\'abord piocher 8 cartes.';
+        });
+      }
+      return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
 
     if (card.rank == 8) {
       final askedRank = await _getAskedRank(currentTurn);
       if (_gameOver || !mounted) {
-        return const _PlayOutcome(extraTurn: false);
+        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
 
+      final demander = currentTurn == PlayerTurn.human ? 'Vous demandez ${_rankName(askedRank)}.' : 'Le bot demande ${_rankName(askedRank)}.';
       setState(() {
-        _status = '$sourceLabel demande ${_rankName(askedRank)}.';
+        _status = demander;
       });
 
       await Future<void>.delayed(const Duration(milliseconds: 350));
       final forcedCard = _findRequestedCard(opponentHand, askedRank);
+
       if (forcedCard == null) {
-        final drawn = _drawCards(opponentHand, 1).length;
+        if (currentTurn == PlayerTurn.human) {
+          final drawn = _drawCards(_botHand, 1).length;
+          setState(() {
+            _status = 'Le bot ne possède pas la carte demandée et pioche $drawn carte.';
+          });
+          return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
+        }
+
+        final drawn = _drawCards(_humanHand, 1).length;
         setState(() {
-          _status = '$opponentLabel ne l\'a pas et pioche $drawn carte.';
+          _status = 'Vous n\'avez pas ${_rankName(askedRank)} : vous piochez $drawn carte.';
         });
-        return const _PlayOutcome(extraTurn: false);
+        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
 
-      _playCard(hand: opponentHand, card: forcedCard, playerName: opponentLabel);
+      if (currentTurn == PlayerTurn.human) {
+        _playCard(hand: _botHand, card: forcedCard, playerName: opponentLabel);
+      } else {
+        final selected = await _promptHumanCardForEight(askedRank);
+        if (selected == null) {
+          return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
+        }
+        _playCard(hand: _humanHand, card: selected, playerName: opponentLabel);
+      }
+
+      final playedCard = currentTurn == PlayerTurn.human ? forcedCard : _discardPile.last;
+
       setState(() {
-        _status = '$opponentLabel possède la carte demandée et la joue (${forcedCard.label}).';
+        _status = '$opponentLabel possède la carte demandée et la joue (${playedCard.label}).';
       });
 
-      await _applyCardEffects(
-        card: forcedCard,
+      final nested = await _applyCardEffects(
+        card: playedCard,
         currentTurn: currentTurn == PlayerTurn.human ? PlayerTurn.bot : PlayerTurn.human,
         sourceLabel: opponentLabel,
       );
 
       if (currentTurn == PlayerTurn.human) {
-        if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: forcedCard)) {
-          return const _PlayOutcome(extraTurn: false);
+        if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: playedCard)) {
+          return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
         }
       } else {
-        if (_checkVictory(player: 'Vous', hand: _humanHand, lastPlayed: forcedCard)) {
-          return const _PlayOutcome(extraTurn: false);
+        if (_checkVictory(player: 'Vous', hand: _humanHand, lastPlayed: playedCard)) {
+          return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
         }
       }
 
-      return const _PlayOutcome(extraTurn: false);
+      if (nested.extraTurn) {
+        if (currentTurn == PlayerTurn.human) {
+          setState(() {
+            _turn = PlayerTurn.bot;
+            _status = 'Le bot rejoue après la carte demandée.';
+          });
+          await _runBotTurn();
+          return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
+        }
+
+        setState(() {
+          _turn = PlayerTurn.human;
+          _status = 'Vous rejouez après la carte demandée.';
+        });
+        return const _PlayResolution(extraTurn: true, skipTurnSwitch: true);
+      }
+
+      return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
 
     if (card.rank == 10 || card.rank == 11) {
@@ -418,10 +506,32 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
             ? '$sourceLabel joue un Valet : tour adverse sauté, ${currentTurn == PlayerTurn.human ? 'vous' : 'le bot'} rejoue.'
             : '$sourceLabel joue un 10 : tour adverse sauté, ${currentTurn == PlayerTurn.human ? 'vous' : 'le bot'} rejoue.';
       });
-      return const _PlayOutcome(extraTurn: true);
+      return const _PlayResolution(extraTurn: true, skipTurnSwitch: false);
     }
 
-    return const _PlayOutcome(extraTurn: false);
+    return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
+  }
+
+  Future<void> _botDrawWithVisual(int count) async {
+    for (int i = 0; i < count; i++) {
+      if (_gameOver) {
+        return;
+      }
+      final card = _drawOneCard();
+      if (card == null) {
+        setState(() {
+          _status = 'Pioche vide pendant la pénalité du bot.';
+        });
+        return;
+      }
+
+      setState(() {
+        _botHand.add(card);
+        final remaining = count - i - 1;
+        _status = remaining > 0 ? 'Le bot pioche ${remaining + 1} cartes... ($remaining restantes)' : 'Le bot a terminé sa pioche forcée.';
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 260));
+    }
   }
 
   Future<int> _getAskedRank(PlayerTurn player) async {
@@ -430,7 +540,76 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
 
     final bestRank = _chooseRequestedRankForBot(_botHand);
+    await _showBotEightDemandOverlay(bestRank);
     return bestRank;
+  }
+
+  Future<void> _showBotEightDemandOverlay(int rank) async {
+    setState(() {
+      _botEightOverlayRank = rank;
+      _showBotEightOverlay = true;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _showBotEightOverlay = false;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _botEightOverlayRank = null;
+    });
+  }
+
+  Future<PlayingCard?> _promptHumanCardForEight(int askedRank) async {
+    final candidates = _humanHand.where((card) => !card.isJoker && card.rank == askedRank).toList();
+    if (candidates.isEmpty) {
+      return null;
+    }
+
+    setState(() {
+      _humanMustAnswerEight = true;
+      _botAskedRank = askedRank;
+    });
+
+    final selected = await showDialog<PlayingCard>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Le bot demande ${_rankName(askedRank)}'),
+          content: SizedBox(
+            width: 340,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: candidates
+                  .map(
+                    (card) => GestureDetector(
+                      onTap: () => Navigator.of(context).pop(card),
+                      child: CardView(card: card, enabled: true),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) {
+      return null;
+    }
+
+    setState(() {
+      _humanMustAnswerEight = false;
+      _botAskedRank = null;
+    });
+    return selected;
   }
 
   Future<int> _showRankChooserDialog() async {
@@ -443,15 +622,15 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         return AlertDialog(
           title: const Text('Choisissez une valeur à demander'),
           content: SizedBox(
-            width: 300,
+            width: 320,
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
               children: ranks
                   .map(
-                    (rank) => ElevatedButton(
+                    (rank) => FilledButton.tonal(
                       onPressed: () => Navigator.of(context).pop(rank),
-                      child: Text(_rankName(rank)),
+                      child: Text(_rankTitle(rank)),
                     ),
                   )
                   .toList(),
@@ -495,16 +674,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       return null;
     }
 
-    final playableFinish = candidates.where((card) {
-      final wouldBeLast = hand.length == 1;
-      return !wouldBeLast || card.canFinishGame;
-    }).toList();
-
-    if (playableFinish.isEmpty) {
+    if (hand.length == 1 && !candidates.first.canFinishGame) {
       return null;
     }
 
-    return playableFinish.first;
+    return candidates.first;
   }
 
   void _endHumanTurn() {
@@ -520,7 +694,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
   Future<void> _runBotTurn() async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (!mounted || _gameOver || _turn != PlayerTurn.bot) {
+    if (!mounted || _gameOver || _turn != PlayerTurn.bot || _humanMustAnswerEight) {
       return;
     }
 
@@ -556,11 +730,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
 
     _playCard(hand: _botHand, card: chosen, playerName: 'Le bot');
-    final outcome = await _applyCardEffects(
-      card: chosen,
-      currentTurn: PlayerTurn.bot,
-      sourceLabel: 'Le bot',
-    );
+    final outcome = await _applyCardEffects(card: chosen, currentTurn: PlayerTurn.bot, sourceLabel: 'Le bot');
 
     if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: chosen)) {
       return;
@@ -572,14 +742,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       return;
     }
 
+    if (outcome.skipTurnSwitch) {
+      return;
+    }
+
     _switchToHuman();
   }
 
-  bool _checkVictory({
-    required String player,
-    required List<PlayingCard> hand,
-    required PlayingCard lastPlayed,
-  }) {
+  bool _checkVictory({required String player, required List<PlayingCard> hand, required PlayingCard lastPlayed}) {
     if (hand.isNotEmpty) {
       return false;
     }
@@ -599,7 +769,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     setState(() {
       _turn = PlayerTurn.human;
       if (!_gameOver) {
-        _status = 'À vous de jouer';
+        _status = _forcedHumanDrawRemaining > 0
+            ? 'Vous devez d\'abord piocher $_forcedHumanDrawRemaining carte(s).'
+            : 'À vous de jouer';
       }
     });
   }
@@ -619,9 +791,30 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
   }
 
+  String _rankTitle(int rank) {
+    switch (rank) {
+      case 1:
+        return 'As';
+      case 11:
+        return 'Valet';
+      case 12:
+        return 'Dame';
+      case 13:
+        return 'Roi';
+      default:
+        return '$rank';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final canInteract = _turn == PlayerTurn.human && !_gameOver && !_isResolvingTurn;
+    final canInteract = _turn == PlayerTurn.human &&
+        !_gameOver &&
+        !_isResolvingTurn &&
+        !_humanMustAnswerEight &&
+        _forcedHumanDrawRemaining == 0;
+
+    final mustDraw = _turn == PlayerTurn.human && !_gameOver && _forcedHumanDrawRemaining > 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B3D2E),
@@ -629,63 +822,140 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         title: const Text('Huit américain'),
         centerTitle: true,
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _infoPanel(),
-              const SizedBox(height: 12),
-              _botHandArea(),
-              const SizedBox(height: 12),
-              _centerArea(),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: canInteract ? _onHumanDraw : null,
-                child: const Text('Piocher'),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Votre main',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _humanHand
-                        .map(
-                          (card) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: CardView(
-                              card: card,
-                              enabled: canInteract && _isCardPlayableForHuman(card),
-                              onTap: () => _onHumanTapCard(card),
-                            ),
-                          ),
-                        )
-                        .toList(),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _infoPanel(),
+                  const SizedBox(height: 12),
+                  _botHandArea(),
+                  const SizedBox(height: 12),
+                  _centerArea(),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: (_turn == PlayerTurn.human && !_gameOver && !_humanMustAnswerEight) ? _onHumanDraw : null,
+                    child: Text(mustDraw ? 'Piocher (reste $_forcedHumanDrawRemaining)' : 'Piocher'),
                   ),
-                ),
-              ),
-              if (_gameOver)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: ElevatedButton(
-                    onPressed: _startNewGame,
-                    child: const Text('Rejouer'),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Votre main',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
-                ),
-            ],
+                  if (_humanMustAnswerEight || _botAskedRank != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.amber.withValues(alpha: 0.7)),
+                      ),
+                      child: Text(
+                        'Le bot demande ${_rankName(_botAskedRank ?? 1)} : choisissez une vraie carte correspondante.',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: _humanHand
+                            .map(
+                              (card) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: CardView(
+                                  card: card,
+                                  enabled: canInteract && _isCardPlayableForHuman(card),
+                                  onTap: () => _onHumanTapCard(card),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                  if (_gameOver)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: ElevatedButton(
+                        onPressed: _startNewGame,
+                        child: const Text('Rejouer'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
+          if (_showBotEightOverlay && _botEightOverlayRank != null)
+            Positioned.fill(
+              child: AnimatedOpacity(
+                opacity: _showBotEightOverlay ? 1 : 0,
+                duration: const Duration(milliseconds: 220),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  child: Center(
+                    child: TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutBack,
+                      tween: Tween<double>(begin: 0.85, end: 1),
+                      builder: (context, value, child) => Transform.scale(scale: value, child: child),
+                      child: Container(
+                        width: 240,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 18)],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Le bot joue un 8',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              width: 110,
+                              height: 130,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blueGrey, width: 1.6),
+                                color: Colors.blueGrey.shade50,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  _rankTitle(_botEightOverlayRank!),
+                                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text('Le bot demande ${_rankName(_botEightOverlayRank!)}.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
   Widget _infoPanel() {
+    final forcedText = _forcedHumanDrawRemaining > 0
+        ? 'Contrainte Joker : piochez $_forcedHumanDrawRemaining carte(s) avant de jouer.'
+        : null;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
@@ -707,6 +977,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           Text('Défausse : ${_topDiscard.label}', style: const TextStyle(color: Colors.white)),
           const SizedBox(height: 4),
           Text('Statut : $_status', style: const TextStyle(color: Colors.white)),
+          if (forcedText != null) ...[
+            const SizedBox(height: 6),
+            Text(forcedText, style: const TextStyle(color: Colors.amberAccent)),
+          ],
         ],
       ),
     );
@@ -777,24 +1051,17 @@ class CardBackView extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: const Color(0xFF1E3A8A),
+        gradient: const LinearGradient(colors: [Color(0xFF1E3A8A), Color(0xFF172554)]),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.white70),
       ),
-      child: const Center(
-        child: Icon(Icons.style, color: Colors.white70, size: 18),
-      ),
+      child: const Center(child: Icon(Icons.style, color: Colors.white70, size: 18)),
     );
   }
 }
 
 class CardView extends StatelessWidget {
-  const CardView({
-    super.key,
-    required this.card,
-    this.enabled = false,
-    this.onTap,
-  });
+  const CardView({super.key, required this.card, this.enabled = false, this.onTap});
 
   final PlayingCard card;
   final bool enabled;
@@ -808,17 +1075,8 @@ class CardView extends StatelessWidget {
       decoration: BoxDecoration(
         color: card.isJoker ? (card.isRed ? Colors.red.shade50 : Colors.grey.shade200) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: enabled ? Colors.amber : Colors.black26,
-          width: enabled ? 3 : 1,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 4,
-            offset: Offset(1, 2),
-          ),
-        ],
+        border: Border.all(color: enabled ? Colors.amber : Colors.black26, width: enabled ? 3 : 1),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(1, 2))],
       ),
       padding: const EdgeInsets.all(8),
       child: card.isJoker
@@ -826,11 +1084,7 @@ class CardView extends StatelessWidget {
               child: Text(
                 card.isRed ? 'Joker\nRouge' : 'Joker\nNoir',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: card.suitColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: card.suitColor, fontWeight: FontWeight.bold, fontSize: 12),
               ),
             )
           : Column(
@@ -838,22 +1092,14 @@ class CardView extends StatelessWidget {
               children: [
                 Text(
                   card.rankLabel,
-                  style: TextStyle(
-                    color: card.suitColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
+                  style: TextStyle(color: card.suitColor, fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 const Spacer(),
                 Align(
                   alignment: Alignment.bottomRight,
                   child: Text(
                     card.suitSymbol,
-                    style: TextStyle(
-                      color: card.suitColor,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(color: card.suitColor, fontSize: 24, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
