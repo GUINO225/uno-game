@@ -1368,27 +1368,36 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       height: 170,
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final double drawOffset = min(92.0, constraints.maxWidth * 0.24);
+          const double cardWidth = 52;
+          const double cardHorizontalMargin = 12;
+          const double idealOffsetFromCenter = 72;
+          final double maxVisibleOffset = max(
+            0,
+            (constraints.maxWidth / 2) - (cardWidth / 2) - cardHorizontalMargin,
+          );
+          final double drawOffset = min(idealOffsetFromCenter, maxVisibleOffset);
 
           return Stack(
             alignment: Alignment.center,
             children: <Widget>[
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Text(
-                    'Défausse',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  const SizedBox(height: 8),
-                  if (hasDiscard)
-                    CardView(card: _topDiscard)
-                  else
-                    const _EmptyCardSlot(label: 'Vide'),
-                ],
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Text(
+                      'Défausse',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    if (hasDiscard)
+                      CardView(card: _topDiscard)
+                    else
+                      const _EmptyCardSlot(label: 'Vide'),
+                  ],
+                ),
               ),
-              Positioned(
-                left: (constraints.maxWidth / 2) - drawOffset - 36,
+              Transform.translate(
+                offset: Offset(drawOffset, 0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
