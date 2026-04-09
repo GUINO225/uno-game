@@ -1363,12 +1363,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     final bool shouldHighlightDraw = _shouldHighlightDrawPile();
     final bool canDraw = _canHumanDrawNow();
     final bool hasDiscard = _discardPile.isNotEmpty;
-    final Widget discardWidget = hasDiscard
-        ? CardView(card: _topDiscard)
-        : const _EmptyCardSlot(label: 'Vide');
-    final Widget drawWidget = _drawPile.isNotEmpty
-        ? _DrawPileView(highlight: shouldHighlightDraw)
-        : const _EmptyCardSlot(label: '0');
 
     return SizedBox(
       height: 170,
@@ -1387,7 +1381,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                     style: TextStyle(color: Colors.white),
                   ),
                   const SizedBox(height: 8),
-                  discardWidget,
+                  if (hasDiscard)
+                    CardView(card: _topDiscard)
+                  else
+                    const _EmptyCardSlot(label: 'Vide'),
                 ],
               ),
               Positioned(
@@ -1405,7 +1402,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: <Widget>[
-                          drawWidget,
+                          _drawPile.isNotEmpty
+                              ? _DrawPileView(highlight: shouldHighlightDraw)
+                              : const _EmptyCardSlot(label: '0'),
                           Positioned(
                             right: -8,
                             top: -10,
