@@ -1040,11 +1040,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                                   )
                                   .toList(),
                             ),
-                          ),
-                        ),
-                      ],
                     ),
-                  ),
+                  ],
+                ),
+              ),
                   if (_gameOver)
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
@@ -1053,7 +1052,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                         child: const Text('Rejouer'),
                       ),
                     ),
-                ],
+                ),
               ),
             ),
           ),
@@ -1190,8 +1189,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                         ],
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           );
