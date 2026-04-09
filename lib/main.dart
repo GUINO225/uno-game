@@ -249,12 +249,25 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
   bool _isCardPlayableForHuman(PlayingCard card) {
     if (_humanMustAnswerAce) {
-      return !card.isJoker && card.rank == 1;
+      return _isValidAceResponse(card);
     }
     if (_forcedHumanDrawRemaining > 0) {
       return false;
     }
     return _isCardPlayableForHand(card, _humanHand);
+  }
+
+  bool _isValidAceResponse(PlayingCard card) {
+    if (_discardPile.isEmpty || _topDiscard.rank != 1) {
+      return false;
+    }
+    if (!card.isJoker && card.rank == 1) {
+      return true;
+    }
+    if (card.isJoker) {
+      return card.isRed == _topDiscard.isRed;
+    }
+    return false;
   }
 
   Future<void> _onHumanTapCard(PlayingCard card) async {
@@ -300,7 +313,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   Future<void> _onHumanDraw() async {
-    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn || _humanMustAnswerAce) {
+    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn) {
       return;
     }
 
@@ -321,6 +334,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
             ? 'Vous devez d\'abord piocher $_forcedHumanDrawRemaining carte(s).'
             : 'Contrainte terminée. À vous de jouer.';
       });
+      return;
+    }
+
+    if (_humanMustAnswerAce) {
+      final drawn = _drawCards(_humanHand, 1).length;
+      setState(() {
+        _humanMustAnswerAce = false;
+        _status = drawn > 0
+            ? 'Vous choisissez de piocher au lieu de répondre à l’As.'
+            : 'Vous choisissez de piocher, mais la pioche est vide.';
+      });
+      _endHumanTurn();
       return;
     }
 
@@ -404,38 +429,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }) async {
     if (card.rank == 1) {
       if (currentTurn == PlayerTurn.human) {
-        final botHasAce = _botHand.any((c) => !c.isJoker && c.rank == 1);
-        if (botHasAce) {
-          setState(() {
-            _botMustAnswerAce = true;
-            _status = 'Vous jouez un As : le bot doit répondre avec un As.';
-          });
-          return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
-        }
-
-        final drawn = _drawCards(_botHand, 1).length;
         setState(() {
-          _status = drawn > 0
-              ? 'Le bot n’a pas d’As : il pioche 1 carte.'
-              : 'Le bot n’a pas d’As : il ne peut pas piocher.';
+          _botMustAnswerAce = true;
+          _status = 'Vous jouez un As : le bot doit répondre avec un As, un joker de même couleur, ou piocher.';
         });
         return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
 
-      final hasHumanAce = _humanHand.any((c) => !c.isJoker && c.rank == 1);
-      if (hasHumanAce) {
-        setState(() {
-          _humanMustAnswerAce = true;
-          _status = 'Le bot joue un As : vous devez répondre avec un As.';
-        });
-        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
-      }
-
-      final drawn = _drawCards(_humanHand, 1).length;
       setState(() {
-        _status = drawn > 0
-            ? 'Vous n’avez pas d’As : vous devez piocher 1 carte.'
-            : 'Vous n’avez pas d’As : vous ne pouvez pas piocher.';
+        _humanMustAnswerAce = true;
+        _status = 'Le bot joue un As : répondez avec un As, un joker de même couleur, ou piochez.';
       });
       return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
@@ -615,19 +618,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     return bestSuit;
   }
 
-  PlayingCard? _findRequestedCard(List<PlayingCard> hand, int rank) {
-    final candidates = hand.where((card) => !card.isJoker && card.rank == rank).toList();
-    if (candidates.isEmpty) {
-      return null;
-    }
-
-    if (hand.length == 1 && !candidates.first.canFinishGame) {
-      return null;
-    }
-
-    return candidates.first;
-  }
-
   void _endHumanTurn() {
     if (_gameOver) {
       return;
@@ -646,43 +636,39 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
 
     if (_botMustAnswerAce) {
-      final botAce = _findRequestedCard(_botHand, 1);
-      if (botAce == null) {
+      final aceResponses = _botHand.where(_isValidAceResponse).toList();
+      final chooseToDraw = aceResponses.isEmpty || _random.nextBool();
+      if (chooseToDraw) {
         final drawn = _drawCards(_botHand, 1).length;
         setState(() {
           _botMustAnswerAce = false;
           _status = drawn > 0
-              ? 'Le bot n’a pas d’As : il pioche 1 carte.'
-              : 'Le bot n’a pas d’As : il ne peut pas piocher.';
+              ? 'Le bot choisit de piocher au lieu de répondre à l’As.'
+              : 'Le bot choisit de piocher, mais la pioche est vide.';
         });
         _switchToHuman();
         return;
       }
 
+      final botAce = aceResponses.first;
       _playCard(hand: _botHand, card: botAce, playerName: 'Le bot');
+      setState(() {
+        _botMustAnswerAce = false;
+      });
 
       if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: botAce)) {
         return;
       }
-
-      final hasHumanAce = _humanHand.any((c) => !c.isJoker && c.rank == 1);
-      if (hasHumanAce) {
-        setState(() {
-          _botMustAnswerAce = false;
-          _humanMustAnswerAce = true;
-          _turn = PlayerTurn.human;
-          _status = 'Le bot joue un As : vous devez répondre avec un As.';
-        });
-      } else {
-        final drawn = _drawCards(_humanHand, 1).length;
-        setState(() {
-          _botMustAnswerAce = false;
-          _turn = PlayerTurn.human;
-          _status = drawn > 0
-              ? 'Vous n’avez pas d’As : vous devez piocher 1 carte.'
-              : 'Vous n’avez pas d’As : vous ne pouvez pas piocher.';
-        });
+      final outcome = await _applyCardEffects(card: botAce, currentTurn: PlayerTurn.bot, sourceLabel: 'Le bot');
+      if (outcome.extraTurn) {
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        _runBotTurn();
+        return;
       }
+      if (outcome.skipTurnSwitch) {
+        return;
+      }
+      _switchToHuman();
       return;
     }
 
@@ -813,7 +799,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                   _centerArea(),
                   const SizedBox(height: 12),
                   ElevatedButton(
-                    onPressed: (_turn == PlayerTurn.human && !_gameOver && !_humanMustAnswerAce) ? _onHumanDraw : null,
+                    onPressed: (_turn == PlayerTurn.human && !_gameOver) ? _onHumanDraw : null,
                     child: Text(mustDraw ? 'Piocher (reste $_forcedHumanDrawRemaining)' : 'Piocher'),
                   ),
                   const SizedBox(height: 12),
@@ -831,7 +817,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                         border: Border.all(color: Colors.amber.withValues(alpha: 0.7)),
                       ),
                       child: Text(
-                        'Réponse obligatoire : jouez un As.',
+                        'Vous pouvez répondre avec un As, un joker de même couleur, ou choisir de piocher.',
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
