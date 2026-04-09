@@ -817,19 +817,21 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Choisissez une enseigne'),
           content: SizedBox(
-            width: 360,
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
+            width: 260,
+            child: GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
               children: Suit.values
                   .map(
                     (Suit suit) => _SuitChoiceTile(
-                  suit: suit,
-                  onTap: () => Navigator.of(context).pop(suit),
-                ),
-              )
+                      suit: suit,
+                      onTap: () => Navigator.of(context).pop(suit),
+                    ),
+                  )
                   .toList(),
             ),
           ),
@@ -1275,7 +1277,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
                             const Text(
-                              'Nouvelle enseigne',
+                              'Nouvelle carte',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
