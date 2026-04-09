@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -97,6 +98,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   PlayerTurn _turn = PlayerTurn.human;
   String _status = '';
   bool _gameOver = false;
+  String _winnerText = '';
   bool _isChoosingSuit = false;
 
   @override
@@ -122,6 +124,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       _turn = PlayerTurn.human;
       _status = 'À vous de jouer';
       _gameOver = false;
+      _winnerText = '';
       _isChoosingSuit = false;
     });
   }
@@ -234,7 +237,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     return choice;
   }
 
-  Future<void> _onHumanDraw() async {
+  void _onHumanDraw() {
     if (_turn != PlayerTurn.human || _gameOver || _isChoosingSuit) {
       return;
     }
@@ -254,22 +257,24 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     });
 
     if (_isCardPlayable(drawn)) {
-      Suit? suit;
-      if (drawn.rank == 8) {
-        suit = await _chooseSuitDialog();
-        if (suit == null) {
-          _endHumanTurn();
-          return;
+      Future<void>(() async {
+        Suit? suit;
+        if (drawn.rank == 8) {
+          suit = await _chooseSuitDialog();
+          if (suit == null) {
+            _endHumanTurn();
+            return;
+          }
         }
-      }
 
-      _playCard(
-        hand: _humanHand,
-        card: drawn,
-        playerName: 'Vous',
-        chosenSuit: suit,
-      );
-      _afterHumanAction();
+        _playCard(
+          hand: _humanHand,
+          card: drawn,
+          playerName: 'Vous',
+          chosenSuit: suit,
+        );
+        _afterHumanAction();
+      });
     } else {
       _endHumanTurn();
     }
@@ -413,7 +418,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
     setState(() {
       _gameOver = true;
-      _status = '$player a gagné !';
+      _winnerText = '$player a gagné !';
+      _status = _winnerText;
     });
     return true;
   }
@@ -507,7 +513,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   Widget _infoPanel() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
       ),
       padding: const EdgeInsets.all(12),
