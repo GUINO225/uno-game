@@ -132,6 +132,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
   int _forcedHumanDrawRemaining = 0;
   bool _humanMustAnswerAce = false;
+  bool _botMustAnswerAce = false;
   Suit? _activeSuitConstraint;
 
   bool _isEightDemandOverlayVisible = false;
@@ -164,6 +165,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       _isResolvingTurn = false;
       _forcedHumanDrawRemaining = 0;
       _humanMustAnswerAce = false;
+      _botMustAnswerAce = false;
       _activeSuitConstraint = null;
       _isEightDemandOverlayVisible = false;
       _eightDemandOverlaySuit = null;
@@ -402,59 +404,38 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }) async {
     if (card.rank == 1) {
       if (currentTurn == PlayerTurn.human) {
-        setState(() {
-          _status = 'Vous jouez un As : le bot doit répondre avec un As.';
-        });
-        await Future<void>.delayed(const Duration(milliseconds: 280));
-
-        final botAce = _findRequestedCard(_botHand, 1);
-        if (botAce == null) {
-          final drawn = _drawCards(_botHand, 1).length;
+        final botHasAce = _botHand.any((c) => !c.isJoker && c.rank == 1);
+        if (botHasAce) {
           setState(() {
-            _status = 'Le bot ne peut pas répondre avec un As et pioche $drawn carte.';
+            _botMustAnswerAce = true;
+            _status = 'Vous jouez un As : le bot doit répondre avec un As.';
           });
           return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
         }
 
-        _playCard(hand: _botHand, card: botAce, playerName: 'Le bot');
+        final drawn = _drawCards(_botHand, 1).length;
         setState(() {
-          _status = 'Le bot répond avec un As (${botAce.label}).';
+          _status = drawn > 0
+              ? 'Le bot n’a pas d’As : il pioche 1 carte.'
+              : 'Le bot n’a pas d’As : il ne peut pas piocher.';
         });
-
-        final nested = await _applyCardEffects(
-          card: botAce,
-          currentTurn: PlayerTurn.bot,
-          sourceLabel: 'Le bot',
-        );
-
-        if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: botAce)) {
-          return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
-        }
-
-        if (nested.extraTurn) {
-          setState(() {
-            _turn = PlayerTurn.bot;
-            _status = 'Le bot rejoue après sa réponse à l’As.';
-          });
-          await _runBotTurn();
-          return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
-        }
         return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
 
       final hasHumanAce = _humanHand.any((c) => !c.isJoker && c.rank == 1);
       if (hasHumanAce) {
         setState(() {
-          _turn = PlayerTurn.human;
           _humanMustAnswerAce = true;
           _status = 'Le bot joue un As : vous devez répondre avec un As.';
         });
-        return const _PlayResolution(extraTurn: false, skipTurnSwitch: true);
+        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
 
       final drawn = _drawCards(_humanHand, 1).length;
       setState(() {
-        _status = 'Le bot joue un As : vous n’avez pas d’As, vous piochez $drawn carte.';
+        _status = drawn > 0
+            ? 'Vous n’avez pas d’As : vous devez piocher 1 carte.'
+            : 'Vous n’avez pas d’As : vous ne pouvez pas piocher.';
       });
       return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
@@ -661,6 +642,47 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   Future<void> _runBotTurn() async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
     if (!mounted || _gameOver || _turn != PlayerTurn.bot) {
+      return;
+    }
+
+    if (_botMustAnswerAce) {
+      final botAce = _findRequestedCard(_botHand, 1);
+      if (botAce == null) {
+        final drawn = _drawCards(_botHand, 1).length;
+        setState(() {
+          _botMustAnswerAce = false;
+          _status = drawn > 0
+              ? 'Le bot n’a pas d’As : il pioche 1 carte.'
+              : 'Le bot n’a pas d’As : il ne peut pas piocher.';
+        });
+        _switchToHuman();
+        return;
+      }
+
+      _playCard(hand: _botHand, card: botAce, playerName: 'Le bot');
+
+      if (_checkVictory(player: 'Le bot', hand: _botHand, lastPlayed: botAce)) {
+        return;
+      }
+
+      final hasHumanAce = _humanHand.any((c) => !c.isJoker && c.rank == 1);
+      if (hasHumanAce) {
+        setState(() {
+          _botMustAnswerAce = false;
+          _humanMustAnswerAce = true;
+          _turn = PlayerTurn.human;
+          _status = 'Le bot joue un As : vous devez répondre avec un As.';
+        });
+      } else {
+        final drawn = _drawCards(_humanHand, 1).length;
+        setState(() {
+          _botMustAnswerAce = false;
+          _turn = PlayerTurn.human;
+          _status = drawn > 0
+              ? 'Vous n’avez pas d’As : vous devez piocher 1 carte.'
+              : 'Vous n’avez pas d’As : vous ne pouvez pas piocher.';
+        });
+      }
       return;
     }
 
