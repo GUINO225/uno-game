@@ -33,8 +33,6 @@ enum JokerKind { red, black }
 
 enum PlayerTurn { human, bot }
 
-enum DealerChoice { human, bot, random }
-
 class PlayingCard {
   const PlayingCard._({this.suit, this.rank, this.jokerKind});
 
@@ -128,9 +126,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   final List<PlayingCard> _botHand = [];
 
   PlayerTurn _turn = PlayerTurn.human;
-  PlayerTurn _dealer = PlayerTurn.human;
-  PlayerTurn _startingPlayer = PlayerTurn.bot;
-  DealerChoice _dealerChoice = DealerChoice.random;
   String _status = '';
   bool _gameOver = false;
   bool _isResolvingTurn = false;
@@ -138,7 +133,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   int _forcedDrawCount = 0;
   PlayerTurn? _forcedDrawTarget;
   PlayerTurn? _forcedDrawSource;
-  bool _playerMustWaitAfterForcedDraw = false;
   bool _humanMustAnswerAce = false;
   bool _botMustAnswerAce = false;
   Suit? _activeSuitConstraint;
@@ -146,6 +140,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   bool _isEightDemandOverlayVisible = false;
   Suit? _eightDemandOverlaySuit;
   String _eightDemandOverlayMessage = '';
+  bool _isRoundInfoOverlayVisible = false;
+  String _roundInfoOverlayMessage = '';
 
   @override
   void initState() {
@@ -154,7 +150,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   void _startNewGame() {
-    final dealer = _resolveDealerFromChoice();
+    final dealer = _random.nextBool() ? PlayerTurn.human : PlayerTurn.bot;
     final startingPlayer = _opponentOf(dealer);
 
     _drawPile = _createDeck();
@@ -170,25 +166,26 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     final openingCard = _openFirstDiscardCard();
 
     setState(() {
-      _dealer = dealer;
-      _startingPlayer = startingPlayer;
       _turn = startingPlayer;
-      _status =
-          'Donneur : ${_turnLabel(_dealer)}. ${_turnLabel(_startingPlayer)} commence.';
+      _status = '${_turnLabel(startingPlayer)} commence.';
       _gameOver = false;
       _isResolvingTurn = false;
       _forcedDrawCount = 0;
       _forcedDrawTarget = null;
       _forcedDrawSource = null;
-      _playerMustWaitAfterForcedDraw = false;
       _humanMustAnswerAce = false;
       _botMustAnswerAce = false;
       _activeSuitConstraint = null;
       _isEightDemandOverlayVisible = false;
       _eightDemandOverlaySuit = null;
       _eightDemandOverlayMessage = '';
+      _isRoundInfoOverlayVisible = false;
+      _roundInfoOverlayMessage = '';
     });
 
+    _showRoundInfoOverlay(
+      dealer == PlayerTurn.human ? 'Vous distribuez' : 'Le bot distribue',
+    );
     _applyOpeningCardPenaltyIfNeeded(openingCard, startingPlayer: startingPlayer, dealer: dealer);
 
     if (_turn == PlayerTurn.bot && !_gameOver) {
@@ -210,14 +207,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
   void _shuffleDeck(List<PlayingCard> deck) {
     deck.shuffle(_random);
-  }
-
-  PlayerTurn _resolveDealerFromChoice() {
-    return switch (_dealerChoice) {
-      DealerChoice.human => PlayerTurn.human,
-      DealerChoice.bot => PlayerTurn.bot,
-      DealerChoice.random => _random.nextBool() ? PlayerTurn.human : PlayerTurn.bot,
-    };
   }
 
   PlayerTurn _opponentOf(PlayerTurn player) {
@@ -348,7 +337,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       _forcedDrawCount = count;
       _forcedDrawTarget = target;
       _forcedDrawSource = source;
-      _playerMustWaitAfterForcedDraw = true;
       _status = '$announcement ${_turnLabel(target)} doit d’abord piocher $count $starter.';
     });
   }
@@ -623,7 +611,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           'Le tour reste à ${_turnLabel(source)}.';
       _forcedDrawTarget = null;
       _forcedDrawSource = null;
-      _playerMustWaitAfterForcedDraw = false;
       _turn = source;
     });
 
@@ -688,6 +675,27 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     setState(() {
       _eightDemandOverlaySuit = null;
       _eightDemandOverlayMessage = '';
+    });
+  }
+
+  Future<void> _showRoundInfoOverlay(String message) async {
+    setState(() {
+      _roundInfoOverlayMessage = message;
+      _isRoundInfoOverlayVisible = true;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isRoundInfoOverlayVisible = false;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _roundInfoOverlayMessage = '';
     });
   }
 
@@ -904,20 +912,43 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         Suit.spades || Suit.clubs => Colors.black87,
       };
 
+  bool _humanHasPlayableCard() {
+    return _humanHand.any(_isCardPlayableForHuman);
+  }
+
+  bool _canHumanDrawNow() {
+    return _turn == PlayerTurn.human && !_gameOver && !_isResolvingTurn;
+  }
+
+  bool _shouldHighlightDrawPile() {
+    if (!_canHumanDrawNow()) {
+      return false;
+    }
+    if (_isHumanForcedToDrawNow()) {
+      return true;
+    }
+    if (_humanMustAnswerAce) {
+      return true;
+    }
+    return !_humanHasPlayableCard();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final canInteract = _turn == PlayerTurn.human &&
-        !_gameOver &&
-        !_isResolvingTurn &&
-        !_isHumanForcedToDrawNow();
-
-    final mustDraw = _isHumanForcedToDrawNow();
+    final canInteract = _turn == PlayerTurn.human && !_gameOver && !_isResolvingTurn && !_isHumanForcedToDrawNow();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B3D2E),
       appBar: AppBar(
         title: const Text('Huit américain'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: _startNewGame,
+            tooltip: 'Nouvelle manche',
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -927,20 +958,25 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _infoPanel(),
-                  const SizedBox(height: 12),
                   _botHandArea(),
                   const SizedBox(height: 12),
                   _centerArea(),
                   const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: (_turn == PlayerTurn.human && !_gameOver) ? _onHumanDraw : null,
-                    child: Text(mustDraw ? 'Piocher (reste $_forcedDrawCount)' : 'Piocher'),
-                  ),
-                  const SizedBox(height: 12),
                   const Text(
                     'Votre main',
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  if (_activeSuitConstraint != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Enseigne demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
+                      style: TextStyle(color: _suitColor(_activeSuitConstraint!), fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    _status,
+                    style: const TextStyle(color: Colors.white70),
                   ),
                   if (_humanMustAnswerAce) ...[
                     const SizedBox(height: 6),
@@ -1026,81 +1062,30 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoPanel() {
-    final forcedText = _forcedDrawCount > 0 ? _forcedDrawRemainingText() : null;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Cartes du bot : ${_botHand.length}', style: const TextStyle(color: Colors.white)),
-          const SizedBox(height: 4),
-          Text('Pioche : ${_drawPile.length}', style: const TextStyle(color: Colors.white)),
-          const SizedBox(height: 4),
-          Text('Donneur : ${_turnLabel(_dealer)}', style: const TextStyle(color: Colors.white)),
-          const SizedBox(height: 4),
-          Text('Commence : ${_turnLabel(_startingPlayer)}', style: const TextStyle(color: Colors.white)),
-          const SizedBox(height: 6),
-          const Text('Donneur (prochaine manche)', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 4),
-          SegmentedButton<DealerChoice>(
-            segments: const [
-              ButtonSegment<DealerChoice>(value: DealerChoice.human, label: Text('Vous')),
-              ButtonSegment<DealerChoice>(value: DealerChoice.bot, label: Text('Bot')),
-              ButtonSegment<DealerChoice>(value: DealerChoice.random, label: Text('Aléatoire')),
-            ],
-            selected: {_dealerChoice},
-            onSelectionChanged: (selection) {
-              setState(() {
-                _dealerChoice = selection.first;
-              });
-            },
-          ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton(
-              onPressed: _startNewGame,
-              child: const Text('Nouvelle manche'),
+          if (_isRoundInfoOverlayVisible)
+            Positioned(
+              top: 22,
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                opacity: _isRoundInfoOverlayVisible ? 1 : 0,
+                duration: const Duration(milliseconds: 180),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: Text(
+                      _roundInfoOverlayMessage,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Tour : ${_turn == PlayerTurn.human ? 'Joueur' : 'Bot'}',
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 4),
-          Text('Défausse : ${_topDiscard.label}', style: const TextStyle(color: Colors.white)),
-          if (_activeSuitConstraint != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Enseigne active (8) : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
-              style: TextStyle(color: _suitColor(_activeSuitConstraint!), fontWeight: FontWeight.bold),
-            ),
-          ],
-          const SizedBox(height: 4),
-          Text('Statut : $_status', style: const TextStyle(color: Colors.white)),
-          if (forcedText != null) ...[
-            const SizedBox(height: 6),
-            Text(forcedText, style: const TextStyle(color: Colors.amberAccent)),
-          ],
-          if (_playerMustWaitAfterForcedDraw) ...[
-            const SizedBox(height: 4),
-            const Text(
-              'Après la pioche forcée, le joueur pénalisé doit attendre.',
-              style: TextStyle(color: Colors.white70),
-            ),
-          ],
         ],
       ),
     );
@@ -1110,9 +1095,15 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Main du bot (cachée)',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        Row(
+          children: [
+            const Text(
+              'Main du bot',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+            _CountBadge(count: _botHand.length),
+          ],
         ),
         const SizedBox(height: 8),
         SizedBox(
@@ -1129,20 +1120,28 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   Widget _centerArea() {
+    final shouldHighlightDraw = _shouldHighlightDrawPile();
+    final canDraw = _canHumanDrawNow();
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Pioche', style: TextStyle(color: Colors.white)),
-            const SizedBox(height: 8),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                const CardBackView(width: 70, height: 100),
-                Text('${_drawPile.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ],
+            GestureDetector(
+              onTap: canDraw ? _onHumanDraw : null,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _DrawPileView(highlight: shouldHighlightDraw),
+                  Positioned(
+                    right: -8,
+                    top: -10,
+                    child: _CountBadge(count: _drawPile.length),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -1176,6 +1175,96 @@ class CardBackView extends StatelessWidget {
         border: Border.all(color: Colors.white70),
       ),
       child: const Center(child: Icon(Icons.style, color: Colors.white70, size: 18)),
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 28),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        '$count',
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w700, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _DrawPileView extends StatefulWidget {
+  const _DrawPileView({required this.highlight});
+
+  final bool highlight;
+
+  @override
+  State<_DrawPileView> createState() => _DrawPileViewState();
+}
+
+class _DrawPileViewState extends State<_DrawPileView> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.highlight) {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _DrawPileView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.highlight && !_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    } else if (!widget.highlight && _pulseController.isAnimating) {
+      _pulseController.stop();
+      _pulseController.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        final glow = widget.highlight ? (0.35 + (_pulseController.value * 0.55)) : 0.0;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              if (widget.highlight)
+                BoxShadow(
+                  color: Colors.amberAccent.withValues(alpha: glow),
+                  blurRadius: 22,
+                  spreadRadius: 1.5,
+                ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: const CardBackView(width: 70, height: 100),
     );
   }
 }
