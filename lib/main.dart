@@ -1211,20 +1211,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
-                              children: _humanHand
-                                  .map(
-                                    (PlayingCard card) => Padding(
-                                  padding:
-                                  const EdgeInsets.only(right: 8),
-                                  child: CardView(
-                                    card: card,
-                                    enabled: canInteract &&
-                                        _isCardPlayableForHuman(card),
-                                    onTap: () => _onHumanTapCard(card),
+                              children: <Widget>[
+                                for (final PlayingCard card in _humanHand)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: CardView(
+                                      card: card,
+                                      enabled:
+                                          canInteract &&
+                                          _isCardPlayableForHuman(card),
+                                      onTap: () => _onHumanTapCard(card),
+                                    ),
                                   ),
-                                ),
-                              )
-                                  .toList(),
+                              ],
                             ),
                           ),
                         ),
