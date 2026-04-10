@@ -185,6 +185,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   int _humanScore = 0;
   int _botScore = 0;
   _CardFlightData? _cardFlight;
+  PlayingCard? _incomingDiscardCard;
   int _flightNonce = 0;
 
   final GlobalKey _tableKey = GlobalKey();
@@ -329,6 +330,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _humanDidVoluntaryDrawThisTurn = false;
       _hiddenHumanCards.clear();
       _cardFlight = null;
+      _incomingDiscardCard = null;
     });
 
     unawaited(_runRoundStartSequence(
@@ -375,7 +377,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     );
 
     if (_turn == PlayerTurn.bot && !_gameOver) {
-      _scheduleBotTurn();
+      _ensureBotTurnProgress();
     }
   }
 
@@ -772,6 +774,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _activeSuitConstraint = null;
       }
       _status = '$playerName joue ${card.label}.';
+      _incomingDiscardCard = card;
     });
 
     if (useExactHumanOverlayFlight) {
@@ -821,6 +824,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _humanCardKeys.remove(card);
       _hiddenHumanCards.remove(card);
       _discardPile.add(card);
+      _incomingDiscardCard = null;
     });
   }
 
@@ -970,7 +974,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     });
 
     if (_turn == PlayerTurn.bot && !_gameOver) {
-      _scheduleBotTurn();
+      _ensureBotTurnProgress();
     }
   }
 
@@ -1152,16 +1156,36 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _status = 'Tour du bot...';
     });
 
-    _scheduleBotTurn();
+    _ensureBotTurnProgress();
   }
 
 
   void _scheduleBotTurn() {
-    if (_isBotTurnRunning || _gameOver) {
+    if (_isBotTurnRunning ||
+        _gameOver ||
+        _turn != PlayerTurn.bot ||
+        _isInitialDealRunning ||
+        _isResolvingTurn) {
       return;
     }
 
     unawaited(_runBotTurn());
+  }
+
+  void _ensureBotTurnProgress() {
+    if (!mounted || _gameOver) {
+      return;
+    }
+
+    if (_turn != PlayerTurn.bot) {
+      return;
+    }
+
+    if (_isInitialDealRunning || _isResolvingTurn) {
+      return;
+    }
+
+    _scheduleBotTurn();
   }
 
   Future<void> _runBotTurn({bool chained = false}) async {
@@ -1179,60 +1203,137 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         return;
       }
 
-    if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.bot) {
-      await _runForcedDrawForBot();
-      return;
-    }
+      if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.bot) {
+        await _runForcedDrawForBot();
+        return;
+      }
 
-    if (_botMustAnswerAce) {
-      final List<PlayingCard> aceResponses =
-      _botHand.where(_isValidAceResponse).toList();
+      if (_botMustAnswerAce) {
+        final List<PlayingCard> aceResponses =
+            _botHand.where(_isValidAceResponse).toList();
 
-      final bool chooseToDraw = aceResponses.isEmpty || _random.nextBool();
+        final bool chooseToDraw = aceResponses.isEmpty || _random.nextBool();
 
-      if (chooseToDraw) {
+        if (chooseToDraw) {
+          await _animateCardFlight(
+            from: _drawPileAnchor,
+            to: _botHandAnchor,
+            face: _FlightCardFace.back,
+          );
+          final int drawn = _drawCards(_botHand, 1).length;
+          setState(() {
+            _botMustAnswerAce = false;
+            _status = drawn > 0
+                ? 'Le bot choisit de piocher au lieu de répondre à l’As.'
+                : 'Le bot choisit de piocher, mais la pioche est vide.';
+          });
+          _switchToHuman();
+          return;
+        }
+
+        final PlayingCard botAce = aceResponses.first;
+        await _playCard(
+          hand: _botHand,
+          card: botAce,
+          playerName: 'Le bot',
+          from: _botHandAnchor,
+          to: _discardPileAnchor,
+        );
+
+        setState(() {
+          _botMustAnswerAce = false;
+        });
+
+        if (_checkVictory(
+          winner: PlayerTurn.bot,
+          hand: _botHand,
+          lastPlayed: botAce,
+        )) {
+          return;
+        }
+
+        final _PlayResolution outcome = await _applyCardEffects(
+          card: botAce,
+          currentTurn: PlayerTurn.bot,
+          sourceLabel: 'Le bot',
+        );
+
+        if (outcome.extraTurn) {
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          await _runBotTurn(chained: true);
+          return;
+        }
+
+        if (outcome.skipTurnSwitch) {
+          return;
+        }
+
+        _switchToHuman();
+        return;
+      }
+
+      final List<PlayingCard> playable = _botHand.where((PlayingCard card) {
+        return _isCardPlayableForHand(card, _botHand);
+      }).toList();
+
+      PlayingCard? chosen;
+
+      if (playable.isNotEmpty) {
+        final List<PlayingCard> nonEight =
+            playable.where((PlayingCard card) => card.rank != 8).toList();
+        chosen = nonEight.isNotEmpty ? nonEight.first : playable.first;
+      }
+
+      if (chosen == null) {
         await _animateCardFlight(
           from: _drawPileAnchor,
           to: _botHandAnchor,
           face: _FlightCardFace.back,
         );
-        final int drawn = _drawCards(_botHand, 1).length;
+        final List<PlayingCard> drawn = _drawCards(_botHand, 1);
+
+        if (drawn.isEmpty) {
+          setState(() {
+            _status = 'Le bot ne peut pas piocher. Pioche vide.';
+          });
+          _switchToHuman();
+          return;
+        }
+
         setState(() {
-          _botMustAnswerAce = false;
-          _status = drawn > 0
-              ? 'Le bot choisit de piocher au lieu de répondre à l’As.'
-              : 'Le bot choisit de piocher, mais la pioche est vide.';
+          _status = 'Le bot pioche une carte.';
         });
-        _switchToHuman();
-        return;
+
+        final PlayingCard drawnCard = drawn.first;
+        if (_isCardPlayableForHand(drawnCard, _botHand)) {
+          chosen = drawnCard;
+        } else {
+          _switchToHuman();
+          return;
+        }
       }
 
-      final PlayingCard botAce = aceResponses.first;
       await _playCard(
         hand: _botHand,
-        card: botAce,
+        card: chosen,
         playerName: 'Le bot',
         from: _botHandAnchor,
         to: _discardPileAnchor,
       );
 
-      setState(() {
-        _botMustAnswerAce = false;
-      });
+      final _PlayResolution outcome = await _applyCardEffects(
+        card: chosen,
+        currentTurn: PlayerTurn.bot,
+        sourceLabel: 'Le bot',
+      );
 
       if (_checkVictory(
         winner: PlayerTurn.bot,
         hand: _botHand,
-        lastPlayed: botAce,
+        lastPlayed: chosen,
       )) {
         return;
       }
-
-      final _PlayResolution outcome = await _applyCardEffects(
-        card: botAce,
-        currentTurn: PlayerTurn.bot,
-        sourceLabel: 'Le bot',
-      );
 
       if (outcome.extraTurn) {
         await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -1245,87 +1346,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
 
       _switchToHuman();
-      return;
-    }
-
-    final List<PlayingCard> playable =
-    _botHand.where((PlayingCard card) {
-      return _isCardPlayableForHand(card, _botHand);
-    }).toList();
-
-    PlayingCard? chosen;
-
-    if (playable.isNotEmpty) {
-      final List<PlayingCard> nonEight =
-      playable.where((PlayingCard card) => card.rank != 8).toList();
-      chosen = nonEight.isNotEmpty ? nonEight.first : playable.first;
-    }
-
-    if (chosen == null) {
-      await _animateCardFlight(
-        from: _drawPileAnchor,
-        to: _botHandAnchor,
-        face: _FlightCardFace.back,
-      );
-      final List<PlayingCard> drawn = _drawCards(_botHand, 1);
-
-      if (drawn.isEmpty) {
-        setState(() {
-          _status = 'Le bot ne peut pas piocher. Pioche vide.';
-        });
-        _switchToHuman();
-        return;
-      }
-
-      setState(() {
-        _status = 'Le bot pioche une carte.';
-      });
-
-      final PlayingCard drawnCard = drawn.first;
-      if (_isCardPlayableForHand(drawnCard, _botHand)) {
-        chosen = drawnCard;
-      } else {
-        _switchToHuman();
-        return;
-      }
-    }
-
-    await _playCard(
-      hand: _botHand,
-      card: chosen,
-      playerName: 'Le bot',
-      from: _botHandAnchor,
-      to: _discardPileAnchor,
-    );
-
-    final _PlayResolution outcome = await _applyCardEffects(
-      card: chosen,
-      currentTurn: PlayerTurn.bot,
-      sourceLabel: 'Le bot',
-    );
-
-    if (_checkVictory(
-      winner: PlayerTurn.bot,
-      hand: _botHand,
-      lastPlayed: chosen,
-    )) {
-      return;
-    }
-
-    if (outcome.extraTurn) {
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      await _runBotTurn(chained: true);
-      return;
-    }
-
-    if (outcome.skipTurnSwitch) {
-      return;
-    }
-
-    _switchToHuman();
-  } finally {
+    } finally {
       if (!chained) {
         _isBotTurnRunning = false;
+        _ensureBotTurnProgress();
       }
     }
   }
@@ -1911,7 +1935,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   Widget _centerArea() {
     final bool shouldHighlightDraw = _shouldHighlightDrawPile();
     final bool canDraw = _canHumanDrawNow();
-    final bool hasDiscard = _discardPile.isNotEmpty;
+    final bool hasDiscard = _discardPile.isNotEmpty || _incomingDiscardCard != null;
 
     return SizedBox(
       height: 210,
@@ -1962,6 +1986,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         child: _DiscardPileView(
                           key: _discardPileKey,
                           cards: _discardPile,
+                          incomingCard: _incomingDiscardCard,
                         ),
                       )
                     else
@@ -2285,15 +2310,21 @@ class _DiscardPileView extends StatelessWidget {
   const _DiscardPileView({
     super.key,
     required this.cards,
+    this.incomingCard,
   });
 
   final List<PlayingCard> cards;
+  final PlayingCard? incomingCard;
 
   @override
   Widget build(BuildContext context) {
-    final List<PlayingCard> visible = cards.length <= 5
-        ? cards
-        : cards.sublist(cards.length - 5);
+    final List<PlayingCard> renderCards = incomingCard == null
+        ? List<PlayingCard>.from(cards)
+        : <PlayingCard>[...cards, incomingCard!];
+    final List<PlayingCard> visible = renderCards.length <= 5
+        ? renderCards
+        : renderCards.sublist(renderCards.length - 5);
+    final int baseIndex = renderCards.length - visible.length;
 
     return SizedBox(
       width: 84,
@@ -2303,6 +2334,9 @@ class _DiscardPileView extends StatelessWidget {
         children: <Widget>[
           for (int i = 0; i < visible.length; i++)
             AnimatedPositioned(
+              key: ValueKey<String>(
+                'discard-${baseIndex + i}-${visible[i].label}-${renderCards.length}',
+              ),
               duration: const Duration(milliseconds: 420),
               curve: Curves.easeInOutCubic,
               left: i * 2.0,
