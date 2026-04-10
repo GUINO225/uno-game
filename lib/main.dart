@@ -185,7 +185,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   int _humanScore = 0;
   int _botScore = 0;
   _CardFlightData? _cardFlight;
-  PlayingCard? _incomingDiscardCard;
   int _flightNonce = 0;
 
   final GlobalKey _tableKey = GlobalKey();
@@ -247,11 +246,22 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     });
   }
 
+  void _runVisualEffect(Future<void> Function() effect) {
+    unawaited(() async {
+      try {
+        await effect().timeout(const Duration(seconds: 2));
+      } catch (_) {
+        // Les animations restent purement visuelles.
+      }
+    }());
+  }
+
   Future<void> _animateInitialDeal({
     required List<PlayingCard> humanInitialCards,
     required List<PlayingCard> botInitialCards,
   }) async {
-    for (int i = 0; i < 7; i++) {
+    final int dealCount = min(humanInitialCards.length, botInitialCards.length);
+    for (int i = 0; i < dealCount; i++) {
       if (!mounted) {
         return;
       }
@@ -265,12 +275,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         beginScale: 0.96,
         endScale: 1.0,
       );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _humanHand.add(humanInitialCards[i]);
-      });
       await _animateCardFlight(
         from: _drawPileAnchor,
         to: _botHandAnchor,
@@ -281,12 +285,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         beginScale: 0.96,
         endScale: 1.0,
       );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _botHand.add(botInitialCards[i]);
-      });
       await Future<void>.delayed(const Duration(milliseconds: 35));
     }
   }
@@ -328,9 +326,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _isRoundInfoOverlayVisible = false;
       _roundInfoOverlayMessage = '';
       _humanDidVoluntaryDrawThisTurn = false;
+      _humanHand.addAll(humanInitialCards);
+      _botHand.addAll(botInitialCards);
       _hiddenHumanCards.clear();
       _cardFlight = null;
-      _incomingDiscardCard = null;
     });
 
     unawaited(_runRoundStartSequence(
@@ -351,15 +350,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     required List<PlayingCard> humanInitialCards,
     required List<PlayingCard> botInitialCards,
   }) async {
-    await Future.wait(<Future<void>>[
-      _showRoundInfoOverlay(
-        dealer == PlayerTurn.human ? 'Vous distribuez' : 'Le bot distribue',
-      ),
-      _animateInitialDeal(
-        humanInitialCards: humanInitialCards,
-        botInitialCards: botInitialCards,
-      ),
-    ]);
+    await _showRoundInfoOverlay(
+      dealer == PlayerTurn.human ? 'Vous distribuez' : 'Le bot distribue',
+    );
+
+    _runVisualEffect(() => _animateInitialDeal(
+          humanInitialCards: humanInitialCards,
+          botInitialCards: botInitialCards,
+        ));
 
     if (!mounted || sequence != _roundSequence) {
       return;
@@ -774,26 +772,36 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _activeSuitConstraint = null;
       }
       _status = '$playerName joue ${card.label}.';
-      _incomingDiscardCard = card;
+      hand.remove(card);
+      _humanCardKeys.remove(card);
+      _hiddenHumanCards.remove(card);
+      _discardPile.add(card);
     });
 
     if (useExactHumanOverlayFlight) {
-      await Future<void>.delayed(const Duration(milliseconds: 80));
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _hiddenHumanCards.add(card);
+      _runVisualEffect(() async {
+        final bool didAnimate = await _animateHumanCardOverlayFlight(
+          card: card,
+          fromCardKey: fromCardKey,
+        );
+        if (!didAnimate) {
+          await _animateCardFlight(
+            from: flightFrom,
+            to: flightTo,
+            face: _FlightCardFace.front,
+            card: card,
+            duration: const Duration(milliseconds: 860),
+            curve: Curves.easeInOutCubicEmphasized,
+            arcHeight: 0.12,
+            beginScale: 1,
+            endScale: 0.92,
+          );
+        }
       });
+      return;
     }
 
-    if (useExactHumanOverlayFlight) {
-      final bool didAnimate = await _animateHumanCardOverlayFlight(
-        card: card,
-        fromCardKey: fromCardKey,
-      );
-      if (!didAnimate) {
-        await _animateCardFlight(
+    _runVisualEffect(() => _animateCardFlight(
           from: flightFrom,
           to: flightTo,
           face: _FlightCardFace.front,
@@ -803,29 +811,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           arcHeight: 0.12,
           beginScale: 1,
           endScale: 0.92,
-        );
-      }
-    } else {
-      await _animateCardFlight(
-        from: flightFrom,
-        to: flightTo,
-        face: _FlightCardFace.front,
-        card: card,
-        duration: const Duration(milliseconds: 860),
-        curve: Curves.easeInOutCubicEmphasized,
-        arcHeight: 0.12,
-        beginScale: 1,
-        endScale: 0.92,
-      );
-    }
-
-    setState(() {
-      hand.remove(card);
-      _humanCardKeys.remove(card);
-      _hiddenHumanCards.remove(card);
-      _discardPile.add(card);
-      _incomingDiscardCard = null;
-    });
+        ));
   }
 
   Future<_PlayResolution> _applyCardEffects({
@@ -992,12 +978,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         break;
       }
 
-      await _animateCardFlight(
-        from: _drawPileAnchor,
-        to: _botHandAnchor,
-        face: _FlightCardFace.back,
-      );
-
       setState(() {
         _botHand.add(card);
         _forcedDrawCount--;
@@ -1006,6 +986,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             ? 'Le bot doit encore piocher $_forcedDrawCount $unit.'
             : 'Le bot a terminé sa pioche forcée.';
       });
+      _runVisualEffect(() => _animateCardFlight(
+            from: _drawPileAnchor,
+            to: _botHandAnchor,
+            face: _FlightCardFace.back,
+          ));
 
       await Future<void>.delayed(const Duration(milliseconds: 300));
     }
@@ -1215,12 +1200,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         final bool chooseToDraw = aceResponses.isEmpty || _random.nextBool();
 
         if (chooseToDraw) {
-          await _animateCardFlight(
-            from: _drawPileAnchor,
-            to: _botHandAnchor,
-            face: _FlightCardFace.back,
-          );
           final int drawn = _drawCards(_botHand, 1).length;
+          _runVisualEffect(() => _animateCardFlight(
+                from: _drawPileAnchor,
+                to: _botHandAnchor,
+                face: _FlightCardFace.back,
+              ));
           setState(() {
             _botMustAnswerAce = false;
             _status = drawn > 0
@@ -1285,12 +1270,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
 
       if (chosen == null) {
-        await _animateCardFlight(
-          from: _drawPileAnchor,
-          to: _botHandAnchor,
-          face: _FlightCardFace.back,
-        );
         final List<PlayingCard> drawn = _drawCards(_botHand, 1);
+        _runVisualEffect(() => _animateCardFlight(
+              from: _drawPileAnchor,
+              to: _botHandAnchor,
+              face: _FlightCardFace.back,
+            ));
 
         if (drawn.isEmpty) {
           setState(() {
@@ -1935,7 +1920,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   Widget _centerArea() {
     final bool shouldHighlightDraw = _shouldHighlightDrawPile();
     final bool canDraw = _canHumanDrawNow();
-    final bool hasDiscard = _discardPile.isNotEmpty || _incomingDiscardCard != null;
+    final bool hasDiscard = _discardPile.isNotEmpty;
 
     return SizedBox(
       height: 210,
@@ -1986,7 +1971,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         child: _DiscardPileView(
                           key: _discardPileKey,
                           cards: _discardPile,
-                          incomingCard: _incomingDiscardCard,
                         ),
                       )
                     else
@@ -2310,17 +2294,13 @@ class _DiscardPileView extends StatelessWidget {
   const _DiscardPileView({
     super.key,
     required this.cards,
-    this.incomingCard,
   });
 
   final List<PlayingCard> cards;
-  final PlayingCard? incomingCard;
 
   @override
   Widget build(BuildContext context) {
-    final List<PlayingCard> renderCards = incomingCard == null
-        ? List<PlayingCard>.from(cards)
-        : <PlayingCard>[...cards, incomingCard!];
+    final List<PlayingCard> renderCards = List<PlayingCard>.from(cards);
     final List<PlayingCard> visible = renderCards.length <= 5
         ? renderCards
         : renderCards.sublist(renderCards.length - 5);
