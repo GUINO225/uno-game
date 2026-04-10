@@ -1388,10 +1388,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   bool _canHumanDrawNow() {
-    return _turn == PlayerTurn.human &&
-        !_gameOver &&
-        !_isResolvingTurn &&
-        !_isInitialDealRunning;
+    if (_turn != PlayerTurn.human ||
+        _gameOver ||
+        _isResolvingTurn ||
+        _isInitialDealRunning) {
+      return false;
+    }
+
+    if (_isHumanForcedToDrawNow() || _humanMustAnswerAce) {
+      return true;
+    }
+
+    return !_humanHasPlayableCard();
   }
 
   Future<bool> _animateHumanCardOverlayFlight({
