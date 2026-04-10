@@ -194,6 +194,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   static const Alignment _discardPileAnchor = Alignment(0.0, -0.02);
   static const Alignment _humanHandAnchor = Alignment(0.0, 0.87);
   static const Alignment _botHandAnchor = Alignment(0.0, -0.82);
+  static const Duration _uiTransitionDuration = Duration(milliseconds: 260);
 
   @override
   void initState() {
@@ -1602,36 +1603,63 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         ),
                         if (_activeSuitConstraint != null) ...<Widget>[
                           const SizedBox(height: 6),
-                          Text(
-                            'Enseigne demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
-                            style: TextStyle(
-                              color: _suitColor(_activeSuitConstraint!),
-                              fontWeight: FontWeight.bold,
+                          AnimatedSwitcher(
+                            duration: _uiTransitionDuration,
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child: Text(
+                              key: ValueKey<Suit>(_activeSuitConstraint!),
+                              'Enseigne demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
+                              style: TextStyle(
+                                color: _suitColor(_activeSuitConstraint!),
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
                         const SizedBox(height: 6),
-                        Text(
-                          _status,
-                          style: const TextStyle(color: Colors.white70),
+                        AnimatedSwitcher(
+                          duration: _uiTransitionDuration,
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          transitionBuilder:
+                              (Widget child, Animation<double> animation) {
+                            final Animation<Offset> slide = Tween<Offset>(
+                              begin: const Offset(0, 0.15),
+                              end: Offset.zero,
+                            ).animate(animation);
+                            return FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(position: slide, child: child),
+                            );
+                          },
+                          child: Text(
+                            _status,
+                            key: ValueKey<String>(_status),
+                            style: const TextStyle(color: Colors.white70),
+                          ),
                         ),
                         if (_humanMustAnswerAce) ...<Widget>[
                           const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.35),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.amber.withOpacity(0.7),
+                          AnimatedSwitcher(
+                            duration: _uiTransitionDuration,
+                            child: Container(
+                              key: const ValueKey<String>('ace-hint'),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
                               ),
-                            ),
-                            child: const Text(
-                              'Vous pouvez répondre avec un As, un joker de même couleur, ou choisir de piocher.',
-                              style: TextStyle(color: Colors.white),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.35),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.amber.withOpacity(0.7),
+                                ),
+                              ),
+                              child: const Text(
+                                'Vous pouvez répondre avec un As, un joker de même couleur, ou choisir de piocher.',
+                                style: TextStyle(color: Colors.white),
+                              ),
                             ),
                           ),
                         ],
@@ -2230,12 +2258,12 @@ class _DiscardPileView extends StatelessWidget {
             AnimatedPositioned(
               duration: const Duration(milliseconds: 420),
               curve: Curves.easeInOutCubic,
-              left: i * 1.8,
-              top: i * 1.2,
+              left: i * 2.0,
+              top: i * 1.4,
               child: AnimatedRotation(
                 duration: const Duration(milliseconds: 420),
                 curve: Curves.easeInOutCubic,
-                turns: (i.isEven ? -1 : 1) * 0.003 * i,
+                turns: (i.isEven ? -1 : 1) * 0.006 * i,
                 child: CardView(card: visible[i]),
               ),
             ),
