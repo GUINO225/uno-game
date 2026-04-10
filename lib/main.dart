@@ -155,6 +155,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   int _botScore = 0;
   final GlobalKey _discardPileKey = GlobalKey();
   static const Duration _uiTransitionDuration = Duration(milliseconds: 260);
+  static const double _handCardWidth = 64;
+  static const double _handCardHeight = 96;
 
   @override
   void initState() {
@@ -1218,6 +1220,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 children: <Widget>[
                   _scoreBar(),
                   const SizedBox(height: 10),
+                  _statusBanner(),
+                  const SizedBox(height: 10),
                   Expanded(
                     flex: 3,
                     child: Align(
@@ -1238,75 +1242,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        const Text(
-                          'Votre main',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (_activeSuitConstraint != null) ...<Widget>[
-                          const SizedBox(height: 6),
-                          AnimatedSwitcher(
-                            duration: _uiTransitionDuration,
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            child: Text(
-                              key: ValueKey<Suit>(_activeSuitConstraint!),
-                              'Enseigne demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
-                              style: TextStyle(
-                                color: _suitColor(_activeSuitConstraint!),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 6),
-                        AnimatedSwitcher(
-                          duration: _uiTransitionDuration,
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          transitionBuilder:
-                              (Widget child, Animation<double> animation) {
-                            final Animation<Offset> slide = Tween<Offset>(
-                              begin: const Offset(0, 0.15),
-                              end: Offset.zero,
-                            ).animate(animation);
-                            return FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(position: slide, child: child),
-                            );
-                          },
-                          child: Text(
-                            _status,
-                            key: ValueKey<String>(_status),
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                        ),
-                        if (_humanMustAnswerAce) ...<Widget>[
-                          const SizedBox(height: 6),
-                          AnimatedSwitcher(
-                            duration: _uiTransitionDuration,
-                            child: Container(
-                              key: const ValueKey<String>('ace-hint'),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.35),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.amber.withOpacity(0.7),
-                                ),
-                              ),
-                              child: const Text(
-                                'Vous pouvez répondre avec un As, un joker de même couleur, ou choisir de piocher.',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
+                        _handMetaRow(count: _humanHand.length),
                         const SizedBox(height: 8),
                         Expanded(
                           child: SingleChildScrollView(
@@ -1403,25 +1339,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            const Text(
-              'Main du bot',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(width: 8),
-            _CountBadge(count: _botHand.length),
-          ],
-        ),
+        _handMetaRow(count: _botHand.length),
         const SizedBox(height: 8),
         SizedBox(
-          height: 76,
+          height: _handCardHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemBuilder: (_, __) => const CardBackView(),
+            itemBuilder: (_, __) => const CardBackView(
+              width: _handCardWidth,
+              height: _handCardHeight,
+            ),
             separatorBuilder: (_, __) => const SizedBox(width: 6),
             itemCount: _botHand.length,
           ),
@@ -1538,6 +1465,68 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         const SizedBox(width: 10),
         _ScorePill(label: 'Bot', value: _botScore),
       ],
+    );
+  }
+
+  Widget _handMetaRow({required int count}) {
+    return Row(
+      children: <Widget>[
+        Icon(
+          Icons.style_rounded,
+          size: 18,
+          color: Colors.white.withOpacity(0.95),
+        ),
+        const SizedBox(width: 6),
+        _CountBadge(count: count),
+      ],
+    );
+  }
+
+  Widget _statusBanner() {
+    return AnimatedSwitcher(
+      duration: _uiTransitionDuration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: Container(
+        key: ValueKey<String>(
+          '$_status-${_activeSuitConstraint?.name}-${_humanMustAnswerAce ? 1 : 0}',
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              _status,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (_activeSuitConstraint != null) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                'Enseigne demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
+                style: TextStyle(
+                  color: _suitColor(_activeSuitConstraint!),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+            if (_humanMustAnswerAce) ...<Widget>[
+              const SizedBox(height: 6),
+              const Text(
+                'Réponse à l’As : jouez un As, un joker de même couleur, ou piochez.',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
