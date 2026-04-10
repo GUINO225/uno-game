@@ -180,6 +180,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
   bool _isRoundInfoOverlayVisible = false;
   String _roundInfoOverlayMessage = '';
+  bool _humanDidVoluntaryDrawThisTurn = false;
 
   int _humanScore = 0;
   int _botScore = 0;
@@ -189,6 +190,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   final GlobalKey _tableKey = GlobalKey();
   final GlobalKey _discardPileKey = GlobalKey();
   final Map<PlayingCard, GlobalKey> _humanCardKeys = <PlayingCard, GlobalKey>{};
+  final Set<PlayingCard> _hiddenHumanCards = <PlayingCard>{};
 
   static const Alignment _drawPileAnchor = Alignment(-0.45, -0.05);
   static const Alignment _discardPileAnchor = Alignment(0.0, -0.02);
@@ -324,6 +326,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _eightDemandOverlayMessage = '';
       _isRoundInfoOverlayVisible = false;
       _roundInfoOverlayMessage = '';
+      _humanDidVoluntaryDrawThisTurn = false;
+      _hiddenHumanCards.clear();
       _cardFlight = null;
     });
 
@@ -580,6 +584,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Future<void> _humanPlayCard(PlayingCard card, {GlobalKey? fromCardKey}) async {
+    setState(() {
+      _humanDidVoluntaryDrawThisTurn = false;
+    });
     await _playCard(
       hand: _humanHand,
       card: card,
@@ -664,6 +671,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       final int drawn = _drawCards(_humanHand, 1).length;
       setState(() {
         _humanMustAnswerAce = false;
+        _humanDidVoluntaryDrawThisTurn = false;
         _status = drawn > 0
             ? 'Vous choisissez de piocher au lieu de répondre à l’As.'
             : 'Vous choisissez de piocher, mais la pioche est vide.';
@@ -672,8 +680,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return;
     }
 
-    final List<PlayingCard> drawn = _drawCards(_humanHand, 1);
-    if (drawn.isEmpty) {
+    if (_humanDidVoluntaryDrawThisTurn) {
+      setState(() {
+        _status = 'Vous passez après votre pioche volontaire.';
+      });
+      _endHumanTurn();
+      return;
+    }
+
+    final PlayingCard? drawnCard = _drawOneCard();
+    if (drawnCard == null) {
       setState(() {
         _status = 'La pioche est vide.';
       });
@@ -688,19 +704,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     );
 
     setState(() {
-      _status = 'Vous piochez ${drawn.first.label}.';
+      _humanHand.add(drawnCard);
+      _humanDidVoluntaryDrawThisTurn = true;
+      _status =
+          'Vous piochez ${drawnCard.label}. Vous pouvez jouer une carte valide, ou retoucher la pioche pour passer.';
     });
-
-    if (_isCardPlayableForHuman(drawn.first)) {
-      _isResolvingTurn = true;
-      try {
-        await _humanPlayCard(drawn.first);
-      } finally {
-        _isResolvingTurn = false;
-      }
-    } else {
-      _endHumanTurn();
-    }
   }
 
   List<PlayingCard> _drawCards(List<PlayingCard> destination, int count) {
@@ -760,13 +768,21 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         fromCardKey != null && hand == _humanHand;
 
     setState(() {
-      hand.remove(card);
-      _humanCardKeys.remove(card);
       if (card.rank != 8) {
         _activeSuitConstraint = null;
       }
       _status = '$playerName joue ${card.label}.';
     });
+
+    if (useExactHumanOverlayFlight) {
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _hiddenHumanCards.add(card);
+      });
+    }
 
     if (useExactHumanOverlayFlight) {
       final bool didAnimate = await _animateHumanCardOverlayFlight(
@@ -779,11 +795,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           to: flightTo,
           face: _FlightCardFace.front,
           card: card,
-          duration: const Duration(milliseconds: 700),
-          curve: Curves.easeOutQuart,
-          arcHeight: 0.09,
+          duration: const Duration(milliseconds: 860),
+          curve: Curves.easeInOutCubicEmphasized,
+          arcHeight: 0.12,
           beginScale: 1,
-          endScale: 0.9,
+          endScale: 0.92,
         );
       }
     } else {
@@ -792,15 +808,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         to: flightTo,
         face: _FlightCardFace.front,
         card: card,
-        duration: const Duration(milliseconds: 700),
-        curve: Curves.easeOutQuart,
-        arcHeight: 0.09,
+        duration: const Duration(milliseconds: 860),
+        curve: Curves.easeInOutCubicEmphasized,
+        arcHeight: 0.12,
         beginScale: 1,
-        endScale: 0.9,
+        endScale: 0.92,
       );
     }
 
     setState(() {
+      hand.remove(card);
+      _humanCardKeys.remove(card);
+      _hiddenHumanCards.remove(card);
       _discardPile.add(card);
     });
   }
@@ -1128,6 +1147,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     setState(() {
+      _humanDidVoluntaryDrawThisTurn = false;
       _turn = PlayerTurn.bot;
       _status = 'Tour du bot...';
     });
@@ -1338,6 +1358,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
   void _switchToHuman() {
     setState(() {
+      _humanDidVoluntaryDrawThisTurn = false;
       _turn = PlayerTurn.human;
       if (!_gameOver) {
         _status =
@@ -1395,11 +1416,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return false;
     }
 
-    if (_isHumanForcedToDrawNow() || _humanMustAnswerAce) {
-      return true;
-    }
-
-    return !_humanHasPlayableCard();
+    return true;
   }
 
   Future<bool> _animateHumanCardOverlayFlight({
@@ -1437,11 +1454,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     final AnimationController controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 860),
     );
     final Animation<double> progress = CurvedAnimation(
       parent: controller,
-      curve: Curves.easeOutQuart,
+      curve: Curves.easeInOutCubicEmphasized,
     );
 
     late final OverlayEntry entry;
@@ -1455,8 +1472,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               final double t = progress.value;
               final Offset center = Offset.lerp(startCenter, endCenter, t) ??
                   endCenter;
-              final double arc = sin(pi * t) * 18;
-              final double scale = lerpDouble(1, 0.9, t) ?? 1;
+              final double arc = sin(pi * t) * 30;
+              final double scale = lerpDouble(1.0, 0.92, t) ?? 1;
+              final double tilt = lerpDouble(0, 0.06, t) ?? 0;
               final double width = startSize.width * scale;
               final double height = startSize.height * scale;
 
@@ -1467,7 +1485,22 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                     top: center.dy - (height / 2) - arc,
                     width: width,
                     height: height,
-                    child: child!,
+                    child: Transform.rotate(
+                      angle: tilt,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.28),
+                              blurRadius: 18,
+                              spreadRadius: 1,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: child!,
+                      ),
+                    ),
                   ),
                 ],
               );
@@ -1532,7 +1565,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return true;
     }
 
-    return !_humanHasPlayableCard();
+    return !_humanHasPlayableCard() || _humanDidVoluntaryDrawThisTurn;
   }
 
   @override
@@ -1692,13 +1725,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                                       },
                                       child: Padding(
                                         padding: const EdgeInsets.only(right: 8),
-                                        child: CardView(
-                                          key: _keyForHumanCard(card),
-                                          card: card,
-                                          enabled:
-                                              canInteract &&
-                                              _isCardPlayableForHuman(card),
-                                          onTap: () => _onHumanTapCard(card),
+                                        child: Opacity(
+                                          opacity:
+                                              _hiddenHumanCards.contains(card)
+                                                  ? 0.0
+                                                  : 1.0,
+                                          child: CardView(
+                                            key: _keyForHumanCard(card),
+                                            card: card,
+                                            enabled:
+                                                canInteract &&
+                                                _isCardPlayableForHuman(card),
+                                            onTap: () => _onHumanTapCard(card),
+                                          ),
                                         ),
                                       ),
                                     ),
