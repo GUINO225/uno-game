@@ -164,6 +164,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   bool _gameOver = false;
   bool _isResolvingTurn = false;
   bool _isInitialDealRunning = false;
+  bool _isBotTurnRunning = false;
   int _roundSequence = 0;
 
   int _forcedDrawCount = 0;
@@ -205,19 +206,23 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     required Alignment to,
     required _FlightCardFace face,
     PlayingCard? card,
-    Duration duration = const Duration(milliseconds: 620),
+    Duration? duration,
     Curve curve = Curves.easeInOutCubic,
     double arcHeight = 0,
     double beginScale = 1,
     double endScale = 1,
   }) async {
+    final double travel = (to - from).distance;
+    final int computedMs = (380 + (travel * 240)).round().clamp(280, 760);
+    final Duration effectiveDuration =
+        duration ?? Duration(milliseconds: computedMs);
     final int nonce = ++_flightNonce;
     setState(() {
       _cardFlight = _CardFlightData(
         begin: from,
         end: to,
         face: face,
-        duration: duration,
+        duration: effectiveDuration,
         curve: curve,
         arcHeight: arcHeight,
         beginScale: beginScale,
@@ -226,7 +231,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       );
     });
 
-    await Future<void>.delayed(duration);
+    await Future<void>.delayed(effectiveDuration);
     if (!mounted || nonce != _flightNonce) {
       return;
     }
@@ -248,9 +253,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         from: _drawPileAnchor,
         to: _humanHandAnchor,
         face: _FlightCardFace.back,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        arcHeight: 0.04,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutQuart,
+        arcHeight: 0.06,
+        beginScale: 0.96,
+        endScale: 1.0,
       );
       if (!mounted) {
         return;
@@ -262,9 +269,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         from: _drawPileAnchor,
         to: _botHandAnchor,
         face: _FlightCardFace.back,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        arcHeight: 0.04,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutQuart,
+        arcHeight: 0.06,
+        beginScale: 0.96,
+        endScale: 1.0,
       );
       if (!mounted) {
         return;
@@ -359,7 +368,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     );
 
     if (_turn == PlayerTurn.bot && !_gameOver) {
-      unawaited(_runBotTurn());
+      _scheduleBotTurn();
     }
   }
 
@@ -560,8 +569,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     _isResolvingTurn = true;
-    await _humanPlayCard(card, fromCardKey: _keyForHumanCard(card));
-    _isResolvingTurn = false;
+    try {
+      await _humanPlayCard(card, fromCardKey: _keyForHumanCard(card));
+    } finally {
+      _isResolvingTurn = false;
+    }
   }
 
   Future<void> _humanPlayCard(PlayingCard card, {GlobalKey? fromCardKey}) async {
@@ -678,8 +690,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (_isCardPlayableForHuman(drawn.first)) {
       _isResolvingTurn = true;
-      await _humanPlayCard(drawn.first);
-      _isResolvingTurn = false;
+      try {
+        await _humanPlayCard(drawn.first);
+      } finally {
+        _isResolvingTurn = false;
+      }
     } else {
       _endHumanTurn();
     }
@@ -933,7 +948,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     });
 
     if (_turn == PlayerTurn.bot && !_gameOver) {
-      unawaited(_runBotTurn());
+      _scheduleBotTurn();
     }
   }
 
@@ -1114,15 +1129,32 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _status = 'Tour du bot...';
     });
 
+    _scheduleBotTurn();
+  }
+
+
+  void _scheduleBotTurn() {
+    if (_isBotTurnRunning || _gameOver) {
+      return;
+    }
+
     unawaited(_runBotTurn());
   }
 
-  Future<void> _runBotTurn() async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-
-    if (!mounted || _gameOver || _turn != PlayerTurn.bot || _isInitialDealRunning) {
-      return;
+  Future<void> _runBotTurn({bool chained = false}) async {
+    if (!chained) {
+      if (_isBotTurnRunning) {
+        return;
+      }
+      _isBotTurnRunning = true;
     }
+
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+
+      if (!mounted || _gameOver || _turn != PlayerTurn.bot || _isInitialDealRunning) {
+        return;
+      }
 
     if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.bot) {
       await _runForcedDrawForBot();
@@ -1181,7 +1213,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
       if (outcome.extraTurn) {
         await Future<void>.delayed(const Duration(milliseconds: 600));
-        await _runBotTurn();
+        await _runBotTurn(chained: true);
         return;
       }
 
@@ -1259,7 +1291,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (outcome.extraTurn) {
       await Future<void>.delayed(const Duration(milliseconds: 600));
-      await _runBotTurn();
+      await _runBotTurn(chained: true);
       return;
     }
 
@@ -1268,6 +1300,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     _switchToHuman();
+  } finally {
+      if (!chained) {
+        _isBotTurnRunning = false;
+      }
+    }
   }
 
   bool _checkVictory({
