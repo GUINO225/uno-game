@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -124,6 +125,10 @@ class _CardFlightData {
     required this.end,
     required this.face,
     required this.duration,
+    required this.curve,
+    required this.arcHeight,
+    required this.beginScale,
+    required this.endScale,
     this.card,
   });
 
@@ -131,6 +136,10 @@ class _CardFlightData {
   final Alignment end;
   final _FlightCardFace face;
   final Duration duration;
+  final Curve curve;
+  final double arcHeight;
+  final double beginScale;
+  final double endScale;
   final PlayingCard? card;
 }
 
@@ -173,6 +182,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   _CardFlightData? _cardFlight;
   int _flightNonce = 0;
 
+  final GlobalKey _tableKey = GlobalKey();
+  final GlobalKey _discardPileKey = GlobalKey();
+  final Map<PlayingCard, GlobalKey> _humanCardKeys = <PlayingCard, GlobalKey>{};
+
   static const Alignment _drawPileAnchor = Alignment(-0.45, -0.05);
   static const Alignment _discardPileAnchor = Alignment(0.0, -0.02);
   static const Alignment _humanHandAnchor = Alignment(0.0, 0.87);
@@ -189,7 +202,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     required Alignment to,
     required _FlightCardFace face,
     PlayingCard? card,
-    Duration duration = const Duration(milliseconds: 360),
+    Duration duration = const Duration(milliseconds: 620),
+    Curve curve = Curves.easeInOutCubic,
+    double arcHeight = 0,
+    double beginScale = 1,
+    double endScale = 1,
   }) async {
     final int nonce = ++_flightNonce;
     setState(() {
@@ -198,6 +215,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         end: to,
         face: face,
         duration: duration,
+        curve: curve,
+        arcHeight: arcHeight,
+        beginScale: beginScale,
+        endScale: endScale,
         card: card,
       );
     });
@@ -221,13 +242,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         from: _drawPileAnchor,
         to: _humanHandAnchor,
         face: _FlightCardFace.back,
-        duration: const Duration(milliseconds: 150),
+        duration: const Duration(milliseconds: 220),
       );
       await _animateCardFlight(
         from: _drawPileAnchor,
         to: _botHandAnchor,
         face: _FlightCardFace.back,
-        duration: const Duration(milliseconds: 150),
+        duration: const Duration(milliseconds: 220),
       );
     }
   }
@@ -483,16 +504,17 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
 
     _isResolvingTurn = true;
-    await _humanPlayCard(card);
+    await _humanPlayCard(card, fromCardKey: _keyForHumanCard(card));
     _isResolvingTurn = false;
   }
 
-  Future<void> _humanPlayCard(PlayingCard card) async {
+  Future<void> _humanPlayCard(PlayingCard card, {GlobalKey? fromCardKey}) async {
     await _playCard(
       hand: _humanHand,
       card: card,
       playerName: 'Vous',
       from: _humanHandAnchor,
+      fromCardKey: fromCardKey,
       to: _discardPileAnchor,
     );
 
@@ -651,23 +673,36 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     required String playerName,
     required Alignment from,
     required Alignment to,
+    GlobalKey? fromCardKey,
   }) async {
-    await _animateCardFlight(
-      from: from,
-      to: to,
-      face: _FlightCardFace.front,
-      card: card,
-    );
+    final Alignment flightFrom = fromCardKey != null
+        ? (_alignmentForKey(fromCardKey) ?? from)
+        : from;
+    final Alignment flightTo = _alignmentForKey(_discardPileKey) ?? to;
 
     setState(() {
       hand.remove(card);
-      _discardPile.add(card);
-
+      _humanCardKeys.remove(card);
       if (card.rank != 8) {
         _activeSuitConstraint = null;
       }
-
       _status = '$playerName joue ${card.label}.';
+    });
+
+    await _animateCardFlight(
+      from: flightFrom,
+      to: flightTo,
+      face: _FlightCardFace.front,
+      card: card,
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutQuart,
+      arcHeight: 0.09,
+      beginScale: 1,
+      endScale: 0.9,
+    );
+
+    setState(() {
+      _discardPile.add(card);
     });
   }
 
@@ -1235,6 +1270,40 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     return _turn == PlayerTurn.human && !_gameOver && !_isResolvingTurn;
   }
 
+
+
+  GlobalKey _keyForHumanCard(PlayingCard card) {
+    return _humanCardKeys.putIfAbsent(card, () => GlobalKey());
+  }
+
+  Alignment? _alignmentForKey(GlobalKey key) {
+    final BuildContext? tableContext = _tableKey.currentContext;
+    final BuildContext? targetContext = key.currentContext;
+    if (tableContext == null || targetContext == null) {
+      return null;
+    }
+
+    final RenderObject? tableRender = tableContext.findRenderObject();
+    final RenderObject? targetRender = targetContext.findRenderObject();
+    if (tableRender is! RenderBox || targetRender is! RenderBox) {
+      return null;
+    }
+
+    final Offset center = targetRender.localToGlobal(
+      targetRender.size.center(Offset.zero),
+      ancestor: tableRender,
+    );
+
+    final Size tableSize = tableRender.size;
+    if (tableSize.width == 0 || tableSize.height == 0) {
+      return null;
+    }
+
+    final double dx = (center.dx / tableSize.width) * 2 - 1;
+    final double dy = (center.dy / tableSize.height) * 2 - 1;
+    return Alignment(dx.clamp(-1.0, 1.0), dy.clamp(-1.0, 1.0));
+  }
+
   bool _shouldHighlightDrawPile() {
     if (!_canHumanDrawNow()) {
       return false;
@@ -1272,6 +1341,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         ],
       ),
       body: Stack(
+        key: _tableKey,
         children: <Widget>[
           Positioned.fill(
             child: DecoratedBox(
@@ -1360,22 +1430,37 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                         ],
                         const SizedBox(height: 8),
                         Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: <Widget>[
-                                for (final PlayingCard card in _humanHand)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: CardView(
-                                      card: card,
-                                      enabled:
-                                          canInteract &&
-                                          _isCardPlayableForHuman(card),
-                                      onTap: () => _onHumanTapCard(card),
+                          child: AnimatedSize(
+                            duration: const Duration(milliseconds: 440),
+                            curve: Curves.easeInOutCubic,
+                            alignment: Alignment.centerLeft,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: <Widget>[
+                                  for (final PlayingCard card in _humanHand)
+                                    TweenAnimationBuilder<double>(
+                                      key: ValueKey<int>(card.hashCode),
+                                      tween: Tween<double>(begin: 0.92, end: 1),
+                                      duration: const Duration(milliseconds: 340),
+                                      curve: Curves.easeOutQuart,
+                                      builder: (BuildContext context, double value, Widget? child) {
+                                        return Transform.scale(scale: value, child: child);
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(right: 8),
+                                        child: CardView(
+                                          key: _keyForHumanCard(card),
+                                          card: card,
+                                          enabled:
+                                              canInteract &&
+                                              _isCardPlayableForHuman(card),
+                                          onTap: () => _onHumanTapCard(card),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -1478,22 +1563,23 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           if (_cardFlight != null)
             Positioned.fill(
               child: IgnorePointer(
-                child: TweenAnimationBuilder<Alignment>(
+                child: TweenAnimationBuilder<double>(
                   key: ValueKey<int>(_flightNonce),
                   duration: _cardFlight!.duration,
-                  curve: Curves.easeInOutCubic,
-                  tween: AlignmentTween(
-                    begin: _cardFlight!.begin,
-                    end: _cardFlight!.end,
-                  ),
-                  builder: (
-                    BuildContext context,
-                    Alignment value,
-                    Widget? child,
-                  ) {
+                  curve: _cardFlight!.curve,
+                  tween: Tween<double>(begin: 0, end: 1),
+                  builder: (BuildContext context, double t, Widget? child) {
+                    final double arc = sin(pi * t) * _cardFlight!.arcHeight;
+                    final double dx = lerpDouble(_cardFlight!.begin.x, _cardFlight!.end.x, t) ?? _cardFlight!.end.x;
+                    final double dy = (lerpDouble(_cardFlight!.begin.y, _cardFlight!.end.y, t) ?? _cardFlight!.end.y) - arc;
+                    final double scale = lerpDouble(_cardFlight!.beginScale, _cardFlight!.endScale, t) ?? 1;
+
                     return Align(
-                      alignment: value,
-                      child: child,
+                      alignment: Alignment(dx, dy),
+                      child: Transform.scale(
+                        scale: scale,
+                        child: child,
+                      ),
                     );
                   },
                   child: _cardFlight!.face == _FlightCardFace.back
@@ -1590,12 +1676,15 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                     const SizedBox(height: 8),
                     if (hasDiscard)
                       Transform.scale(
-                        scale: 1.1,
-                        child: CardView(card: _topDiscard),
+                        scale: 1.08,
+                        child: _DiscardPileView(
+                          key: _discardPileKey,
+                          cards: _discardPile,
+                        ),
                       )
                     else
                       Transform.scale(
-                        scale: 1.1,
+                        scale: 1.08,
                         child: const _EmptyCardSlot(label: 'Vide'),
                       ),
                   ],
@@ -1904,6 +1993,47 @@ class CardView extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: cardWidget,
+    );
+  }
+}
+
+
+
+class _DiscardPileView extends StatelessWidget {
+  const _DiscardPileView({
+    super.key,
+    required this.cards,
+  });
+
+  final List<PlayingCard> cards;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<PlayingCard> visible = cards.length <= 5
+        ? cards
+        : cards.sublist(cards.length - 5);
+
+    return SizedBox(
+      width: 84,
+      height: 116,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          for (int i = 0; i < visible.length; i++)
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 420),
+              curve: Curves.easeInOutCubic,
+              left: i * 1.8,
+              top: i * 1.2,
+              child: AnimatedRotation(
+                duration: const Duration(milliseconds: 420),
+                curve: Curves.easeInOutCubic,
+                turns: (i.isEven ? -1 : 1) * 0.003 * i,
+                child: CardView(card: visible[i]),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
