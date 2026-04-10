@@ -1124,7 +1124,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         !_isHumanForcedToDrawNow();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B3D2E),
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Huit américain'),
         centerTitle: true,
