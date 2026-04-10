@@ -417,6 +417,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       await _humanPlayCard(card);
     } finally {
       _isResolvingTurn = false;
+      // Important: _endHumanTurn() can be called while _isResolvingTurn is true,
+      // which prevents _scheduleBotTurn() from starting.
+      // Re-check bot progression once the resolving lock is released.
+      _ensureBotTurnProgress();
     }
   }
 
@@ -1809,30 +1813,62 @@ class _DiscardPileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<PlayingCard> renderCards = List<PlayingCard>.from(cards);
-    final List<PlayingCard> visible = renderCards.length <= 5
-        ? renderCards
-        : renderCards.sublist(renderCards.length - 5);
-    final int baseIndex = renderCards.length - visible.length;
+    final PlayingCard topCard = cards.last;
 
     return SizedBox(
-      width: 84,
-      height: 116,
+      width: 86,
+      height: 118,
       child: Stack(
-        clipBehavior: Clip.none,
+        alignment: Alignment.center,
         children: <Widget>[
-          for (int i = 0; i < visible.length; i++)
-            Positioned(
-              key: ValueKey<String>(
-                'discard-${baseIndex + i}-${visible[i].label}-${renderCards.length}',
-              ),
-              left: i * 2.0,
-              top: i * 1.4,
-              child: Transform.rotate(
-                angle: (i.isEven ? -1 : 1) * 0.006 * i,
-                child: CardView(card: visible[i]),
+          // Simple and stable fake pile layers (visual only).
+          Transform.translate(
+            offset: const Offset(-4, -3),
+            child: Container(
+              width: 64,
+              height: 96,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
               ),
             ),
+          ),
+          Transform.translate(
+            offset: const Offset(-2, -1),
+            child: Container(
+              width: 64,
+              height: 96,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+            ),
+          ),
+          // Only the top card is rendered as an actual card to avoid
+          // complex stacking and repaint churn.
+          CardView(card: topCard),
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Text(
+                '${cards.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
