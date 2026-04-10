@@ -236,7 +236,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     });
   }
 
-  Future<void> _animateInitialDeal() async {
+  Future<void> _animateInitialDeal({
+    required List<PlayingCard> humanInitialCards,
+    required List<PlayingCard> botInitialCards,
+  }) async {
     for (int i = 0; i < 7; i++) {
       if (!mounted) {
         return;
@@ -249,6 +252,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         curve: Curves.easeOutCubic,
         arcHeight: 0.04,
       );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _humanHand.add(humanInitialCards[i]);
+      });
       await _animateCardFlight(
         from: _drawPileAnchor,
         to: _botHandAnchor,
@@ -257,6 +266,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         curve: Curves.easeOutCubic,
         arcHeight: 0.04,
       );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _botHand.add(botInitialCards[i]);
+      });
       await Future<void>.delayed(const Duration(milliseconds: 35));
     }
   }
@@ -272,13 +287,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     _discardPile.clear();
 
-    _humanHand
-      ..clear()
-      ..addAll(_dealCards(_drawPile, 7));
+    final List<PlayingCard> humanInitialCards = _dealCards(_drawPile, 7);
+    final List<PlayingCard> botInitialCards = _dealCards(_drawPile, 7);
 
-    _botHand
-      ..clear()
-      ..addAll(_dealCards(_drawPile, 7));
+    _humanHand.clear();
+    _botHand.clear();
 
     final PlayingCard openingCard = _openFirstDiscardCard();
 
@@ -307,6 +320,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       dealer: dealer,
       startingPlayer: startingPlayer,
       openingCard: openingCard,
+      humanInitialCards: humanInitialCards,
+      botInitialCards: botInitialCards,
     ));
   }
 
@@ -315,12 +330,17 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     required PlayerTurn dealer,
     required PlayerTurn startingPlayer,
     required PlayingCard openingCard,
+    required List<PlayingCard> humanInitialCards,
+    required List<PlayingCard> botInitialCards,
   }) async {
     await Future.wait(<Future<void>>[
       _showRoundInfoOverlay(
         dealer == PlayerTurn.human ? 'Vous distribuez' : 'Le bot distribue',
       ),
-      _animateInitialDeal(),
+      _animateInitialDeal(
+        humanInitialCards: humanInitialCards,
+        botInitialCards: botInitialCards,
+      ),
     ]);
 
     if (!mounted || sequence != _roundSequence) {
