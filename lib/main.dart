@@ -212,9 +212,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     double beginScale = 1,
     double endScale = 1,
   }) async {
-    final double dx = to.x - from.x;
-    final double dy = to.y - from.y;
-    final double travel = sqrt((dx * dx) + (dy * dy));
+    final double travel = (to - from).distance;
     final int computedMs = (380 + (travel * 240)).round().clamp(280, 760);
     final Duration effectiveDuration =
         duration ?? Duration(milliseconds: computedMs);
