@@ -163,6 +163,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   String _status = '';
   bool _gameOver = false;
   bool _isResolvingTurn = false;
+  bool _isInitialDealRunning = false;
+  int _roundSequence = 0;
 
   int _forcedDrawCount = 0;
   PlayerTurn? _forcedDrawTarget;
@@ -243,20 +245,26 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         from: _drawPileAnchor,
         to: _humanHandAnchor,
         face: _FlightCardFace.back,
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        arcHeight: 0.04,
       );
       await _animateCardFlight(
         from: _drawPileAnchor,
         to: _botHandAnchor,
         face: _FlightCardFace.back,
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        arcHeight: 0.04,
       );
+      await Future<void>.delayed(const Duration(milliseconds: 35));
     }
   }
 
   void _startNewGame() {
+    final int sequence = ++_roundSequence;
     final PlayerTurn dealer =
-    _random.nextBool() ? PlayerTurn.human : PlayerTurn.bot;
+        _random.nextBool() ? PlayerTurn.human : PlayerTurn.bot;
     final PlayerTurn startingPlayer = _opponentOf(dealer);
 
     _drawPile = _createDeck();
@@ -276,9 +284,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     setState(() {
       _turn = startingPlayer;
-      _status = '${_turnLabel(startingPlayer)} commence.';
+      _status = 'Distribution des cartes...';
       _gameOver = false;
       _isResolvingTurn = false;
+      _isInitialDealRunning = true;
       _forcedDrawCount = 0;
       _forcedDrawTarget = null;
       _forcedDrawSource = null;
@@ -293,10 +302,35 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _cardFlight = null;
     });
 
-    unawaited(_showRoundInfoOverlay(
-      dealer == PlayerTurn.human ? 'Vous distribuez' : 'Le bot distribue',
+    unawaited(_runRoundStartSequence(
+      sequence: sequence,
+      dealer: dealer,
+      startingPlayer: startingPlayer,
+      openingCard: openingCard,
     ));
-    unawaited(_animateInitialDeal());
+  }
+
+  Future<void> _runRoundStartSequence({
+    required int sequence,
+    required PlayerTurn dealer,
+    required PlayerTurn startingPlayer,
+    required PlayingCard openingCard,
+  }) async {
+    await Future.wait(<Future<void>>[
+      _showRoundInfoOverlay(
+        dealer == PlayerTurn.human ? 'Vous distribuez' : 'Le bot distribue',
+      ),
+      _animateInitialDeal(),
+    ]);
+
+    if (!mounted || sequence != _roundSequence) {
+      return;
+    }
+
+    setState(() {
+      _isInitialDealRunning = false;
+      _status = '${_turnLabel(startingPlayer)} commence.';
+    });
 
     _applyOpeningCardPenaltyIfNeeded(
       openingCard,
@@ -490,6 +524,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     if (_turn != PlayerTurn.human ||
         _gameOver ||
         _isResolvingTurn ||
+        _isInitialDealRunning ||
         _isHumanForcedToDrawNow()) {
       return;
     }
@@ -548,7 +583,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Future<void> _onHumanDraw() async {
-    if (_turn != PlayerTurn.human || _gameOver || _isResolvingTurn) {
+    if (_turn != PlayerTurn.human ||
+        _gameOver ||
+        _isResolvingTurn ||
+        _isInitialDealRunning) {
       return;
     }
 
@@ -1062,7 +1100,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   Future<void> _runBotTurn() async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
 
-    if (!mounted || _gameOver || _turn != PlayerTurn.bot) {
+    if (!mounted || _gameOver || _turn != PlayerTurn.bot || _isInitialDealRunning) {
       return;
     }
 
@@ -1290,7 +1328,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   bool _canHumanDrawNow() {
-    return _turn == PlayerTurn.human && !_gameOver && !_isResolvingTurn;
+    return _turn == PlayerTurn.human &&
+        !_gameOver &&
+        !_isResolvingTurn &&
+        !_isInitialDealRunning;
   }
 
   Future<bool> _animateHumanCardOverlayFlight({
@@ -1431,6 +1472,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     final bool canInteract = _turn == PlayerTurn.human &&
         !_gameOver &&
         !_isResolvingTurn &&
+        !_isInitialDealRunning &&
         !_isHumanForcedToDrawNow();
 
     return Scaffold(
