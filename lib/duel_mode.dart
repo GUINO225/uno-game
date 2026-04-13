@@ -109,7 +109,9 @@ class GameService {
         if (options != null) {
           await Firebase.initializeApp(options: options);
         } else {
-          await Firebase.initializeApp();
+          throw StateError(
+            'FirebaseOptions manquantes pour cette plateforme.',
+          );
         }
       } catch (e) {
         throw StateError(
