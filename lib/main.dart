@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -22,12 +21,10 @@ Future<void> _initializeFirebaseIfConfigured() async {
   }
 
   try {
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final FirebaseOptions? androidOptions = FirebaseConfig.androidOptions;
-      if (androidOptions != null) {
-        await Firebase.initializeApp(options: androidOptions);
-        return;
-      }
+    final FirebaseOptions? options = FirebaseConfig.optionsForCurrentPlatform();
+    if (options != null) {
+      await Firebase.initializeApp(options: options);
+      return;
     }
 
     await Firebase.initializeApp();
