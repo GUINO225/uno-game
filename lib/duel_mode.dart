@@ -366,6 +366,13 @@ class DuelPage extends StatelessWidget {
       animation: controller,
       builder: (BuildContext context, _) {
         final DuelSession? session = controller.session;
+        final bool myTurn = controller.isMyTurn;
+        final DuelAction? lastAction = session?.lastAction;
+        final String? opponentId = session == null
+            ? null
+            : session.players.where((String id) => id != controller.localPlayerId).isEmpty
+                ? null
+                : session.players.firstWhere((String id) => id != controller.localPlayerId);
         return Scaffold(
           appBar: AppBar(title: Text('Duel ${session?.gameId ?? ''}')),
           body: session == null
@@ -375,45 +382,238 @@ class DuelPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      Text('Tour actif: ${session.currentTurn == controller.localPlayerId ? 'Vous' : 'Adversaire'}'),
-                      const SizedBox(height: 8),
-                      Text('Status: ${session.status.name}'),
-                      const SizedBox(height: 8),
-                      Text('Dernière action: ${session.lastAction?.type.name ?? 'Aucune'}'),
-                      const Divider(height: 24),
-                      const Text(
-                        'Intégration GameEngine : chaque action reçue doit être rejouée localement '
-                        'avec la même logique existante du mode solo.',
+                      _DuelStatusBanner(
+                        isMyTurn: myTurn,
+                        connectedPlayers: session.players.length,
+                        duelStatus: session.status,
+                        opponentId: opponentId,
                       ),
                       const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: controller.isMyTurn
-                            ? () => controller.sendAction(
-                                  DuelActionType.playCard,
-                                  payload: <String, dynamic>{'cardId': 'example_card'},
-                                )
-                            : null,
-                        child: const Text('Jouer une carte (action sync)'),
+                      Expanded(
+                        child: Column(
+                          children: <Widget>[
+                            _PlayerHandZone(
+                              title: 'Adversaire',
+                              subtitle: lastAction?.actorId == controller.localPlayerId
+                                  ? 'En attente de sa réponse...'
+                                  : 'Dernière action: ${_readableAction(lastAction)}',
+                              cardCount: 7,
+                              highlighted: !myTurn,
+                            ),
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: <Widget>[
+                                  _StackCard(
+                                    title: 'Pioche',
+                                    label: 'Cartes',
+                                    highlighted: myTurn,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  _StackCard(
+                                    title: 'Défausse',
+                                    label: _readableAction(lastAction),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _PlayerHandZone(
+                              title: 'Vous',
+                              subtitle: myTurn ? 'À vous de jouer' : 'Tour de l’adversaire',
+                              cardCount: 7,
+                              highlighted: myTurn,
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: controller.isMyTurn
-                            ? () => controller.sendAction(DuelActionType.drawCard)
-                            : null,
-                        child: const Text('Piocher (action sync)'),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: controller.isMyTurn
-                            ? () => controller.sendAction(DuelActionType.passTurn)
-                            : null,
-                        child: const Text('Passer le tour'),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: myTurn
+                                  ? () => controller.sendAction(
+                                        DuelActionType.playCard,
+                                        payload: <String, dynamic>{'cardId': 'example_card'},
+                                      )
+                                  : null,
+                              child: const Text('Jouer'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: myTurn
+                                  ? () => controller.sendAction(DuelActionType.drawCard)
+                                  : null,
+                              child: const Text('Piocher'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: myTurn
+                                  ? () => controller.sendAction(DuelActionType.passTurn)
+                                  : null,
+                              child: const Text('Passer'),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
         );
       },
+    );
+  }
+}
+
+String _readableAction(DuelAction? action) {
+  if (action == null) {
+    return 'Aucune';
+  }
+  switch (action.type) {
+    case DuelActionType.playCard:
+      return 'Carte jouée';
+    case DuelActionType.drawCard:
+      return 'Carte piochée';
+    case DuelActionType.passTurn:
+      return 'Tour passé';
+  }
+}
+
+class _DuelStatusBanner extends StatelessWidget {
+  const _DuelStatusBanner({
+    required this.isMyTurn,
+    required this.connectedPlayers,
+    required this.duelStatus,
+    required this.opponentId,
+  });
+
+  final bool isMyTurn;
+  final int connectedPlayers;
+  final DuelGameStatus duelStatus;
+  final String? opponentId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isMyTurn ? Colors.green.shade50 : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isMyTurn ? Colors.green.shade300 : Colors.grey.shade400,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            isMyTurn ? 'Votre tour' : 'Tour adverse',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text('Joueurs connectés: $connectedPlayers/2'),
+          Text('État: ${duelStatus.name}'),
+          Text('Adversaire: ${opponentId == null ? 'en attente...' : 'connecté'}'),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayerHandZone extends StatelessWidget {
+  const _PlayerHandZone({
+    required this.title,
+    required this.subtitle,
+    required this.cardCount,
+    this.highlighted = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final int cardCount;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: highlighted ? Colors.lightBlue.shade50 : Colors.grey.shade100,
+        border: Border.all(
+          color: highlighted ? Colors.lightBlue.shade300 : Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(subtitle, style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: cardCount,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, __) => Container(
+                width: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.black26),
+                ),
+                child: const Icon(Icons.style, size: 18),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StackCard extends StatelessWidget {
+  const _StackCard({
+    required this.title,
+    required this.label,
+    this.highlighted = false,
+  });
+
+  final String title;
+  final String label;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 120,
+      height: 150,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: highlighted ? Colors.amber.shade50 : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: highlighted ? Colors.amber.shade700 : Colors.black26,
+          width: highlighted ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Icon(Icons.layers, size: 30),
+          const SizedBox(height: 8),
+          Text(label, textAlign: TextAlign.center),
+        ],
+      ),
     );
   }
 }
