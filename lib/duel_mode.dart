@@ -911,7 +911,11 @@ class _DuelPageState extends State<DuelPage> {
                 children: <Widget>[
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: _LocalProfileCard(playerName: myName),
+                    child: _LocalProfileCard(
+                      playerName: myName,
+                      wins: session.scores[_controller.localPlayerId] ?? 0,
+                      losses: session.scores[opponentId] ?? 0,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   _DuelStatusBanner(
@@ -1353,9 +1357,15 @@ class _DuelStatusBanner extends StatelessWidget {
 }
 
 class _LocalProfileCard extends StatelessWidget {
-  const _LocalProfileCard({required this.playerName});
+  const _LocalProfileCard({
+    required this.playerName,
+    required this.wins,
+    required this.losses,
+  });
 
   final String playerName;
+  final int wins;
+  final int losses;
 
   @override
   Widget build(BuildContext context) {
@@ -1393,16 +1403,6 @@ class _LocalProfileCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Text(
-                  'PROFIL',
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.9,
-                  ),
-                ),
-                const SizedBox(height: 2),
                 Text(
                   playerName.isEmpty ? 'Joueur 1' : playerName,
                   maxLines: 1,
@@ -1410,7 +1410,18 @@ class _LocalProfileCard extends StatelessWidget {
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'V $wins   D $losses',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ],
@@ -1438,11 +1449,25 @@ class _OpponentRow extends StatelessWidget {
           Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           const SizedBox(width: 8),
           Text('🃏 $count', style: const TextStyle(color: Colors.white70)),
-          const Spacer(),
-          ...List<Widget>.generate(min(count, 10), (int _) => const Padding(
-            padding: EdgeInsets.only(left: 4),
-            child: _DuelCardBack(width: 24, height: 34),
-          )),
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List<Widget>.generate(
+                    count,
+                    (int _) => const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: _DuelCardBack(width: 24, height: 34),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1495,8 +1520,6 @@ class _CenterArea extends StatelessWidget {
             Column(
               children: <Widget>[
                 _FaceCard(card: discard),
-                const SizedBox(height: 6),
-                const Text('Défausse', style: TextStyle(color: Colors.white)),
               ],
             ),
           ],
@@ -1545,13 +1568,27 @@ class _MyHandRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              canInteract ? 'VOUS · À VOTRE TOUR' : 'VOUS · PATIENTEZ',
-              style: const TextStyle(color: Colors.white),
+              'VOUS',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              canInteract ? 'À votre tour' : 'Patientez',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
             ),
             const SizedBox(height: 8),
             Expanded(
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
+                itemExtent: _FaceCard.width,
                 itemBuilder: (_, int index) {
                   final DuelCard card = cards[index];
                   final bool isPlayable = playable(card);
@@ -1671,18 +1708,52 @@ class _FaceCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(rank, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 16, height: 1)),
-                          Text(suit, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 14, height: 1)),
+                          _SuitGlyph(suit: suit, color: ink, size: 14),
                         ],
                       ),
                     ),
                     Center(
-                      child: Text(
-                        suit,
-                        style: TextStyle(color: ink, fontSize: 34, fontWeight: FontWeight.w600, height: 1),
-                      ),
+                      child: _SuitGlyph(suit: suit, color: ink, size: 34),
                     ),
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuitGlyph extends StatelessWidget {
+  const _SuitGlyph({
+    required this.suit,
+    required this.color,
+    required this.size,
+  });
+
+  final String suit;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final double scale = switch (suit) {
+      '♥' => 0.88,
+      '♦' => 0.94,
+      '♣' => 0.92,
+      '♠' => 0.96,
+      _ => 1,
+    };
+    return Transform.scale(
+      scale: scale,
+      alignment: Alignment.center,
+      child: Text(
+        suit,
+        strutStyle: const StrutStyle(forceStrutHeight: true, height: 1),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: size,
+          height: 1,
         ),
       ),
     );
