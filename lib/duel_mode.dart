@@ -240,11 +240,16 @@ class DuelController extends ChangeNotifier {
 
   Future<void> sendAction(DuelActionType type, {Map<String, dynamic> payload = const <String, dynamic>{}}) async {
     final DuelSession? current = session;
-    if (current == null || !isMyTurn || current.players.length < 2) {
+    if (current == null || !isMyTurn) {
       return;
     }
 
-    final String nextTurn = current.players.firstWhere((String id) => id != localPlayerId, orElse: () => localPlayerId);
+    final String nextTurn = current.players.length < 2
+        ? localPlayerId
+        : current.players.firstWhere(
+            (String id) => id != localPlayerId,
+            orElse: () => localPlayerId,
+          );
 
     await service.pushAction(
       gameId: current.gameId,
