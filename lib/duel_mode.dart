@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
@@ -91,13 +92,24 @@ class DuelSession {
 
 /// Multiplayer transport only: game rules stay in existing GameEngine.
 class GameService {
-  GameService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  GameService({FirebaseFirestore? firestore}) : _firestore = firestore;
 
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore? _firestore;
+
+  FirebaseFirestore get _db {
+    if (_firestore != null) {
+      return _firestore!;
+    }
+    if (Firebase.apps.isEmpty) {
+      throw StateError(
+        'Firebase non configuré. Le mode duel nécessite Firebase.initializeApp().',
+      );
+    }
+    return FirebaseFirestore.instance;
+  }
 
   CollectionReference<Map<String, dynamic>> get _games =>
-      _firestore.collection('duel_games');
+      _db.collection('duel_games');
 
   String _generateCode() {
     const String chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -121,7 +133,7 @@ class GameService {
 
   Future<void> joinGame({required String gameId, required String playerId}) async {
     final DocumentReference<Map<String, dynamic>> ref = _games.doc(gameId);
-    await _firestore.runTransaction((Transaction tx) async {
+    await _db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
         throw StateError('Partie introuvable');
