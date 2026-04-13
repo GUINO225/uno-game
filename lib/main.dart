@@ -24,10 +24,7 @@ Future<void> _initializeFirebaseIfConfigured() async {
     final FirebaseOptions? options = FirebaseConfig.optionsForCurrentPlatform();
     if (options != null) {
       await Firebase.initializeApp(options: options);
-      return;
     }
-
-    await Firebase.initializeApp();
   } catch (_) {
     // Firebase remains optional in solo mode if configuration is absent.
   }
