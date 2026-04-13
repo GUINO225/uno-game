@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'firebase_config.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
@@ -96,20 +97,32 @@ class GameService {
 
   final FirebaseFirestore? _firestore;
 
-  FirebaseFirestore get _db {
+  Future<FirebaseFirestore> _resolveDb() async {
     if (_firestore != null) {
       return _firestore!;
     }
+
     if (Firebase.apps.isEmpty) {
-      throw StateError(
-        'Firebase non configuré. Le mode duel nécessite Firebase.initializeApp().',
-      );
+      try {
+        final FirebaseOptions? options =
+            FirebaseConfig.optionsForCurrentPlatform();
+        if (options != null) {
+          await Firebase.initializeApp(options: options);
+        } else {
+          await Firebase.initializeApp();
+        }
+      } catch (e) {
+        throw StateError(
+          'Firebase non configuré. Le mode duel nécessite Firebase.initializeApp(). Détail: $e',
+        );
+      }
     }
+
     return FirebaseFirestore.instance;
   }
 
-  CollectionReference<Map<String, dynamic>> get _games =>
-      _db.collection('duel_games');
+  Future<CollectionReference<Map<String, dynamic>>> _games() async =>
+      (await _resolveDb()).collection('duel_games');
 
   String _generateCode() {
     const String chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -119,7 +132,8 @@ class GameService {
 
   Future<String> createGame({required String playerId}) async {
     final String code = _generateCode();
-    await _games.doc(code).set(
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    await games.doc(code).set(
       DuelSession(
         gameId: code,
         hostId: playerId,
@@ -132,8 +146,10 @@ class GameService {
   }
 
   Future<void> joinGame({required String gameId, required String playerId}) async {
-    final DocumentReference<Map<String, dynamic>> ref = _games.doc(gameId);
-    await _db.runTransaction((Transaction tx) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
         throw StateError('Partie introuvable');
@@ -150,12 +166,18 @@ class GameService {
     });
   }
 
-  Stream<DuelSession> watchSession(String gameId) {
-    return _games.doc(gameId).snapshots().where((DocumentSnapshot<Map<String, dynamic>> doc) => doc.exists).map(DuelSession.fromDoc);
+  Stream<DuelSession> watchSession(String gameId) async* {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    yield* games
+        .doc(gameId)
+        .snapshots()
+        .where((DocumentSnapshot<Map<String, dynamic>> doc) => doc.exists)
+        .map(DuelSession.fromDoc);
   }
 
   Future<void> pushAction({required String gameId, required DuelAction action, required String nextTurn}) async {
-    final DocumentReference<Map<String, dynamic>> gameRef = _games.doc(gameId);
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    final DocumentReference<Map<String, dynamic>> gameRef = games.doc(gameId);
     await gameRef.update(<String, dynamic>{
       'currentTurn': nextTurn,
       'lastAction': action.toMap(),
