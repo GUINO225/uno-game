@@ -5,7 +5,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'duel_mode.dart';
 import 'firebase_config.dart';
 
 Future<void> main() async {
@@ -83,12 +82,12 @@ class GameModePage extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => const DuelLobbyPage(),
+                        builder: (_) => const CrazyEightsPage(),
                       ),
                     );
                   },
                   icon: const Icon(Icons.people),
-                  label: const Text('Mode Duel (en ligne)'),
+                  label: const Text('Mode Duel (mêmes règles que Solo)'),
                 ),
               ],
             ),
