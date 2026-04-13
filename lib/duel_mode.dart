@@ -1557,26 +1557,93 @@ class _DuelStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String shortName = myName.trim().isEmpty ? 'JOUEUR' : myName.trim();
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[Color(0xAA000000), Color(0x66111111)],
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('MANCHE $round', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
-          const SizedBox(height: 8),
-          Text(
-            'SCORE $myScore - $opponentScore',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.7,
+          Flexible(
+            flex: 5,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 240),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.32),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0x66FFFFFF)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.1),
+                      border: Border.all(color: const Color(0x99FFFFFF)),
+                    ),
+                    child: const Icon(Icons.person, color: Colors.white70, size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          shortName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15.5,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'V $myScore   D $opponentScore',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 6,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.36),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0x80FFFFFF)),
+                ),
+                child: Text(
+                  'VOUS $myScore : $opponentName $opponentScore',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -1723,16 +1790,6 @@ class _MyHandRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              'VOUS',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-              ),
-            ),
-            const SizedBox(height: 2),
             _TurnStateBadge(
               text: canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
               blink: canInteract,
@@ -1771,21 +1828,22 @@ class _TurnStateBadge extends StatelessWidget {
     return _BlinkingDrawCard(
       enabled: blink,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: blink ? const Color(0x26FFFFFF) : const Color(0x1AFFFFFF),
-          borderRadius: BorderRadius.circular(999),
+          color: blink ? const Color(0x2237D66A) : const Color(0x1AFFFFFF),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: blink ? const Color(0x99FFFFFF) : const Color(0x66FFFFFF),
+            color: blink ? const Color(0xFF56E17E) : const Color(0x66FFFFFF),
+            width: blink ? 1.5 : 1.1,
           ),
         ),
         child: Text(
           text,
           style: TextStyle(
-            color: Colors.white,
-            fontSize: blink ? 12.5 : 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
+            color: blink ? const Color(0xFFC9FFD7) : Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.6,
           ),
         ),
       ),
