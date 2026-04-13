@@ -1,12 +1,20 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'duel_mode.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Firebase remains optional in solo mode if configuration is absent.
+  }
   runApp(const MyApp());
 }
 
@@ -22,7 +30,59 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E20)),
         useMaterial3: true,
       ),
-      home: const CrazyEightsPage(),
+      home: const GameModePage(),
+    );
+  }
+}
+
+
+
+enum GameMode { solo, duel }
+
+class GameModePage extends StatelessWidget {
+  const GameModePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('GUINO - Mode de jeu')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const CrazyEightsPage(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.person),
+                  label: const Text('Mode Solo'),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const DuelLobbyPage(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.people),
+                  label: const Text('Mode Duel (en ligne)'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
