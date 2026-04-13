@@ -1087,7 +1087,7 @@ class _DuelPageState extends State<DuelPage> {
         return (status: reminder, overlay: reminder);
       }
       if (action.actorId == _controller.localPlayerId) {
-        return (status: 'VOUS AVEZ PIOCHÉ', overlay: 'PIOCHE TERMINÉE, RESPIRATION 😌');
+        return (status: 'VOUS AVEZ PIOCHÉ', overlay: 'VOUS AVEZ PIOCHÉ');
       }
       final String actorName = _displayNameUpper(session, action.actorId);
       return (status: '$actorName A PIOCHÉ', overlay: '$actorName PIOCHE');
@@ -1116,11 +1116,11 @@ class _DuelPageState extends State<DuelPage> {
       final int forcedAmount = board.pendingDraw;
       if (_controller.isMyTurn && !isMe && forcedAmount > 0) {
         final String forcedText = _forcedDrawReminder(forcedAmount);
-        return (status: 'PIOCHEZ $forcedAmount CARTES', overlay: forcedText);
+        return (status: 'VOUS DEVEZ PIOCHER $forcedAmount CARTES', overlay: forcedText);
       }
     }
     if (isMe) {
-      return (status: 'VOUS JOUEZ ${card.label}', overlay: 'VOUS JOUEZ ${card.label}');
+      return (status: 'VOUS AVEZ JOUÉ ${card.label}', overlay: 'VOUS AVEZ JOUÉ ${card.label}');
     }
     final String actorName = _displayNameUpper(session, action.actorId);
     return (status: '$actorName JOUE ${card.label}', overlay: '$actorName JOUE ${card.label}');
@@ -1162,7 +1162,6 @@ class _DuelPageState extends State<DuelPage> {
           (String id) => id != _controller.localPlayerId,
           orElse: () => '',
         );
-        final String myName = _displayNameUpper(session, _controller.localPlayerId);
         final String opponentName = opponentId.isEmpty
             ? 'JOUEUR 2'
             : _displayNameUpper(session, opponentId);
@@ -1179,14 +1178,8 @@ class _DuelPageState extends State<DuelPage> {
               child: Column(
                 children: <Widget>[
                   _DuelStatusBanner(
-                    myName: myName,
-                    isMyTurn: myTurn,
-                    connectedPlayers: session.players.length,
-                    duelStatus: session.status,
                     opponentName: opponentName,
                     status: texts.status,
-                    round: session.round,
-                    pendingDraw: board.pendingDraw,
                     myScore: session.scores[_controller.localPlayerId] ?? 0,
                     opponentScore: session.scores[opponentId] ?? 0,
                   ),
@@ -1468,7 +1461,7 @@ class DuelBoardState {
       newAceRequired = false;
       newOverlay = '${action.actorId} pioche';
       newStatus = newPendingDraw > 0
-          ? 'Piochez $newPendingDraw cartes'
+          ? '$newPendingDraw cartes à piocher'
           : '${action.actorId} a pioché.';
     }
 
@@ -1487,11 +1480,11 @@ class DuelBoardState {
       } else if (card.rank == '2') {
         newPendingDraw += 2;
         newOverlay = '+2';
-        newStatus = 'Piochez $newPendingDraw cartes';
+        newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.isJoker) {
         newPendingDraw += 8;
         newOverlay = '+8';
-        newStatus = 'Piochez $newPendingDraw cartes';
+        newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.rank == 'A') {
         newAceRequired = true;
         newOverlay = 'As joué';
@@ -1566,140 +1559,66 @@ String _rankToLabel(int rank) {
 
 class _DuelStatusBanner extends StatelessWidget {
   const _DuelStatusBanner({
-    required this.myName,
-    required this.isMyTurn,
-    required this.connectedPlayers,
-    required this.duelStatus,
     required this.opponentName,
     required this.status,
-    required this.round,
-    required this.pendingDraw,
     required this.myScore,
     required this.opponentScore,
   });
 
-  final String myName;
-  final bool isMyTurn;
-  final int connectedPlayers;
-  final DuelGameStatus duelStatus;
   final String opponentName;
   final String status;
-  final int round;
-  final int pendingDraw;
   final int myScore;
   final int opponentScore;
 
   @override
   Widget build(BuildContext context) {
-    final String shortName = myName.trim().isEmpty ? 'JOUEUR' : myName.trim();
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Column(
         children: <Widget>[
-          Flexible(
-            flex: 5,
+          Align(
+            alignment: Alignment.topCenter,
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 240),
-              padding: const EdgeInsets.all(10),
+              constraints: const BoxConstraints(maxWidth: 300),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.32),
+                color: Colors.black.withOpacity(0.38),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0x66FFFFFF)),
-              ),
-              child: Row(
-                children: <Widget>[
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.1),
-                      border: Border.all(color: const Color(0x99FFFFFF)),
-                    ),
-                    child: const Icon(Icons.person, color: Colors.white70, size: 22),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          shortName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15.5,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'V $myScore   D $opponentScore',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                border: Border.all(color: const Color(0x80FFFFFF)),
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3)),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 6,
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.36),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0x80FFFFFF)),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      'VOUS $myScore : $opponentName $opponentScore',
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                    if (status.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          status,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                  ],
+              child: Text(
+                'VOUS $myScore : $opponentName $opponentScore',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  letterSpacing: 0.4,
                 ),
               ),
             ),
           ),
+          if (status.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                status,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -2036,6 +1955,28 @@ class _FaceCard extends StatelessWidget {
                     ),
                     Center(
                       child: _SuitGlyph(suit: suit, color: ink, size: 34),
+                    ),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: RotatedBox(
+                        quarterTurns: 2,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              rank,
+                              style: TextStyle(
+                                color: ink,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                height: 1,
+                              ),
+                            ),
+                            _SuitGlyph(suit: suit, color: ink, size: 14),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
