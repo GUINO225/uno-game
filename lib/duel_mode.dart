@@ -1083,8 +1083,12 @@ class _DuelPageState extends State<DuelPage> {
       return (status: '', overlay: '');
     }
     if (action.type == DuelActionType.drawCard) {
+      if (board.pendingDraw > 0 && action.actorId == _controller.localPlayerId) {
+        final String reminder = _forcedDrawReminder(board.pendingDraw);
+        return (status: reminder, overlay: reminder);
+      }
       if (action.actorId == _controller.localPlayerId) {
-        return (status: 'VOUS AVEZ PIOCHÉ', overlay: 'VOUS PIOCHEZ');
+        return (status: 'VOUS AVEZ PIOCHÉ', overlay: 'PIOCHE TERMINÉE, RESPIRATION 😌');
       }
       final String actorName = _displayNameUpper(session, action.actorId);
       return (status: '$actorName A PIOCHÉ', overlay: '$actorName PIOCHE');
@@ -1098,12 +1102,23 @@ class _DuelPageState extends State<DuelPage> {
     }
     if (card.rank == '8') {
       final String suit = action.payload['chosenSuit'] as String? ?? '';
+      final String suitName = _suitToName(suit).toUpperCase();
       return isMe
-          ? (status: 'VOUS COMMANDEZ $suit', overlay: 'VOUS COMMANDEZ $suit')
+          ? (
+              status: 'CARTE DEMANDÉE : $suitName',
+              overlay: 'VOUS AVEZ COMMANDÉ : $suitName',
+            )
           : (
-              status: '${_displayNameUpper(session, action.actorId)} COMMANDE $suit',
-              overlay: '${_displayNameUpper(session, action.actorId)} COMMANDE $suit',
+              status: 'CARTE DEMANDÉE : $suitName',
+              overlay: '${_displayNameUpper(session, action.actorId)} A COMMANDÉ : $suitName',
             );
+    }
+    if (card.rank == '2' || card.isJoker) {
+      final int forcedAmount = board.pendingDraw;
+      if (_controller.isMyTurn && !isMe && forcedAmount > 0) {
+        final String forcedText = _forcedDrawReminder(forcedAmount);
+        return (status: 'PIOCHEZ $forcedAmount CARTES', overlay: forcedText);
+      }
     }
     if (isMe) {
       return (status: 'VOUS JOUEZ ${card.label}', overlay: 'VOUS JOUEZ ${card.label}');
@@ -1111,6 +1126,35 @@ class _DuelPageState extends State<DuelPage> {
     final String actorName = _displayNameUpper(session, action.actorId);
     return (status: '$actorName JOUE ${card.label}', overlay: '$actorName JOUE ${card.label}');
   }
+
+  String _forcedDrawReminder(int remaining) {
+    if (remaining <= 1) {
+      return 'Dernière carte, presque libre ✨';
+    }
+    if (remaining <= 3) {
+      return 'Encore $remaining cartes… ça pique un peu 😅';
+    }
+    if (remaining <= 5) {
+      return 'Plus que $remaining cartes à piocher 💪';
+    }
+    return 'Encore $remaining cartes… courage 🍀';
+  }
+
+  String _suitToName(String suit) {
+    switch (suit) {
+      case '♣':
+        return 'Trèfle';
+      case '♦':
+        return 'Carreau';
+      case '♠':
+        return 'Pique';
+      case '♥':
+        return 'Cœur';
+      default:
+        return suit;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -1378,12 +1422,9 @@ class DuelBoardState {
       return const DuelMoveResult(accepted: false);
     }
     final bool winsNow = triesToFinish && card.canFinishGame;
-    final bool keepTurnAfterJoker = card.isJoker;
     final String next = winsNow
         ? actorId
-        : (keepTurnAfterJoker
-              ? actorId
-              : _nextPlayer(actorId, skip: card.rank == '10' || card.rank == 'J'));
+        : _nextPlayer(actorId, skip: card.rank == '10' || card.rank == 'J');
     return DuelMoveResult(
       accepted: true,
       nextTurn: next,
@@ -1631,17 +1672,37 @@ class _DuelStatusBanner extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(color: const Color(0x80FFFFFF)),
                 ),
-                child: Text(
-                  'VOUS $myScore : $opponentName $opponentScore',
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                    letterSpacing: 0.4,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'VOUS $myScore : $opponentName $opponentScore',
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    if (status.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          status,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -1758,12 +1819,27 @@ class _CenterArea extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'Couleur demandée: $requiredSuit',
-              style: const TextStyle(color: Colors.white70),
+              'CARTE DEMANDÉE : ${_suitLabel(requiredSuit!)}',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
             ),
           ),
       ],
     );
+  }
+}
+
+String _suitLabel(String suit) {
+  switch (suit) {
+    case '♣':
+      return 'TRÈFLE';
+    case '♦':
+      return 'CARREAU';
+    case '♠':
+      return 'PIQUE';
+    case '♥':
+      return 'CŒUR';
+    default:
+      return suit.toUpperCase();
   }
 }
 
