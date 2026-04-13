@@ -894,8 +894,7 @@ class _DuelPageState extends State<DuelPage> {
     final DuelAction? action = session.lastAction;
     if (action == null ||
         action.type != DuelActionType.playCard ||
-        action.actorId == _controller.localPlayerId ||
-        !_controller.isMyTurn) {
+        action.actorId == _controller.localPlayerId) {
       return;
     }
     final String? cardId = action.payload['cardId'] as String?;
@@ -1105,11 +1104,11 @@ class _DuelPageState extends State<DuelPage> {
       final String suitName = _suitToName(suit).toUpperCase();
       return isMe
           ? (
-              status: 'CARTE DEMANDÉE : $suitName',
+              status: 'COULEUR : $suitName',
               overlay: 'VOUS AVEZ COMMANDÉ : $suitName',
             )
           : (
-              status: 'CARTE DEMANDÉE : $suitName',
+              status: 'COULEUR : $suitName',
               overlay: '${_displayNameUpper(session, action.actorId)} A COMMANDÉ : $suitName',
             );
     }
@@ -1129,15 +1128,9 @@ class _DuelPageState extends State<DuelPage> {
 
   String _forcedDrawReminder(int remaining) {
     if (remaining <= 1) {
-      return 'Dernière carte, presque libre ✨';
+      return 'Encore 1 carte à piocher';
     }
-    if (remaining <= 3) {
-      return 'Encore $remaining cartes… ça pique un peu 😅';
-    }
-    if (remaining <= 5) {
-      return 'Plus que $remaining cartes à piocher 💪';
-    }
-    return 'Encore $remaining cartes… courage 🍀';
+    return 'Encore $remaining cartes à piocher';
   }
 
   String _suitToName(String suit) {
@@ -1815,33 +1808,11 @@ class _CenterArea extends StatelessWidget {
             decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
             child: Text(overlay, style: const TextStyle(color: Colors.white)),
           ),
-        if (requiredSuit != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              'CARTE DEMANDÉE : ${_suitLabel(requiredSuit!)}',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-            ),
-          ),
       ],
     );
   }
 }
 
-String _suitLabel(String suit) {
-  switch (suit) {
-    case '♣':
-      return 'TRÈFLE';
-    case '♦':
-      return 'CARREAU';
-    case '♠':
-      return 'PIQUE';
-    case '♥':
-      return 'CŒUR';
-    default:
-      return suit.toUpperCase();
-  }
-}
 
 class _MyHandRow extends StatelessWidget {
   const _MyHandRow({
