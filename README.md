@@ -2,65 +2,40 @@
 
 Application Flutter de jeu de cartes (solo + duel en ligne via Firebase).
 
-## Pourquoi tu as l'erreur actuelle
+## Configuration Firebase minimale (Android)
 
-Le message `Firebase non configuré` dans ton écran Duel (web) veut dire que Firebase n'a pas été initialisé pour la plateforme en cours (dans ta photo: **Web**).
+Le mode duel utilise Firestore. Sans configuration Firebase valide, le mode solo reste utilisable, mais le mode duel échouera.
 
----
+### 1) Ajouter le fichier Android Firebase
 
-## Configuration Firebase minimale (Android + Web)
-
-Le mode duel utilise Firestore. Sans Firebase valide, le mode solo marche, mais le mode duel échoue.
-
-### 1) Créer/ouvrir ton projet Firebase
-
-1. Va sur la console Firebase.
-2. Crée un projet (ou ouvre le tien).
-3. Active **Cloud Firestore** (mode test au début, puis règles sécurisées ensuite).
-
-### 2) Configurer Android
-
-1. Dans Firebase > Project settings > General > Your apps, ajoute une app Android.
-2. Mets l'`applicationId` exact: `com.example.huit` (ou ton vrai id si tu l'as changé).
-3. Télécharge `google-services.json`.
-4. Place le fichier ici:
+1. Créer un projet Firebase (ou réutiliser un existant).
+2. Enregistrer l'application Android avec l'`applicationId` de l'app (`com.example.huit` dans ce repo).
+3. Télécharger `google-services.json`.
+4. Copier le fichier dans:
 
 ```text
 android/app/google-services.json
 ```
 
-Les plugins Gradle sont déjà posés dans ce repo:
-- `android/settings.gradle.kts`
-- `android/app/build.gradle.kts`
+### 2) Plugins Gradle requis
 
-### 3) Configurer Web (IMPORTANT pour ton erreur actuelle)
+Ce repo applique déjà les plugins nécessaires:
 
-1. Dans Firebase > Project settings > General > Your apps, ajoute une app **Web**.
-2. Firebase te donne un bloc `firebaseConfig` avec des clés comme:
-   - `apiKey`
-   - `appId`
-   - `messagingSenderId`
-   - `projectId`
-   - `authDomain` (souvent utile)
-   - `storageBucket` (optionnel)
-   - `measurementId` (optionnel)
+- `com.google.gms.google-services` dans `android/settings.gradle.kts`
+- `com.google.gms.google-services` dans `android/app/build.gradle.kts`
 
-### 4) Lancer l'app avec les bonnes variables `--dart-define`
+### 3) Initialisation Firebase côté Flutter
 
-## Web (Chrome)
+L'application initialise Firebase au démarrage avec deux chemins possibles:
 
-```bash
-flutter run -d chrome \
-  --dart-define=FIREBASE_WEB_API_KEY=xxx \
-  --dart-define=FIREBASE_WEB_APP_ID=1:1234567890:web:abcdef \
-  --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID=1234567890 \
-  --dart-define=FIREBASE_WEB_PROJECT_ID=mon-projet-id \
-  --dart-define=FIREBASE_WEB_AUTH_DOMAIN=mon-projet-id.firebaseapp.com \
-  --dart-define=FIREBASE_WEB_STORAGE_BUCKET=mon-projet-id.firebasestorage.app \
-  --dart-define=FIREBASE_WEB_MEASUREMENT_ID=G-XXXXXXXXXX
-```
+- **Chemin A (recommandé Android natif):** `Firebase.initializeApp()` via `google-services.json`
+- **Chemin B (fallback via options):** `Firebase.initializeApp(options: ...)` avec `--dart-define`
 
-## Android (émulateur/téléphone)
+Les options Android (fallback) sont lues depuis `lib/firebase_config.dart`.
+
+### 4) Variables minimales pour le fallback `--dart-define`
+
+Exemple de lancement:
 
 ```bash
 flutter run \
@@ -71,14 +46,10 @@ flutter run \
   --dart-define=FIREBASE_ANDROID_STORAGE_BUCKET=mon-projet-id.firebasestorage.app
 ```
 
+Les 4 premières valeurs sont obligatoires pour le fallback (`API_KEY`, `APP_ID`, `MESSAGING_SENDER_ID`, `PROJECT_ID`).
+
 ### 5) Vérification rapide
 
-- Lance en web avec les variables ci-dessus.
-- Ouvre **Mode Duel**.
-- Si Firebase est bien configuré, l'erreur `Firebase non configuré` disparaît et les opérations Firestore (create/join) fonctionnent.
-
----
-
-## Astuce (plus simple à long terme)
-
-Utilise `flutterfire configure` pour générer automatiquement un vrai `firebase_options.dart` pour Android/Web/iOS. Ça évite de passer plein de `--dart-define` à chaque lancement.
+- Lancer l'app.
+- Ouvrir **Mode Duel (en ligne)**.
+- Créer/rejoindre une partie: si Firestore est configuré, l'écran duel doit fonctionner sans erreur `[core/no-app]`.
