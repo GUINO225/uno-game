@@ -1134,35 +1134,13 @@ class _DuelPageState extends State<DuelPage> {
         return Scaffold(
           backgroundColor: const Color(0xFF1B5E20),
           appBar: AppBar(
-            title: Text('Duel ${session.gameId}'),
-            actions: <Widget>[
-              TextButton(
-                onPressed: session.status == DuelGameStatus.finished ? _onReplayTap : null,
-                child: Text(
-                  session.status == DuelGameStatus.finished &&
-                          session.rematchRequestBy == _controller.localPlayerId &&
-                          session.rematchDecision == DuelRematchDecision.pending
-                      ? 'EN ATTENTE...'
-                      : 'REJOUER',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
+            title: const SizedBox.shrink(),
           ),
           body: SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: <Widget>[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _LocalProfileCard(
-                      playerName: myName,
-                      wins: session.scores[_controller.localPlayerId] ?? 0,
-                      losses: session.scores[opponentId] ?? 0,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
                   _DuelStatusBanner(
                     myName: myName,
                     isMyTurn: myTurn,
@@ -1235,6 +1213,11 @@ class DuelCard {
   String get id => '$rank$suit';
 
   bool get isRed => suit == '♥' || suit == '♦';
+
+  bool isSameColorAsSuit(String suitRef) {
+    final bool refIsRed = suitRef == '♥' || suitRef == '♦';
+    return isRed == refIsRed;
+  }
 
   bool matches(DuelCard other) {
     if (isJoker || other.isJoker) {
@@ -1365,8 +1348,12 @@ class DuelBoardState {
       }
       return false;
     }
-    if (card.rank == '8' || card.isJoker) {
+    if (card.rank == '8') {
       return true;
+    }
+    if (card.isJoker) {
+      final String colorRefSuit = requiredSuit ?? discardTop.suit;
+      return card.isSameColorAsSuit(colorRefSuit);
     }
     if (requiredSuit != null) {
       return card.suit == requiredSuit || card.rank == discardTop.rank;
@@ -1391,9 +1378,12 @@ class DuelBoardState {
       return const DuelMoveResult(accepted: false);
     }
     final bool winsNow = triesToFinish && card.canFinishGame;
+    final bool keepTurnAfterJoker = card.isJoker;
     final String next = winsNow
         ? actorId
-        : _nextPlayer(actorId, skip: card.rank == '10' || card.rank == 'J');
+        : (keepTurnAfterJoker
+              ? actorId
+              : _nextPlayer(actorId, skip: card.rank == '10' || card.rank == 'J'));
     return DuelMoveResult(
       accepted: true,
       nextTurn: next,
@@ -1410,10 +1400,12 @@ class DuelBoardState {
       return const DuelMoveResult(accepted: false);
     }
     final bool forced = pendingDraw > 0;
+    final int count = 1;
+    final int remainingAfterDraw = forced ? max(0, pendingDraw - count) : 0;
     return DuelMoveResult(
       accepted: true,
-      nextTurn: forced && pendingDraw > 1 ? actorId : _nextPlayer(actorId),
-      payload: <String, dynamic>{'count': 1},
+      nextTurn: forced && remainingAfterDraw > 0 ? actorId : _nextPlayer(actorId),
+      payload: <String, dynamic>{'count': count},
     );
   }
 
@@ -1565,11 +1557,9 @@ class _DuelStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String me = myName.toUpperCase();
-    final String opponent = opponentName.toUpperCase();
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: <Color>[Color(0xAA000000), Color(0x66111111)],
@@ -1581,104 +1571,12 @@ class _DuelStatusBanner extends StatelessWidget {
         children: <Widget>[
           Text('MANCHE $round', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Text(
-              '$me $myScore : $opponent $opponentScore',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.6),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text('👥 $connectedPlayers/2 · ${_duelStatusLabel(duelStatus)}', style: const TextStyle(color: Colors.white70)),
-          if (pendingDraw > 0)
-            Text(
-              isMyTurn ? 'VOUS DEVEZ PIOCHER $pendingDraw CARTES' : '$opponent DOIT PIOCHER $pendingDraw CARTES',
-              style: const TextStyle(color: Colors.amberAccent),
-            ),
-          if (status.isNotEmpty && !status.toUpperCase().startsWith('MANCHE')) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(status, style: const TextStyle(color: Colors.white)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _LocalProfileCard extends StatelessWidget {
-  const _LocalProfileCard({
-    required this.playerName,
-    required this.wins,
-    required this.losses,
-  });
-
-  final String playerName;
-  final int wins;
-  final int losses;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 210),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xCC102027),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white24),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x55000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white12,
-              border: Border.all(color: Colors.white38),
-            ),
-            child: const Icon(Icons.person_outline, color: Colors.white70, size: 22),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  (playerName.isEmpty ? 'JOUEUR 1' : playerName).toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'V $wins   D $losses',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
+          Text(
+            'SCORE $myScore - $opponentScore',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.7,
             ),
           ),
         ],
@@ -1760,11 +1658,15 @@ class _CenterArea extends StatelessWidget {
                 enabled: mustDraw,
                 child: Opacity(
                   opacity: canDraw ? 1 : 0.45,
-                  child: Column(
+                  child: Stack(
+                    clipBehavior: Clip.none,
                     children: <Widget>[
                       const _DuelCardBack(width: 64, height: 92),
-                      const SizedBox(height: 6),
-                      Text('🗂 $drawCount', style: const TextStyle(color: Colors.white)),
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: _DrawCountBadge(count: drawCount),
+                      ),
                     ],
                   ),
                 ),
@@ -1831,14 +1733,9 @@ class _MyHandRow extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.4,
-              ),
+            _TurnStateBadge(
+              text: canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
+              blink: canInteract,
             ),
             const SizedBox(height: 8),
             Expanded(
@@ -1857,6 +1754,71 @@ class _MyHandRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TurnStateBadge extends StatelessWidget {
+  const _TurnStateBadge({required this.text, required this.blink});
+
+  final String text;
+  final bool blink;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BlinkingDrawCard(
+      enabled: blink,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: blink ? const Color(0x26FFFFFF) : const Color(0x1AFFFFFF),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: blink ? const Color(0x99FFFFFF) : const Color(0x66FFFFFF),
+          ),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: blink ? 12.5 : 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DrawCountBadge extends StatelessWidget {
+  const _DrawCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD50000),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.4),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          height: 1,
         ),
       ),
     );
