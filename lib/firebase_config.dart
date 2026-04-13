@@ -82,8 +82,6 @@ class FirebaseConfig {
       appId,
       messagingSenderId,
       projectId,
-      authDomain,
-      storageBucket,
     ];
 
     final bool hasAllRequired = requiredValues.every(
@@ -99,8 +97,8 @@ class FirebaseConfig {
       appId: appId,
       messagingSenderId: messagingSenderId,
       projectId: projectId,
-      authDomain: authDomain,
-      storageBucket: storageBucket,
+      authDomain: authDomain.trim().isEmpty ? null : authDomain,
+      storageBucket: storageBucket.trim().isEmpty ? null : storageBucket,
       measurementId: measurementId.trim().isEmpty ? null : measurementId,
     );
   }
