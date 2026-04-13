@@ -10,6 +10,8 @@ enum DuelGameStatus { waiting, inProgress, finished }
 
 enum DuelActionType { playCard, drawCard, resetRound }
 
+enum DuelRematchDecision { pending, accepted, declined }
+
 class DuelAction {
   const DuelAction({
     required this.type,
@@ -55,6 +57,10 @@ class DuelSession {
     required this.scores,
     required this.round,
     this.lastAction,
+    this.rematchRequestBy,
+    this.rematchRequestedAt,
+    this.rematchDecision = DuelRematchDecision.pending,
+    this.rematchDecisionBy,
   });
 
   final String gameId;
@@ -66,6 +72,10 @@ class DuelSession {
   final Map<String, int> scores;
   final int round;
   final DuelAction? lastAction;
+  final String? rematchRequestBy;
+  final DateTime? rematchRequestedAt;
+  final DuelRematchDecision rematchDecision;
+  final String? rematchDecisionBy;
 
   bool get canStart => players.length == 2;
 
@@ -79,6 +89,12 @@ class DuelSession {
       'scores': scores,
       'round': round,
       'lastAction': lastAction?.toMap(),
+      'rematchRequestBy': rematchRequestBy,
+      'rematchRequestedAt': rematchRequestedAt == null
+          ? null
+          : Timestamp.fromDate(rematchRequestedAt!.toUtc()),
+      'rematchDecision': rematchDecision.name,
+      'rematchDecisionBy': rematchDecisionBy,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -108,6 +124,14 @@ class DuelSession {
       lastAction: json['lastAction'] == null
           ? null
           : DuelAction.fromMap(Map<String, dynamic>.from(json['lastAction'] as Map)),
+      rematchRequestBy: json['rematchRequestBy'] as String?,
+      rematchRequestedAt: (json['rematchRequestedAt'] as Timestamp?)?.toDate(),
+      rematchDecision: DuelRematchDecision.values.firstWhere(
+        (DuelRematchDecision d) =>
+            d.name == (json['rematchDecision'] as String? ?? DuelRematchDecision.pending.name),
+        orElse: () => DuelRematchDecision.pending,
+      ),
+      rematchDecisionBy: json['rematchDecisionBy'] as String?,
     );
   }
 }
@@ -277,6 +301,77 @@ class GameService {
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+      });
+      tx.set(ref.collection('actions').doc(), action.toMap());
+    });
+  }
+
+  Future<void> requestRematch({
+    required String gameId,
+    required String requestedBy,
+  }) async {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    await games.doc(gameId).update(<String, dynamic>{
+      'rematchRequestBy': requestedBy,
+      'rematchRequestedAt': FieldValue.serverTimestamp(),
+      'rematchDecision': DuelRematchDecision.pending.name,
+      'rematchDecisionBy': null,
+    });
+  }
+
+  Future<void> respondToRematch({
+    required DuelSession current,
+    required String responderId,
+    required bool accept,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.rematchRequestBy == null ||
+          session.rematchRequestBy == responderId ||
+          session.status != DuelGameStatus.finished ||
+          session.rematchDecision != DuelRematchDecision.pending) {
+        return;
+      }
+      if (!accept) {
+        tx.update(ref, <String, dynamic>{
+          'rematchDecision': DuelRematchDecision.declined.name,
+          'rematchDecisionBy': responderId,
+        });
+        return;
+      }
+      final int nextRound = session.round + 1;
+      final String starter = session.players.contains(session.rematchRequestBy)
+          ? session.rematchRequestBy!
+          : session.hostId;
+      final DuelAction action = DuelAction(
+        type: DuelActionType.resetRound,
+        actorId: responderId,
+        createdAt: DateTime.now(),
+        payload: <String, dynamic>{
+          'round': nextRound,
+          'startingPlayerId': starter,
+        },
+      );
+      tx.update(ref, <String, dynamic>{
+        'status': DuelGameStatus.inProgress.name,
+        'round': nextRound,
+        'currentTurn': starter,
+        'lastAction': action.toMap(),
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.accepted.name,
+        'rematchDecisionBy': responderId,
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -385,6 +480,29 @@ class DuelController extends ChangeNotifier {
       return;
     }
     await service.startNewRound(current: current, requestedBy: localPlayerId);
+  }
+
+  Future<void> requestRematch() async {
+    final DuelSession? current = session;
+    if (current == null || current.status != DuelGameStatus.finished) {
+      return;
+    }
+    await service.requestRematch(
+      gameId: current.gameId,
+      requestedBy: localPlayerId,
+    );
+  }
+
+  Future<void> respondToRematch(bool accept) async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.respondToRematch(
+      current: current,
+      responderId: localPlayerId,
+      accept: accept,
+    );
   }
 
   @override
@@ -535,6 +653,10 @@ class _DuelPageState extends State<DuelPage> {
   DuelBoardState? _board;
   String? _lastEightPopupKey;
   String? _lastForcedDrawPopupKey;
+  String? _lastRematchRequestKey;
+  bool _rematchDialogOpen = false;
+  bool _rematchActionBusy = false;
+  bool _didNavigateHomeAfterDecline = false;
 
   DuelController get _controller => widget.controller;
 
@@ -580,6 +702,7 @@ class _DuelPageState extends State<DuelPage> {
     }
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
+    _maybeHandleRematchFlow(session);
   }
 
   Future<void> _onCardTap(DuelCard card) async {
@@ -758,7 +881,7 @@ class _DuelPageState extends State<DuelPage> {
       return;
     }
     _lastEightPopupKey = key;
-    final String actorName = _resolveName(session, action.actorId).toUpperCase();
+    final String actorName = _displayNameUpper(session, action.actorId);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) {
         return;
@@ -821,6 +944,124 @@ class _DuelPageState extends State<DuelPage> {
     return raw == null || raw.isEmpty ? playerId : raw;
   }
 
+  String _displayNameUpper(DuelSession session, String playerId) =>
+      _resolveName(session, playerId).toUpperCase();
+
+  Future<void> _onReplayTap() async {
+    if (_rematchActionBusy) {
+      return;
+    }
+    final DuelSession? session = _controller.session;
+    if (session == null || session.status != DuelGameStatus.finished) {
+      return;
+    }
+    if (session.rematchRequestBy == _controller.localPlayerId &&
+        session.rematchDecision == DuelRematchDecision.pending) {
+      return;
+    }
+    setState(() {
+      _rematchActionBusy = true;
+    });
+    try {
+      await _controller.requestRematch();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _rematchActionBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showRematchConfirmDialog({
+    required DuelSession session,
+    required String requesterId,
+  }) async {
+    final String requester = _displayNameUpper(session, requesterId);
+    _rematchDialogOpen = true;
+    final bool? accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text(
+            'REJOUER ?',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          content: Text(
+            '$requester VEUT REJOUER',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: <Widget>[
+            OutlinedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('NON'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('OUI'),
+            ),
+          ],
+        );
+      },
+    );
+    _rematchDialogOpen = false;
+    if (accepted == null || _rematchActionBusy) {
+      return;
+    }
+    setState(() {
+      _rematchActionBusy = true;
+    });
+    try {
+      await _controller.respondToRematch(accepted);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _rematchActionBusy = false;
+        });
+      }
+    }
+  }
+
+  void _maybeHandleRematchFlow(DuelSession session) {
+    if (_didNavigateHomeAfterDecline) {
+      return;
+    }
+    if (session.rematchDecision == DuelRematchDecision.declined) {
+      _didNavigateHomeAfterDecline = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+      });
+      return;
+    }
+    final String? requesterId = session.rematchRequestBy;
+    if (requesterId == null ||
+        requesterId.isEmpty ||
+        requesterId == _controller.localPlayerId ||
+        session.status != DuelGameStatus.finished ||
+        _rematchDialogOpen) {
+      return;
+    }
+    final String requestKey = '${requesterId}_${session.rematchRequestedAt?.millisecondsSinceEpoch ?? 0}';
+    if (_lastRematchRequestKey == requestKey) {
+      return;
+    }
+    _lastRematchRequestKey = requestKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      await _showRematchConfirmDialog(session: session, requesterId: requesterId);
+    });
+  }
+
   ({String status, String overlay}) _personalizedTexts(
     DuelSession session,
     DuelBoardState board,
@@ -845,7 +1086,7 @@ class _DuelPageState extends State<DuelPage> {
       if (action.actorId == _controller.localPlayerId) {
         return (status: 'VOUS AVEZ PIOCHÉ', overlay: 'VOUS PIOCHEZ');
       }
-      final String actorName = _resolveName(session, action.actorId).toUpperCase();
+      final String actorName = _displayNameUpper(session, action.actorId);
       return (status: '$actorName A PIOCHÉ', overlay: '$actorName PIOCHE');
     }
     final DuelCard? card = (action.payload['cardId'] as String?) != null
@@ -860,14 +1101,14 @@ class _DuelPageState extends State<DuelPage> {
       return isMe
           ? (status: 'VOUS COMMANDEZ $suit', overlay: 'VOUS COMMANDEZ $suit')
           : (
-              status: '${_resolveName(session, action.actorId).toUpperCase()} COMMANDE $suit',
-              overlay: '${_resolveName(session, action.actorId).toUpperCase()} COMMANDE $suit',
+              status: '${_displayNameUpper(session, action.actorId)} COMMANDE $suit',
+              overlay: '${_displayNameUpper(session, action.actorId)} COMMANDE $suit',
             );
     }
     if (isMe) {
       return (status: 'VOUS JOUEZ ${card.label}', overlay: 'VOUS JOUEZ ${card.label}');
     }
-    final String actorName = _resolveName(session, action.actorId).toUpperCase();
+    final String actorName = _displayNameUpper(session, action.actorId);
     return (status: '$actorName JOUE ${card.label}', overlay: '$actorName JOUE ${card.label}');
   }
   @override
@@ -884,10 +1125,10 @@ class _DuelPageState extends State<DuelPage> {
           (String id) => id != _controller.localPlayerId,
           orElse: () => '',
         );
-        final String myName = (session.playerNames[_controller.localPlayerId] ?? 'Joueur 1').trim();
+        final String myName = _displayNameUpper(session, _controller.localPlayerId);
         final String opponentName = opponentId.isEmpty
             ? 'JOUEUR 2'
-            : (session.playerNames[opponentId] ?? 'Joueur 2').toUpperCase();
+            : _displayNameUpper(session, opponentId);
         final bool myTurn = _controller.isMyTurn && session.status != DuelGameStatus.finished;
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         return Scaffold(
@@ -896,9 +1137,13 @@ class _DuelPageState extends State<DuelPage> {
             title: Text('Duel ${session.gameId}'),
             actions: <Widget>[
               TextButton(
-                onPressed: _controller.startNewRound,
-                child: const Text(
-                  'REJOUER',
+                onPressed: session.status == DuelGameStatus.finished ? _onReplayTap : null,
+                child: Text(
+                  session.status == DuelGameStatus.finished &&
+                          session.rematchRequestBy == _controller.localPlayerId &&
+                          session.rematchDecision == DuelRematchDecision.pending
+                      ? 'EN ATTENTE...'
+                      : 'REJOUER',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -919,6 +1164,7 @@ class _DuelPageState extends State<DuelPage> {
                   ),
                   const SizedBox(height: 10),
                   _DuelStatusBanner(
+                    myName: myName,
                     isMyTurn: myTurn,
                     connectedPlayers: session.players.length,
                     duelStatus: session.status,
@@ -956,9 +1202,14 @@ class _DuelPageState extends State<DuelPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: ElevatedButton.icon(
-                        onPressed: _controller.startNewRound,
+                        onPressed: _onReplayTap,
                         icon: const Icon(Icons.refresh),
-                        label: const Text('REJOUER'),
+                        label: Text(
+                          session.rematchRequestBy == _controller.localPlayerId &&
+                                  session.rematchDecision == DuelRematchDecision.pending
+                              ? 'EN ATTENTE...'
+                              : 'REJOUER',
+                        ),
                       ),
                     ),
                 ],
@@ -1289,6 +1540,7 @@ String _rankToLabel(int rank) {
 
 class _DuelStatusBanner extends StatelessWidget {
   const _DuelStatusBanner({
+    required this.myName,
     required this.isMyTurn,
     required this.connectedPlayers,
     required this.duelStatus,
@@ -1300,6 +1552,7 @@ class _DuelStatusBanner extends StatelessWidget {
     required this.opponentScore,
   });
 
+  final String myName;
   final bool isMyTurn;
   final int connectedPlayers;
   final DuelGameStatus duelStatus;
@@ -1312,6 +1565,7 @@ class _DuelStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String me = myName.toUpperCase();
     final String opponent = opponentName.toUpperCase();
     return Container(
       width: double.infinity,
@@ -1335,7 +1589,7 @@ class _DuelStatusBanner extends StatelessWidget {
               border: Border.all(color: Colors.white24),
             ),
             child: Text(
-              'VOUS $myScore : $opponent $opponentScore',
+              '$me $myScore : $opponent $opponentScore',
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.6),
             ),
           ),
@@ -1404,7 +1658,7 @@ class _LocalProfileCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  playerName.isEmpty ? 'Joueur 1' : playerName,
+                  (playerName.isEmpty ? 'JOUEUR 1' : playerName).toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -1571,17 +1825,19 @@ class _MyHandRow extends StatelessWidget {
               'VOUS',
               style: const TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
                 letterSpacing: 0.8,
               ),
             ),
             const SizedBox(height: 2),
             Text(
-              canInteract ? 'À votre tour' : 'Patientez',
+              canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
               style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
               ),
             ),
             const SizedBox(height: 8),
