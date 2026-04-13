@@ -22,14 +22,6 @@ Future<void> _initializeFirebaseIfConfigured() async {
   }
 
   try {
-    if (kIsWeb) {
-      final FirebaseOptions? webOptions = FirebaseConfig.webOptions;
-      if (webOptions != null) {
-        await Firebase.initializeApp(options: webOptions);
-        return;
-      }
-    }
-
     if (defaultTargetPlatform == TargetPlatform.android) {
       final FirebaseOptions? androidOptions = FirebaseConfig.androidOptions;
       if (androidOptions != null) {
