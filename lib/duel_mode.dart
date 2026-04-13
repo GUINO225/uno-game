@@ -1588,7 +1588,6 @@ class _MyHandRow extends StatelessWidget {
             Expanded(
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemExtent: _FaceCard.width,
                 itemBuilder: (_, int index) {
                   final DuelCard card = cards[index];
                   final bool isPlayable = playable(card);
