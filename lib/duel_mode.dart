@@ -839,7 +839,7 @@ class _DuelPageState extends State<DuelPage> {
       return (status: board.status, overlay: board.overlay);
     }
     if (action.type == DuelActionType.resetRound) {
-      return (status: 'MANCHE ${session.round}', overlay: 'MANCHE ${session.round}');
+      return (status: '', overlay: '');
     }
     if (action.type == DuelActionType.drawCard) {
       if (action.actorId == _controller.localPlayerId) {
@@ -884,8 +884,7 @@ class _DuelPageState extends State<DuelPage> {
           (String id) => id != _controller.localPlayerId,
           orElse: () => '',
         );
-        final String myName =
-            (session.playerNames[_controller.localPlayerId] ?? 'Joueur 1').toUpperCase();
+        final String myName = (session.playerNames[_controller.localPlayerId] ?? 'Joueur 1').trim();
         final String opponentName = opponentId.isEmpty
             ? 'JOUEUR 2'
             : (session.playerNames[opponentId] ?? 'Joueur 2').toUpperCase();
@@ -910,6 +909,11 @@ class _DuelPageState extends State<DuelPage> {
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: <Widget>[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _LocalProfileCard(playerName: myName),
+                  ),
+                  const SizedBox(height: 10),
                   _DuelStatusBanner(
                     isMyTurn: myTurn,
                     connectedPlayers: session.players.length,
@@ -938,7 +942,6 @@ class _DuelPageState extends State<DuelPage> {
                   ),
                   const SizedBox(height: 10),
                   _MyHandRow(
-                    name: myName,
                     cards: board.handOf(_controller.localPlayerId),
                     canInteract: myTurn,
                     onCardTap: _onCardTap,
@@ -1333,16 +1336,86 @@ class _DuelStatusBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(isMyTurn ? 'À VOTRE TOUR' : 'TOUR ADVERSE', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           Text('👥 $connectedPlayers/2 · ${_duelStatusLabel(duelStatus)}', style: const TextStyle(color: Colors.white70)),
-          Text('ADVERSAIRE: $opponent', style: const TextStyle(color: Colors.white70)),
           if (pendingDraw > 0)
             Text(
               isMyTurn ? 'VOUS DEVEZ PIOCHER $pendingDraw CARTES' : '$opponent DOIT PIOCHER $pendingDraw CARTES',
               style: const TextStyle(color: Colors.amberAccent),
             ),
-          const SizedBox(height: 4),
-          Text(status, style: const TextStyle(color: Colors.white)),
+          if (status.isNotEmpty && !status.toUpperCase().startsWith('MANCHE')) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(status, style: const TextStyle(color: Colors.white)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LocalProfileCard extends StatelessWidget {
+  const _LocalProfileCard({required this.playerName});
+
+  final String playerName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 210),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xCC102027),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white24),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x55000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white12,
+              border: Border.all(color: Colors.white38),
+            ),
+            child: const Icon(Icons.person_outline, color: Colors.white70, size: 22),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Text(
+                  'PROFIL',
+                  style: TextStyle(
+                    color: Colors.white60,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.9,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  playerName.isEmpty ? 'Joueur 1' : playerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1450,14 +1523,12 @@ class _CenterArea extends StatelessWidget {
 
 class _MyHandRow extends StatelessWidget {
   const _MyHandRow({
-    required this.name,
     required this.cards,
     required this.canInteract,
     required this.onCardTap,
     required this.playable,
   });
 
-  final String name;
   final List<DuelCard> cards;
   final bool canInteract;
   final ValueChanged<DuelCard> onCardTap;
@@ -1474,7 +1545,7 @@ class _MyHandRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              canInteract ? '${name.toUpperCase()} · À VOTRE TOUR' : '${name.toUpperCase()} · PATIENTEZ',
+              canInteract ? 'VOUS · À VOTRE TOUR' : 'VOUS · PATIENTEZ',
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 8),
