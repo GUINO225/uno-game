@@ -32,7 +32,20 @@
   <title>huit</title>
   <link rel="manifest" href="manifest.json">
 </head>
-<body>
-  <script src="flutter_bootstrap.js" async></script>
-</body>
+  <body>
+    <script>
+      // Configuration Firebase Web permanente (sans --dart-define).
+      // Remplacez les valeurs ci-dessous par celles de votre projet Firebase.
+      window.__firebaseWebConfig = {
+        apiKey: "",
+        appId: "",
+        messagingSenderId: "",
+        projectId: "",
+        authDomain: "",
+        storageBucket: "",
+        measurementId: "",
+      };
+    </script>
+    <script src="flutter_bootstrap.js" async></script>
+  </body>
 </html>

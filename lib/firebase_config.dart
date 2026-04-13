@@ -1,5 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'firebase_web_config_source_stub.dart'
+    if (dart.library.html) 'firebase_web_config_source_web.dart'
+    as web_config;
 
 /// Minimal Firebase options loaded from --dart-define for Android.
 ///
@@ -63,18 +66,54 @@ class FirebaseConfig {
   }
 
   static FirebaseOptions? get webOptions {
-    const String apiKey = String.fromEnvironment('FIREBASE_WEB_API_KEY');
-    const String appId = String.fromEnvironment('FIREBASE_WEB_APP_ID');
-    const String messagingSenderId = String.fromEnvironment(
+    final Map<String, String> windowConfig =
+        web_config.readFirebaseWebConfigFromWindow();
+
+    const String apiKeyDefine = String.fromEnvironment('FIREBASE_WEB_API_KEY');
+    const String appIdDefine = String.fromEnvironment('FIREBASE_WEB_APP_ID');
+    const String messagingSenderIdDefine = String.fromEnvironment(
       'FIREBASE_WEB_MESSAGING_SENDER_ID',
     );
-    const String projectId = String.fromEnvironment('FIREBASE_WEB_PROJECT_ID');
-    const String authDomain = String.fromEnvironment('FIREBASE_WEB_AUTH_DOMAIN');
-    const String storageBucket = String.fromEnvironment(
+    const String projectIdDefine = String.fromEnvironment(
+      'FIREBASE_WEB_PROJECT_ID',
+    );
+    const String authDomainDefine = String.fromEnvironment(
+      'FIREBASE_WEB_AUTH_DOMAIN',
+    );
+    const String storageBucketDefine = String.fromEnvironment(
       'FIREBASE_WEB_STORAGE_BUCKET',
     );
-    const String measurementId = String.fromEnvironment(
+    const String measurementIdDefine = String.fromEnvironment(
       'FIREBASE_WEB_MEASUREMENT_ID',
+    );
+
+    final String apiKey = _pickWebValue(
+      defineValue: apiKeyDefine,
+      windowValue: windowConfig['apiKey'],
+    );
+    final String appId = _pickWebValue(
+      defineValue: appIdDefine,
+      windowValue: windowConfig['appId'],
+    );
+    final String messagingSenderId = _pickWebValue(
+      defineValue: messagingSenderIdDefine,
+      windowValue: windowConfig['messagingSenderId'],
+    );
+    final String projectId = _pickWebValue(
+      defineValue: projectIdDefine,
+      windowValue: windowConfig['projectId'],
+    );
+    final String authDomain = _pickWebValue(
+      defineValue: authDomainDefine,
+      windowValue: windowConfig['authDomain'],
+    );
+    final String storageBucket = _pickWebValue(
+      defineValue: storageBucketDefine,
+      windowValue: windowConfig['storageBucket'],
+    );
+    final String measurementId = _pickWebValue(
+      defineValue: measurementIdDefine,
+      windowValue: windowConfig['measurementId'],
     );
 
     final List<String> requiredValues = <String>[
@@ -101,5 +140,15 @@ class FirebaseConfig {
       storageBucket: storageBucket.trim().isEmpty ? null : storageBucket,
       measurementId: measurementId.trim().isEmpty ? null : measurementId,
     );
+  }
+
+  static String _pickWebValue({
+    required String defineValue,
+    required String? windowValue,
+  }) {
+    if (defineValue.trim().isNotEmpty) {
+      return defineValue;
+    }
+    return (windowValue ?? '').trim();
   }
 }

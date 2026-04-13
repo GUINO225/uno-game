@@ -26,12 +26,11 @@ Ce repo applique déjà les plugins nécessaires:
 
 ### 3) Initialisation Firebase côté Flutter
 
-L'application initialise Firebase au démarrage avec deux chemins possibles:
+L'application initialise Firebase avec `Firebase.initializeApp(options: ...)`.
+Les options sont lues depuis `lib/firebase_config.dart`:
 
-- **Chemin A (recommandé Android natif):** `Firebase.initializeApp()` via `google-services.json`
-- **Chemin B (fallback via options):** `Firebase.initializeApp(options: ...)` avec `--dart-define`
-
-Les options Android (fallback) sont lues depuis `lib/firebase_config.dart`.
+- **Android**: via `--dart-define` (ou votre propre mécanique de configuration).
+- **Web**: via `--dart-define` **ou** via `window.__firebaseWebConfig` défini dans `web/index.html` (configuration permanente).
 
 ### 4) Variables minimales pour le fallback `--dart-define`
 
@@ -53,3 +52,24 @@ Les 4 premières valeurs sont obligatoires pour le fallback (`API_KEY`, `APP_ID`
 - Lancer l'app.
 - Ouvrir **Mode Duel (en ligne)**.
 - Créer/rejoindre une partie: si Firestore est configuré, l'écran duel doit fonctionner sans erreur `[core/no-app]`.
+
+## Configuration Firebase Web permanente (sans `--dart-define`)
+
+Pour éviter de repasser les variables à chaque lancement, renseignez `web/index.html`:
+
+```html
+<script>
+  window.__firebaseWebConfig = {
+    apiKey: "xxx",
+    appId: "1:123456:web:abcdef",
+    messagingSenderId: "123456",
+    projectId: "mon-projet-id",
+    authDomain: "mon-projet-id.firebaseapp.com",
+    storageBucket: "mon-projet-id.firebasestorage.app",
+    measurementId: "G-XXXXXXX", // optionnel
+  };
+</script>
+```
+
+Les champs minimaux obligatoires côté web restent:
+`apiKey`, `appId`, `messagingSenderId`, `projectId`.
