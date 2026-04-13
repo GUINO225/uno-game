@@ -1215,67 +1215,94 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  _scoreBar(),
-                  const SizedBox(height: 10),
-                  _statusBanner(),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    flex: 3,
-                    child: Align(
-                      alignment: Alignment.center,
-                      child: _botHandArea(),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 4,
-                    child: Align(
-                      alignment: Alignment.center,
-                      child: _centerArea(),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        _handMetaRow(count: _humanHand.length),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: <Widget>[
-                                for (final PlayingCard card in _humanHand)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: CardView(
-                                      card: card,
-                                      enabled:
-                                          canInteract &&
-                                          _isCardPlayableForHuman(card),
-                                      onTap: () => _onHumanTapCard(card),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 980),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      _scoreBar(),
+                      const SizedBox(height: 10),
+                      _statusBanner(),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        flex: 3,
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: _botHandArea(),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 4,
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: _centerArea(),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            _handMetaRow(count: _humanHand.length),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: LayoutBuilder(
+                                builder: (
+                                  BuildContext context,
+                                  BoxConstraints constraints,
+                                ) {
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minWidth: constraints.maxWidth,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: <Widget>[
+                                          for (
+                                            final PlayingCard card
+                                                in _humanHand
+                                          )
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 8,
+                                              ),
+                                              child: CardView(
+                                                card: card,
+                                                enabled:
+                                                    canInteract &&
+                                                    _isCardPlayableForHuman(
+                                                      card,
+                                                    ),
+                                                onTap:
+                                                    () => _onHumanTapCard(card),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                              ],
+                                  );
+                                },
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+                      if (_gameOver)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: ElevatedButton(
+                            onPressed: _startNewGame,
+                            child: const Text('Rejouer'),
                           ),
                         ),
-                      ],
-                    ),
+                    ],
                   ),
-                  if (_gameOver)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: ElevatedButton(
-                        onPressed: _startNewGame,
-                        child: const Text('Rejouer'),
-                      ),
-                    ),
-                ],
+                ),
               ),
             ),
           ),
@@ -1337,20 +1364,38 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
   Widget _botHandArea() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _handMetaRow(count: _botHand.length),
         const SizedBox(height: 8),
-        SizedBox(
-          height: _handCardHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemBuilder: (_, __) => const CardBackView(
-              width: _handCardWidth,
-              height: _handCardHeight,
-            ),
-            separatorBuilder: (_, __) => const SizedBox(width: 6),
-            itemCount: _botHand.length,
+        Expanded(
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: SizedBox(
+                    height: _handCardHeight,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        for (int i = 0; i < _botHand.length; i++)
+                          Padding(
+                            padding: EdgeInsets.only(
+                              right: i == _botHand.length - 1 ? 0 : 6,
+                            ),
+                            child: const CardBackView(
+                              width: _handCardWidth,
+                              height: _handCardHeight,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],
