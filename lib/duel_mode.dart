@@ -374,96 +374,121 @@ class DuelPage extends StatelessWidget {
                 ? null
                 : session.players.firstWhere((String id) => id != controller.localPlayerId);
         return Scaffold(
+          backgroundColor: const Color(0xFF1B5E20),
           appBar: AppBar(title: Text('Duel ${session?.gameId ?? ''}')),
           body: session == null
               ? const Center(child: CircularProgressIndicator())
-              : Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      _DuelStatusBanner(
-                        isMyTurn: myTurn,
-                        connectedPlayers: session.players.length,
-                        duelStatus: session.status,
-                        opponentId: opponentId,
+              : Stack(
+                  children: <Widget>[
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: const Alignment(0, -0.15),
+                            radius: 1.15,
+                            colors: <Color>[
+                              const Color(0xFF2E7D32),
+                              const Color(0xFF1B5E20),
+                              const Color(0xFF0E3E13),
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      Expanded(
+                    ),
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
-                            _PlayerHandZone(
-                              title: 'Adversaire',
-                              subtitle: lastAction?.actorId == controller.localPlayerId
-                                  ? 'En attente de sa réponse...'
-                                  : 'Dernière action: ${_readableAction(lastAction)}',
-                              cardCount: 7,
-                              highlighted: !myTurn,
+                            _DuelStatusBanner(
+                              isMyTurn: myTurn,
+                              connectedPlayers: session.players.length,
+                              duelStatus: session.status,
+                              opponentId: opponentId,
                             ),
                             const SizedBox(height: 12),
                             Expanded(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              child: Column(
                                 children: <Widget>[
-                                  _StackCard(
-                                    title: 'Pioche',
-                                    label: 'Cartes',
-                                    highlighted: myTurn,
+                                  _PlayerHandZone(
+                                    title: 'Adversaire',
+                                    subtitle:
+                                        lastAction?.actorId == controller.localPlayerId
+                                        ? 'En attente de sa réponse...'
+                                        : 'Dernière action: ${_readableAction(lastAction)}',
+                                    cardCount: 7,
+                                    highlighted: !myTurn,
+                                    showFaceDown: true,
                                   ),
-                                  const SizedBox(width: 12),
-                                  _StackCard(
-                                    title: 'Défausse',
-                                    label: _readableAction(lastAction),
+                                  const SizedBox(height: 12),
+                                  _CenterStacks(
+                                    lastActionLabel: _readableAction(lastAction),
+                                    myTurn: myTurn,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _PlayerHandZone(
+                                    title: 'Vous',
+                                    subtitle: myTurn
+                                        ? 'À vous de jouer'
+                                        : 'Tour de l’adversaire',
+                                    cardCount: 7,
+                                    highlighted: myTurn,
                                   ),
                                 ],
                               ),
                             ),
                             const SizedBox(height: 12),
-                            _PlayerHandZone(
-                              title: 'Vous',
-                              subtitle: myTurn ? 'À vous de jouer' : 'Tour de l’adversaire',
-                              cardCount: 7,
-                              highlighted: myTurn,
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: myTurn
+                                        ? () => controller.sendAction(
+                                              DuelActionType.playCard,
+                                              payload: <String, dynamic>{
+                                                'cardId': 'example_card',
+                                              },
+                                            )
+                                        : null,
+                                    child: const Text('Jouer'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: myTurn
+                                        ? () => controller.sendAction(
+                                              DuelActionType.drawCard,
+                                            )
+                                        : null,
+                                    child: const Text('Piocher'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: myTurn
+                                        ? () => controller.sendAction(
+                                              DuelActionType.passTurn,
+                                            )
+                                        : null,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                    child: const Text('Passer'),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: myTurn
-                                  ? () => controller.sendAction(
-                                        DuelActionType.playCard,
-                                        payload: <String, dynamic>{'cardId': 'example_card'},
-                                      )
-                                  : null,
-                              child: const Text('Jouer'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: myTurn
-                                  ? () => controller.sendAction(DuelActionType.drawCard)
-                                  : null,
-                              child: const Text('Piocher'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: myTurn
-                                  ? () => controller.sendAction(DuelActionType.passTurn)
-                                  : null,
-                              child: const Text('Passer'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
         );
       },
@@ -503,10 +528,10 @@ class _DuelStatusBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isMyTurn ? Colors.green.shade50 : Colors.grey.shade200,
+        color: Colors.black.withOpacity(0.42),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isMyTurn ? Colors.green.shade300 : Colors.grey.shade400,
+          color: isMyTurn ? Colors.lightGreenAccent.shade100 : Colors.white30,
         ),
       ),
       child: Column(
@@ -514,12 +539,21 @@ class _DuelStatusBanner extends StatelessWidget {
         children: <Widget>[
           Text(
             isMyTurn ? 'Votre tour' : 'Tour adverse',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 4),
-          Text('Joueurs connectés: $connectedPlayers/2'),
-          Text('État: ${duelStatus.name}'),
-          Text('Adversaire: ${opponentId == null ? 'en attente...' : 'connecté'}'),
+          Text(
+            'Joueurs connectés: $connectedPlayers/2',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          Text('État: ${duelStatus.name}', style: const TextStyle(color: Colors.white70)),
+          Text(
+            'Adversaire: ${opponentId == null ? 'en attente...' : 'connecté'}',
+            style: const TextStyle(color: Colors.white70),
+          ),
         ],
       ),
     );
@@ -532,12 +566,14 @@ class _PlayerHandZone extends StatelessWidget {
     required this.subtitle,
     required this.cardCount,
     this.highlighted = false,
+    this.showFaceDown = false,
   });
 
   final String title;
   final String subtitle;
   final int cardCount;
   final bool highlighted;
+  final bool showFaceDown;
 
   @override
   Widget build(BuildContext context) {
@@ -545,33 +581,71 @@ class _PlayerHandZone extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: highlighted ? Colors.lightBlue.shade50 : Colors.grey.shade100,
+        color: Colors.black.withOpacity(0.28),
         border: Border.all(
-          color: highlighted ? Colors.lightBlue.shade300 : Colors.grey.shade300,
+          color: highlighted ? Colors.lightBlue.shade200 : Colors.white24,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-          Text(subtitle, style: const TextStyle(fontSize: 12)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          Text(
+            subtitle,
+            style: const TextStyle(fontSize: 12, color: Colors.white70),
+          ),
           const SizedBox(height: 8),
           SizedBox(
-            height: 72,
+            height: 78,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: cardCount,
               separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (_, __) => Container(
-                width: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.black26),
-                ),
-                child: const Icon(Icons.style, size: 18),
-              ),
+              itemBuilder: (_, int index) => showFaceDown
+                  ? const _DuelCardBack(width: 52, height: 74)
+                  : _PlayerCardStub(index: index),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CenterStacks extends StatelessWidget {
+  const _CenterStacks({
+    required this.lastActionLabel,
+    required this.myTurn,
+  });
+
+  final String lastActionLabel;
+  final bool myTurn;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 165,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          _StackCard(
+            title: 'Pioche',
+            label: 'Cartes',
+            highlighted: myTurn,
+            icon: const _DuelCardBack(),
+          ),
+          const SizedBox(width: 12),
+          _StackCard(
+            title: 'Défausse',
+            label: lastActionLabel,
+            highlighted: false,
+            icon: const _DiscardCardFace(),
           ),
         ],
       ),
@@ -583,36 +657,121 @@ class _StackCard extends StatelessWidget {
   const _StackCard({
     required this.title,
     required this.label,
+    required this.icon,
     this.highlighted = false,
   });
 
   final String title;
   final String label;
+  final Widget icon;
   final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 120,
-      height: 150,
+      width: 125,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: highlighted ? Colors.amber.shade50 : Colors.white,
+        color: Colors.black.withOpacity(0.3),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: highlighted ? Colors.amber.shade700 : Colors.black26,
+          color: highlighted ? Colors.amber.shade300 : Colors.white24,
           width: highlighted ? 2 : 1,
         ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
           const SizedBox(height: 8),
-          const Icon(Icons.layers, size: 30),
+          icon,
           const SizedBox(height: 8),
-          Text(label, textAlign: TextAlign.center),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlayerCardStub extends StatelessWidget {
+  const _PlayerCardStub({required this.index});
+
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    const List<String> values = <String>['A♠', '8♥', '2♦', 'J♣', 'K♠', '7♦', 'Q♥'];
+    final String value = values[index % values.length];
+    final bool red = value.contains('♥') || value.contains('♦');
+    return Container(
+      width: 52,
+      height: 74,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black26),
+      ),
+      child: Center(
+        child: Text(
+          value,
+          style: TextStyle(
+            color: red ? Colors.red.shade700 : Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DuelCardBack extends StatelessWidget {
+  const _DuelCardBack({this.width = 52, this.height = 74});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white70),
+        image: const DecorationImage(
+          image: AssetImage('assets/img/card_back.jpeg'),
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscardCardFace extends StatelessWidget {
+  const _DiscardCardFace();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 74,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black26),
+      ),
+      child: const Center(
+        child: Icon(Icons.style, color: Colors.black54),
       ),
     );
   }
