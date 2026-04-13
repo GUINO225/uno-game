@@ -49,6 +49,7 @@ class DuelSession {
     required this.gameId,
     required this.hostId,
     required this.players,
+    required this.playerNames,
     required this.currentTurn,
     required this.status,
     this.lastAction,
@@ -57,6 +58,7 @@ class DuelSession {
   final String gameId;
   final String hostId;
   final List<String> players;
+  final Map<String, String> playerNames;
   final String currentTurn;
   final DuelGameStatus status;
   final DuelAction? lastAction;
@@ -67,6 +69,7 @@ class DuelSession {
     return <String, dynamic>{
       'hostId': hostId,
       'players': players,
+      'playerNames': playerNames,
       'currentTurn': currentTurn,
       'status': status.name,
       'lastAction': lastAction?.toMap(),
@@ -80,6 +83,9 @@ class DuelSession {
       gameId: doc.id,
       hostId: json['hostId'] as String? ?? '',
       players: List<String>.from(json['players'] as List? ?? const <String>[]),
+      playerNames: Map<String, String>.from(
+        json['playerNames'] as Map? ?? const <String, String>{},
+      ),
       currentTurn: json['currentTurn'] as String? ?? '',
       status: DuelGameStatus.values.firstWhere(
         (DuelGameStatus s) => s.name == (json['status'] as String? ?? DuelGameStatus.waiting.name),
@@ -132,7 +138,10 @@ class GameService {
     return List<String>.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
-  Future<String> createGame({required String playerId}) async {
+  Future<String> createGame({
+    required String playerId,
+    required String playerName,
+  }) async {
     final String code = _generateCode();
     final CollectionReference<Map<String, dynamic>> games = await _games();
     await games.doc(code).set(
@@ -140,6 +149,7 @@ class GameService {
         gameId: code,
         hostId: playerId,
         players: <String>[playerId],
+        playerNames: <String, String>{playerId: playerName},
         currentTurn: playerId,
         status: DuelGameStatus.waiting,
       ).toMap(),
@@ -147,7 +157,11 @@ class GameService {
     return code;
   }
 
-  Future<void> joinGame({required String gameId, required String playerId}) async {
+  Future<void> joinGame({
+    required String gameId,
+    required String playerId,
+    required String playerName,
+  }) async {
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
@@ -163,6 +177,7 @@ class GameService {
       final List<String> players = <String>{...session.players, playerId}.toList();
       tx.update(ref, <String, dynamic>{
         'players': players,
+        'playerNames.$playerId': playerName,
         'status': players.length == 2 ? DuelGameStatus.inProgress.name : DuelGameStatus.waiting.name,
       });
     });
@@ -208,10 +223,15 @@ class GameService {
 }
 
 class DuelController extends ChangeNotifier {
-  DuelController({required this.service, required this.localPlayerId});
+  DuelController({
+    required this.service,
+    required this.localPlayerId,
+    required this.localPlayerName,
+  });
 
   final GameService service;
   final String localPlayerId;
+  final String localPlayerName;
 
   DuelSession? session;
   StreamSubscription<DuelSession>? _subscription;
@@ -223,7 +243,10 @@ class DuelController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final String id = await service.createGame(playerId: localPlayerId);
+      final String id = await service.createGame(
+        playerId: localPlayerId,
+        playerName: localPlayerName,
+      );
       await attach(id);
     } catch (e) {
       error = '$e';
@@ -237,7 +260,11 @@ class DuelController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      await service.joinGame(gameId: gameId, playerId: localPlayerId);
+      await service.joinGame(
+        gameId: gameId,
+        playerId: localPlayerId,
+        playerName: localPlayerName,
+      );
       await attach(gameId);
     } catch (e) {
       error = '$e';
@@ -302,43 +329,72 @@ class DuelLobbyPage extends StatefulWidget {
 }
 
 class _DuelLobbyPageState extends State<DuelLobbyPage> {
-  late final DuelController _controller;
+  DuelController? _controller;
   final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
   bool _openedDuel = false;
+  late final String _localPlayerId;
 
   @override
   void initState() {
     super.initState();
-    final String playerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
-    _controller = DuelController(service: GameService(), localPlayerId: playerId)
-      ..addListener(_onControllerChange);
+    _localPlayerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
   }
 
   @override
   void dispose() {
     _controller
-      ..removeListener(_onControllerChange)
+      ?..removeListener(_onControllerChange)
       ..dispose();
     _codeController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
   void _onControllerChange() {
-    final DuelSession? session = _controller.session;
+    final DuelSession? session = _controller?.session;
     if (!_openedDuel && session != null && session.players.length == 2 && mounted) {
       _openedDuel = true;
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => DuelPage(controller: _controller),
+          builder: (_) => DuelPage(controller: _controller!),
         ),
       );
     }
     setState(() {});
   }
 
+  String _resolvedName({required bool asHost}) {
+    final String raw = _nameController.text.trim();
+    return raw.isEmpty ? (asHost ? 'Joueur 1' : 'Joueur 2') : raw;
+  }
+
+  Future<void> _createGame() async {
+    if (_controller == null) {
+      _controller = DuelController(
+        service: GameService(),
+        localPlayerId: _localPlayerId,
+        localPlayerName: _resolvedName(asHost: true),
+      )..addListener(_onControllerChange);
+    }
+    await _controller!.create();
+  }
+
+  Future<void> _joinGame() async {
+    if (_controller == null) {
+      _controller = DuelController(
+        service: GameService(),
+        localPlayerId: _localPlayerId,
+        localPlayerName: _resolvedName(asHost: false),
+      )..addListener(_onControllerChange);
+    }
+    await _controller!.join(_codeController.text.trim().toUpperCase());
+  }
+
   @override
   Widget build(BuildContext context) {
-    final DuelSession? session = _controller.session;
+    final DuelSession? session = _controller?.session;
+    final bool busy = _controller?.busy ?? false;
     return Scaffold(
       appBar: AppBar(title: const Text('Lobby Duel')),
       body: Padding(
@@ -346,16 +402,25 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Text('Votre ID: ${_controller.localPlayerId}'),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Pseudo',
+                hintText: 'Joueur 1',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text('ID local: $_localPlayerId'),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _controller.busy ? null : _controller.create,
+              onPressed: busy ? null : _createGame,
               child: const Text('Créer une partie'),
             ),
             if (session != null) ...<Widget>[
               const SizedBox(height: 8),
               SelectableText('Code de partie: ${session.gameId}'),
-              Text('Joueurs connectés: ${session.players.length}/2'),
+              Text('👥 ${session.players.length}/2'),
             ],
             const SizedBox(height: 16),
             TextField(
@@ -368,14 +433,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
             ),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: _controller.busy
-                  ? null
-                  : () => _controller.join(_codeController.text.trim().toUpperCase()),
+              onPressed: busy ? null : _joinGame,
               child: const Text('Rejoindre une partie'),
             ),
-            if (_controller.error != null) ...<Widget>[
+            if ((_controller?.error) != null) ...<Widget>[
               const SizedBox(height: 8),
-              Text(_controller.error!, style: const TextStyle(color: Colors.red)),
+              Text(_controller!.error!, style: const TextStyle(color: Colors.red)),
             ],
           ],
         ),
@@ -446,9 +509,17 @@ class _DuelPageState extends State<DuelPage> {
     if (session == null || board == null || !_controller.isMyTurn) {
       return;
     }
+    String? chosenSuit;
+    if (card.rank == '8') {
+      chosenSuit = await _showSuitChoice(context);
+      if (chosenSuit == null) {
+        return;
+      }
+    }
     final DuelMoveResult move = board.tryPlay(
       actorId: _controller.localPlayerId,
       card: card,
+      chosenSuit: chosenSuit,
     );
     if (!move.accepted) {
       return;
@@ -457,6 +528,30 @@ class _DuelPageState extends State<DuelPage> {
       DuelActionType.playCard,
       payload: move.payload,
       nextTurnOverride: move.nextTurn,
+    );
+  }
+
+  Future<String?> _showSuitChoice(BuildContext context) {
+    return showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        const List<String> suits = <String>['♠', '♥', '♦', '♣'];
+        return AlertDialog(
+          title: const Text('Choisissez une couleur'),
+          content: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: suits
+                .map(
+                  (String suit) => ElevatedButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(suit),
+                    child: Text(suit, style: const TextStyle(fontSize: 24)),
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      },
     );
   }
 
@@ -491,6 +586,11 @@ class _DuelPageState extends State<DuelPage> {
           (String id) => id != _controller.localPlayerId,
           orElse: () => '',
         );
+        final String myName =
+            session.playerNames[_controller.localPlayerId] ?? 'Joueur 1';
+        final String opponentName = opponentId.isEmpty
+            ? 'Joueur 2'
+            : (session.playerNames[opponentId] ?? 'Joueur 2');
         final bool myTurn = _controller.isMyTurn;
         return Scaffold(
           backgroundColor: const Color(0xFF1B5E20),
@@ -504,11 +604,16 @@ class _DuelPageState extends State<DuelPage> {
                     isMyTurn: myTurn,
                     connectedPlayers: session.players.length,
                     duelStatus: session.status,
-                    opponentId: opponentId,
+                    myName: myName,
+                    opponentName: opponentName,
                     status: board.status,
+                    pendingDraw: board.pendingDraw,
                   ),
                   const SizedBox(height: 12),
-                  _OpponentRow(count: board.handOf(opponentId).length),
+                  _OpponentRow(
+                    name: opponentName,
+                    count: board.handOf(opponentId).length,
+                  ),
                   const SizedBox(height: 10),
                   _CenterArea(
                     discard: board.discardTop,
@@ -516,9 +621,11 @@ class _DuelPageState extends State<DuelPage> {
                     canDraw: myTurn && board.canDraw(_controller.localPlayerId),
                     onDrawTap: _onDrawTap,
                     overlay: board.overlay,
+                    requiredSuit: board.requiredSuit,
                   ),
                   const SizedBox(height: 10),
                   _MyHandRow(
+                    name: myName,
                     cards: board.handOf(_controller.localPlayerId),
                     canInteract: myTurn,
                     onCardTap: _onCardTap,
@@ -680,14 +787,15 @@ class DuelBoardState {
 
   bool canDraw(String actorId) => drawPile.isNotEmpty;
 
-  DuelMoveResult tryPlay({required String actorId, required DuelCard card}) {
+  DuelMoveResult tryPlay({
+    required String actorId,
+    required DuelCard card,
+    String? chosenSuit,
+  }) {
     if (!canPlay(actorId, card)) {
       return const DuelMoveResult(accepted: false);
     }
-    String? suitChoice;
-    if (card.rank == '8') {
-      suitChoice = handOf(actorId).firstWhere((DuelCard c) => c.id != card.id, orElse: () => card).suit;
-    }
+    final String? suitChoice = card.rank == '8' ? chosenSuit : null;
     final String next = _nextPlayer(actorId, skip: card.rank == '10' || card.rank == 'J');
     return DuelMoveResult(
       accepted: true,
@@ -703,10 +811,11 @@ class DuelBoardState {
     if (drawPile.isEmpty) {
       return const DuelMoveResult(accepted: false);
     }
+    final bool forced = pendingDraw > 0;
     return DuelMoveResult(
       accepted: true,
-      nextTurn: _nextPlayer(actorId),
-      payload: <String, dynamic>{'count': pendingDraw > 0 ? pendingDraw : 1},
+      nextTurn: forced && pendingDraw > 1 ? actorId : _nextPlayer(actorId),
+      payload: <String, dynamic>{'count': 1},
     );
   }
 
@@ -729,10 +838,14 @@ class DuelBoardState {
       for (int i = 0; i < amount && newPile.isNotEmpty; i++) {
         newHands[action.actorId]?.add(newPile.removeLast());
       }
-      newPendingDraw = 0;
+      if (newPendingDraw > 0) {
+        newPendingDraw = max(0, newPendingDraw - amount);
+      }
       newAceRequired = false;
       newOverlay = '${action.actorId} pioche';
-      newStatus = '${action.actorId} a pioché.';
+      newStatus = newPendingDraw > 0
+          ? 'Piochez $newPendingDraw cartes'
+          : '${action.actorId} a pioché.';
     }
 
     if (action.type == DuelActionType.playCard) {
@@ -745,18 +858,21 @@ class DuelBoardState {
 
       if (card.rank == '8') {
         newRequiredSuit = action.payload['chosenSuit'] as String? ?? '♥';
-        newOverlay = '${action.actorId} change la couleur en $newRequiredSuit';
+        newOverlay = '${action.actorId} demande $newRequiredSuit';
+        newStatus = 'Couleur demandée: $newRequiredSuit';
       } else if (card.rank == '2') {
         newPendingDraw += 2;
-        newOverlay = '${action.actorId} force +2';
+        newOverlay = '+2';
+        newStatus = 'Piochez $newPendingDraw cartes';
       } else if (card.isJoker) {
-        newPendingDraw += 9;
-        newOverlay = '${action.actorId} force +9 (joker)';
+        newPendingDraw += 8;
+        newOverlay = '+8';
+        newStatus = 'Piochez $newPendingDraw cartes';
       } else if (card.rank == 'A') {
         newAceRequired = true;
-        newOverlay = '${action.actorId} joue un As';
+        newOverlay = 'As joué';
       } else if (card.rank == '10' || card.rank == 'J') {
-        newOverlay = '${action.actorId} saute un tour';
+        newOverlay = 'Tour sauté';
       }
     }
 
@@ -810,15 +926,19 @@ class _DuelStatusBanner extends StatelessWidget {
     required this.isMyTurn,
     required this.connectedPlayers,
     required this.duelStatus,
-    required this.opponentId,
+    required this.myName,
+    required this.opponentName,
     required this.status,
+    required this.pendingDraw,
   });
 
   final bool isMyTurn;
   final int connectedPlayers;
   final DuelGameStatus duelStatus;
-  final String opponentId;
+  final String myName;
+  final String opponentName;
   final String status;
+  final int pendingDraw;
 
   @override
   Widget build(BuildContext context) {
@@ -832,9 +952,12 @@ class _DuelStatusBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          Text(myName, style: const TextStyle(color: Colors.white)),
           Text(isMyTurn ? 'Votre tour' : 'Tour adverse', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          Text('Joueurs: $connectedPlayers/2 · état: ${duelStatus.name}', style: const TextStyle(color: Colors.white70)),
-          Text('Adversaire: ${opponentId.isEmpty ? 'en attente...' : 'connecté'}', style: const TextStyle(color: Colors.white70)),
+          Text('👥 $connectedPlayers/2 · ${duelStatus.name}', style: const TextStyle(color: Colors.white70)),
+          Text('Adversaire: $opponentName', style: const TextStyle(color: Colors.white70)),
+          if (pendingDraw > 0)
+            Text('Piochez $pendingDraw cartes', style: const TextStyle(color: Colors.amberAccent)),
           const SizedBox(height: 4),
           Text(status, style: const TextStyle(color: Colors.white)),
         ],
@@ -844,8 +967,9 @@ class _DuelStatusBanner extends StatelessWidget {
 }
 
 class _OpponentRow extends StatelessWidget {
-  const _OpponentRow({required this.count});
+  const _OpponentRow({required this.name, required this.count});
 
+  final String name;
   final int count;
 
   @override
@@ -855,9 +979,9 @@ class _OpponentRow extends StatelessWidget {
       decoration: BoxDecoration(color: Colors.black.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
       child: Row(
         children: <Widget>[
-          const Text('Adversaire', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           const SizedBox(width: 8),
-          Text('($count cartes)', style: const TextStyle(color: Colors.white70)),
+          Text('🃏 $count', style: const TextStyle(color: Colors.white70)),
           const Spacer(),
           ...List<Widget>.generate(min(count, 10), (int _) => const Padding(
             padding: EdgeInsets.only(left: 4),
@@ -876,6 +1000,7 @@ class _CenterArea extends StatelessWidget {
     required this.canDraw,
     required this.onDrawTap,
     required this.overlay,
+    required this.requiredSuit,
   });
 
   final DuelCard discard;
@@ -883,6 +1008,7 @@ class _CenterArea extends StatelessWidget {
   final bool canDraw;
   final VoidCallback onDrawTap;
   final String overlay;
+  final String? requiredSuit;
 
   @override
   Widget build(BuildContext context) {
@@ -899,7 +1025,7 @@ class _CenterArea extends StatelessWidget {
                   children: <Widget>[
                     const _DuelCardBack(width: 64, height: 92),
                     const SizedBox(height: 6),
-                    Text('Pioche ($drawCount)', style: const TextStyle(color: Colors.white)),
+                    Text('🗂 $drawCount', style: const TextStyle(color: Colors.white)),
                   ],
                 ),
               ),
@@ -921,6 +1047,14 @@ class _CenterArea extends StatelessWidget {
             decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
             child: Text(overlay, style: const TextStyle(color: Colors.white)),
           ),
+        if (requiredSuit != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Couleur demandée: $requiredSuit',
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ),
       ],
     );
   }
@@ -928,12 +1062,14 @@ class _CenterArea extends StatelessWidget {
 
 class _MyHandRow extends StatelessWidget {
   const _MyHandRow({
+    required this.name,
     required this.cards,
     required this.canInteract,
     required this.onCardTap,
     required this.playable,
   });
 
+  final String name;
   final List<DuelCard> cards;
   final bool canInteract;
   final ValueChanged<DuelCard> onCardTap;
@@ -949,7 +1085,10 @@ class _MyHandRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(canInteract ? 'Votre main (touchez une carte)' : 'Votre main (attendez votre tour)', style: const TextStyle(color: Colors.white)),
+            Text(
+              canInteract ? '$name · Jouez une carte' : '$name · Patientez',
+              style: const TextStyle(color: Colors.white),
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: ListView.separated(
@@ -977,15 +1116,29 @@ class _FaceCard extends StatelessWidget {
   const _FaceCard({required this.card});
 
   final DuelCard card;
+  static const double _cardRatio = 86 / 118;
+  static const double _cardHeight = 102;
 
   @override
   Widget build(BuildContext context) {
     final bool red = card.isRed;
-    return Container(
-      width: 64,
-      height: 92,
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-      child: Center(child: Text(card.isJoker ? 'JOKER' : card.id, style: TextStyle(color: red ? Colors.red : Colors.black, fontWeight: FontWeight.bold))),
+    return SizedBox(
+      height: _cardHeight,
+      child: AspectRatio(
+        aspectRatio: _cardRatio,
+        child: Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+          child: Center(
+            child: Text(
+              card.isJoker ? 'JOKER' : card.id,
+              style: TextStyle(
+                color: red ? Colors.red : Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
