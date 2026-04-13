@@ -210,13 +210,18 @@ class GameService {
         );
   }
 
-  Future<void> pushAction({required String gameId, required DuelAction action, required String nextTurn}) async {
+  Future<void> pushAction({
+    required String gameId,
+    required DuelAction action,
+    required String nextTurn,
+    DuelGameStatus status = DuelGameStatus.inProgress,
+  }) async {
     final CollectionReference<Map<String, dynamic>> games = await _games();
     final DocumentReference<Map<String, dynamic>> gameRef = games.doc(gameId);
     await gameRef.update(<String, dynamic>{
       'currentTurn': nextTurn,
       'lastAction': action.toMap(),
-      'status': DuelGameStatus.inProgress.name,
+      'status': status.name,
     });
     await gameRef.collection('actions').add(action.toMap());
   }
@@ -287,6 +292,7 @@ class DuelController extends ChangeNotifier {
     DuelActionType type, {
     Map<String, dynamic> payload = const <String, dynamic>{},
     String? nextTurnOverride,
+    DuelGameStatus? statusOverride,
   }) async {
     final DuelSession? current = session;
     if (current == null || !isMyTurn) {
@@ -311,6 +317,7 @@ class DuelController extends ChangeNotifier {
         payload: payload,
       ),
       nextTurn: nextTurn,
+      status: statusOverride ?? DuelGameStatus.inProgress,
     );
   }
 
@@ -390,6 +397,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     }
     await _controller!.join(_codeController.text.trim().toUpperCase());
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -528,6 +536,9 @@ class _DuelPageState extends State<DuelPage> {
       DuelActionType.playCard,
       payload: move.payload,
       nextTurnOverride: move.nextTurn,
+      statusOverride: move.payload.containsKey('winnerId')
+          ? DuelGameStatus.finished
+          : DuelGameStatus.inProgress,
     );
   }
 
@@ -572,6 +583,18 @@ class _DuelPageState extends State<DuelPage> {
     );
   }
 
+
+
+  String _withDisplayNames(DuelSession session, String text) {
+    String output = text;
+    for (final String playerId in session.players) {
+      final String name = session.playerNames[playerId]?.trim().isNotEmpty == true
+          ? session.playerNames[playerId]!.trim()
+          : playerId;
+      output = output.replaceAll(playerId, name);
+    }
+    return output;
+  }
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -591,7 +614,9 @@ class _DuelPageState extends State<DuelPage> {
         final String opponentName = opponentId.isEmpty
             ? 'Joueur 2'
             : (session.playerNames[opponentId] ?? 'Joueur 2');
-        final bool myTurn = _controller.isMyTurn;
+        final bool myTurn = _controller.isMyTurn && session.status != DuelGameStatus.finished;
+        final String renderedStatus = _withDisplayNames(session, board.status);
+        final String renderedOverlay = _withDisplayNames(session, board.overlay);
         return Scaffold(
           backgroundColor: const Color(0xFF1B5E20),
           appBar: AppBar(title: Text('Duel ${session.gameId}')),
@@ -606,7 +631,7 @@ class _DuelPageState extends State<DuelPage> {
                     duelStatus: session.status,
                     myName: myName,
                     opponentName: opponentName,
-                    status: board.status,
+                    status: renderedStatus,
                     pendingDraw: board.pendingDraw,
                   ),
                   const SizedBox(height: 12),
@@ -620,7 +645,7 @@ class _DuelPageState extends State<DuelPage> {
                     drawCount: board.drawPile.length,
                     canDraw: myTurn && board.canDraw(_controller.localPlayerId),
                     onDrawTap: _onDrawTap,
-                    overlay: board.overlay,
+                    overlay: renderedOverlay,
                     requiredSuit: board.requiredSuit,
                   ),
                   const SizedBox(height: 10),
@@ -649,6 +674,8 @@ class DuelCard {
   final String rank;
 
   bool get isJoker => rank == 'JK';
+
+  bool get canFinishGame => rank != '10' && rank != 'J';
 
   String get id => '$rank$suit';
 
@@ -796,13 +823,22 @@ class DuelBoardState {
       return const DuelMoveResult(accepted: false);
     }
     final String? suitChoice = card.rank == '8' ? chosenSuit : null;
-    final String next = _nextPlayer(actorId, skip: card.rank == '10' || card.rank == 'J');
+    final List<DuelCard> actorHand = handOf(actorId);
+    final bool triesToFinish = actorHand.length == 1;
+    if (triesToFinish && !card.canFinishGame) {
+      return const DuelMoveResult(accepted: false);
+    }
+    final bool winsNow = triesToFinish && card.canFinishGame;
+    final String next = winsNow
+        ? actorId
+        : _nextPlayer(actorId, skip: card.rank == '10' || card.rank == 'J');
     return DuelMoveResult(
       accepted: true,
       nextTurn: next,
       payload: <String, dynamic>{
         'cardId': card.id,
         if (suitChoice != null) 'chosenSuit': suitChoice,
+        if (winsNow) 'winnerId': actorId,
       },
     );
   }
@@ -858,7 +894,7 @@ class DuelBoardState {
 
       if (card.rank == '8') {
         newRequiredSuit = action.payload['chosenSuit'] as String? ?? '♥';
-        newOverlay = '${action.actorId} demande $newRequiredSuit';
+        newOverlay = '${action.actorId} a commandé $newRequiredSuit';
         newStatus = 'Couleur demandée: $newRequiredSuit';
       } else if (card.rank == '2') {
         newPendingDraw += 2;
@@ -874,6 +910,15 @@ class DuelBoardState {
       } else if (card.rank == '10' || card.rank == 'J') {
         newOverlay = 'Tour sauté';
       }
+    }
+
+    final String? winnerId = action.payload['winnerId'] as String?;
+    if (winnerId != null && winnerId.isNotEmpty) {
+      newPendingDraw = 0;
+      newAceRequired = false;
+      newRequiredSuit = null;
+      newOverlay = '$winnerId a gagné';
+      newStatus = '$winnerId a gagné';
     }
 
     return DuelBoardState._(
@@ -953,8 +998,8 @@ class _DuelStatusBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(myName, style: const TextStyle(color: Colors.white)),
-          Text(isMyTurn ? 'Votre tour' : 'Tour adverse', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          Text('👥 $connectedPlayers/2 · ${duelStatus.name}', style: const TextStyle(color: Colors.white70)),
+          Text(isMyTurn ? 'À ton tour' : 'Tour adverse', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Text('👥 $connectedPlayers/2 · ${_duelStatusLabel(duelStatus)}', style: const TextStyle(color: Colors.white70)),
           Text('Adversaire: $opponentName', style: const TextStyle(color: Colors.white70)),
           if (pendingDraw > 0)
             Text('Piochez $pendingDraw cartes', style: const TextStyle(color: Colors.amberAccent)),
@@ -1086,7 +1131,7 @@ class _MyHandRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              canInteract ? '$name · Jouez une carte' : '$name · Patientez',
+              canInteract ? '$name · À ton tour' : '$name · Patientez',
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 8),
@@ -1116,30 +1161,72 @@ class _FaceCard extends StatelessWidget {
   const _FaceCard({required this.card});
 
   final DuelCard card;
-  static const double _cardRatio = 86 / 118;
-  static const double _cardHeight = 102;
+  static const double width = 78;
+  static const double height = 112;
 
   @override
   Widget build(BuildContext context) {
     final bool red = card.isRed;
+    final Color ink = red ? const Color(0xFFC62828) : const Color(0xFF1B1B1B);
+    final String rank = card.isJoker ? 'JK' : card.rank;
+    final String suit = card.suit;
+
     return SizedBox(
-      height: _cardHeight,
-      child: AspectRatio(
-        aspectRatio: _cardRatio,
-        child: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-          child: Center(
-            child: Text(
-              card.isJoker ? 'JOKER' : card.id,
-              style: TextStyle(
-                color: red ? Colors.red : Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+      width: width,
+      height: height,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.black.withOpacity(0.22)),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(color: Colors.black26, blurRadius: 5, offset: Offset(0, 2)),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(7),
+          child: card.isJoker
+              ? Center(
+                  child: Text(
+                    'JOKER',
+                    style: TextStyle(color: ink, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                  ),
+                )
+              : Stack(
+                  children: <Widget>[
+                    Align(
+                      alignment: Alignment.topLeft,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(rank, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 16, height: 1)),
+                          Text(suit, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 14, height: 1)),
+                        ],
+                      ),
+                    ),
+                    Center(
+                      child: Text(
+                        suit,
+                        style: TextStyle(color: ink, fontSize: 34, fontWeight: FontWeight.w600, height: 1),
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
+  }
+}
+
+String _duelStatusLabel(DuelGameStatus status) {
+  switch (status) {
+    case DuelGameStatus.waiting:
+      return 'en attente';
+    case DuelGameStatus.inProgress:
+      return 'en cours';
+    case DuelGameStatus.finished:
+      return 'terminée';
   }
 }
 
