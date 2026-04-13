@@ -2,20 +2,46 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'duel_mode.dart';
+import 'firebase_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  await _initializeFirebaseIfConfigured();
+  runApp(const MyApp());
+}
+
+Future<void> _initializeFirebaseIfConfigured() async {
+  if (Firebase.apps.isNotEmpty) {
+    return;
+  }
+
   try {
+    if (kIsWeb) {
+      final FirebaseOptions? webOptions = FirebaseConfig.webOptions;
+      if (webOptions != null) {
+        await Firebase.initializeApp(options: webOptions);
+        return;
+      }
+    }
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final FirebaseOptions? androidOptions = FirebaseConfig.androidOptions;
+      if (androidOptions != null) {
+        await Firebase.initializeApp(options: androidOptions);
+        return;
+      }
+    }
+
     await Firebase.initializeApp();
   } catch (_) {
     // Firebase remains optional in solo mode if configuration is absent.
   }
-  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
