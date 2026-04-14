@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'GUINO',
+      title: 'GINO CARD',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -85,6 +85,69 @@ class MyApp extends StatelessWidget {
 
 enum GameMode { solo, duel }
 
+class _GameBrandTitle extends StatelessWidget {
+  const _GameBrandTitle({required this.version});
+
+  final String version;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: <Widget>[
+        RichText(
+          textAlign: TextAlign.center,
+          text: const TextSpan(
+            children: <InlineSpan>[
+              TextSpan(
+                text: 'GINO ',
+                style: TextStyle(
+                  fontSize: 42,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                  color: Colors.white,
+                ),
+              ),
+              TextSpan(
+                text: 'CARD',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w400,
+                  fontStyle: FontStyle.italic,
+                  letterSpacing: 1.1,
+                  color: Color(0xFFE8F5E9),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Text(
+              version.toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class GameModePage extends StatelessWidget {
   const GameModePage({super.key});
 
@@ -103,17 +166,8 @@ class GameModePage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     const SizedBox(height: 12),
-                    const Text(
-                      'GUINO',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
+                    const _GameBrandTitle(version: 'V1'),
+                    const SizedBox(height: 8),
                     Text(
                       'Choisis ton mode de jeu',
                       textAlign: TextAlign.center,
@@ -1392,7 +1446,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return Scaffold(
       backgroundColor: const Color(0xFF1B5E20),
       appBar: AppBar(
-        title: const Text('GUINO'),
+        title: const Text('GINO CARD'),
         centerTitle: true,
         actions: <Widget>[
           IconButton(
