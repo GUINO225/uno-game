@@ -934,12 +934,29 @@ class _DuelPageState extends State<DuelPage> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
-                '$actorName commande',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                actorName,
+                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
-              Text(suit, style: const TextStyle(fontSize: 52, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Text(
+                    'a commandé',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    suit,
+                    style: TextStyle(
+                      fontSize: 44,
+                      fontWeight: FontWeight.bold,
+                      color: _suitGlyphColor(suit),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -1236,15 +1253,18 @@ class _DuelPageState extends State<DuelPage> {
     }
     if (card.rank == '8') {
       final String suit = action.payload['chosenSuit'] as String? ?? '';
-      final String suitName = _suitToName(suit).toLowerCase();
       return isMe
           ? (
-              status: 'couleur : $suitName',
-              overlay: 'vous avez commandé : $suitName',
+              status: suit.isEmpty ? 'vous avez commandé' : 'vous avez commandé $suit',
+              overlay: suit.isEmpty ? 'vous avez commandé' : 'vous avez commandé $suit',
             )
           : (
-              status: 'couleur : $suitName',
-              overlay: '${_displayNameUpper(session, action.actorId)} a commandé : $suitName',
+              status: suit.isEmpty
+                  ? '${_displayNameUpper(session, action.actorId)} a commandé'
+                  : '${_displayNameUpper(session, action.actorId)} a commandé $suit',
+              overlay: suit.isEmpty
+                  ? '${_displayNameUpper(session, action.actorId)} a commandé'
+                  : '${_displayNameUpper(session, action.actorId)} a commandé $suit',
             );
     }
     if (card.rank == '2' || card.isJoker) {
@@ -1269,13 +1289,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   Color _suitColor(String suit) {
-    switch (suit) {
-      case '♥':
-      case '♦':
-        return const Color(0xFFC62828);
-      default:
-        return const Color(0xFF1B1B1B);
-    }
+    return _suitGlyphColor(suit);
   }
 
   String _suitToName(String suit) {
@@ -2044,7 +2058,7 @@ class _CenterArea extends StatelessWidget {
             margin: const EdgeInsets.only(top: 10),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
-            child: Text(overlay, style: const TextStyle(color: Colors.white)),
+            child: _SuitOverlayText(message: overlay),
           ),
       ],
     );
@@ -2081,18 +2095,28 @@ class _MyHandRow extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemBuilder: (_, int index) {
-                  final DuelCard card = cards[index];
-                  final bool isPlayable = playable(card);
-                  return GestureDetector(
-                    onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
-                    child: Opacity(opacity: canInteract && !isPlayable ? 0.4 : 1, child: _FaceCard(card: card)),
-                  );
-                },
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemCount: cards.length,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemBuilder: (_, int index) {
+                      final DuelCard card = cards[index];
+                      final bool isPlayable = playable(card);
+                      return GestureDetector(
+                        onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
+                        child: Opacity(opacity: canInteract && !isPlayable ? 0.4 : 1, child: _FaceCard(card: card)),
+                      );
+                    },
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemCount: cards.length,
+                  ),
+                  Positioned(
+                    top: -6,
+                    right: -2,
+                    child: _DrawCountBadge(count: cards.length),
+                  ),
+                ],
               ),
             ),
           ],
@@ -2352,8 +2376,8 @@ class _FaceCard extends StatelessWidget {
   const _FaceCard({required this.card});
 
   final DuelCard card;
-  static const double width = 78;
-  static const double height = 112;
+  static const double width = 72;
+  static const double height = 102;
 
   @override
   Widget build(BuildContext context) {
@@ -2463,6 +2487,56 @@ class _SuitGlyph extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+
+class _SuitOverlayText extends StatelessWidget {
+  const _SuitOverlayText({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    if (message.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final String lastChar = message.substring(message.length - 1);
+    if (!const <String>{'♣', '♦', '♥', '♠'}.contains(lastChar)) {
+      return Text(message, style: const TextStyle(color: Colors.white));
+    }
+    final String text = message.substring(0, message.length - lastChar.length).trimRight();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Flexible(
+          child: Text(
+            text,
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          lastChar,
+          style: TextStyle(
+            color: _suitGlyphColor(lastChar),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            height: 1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+Color _suitGlyphColor(String suit) {
+  switch (suit) {
+    case '♥':
+    case '♦':
+      return const Color(0xFFC62828);
+    default:
+      return const Color(0xFF1B1B1B);
   }
 }
 
