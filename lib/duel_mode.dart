@@ -1274,6 +1274,16 @@ class DuelCard {
     }
     return DuelCard(suit: value.substring(value.length - 1), rank: value.substring(0, value.length - 1));
   }
+
+  static DuelCard fromMap(Map<String, dynamic> json) {
+    final String? cardId = json['cardId'] as String? ?? json['id'] as String?;
+    if (cardId != null && cardId.isNotEmpty) {
+      return DuelCard.fromId(cardId);
+    }
+    final String rank = (json['rank'] as String?) ?? '';
+    final String suit = (json['suit'] as String?) ?? '';
+    return DuelCard(suit: suit, rank: rank);
+  }
 }
 
 class DuelMoveResult {
@@ -1944,12 +1954,12 @@ class _ActionMessageCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final Map<String, dynamic>? rawCard = (action.payload['card'] as Map?)?.cast<String, dynamic>();
-    if (rawCard == null) {
+    final String? cardId = action.payload['cardId'] as String?;
+    if (cardId == null || cardId.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final DuelCard card = DuelCard.fromMap(rawCard);
+    final DuelCard card = DuelCard.fromId(cardId);
     final bool isMe = action.actorId == localPlayerId;
     final String actorName = session.playerNames[action.actorId]?.toUpperCase() ?? 'JOUEUR';
     final String prefix = isMe ? 'Vous avez joué' : '$actorName a joué';
