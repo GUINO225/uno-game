@@ -779,7 +779,14 @@ class _DuelPageState extends State<DuelPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: <Widget>[
-                            Text(suit.$1, style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700)),
+                            Text(
+                              suit.$1,
+                              style: TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w700,
+                                color: _suitColor(suit.$1),
+                              ),
+                            ),
                             const SizedBox(height: 4),
                             Text(suit.$2),
                           ],
@@ -815,7 +822,7 @@ class _DuelPageState extends State<DuelPage> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
-                '$actorName COMMANDE',
+                '$actorName commande',
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                 textAlign: TextAlign.center,
               ),
@@ -1069,10 +1076,10 @@ class _DuelPageState extends State<DuelPage> {
     if (session.status == DuelGameStatus.finished) {
       final String? winnerId = action?.payload['winnerId'] as String?;
       if (winnerId == _controller.localPlayerId) {
-        return (status: 'VOUS AVEZ GAGNÉ', overlay: 'VOUS AVEZ GAGNÉ');
+        return (status: 'vous avez gagné', overlay: 'vous avez gagné');
       }
       if (winnerId != null && winnerId.isNotEmpty) {
-        return (status: 'VOUS AVEZ PERDU', overlay: 'VOUS AVEZ PERDU');
+        return (status: 'vous avez perdu', overlay: 'vous avez perdu');
       }
     }
     if (action == null) {
@@ -1082,15 +1089,31 @@ class _DuelPageState extends State<DuelPage> {
       return (status: '', overlay: '');
     }
     if (action.type == DuelActionType.drawCard) {
-      if (board.pendingDraw > 0 && action.actorId == _controller.localPlayerId) {
+      final bool isForcedDraw = action.payload['forcedDraw'] == true;
+      if (isForcedDraw && action.actorId == _controller.localPlayerId && board.pendingDraw > 0) {
         final String reminder = _forcedDrawReminder(board.pendingDraw);
         return (status: reminder, overlay: reminder);
       }
+      if (isForcedDraw && action.actorId != _controller.localPlayerId) {
+        final String actorName = _displayNameUpper(session, action.actorId);
+        final int forcedTotal = (action.payload['forcedTotal'] as num?)?.toInt() ?? 0;
+        if (board.pendingDraw > 0) {
+          final String reminder = _forcedDrawReminder(board.pendingDraw);
+          return (
+            status: '$actorName pioche... ${reminder.toLowerCase()}',
+            overlay: '$actorName pioche... ${reminder.toLowerCase()}',
+          );
+        }
+        final String finished = forcedTotal > 1
+            ? '$actorName a fini de piocher ses $forcedTotal cartes'
+            : '$actorName a fini de piocher sa carte';
+        return (status: finished, overlay: finished);
+      }
       if (action.actorId == _controller.localPlayerId) {
-        return (status: 'VOUS AVEZ PIOCHÉ', overlay: 'VOUS AVEZ PIOCHÉ');
+        return (status: 'vous avez pioché', overlay: 'vous avez pioché');
       }
       final String actorName = _displayNameUpper(session, action.actorId);
-      return (status: '$actorName A PIOCHÉ', overlay: '$actorName PIOCHE');
+      return (status: '$actorName a pioché', overlay: '$actorName pioche');
     }
     final DuelCard? card = (action.payload['cardId'] as String?) != null
         ? DuelCard.fromId(action.payload['cardId'] as String)
@@ -1101,29 +1124,29 @@ class _DuelPageState extends State<DuelPage> {
     }
     if (card.rank == '8') {
       final String suit = action.payload['chosenSuit'] as String? ?? '';
-      final String suitName = _suitToName(suit).toUpperCase();
+      final String suitName = _suitToName(suit).toLowerCase();
       return isMe
           ? (
-              status: 'COULEUR : $suitName',
-              overlay: 'VOUS AVEZ COMMANDÉ : $suitName',
+              status: 'couleur : $suitName',
+              overlay: 'vous avez commandé : $suitName',
             )
           : (
-              status: 'COULEUR : $suitName',
-              overlay: '${_displayNameUpper(session, action.actorId)} A COMMANDÉ : $suitName',
+              status: 'couleur : $suitName',
+              overlay: '${_displayNameUpper(session, action.actorId)} a commandé : $suitName',
             );
     }
     if (card.rank == '2' || card.isJoker) {
       final int forcedAmount = board.pendingDraw;
       if (_controller.isMyTurn && !isMe && forcedAmount > 0) {
         final String forcedText = _forcedDrawReminder(forcedAmount);
-        return (status: 'VOUS DEVEZ PIOCHER $forcedAmount CARTES', overlay: forcedText);
+        return (status: 'vous devez piocher $forcedAmount cartes', overlay: forcedText);
       }
     }
     if (isMe) {
-      return (status: 'VOUS AVEZ JOUÉ ${card.label}', overlay: 'VOUS AVEZ JOUÉ ${card.label}');
+      return (status: 'vous avez joué ${card.label}', overlay: 'vous avez joué ${card.label}');
     }
     final String actorName = _displayNameUpper(session, action.actorId);
-    return (status: '$actorName A JOUÉ ${card.label}', overlay: '$actorName A JOUÉ ${card.label}');
+    return (status: '$actorName a joué ${card.label}', overlay: '$actorName a joué ${card.label}');
   }
 
   String _forcedDrawReminder(int remaining) {
@@ -1131,6 +1154,16 @@ class _DuelPageState extends State<DuelPage> {
       return 'Encore 1 carte à piocher';
     }
     return 'Encore $remaining cartes à piocher';
+  }
+
+  Color _suitColor(String suit) {
+    switch (suit) {
+      case '♥':
+      case '♦':
+        return const Color(0xFFC62828);
+      default:
+        return const Color(0xFF1B1B1B);
+    }
   }
 
   String _suitToName(String suit) {
@@ -1310,6 +1343,7 @@ class DuelBoardState {
     required this.discardTop,
     required this.requiredSuit,
     required this.pendingDraw,
+    required this.forcedDrawInitial,
     required this.aceColorRequired,
     required this.overlay,
     required this.status,
@@ -1323,6 +1357,7 @@ class DuelBoardState {
   final DuelCard discardTop;
   final String? requiredSuit;
   final int pendingDraw;
+  final int forcedDrawInitial;
   final bool aceColorRequired;
   final String overlay;
   final String status;
@@ -1365,6 +1400,7 @@ class DuelBoardState {
       discardTop: top,
       requiredSuit: null,
       pendingDraw: 0,
+      forcedDrawInitial: 0,
       aceColorRequired: false,
       overlay: '',
       status: '',
@@ -1452,10 +1488,15 @@ class DuelBoardState {
     final bool forced = pendingDraw > 0;
     final int count = 1;
     final int remainingAfterDraw = forced ? max(0, pendingDraw - count) : 0;
+    final int forcedTotal = forced ? (forcedDrawInitial > 0 ? forcedDrawInitial : pendingDraw) : 0;
     return DuelMoveResult(
       accepted: true,
       nextTurn: forced && remainingAfterDraw > 0 ? actorId : _nextPlayer(actorId),
-      payload: <String, dynamic>{'count': count},
+      payload: <String, dynamic>{
+        'count': count,
+        if (forced) 'forcedDraw': true,
+        if (forced) 'forcedTotal': forcedTotal,
+      },
     );
   }
 
@@ -1468,6 +1509,7 @@ class DuelBoardState {
     DuelCard newTop = discardTop;
     String? newRequiredSuit = requiredSuit;
     int newPendingDraw = pendingDraw;
+    int newForcedDrawInitial = forcedDrawInitial;
     bool newAceRequired = aceColorRequired;
     String newOverlay = overlay;
     String newStatus = status;
@@ -1480,6 +1522,9 @@ class DuelBoardState {
       }
       if (newPendingDraw > 0) {
         newPendingDraw = max(0, newPendingDraw - amount);
+        if (newPendingDraw == 0) {
+          newForcedDrawInitial = 0;
+        }
       }
       newAceRequired = false;
       newOverlay = '${action.actorId} pioche';
@@ -1502,10 +1547,12 @@ class DuelBoardState {
         newStatus = 'Couleur demandée: $newRequiredSuit';
       } else if (card.rank == '2') {
         newPendingDraw += 2;
+        newForcedDrawInitial = newPendingDraw;
         newOverlay = '+2';
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.isJoker) {
         newPendingDraw += 8;
+        newForcedDrawInitial = newPendingDraw;
         newOverlay = '+8';
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.rank == 'A') {
@@ -1528,6 +1575,7 @@ class DuelBoardState {
     final String? winnerId = action.payload['winnerId'] as String?;
     if (winnerId != null && winnerId.isNotEmpty) {
       newPendingDraw = 0;
+      newForcedDrawInitial = 0;
       newAceRequired = false;
       newRequiredSuit = null;
       newOverlay = '$winnerId a gagné';
@@ -1542,6 +1590,7 @@ class DuelBoardState {
       discardTop: newTop,
       requiredSuit: newRequiredSuit,
       pendingDraw: newPendingDraw,
+      forcedDrawInitial: newForcedDrawInitial,
       aceColorRequired: newAceRequired,
       overlay: newOverlay,
       status: newStatus,
