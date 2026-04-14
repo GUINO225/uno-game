@@ -1274,6 +1274,19 @@ class DuelCard {
     }
     return DuelCard(suit: value.substring(value.length - 1), rank: value.substring(0, value.length - 1));
   }
+
+  static DuelCard fromMap(Map<String, dynamic> json) {
+    final String? rank = json['rank'] as String?;
+    final String? suit = json['suit'] as String?;
+    final String? cardId = json['id'] as String?;
+    if (rank != null && suit != null) {
+      return DuelCard(rank: rank, suit: suit);
+    }
+    if (cardId != null && cardId.isNotEmpty) {
+      return DuelCard.fromId(cardId);
+    }
+    throw ArgumentError('Invalid DuelCard payload: $json');
+  }
 }
 
 class DuelMoveResult {
