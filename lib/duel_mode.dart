@@ -1123,7 +1123,7 @@ class _DuelPageState extends State<DuelPage> {
       return (status: 'VOUS AVEZ JOUÉ ${card.label}', overlay: 'VOUS AVEZ JOUÉ ${card.label}');
     }
     final String actorName = _displayNameUpper(session, action.actorId);
-    return (status: '$actorName JOUE ${card.label}', overlay: '$actorName JOUE ${card.label}');
+    return (status: '$actorName A JOUÉ ${card.label}', overlay: '$actorName A JOUÉ ${card.label}');
   }
 
   String _forcedDrawReminder(int remaining) {
@@ -1165,6 +1165,9 @@ class _DuelPageState extends State<DuelPage> {
         final String opponentName = opponentId.isEmpty
             ? 'JOUEUR 2'
             : _displayNameUpper(session, opponentId);
+        final String myName = _displayNameUpper(session, _controller.localPlayerId);
+        final int myScore = session.scores[_controller.localPlayerId] ?? 0;
+        final int opponentScore = session.scores[opponentId] ?? 0;
         final bool myTurn = _controller.isMyTurn && session.status != DuelGameStatus.finished;
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         return Scaffold(
@@ -1180,13 +1183,24 @@ class _DuelPageState extends State<DuelPage> {
                   _DuelStatusBanner(
                     opponentName: opponentName,
                     status: texts.status,
-                    myScore: session.scores[_controller.localPlayerId] ?? 0,
-                    opponentScore: session.scores[opponentId] ?? 0,
+                    myScore: myScore,
+                    opponentScore: opponentScore,
+                    round: session.round,
                   ),
                   const SizedBox(height: 12),
                   _OpponentRow(
                     name: opponentName,
                     count: board.handOf(opponentId).length,
+                    wins: opponentScore,
+                    losses: myScore,
+                    fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
+                  ),
+                  const SizedBox(height: 8),
+                  _ProfileBlock(
+                    name: myName,
+                    wins: myScore,
+                    losses: opponentScore,
+                    fallbackInitial: myName.isNotEmpty ? myName[0] : '?',
                   ),
                   const SizedBox(height: 10),
                   _CenterArea(
@@ -1344,7 +1358,7 @@ class DuelBoardState {
       pendingDraw: 0,
       aceColorRequired: false,
       overlay: '',
-      status: 'Manche $round',
+      status: '',
       round: round,
     );
   }
@@ -1470,7 +1484,7 @@ class DuelBoardState {
       newHands[action.actorId]?.removeWhere((DuelCard c) => c.id == card.id);
       newTop = card;
       newRequiredSuit = null;
-      newOverlay = '${action.actorId} joue ${card.label}';
+      newOverlay = '${action.actorId} a joué ${card.label}';
       newStatus = newOverlay;
 
       if (card.rank == '8') {
@@ -1487,7 +1501,7 @@ class DuelBoardState {
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.rank == 'A') {
         newAceRequired = true;
-        newOverlay = 'As joué';
+        newOverlay = 'As a été joué';
       } else if (card.rank == '10' || card.rank == 'J') {
         newOverlay = 'Tour sauté';
       }
@@ -1563,12 +1577,14 @@ class _DuelStatusBanner extends StatelessWidget {
     required this.status,
     required this.myScore,
     required this.opponentScore,
+    required this.round,
   });
 
   final String opponentName;
   final String status;
   final int myScore;
   final int opponentScore;
+  final int round;
 
   @override
   Widget build(BuildContext context) {
@@ -1585,22 +1601,73 @@ class _DuelStatusBanner extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.38),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0x80FFFFFF)),
                 boxShadow: const <BoxShadow>[
-                  BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3)),
+                  BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
                 ],
               ),
-              child: Text(
-                'VOUS $myScore : $opponentName $opponentScore',
+              child: RichText(
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  letterSpacing: 0.4,
+                text: TextSpan(
+                  children: <InlineSpan>[
+                    const TextSpan(
+                      text: 'VOUS  ',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '$myScore',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 19,
+                      ),
+                    ),
+                    const TextSpan(
+                      text: '   :   ',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '$opponentName  ',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '$opponentScore',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 19,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'MANCHE $round',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
               ),
             ),
           ),
@@ -1626,10 +1693,19 @@ class _DuelStatusBanner extends StatelessWidget {
 }
 
 class _OpponentRow extends StatelessWidget {
-  const _OpponentRow({required this.name, required this.count});
+  const _OpponentRow({
+    required this.name,
+    required this.count,
+    required this.wins,
+    required this.losses,
+    required this.fallbackInitial,
+  });
 
   final String name;
   final int count;
+  final int wins;
+  final int losses;
+  final String fallbackInitial;
 
   @override
   Widget build(BuildContext context) {
@@ -1638,7 +1714,13 @@ class _OpponentRow extends StatelessWidget {
       decoration: BoxDecoration(color: Colors.black.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
       child: Row(
         children: <Widget>[
-          Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          _ProfileBlock(
+            name: name,
+            wins: wins,
+            losses: losses,
+            fallbackInitial: fallbackInitial,
+            compact: true,
+          ),
           const SizedBox(width: 8),
           Text('🃏 $count', style: const TextStyle(color: Colors.white70)),
           Flexible(
@@ -1659,6 +1741,81 @@ class _OpponentRow extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileBlock extends StatelessWidget {
+  const _ProfileBlock({
+    required this.name,
+    required this.wins,
+    required this.losses,
+    required this.fallbackInitial,
+    this.compact = false,
+  });
+
+  final String name;
+  final int wins;
+  final int losses;
+  final String fallbackInitial;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final double avatarSize = compact ? 34 : 42;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.22),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: avatarSize,
+            height: avatarSize,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white12,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              fallbackInitial,
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w700,
+                fontSize: compact ? 14 : 16,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                name,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: compact ? 13 : 15,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'V $wins   D $losses',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                  fontSize: compact ? 10 : 11,
+                ),
+              ),
+            ],
           ),
         ],
       ),
