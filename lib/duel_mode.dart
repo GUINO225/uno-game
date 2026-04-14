@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'firebase_config.dart';
+import 'premium_ui.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
@@ -588,51 +589,162 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final DuelSession? session = _controller?.session;
     final bool busy = _controller?.busy ?? false;
     return Scaffold(
-      appBar: AppBar(title: const Text('Lobby Duel')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Pseudo',
-                hintText: 'Joueur 1',
-                border: OutlineInputBorder(),
+      body: TableBackground(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const Text(
+                      'DUEL EN LIGNE',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 30,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Crée un salon privé ou rejoins une partie existante.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white.withOpacity(0.84)),
+                    ),
+                    const SizedBox(height: 20),
+                    PremiumPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const Text(
+                            'Ton profil',
+                            style: TextStyle(
+                              color: PremiumColors.textDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Pseudo',
+                              hintText: 'Joueur 1',
+                              prefixIcon: Icon(Icons.badge_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SelectableText(
+                            'ID local: $_localPlayerId',
+                            style: TextStyle(
+                              color: PremiumColors.textDark.withOpacity(0.72),
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    PremiumPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          const Text(
+                            'Créer une partie',
+                            style: TextStyle(
+                              color: PremiumColors.textDark,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ElevatedButton.icon(
+                            onPressed: busy ? null : _createGame,
+                            icon: const Icon(Icons.add_circle_outline_rounded),
+                            label: const Text('Créer maintenant'),
+                          ),
+                          if (session != null) ...<Widget>[
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: PremiumColors.panelSoft,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  SelectableText(
+                                    'Code de partie: ${session.gameId}',
+                                    style: const TextStyle(
+                                      color: PremiumColors.textDark,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Joueurs connectés: ${session.players.length}/2',
+                                    style: const TextStyle(color: PremiumColors.textDark),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    PremiumPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          const Text(
+                            'Rejoindre une partie',
+                            style: TextStyle(
+                              color: PremiumColors.textDark,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: _codeController,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: const InputDecoration(
+                              labelText: 'Code de partie',
+                              hintText: 'AB12CD',
+                              prefixIcon: Icon(Icons.vpn_key_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ElevatedButton.icon(
+                            onPressed: busy ? null : _joinGame,
+                            icon: const Icon(Icons.login_rounded),
+                            label: const Text('Rejoindre'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if ((_controller?.error) != null) ...<Widget>[
+                      const SizedBox(height: 10),
+                      Text(
+                        _controller!.error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFFFFD4D4),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 10),
-            Text('ID local: $_localPlayerId'),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: busy ? null : _createGame,
-              child: const Text('Créer une partie'),
-            ),
-            if (session != null) ...<Widget>[
-              const SizedBox(height: 8),
-              SelectableText('Code de partie: ${session.gameId}'),
-              Text('👥 ${session.players.length}/2'),
-            ],
-            const SizedBox(height: 16),
-            TextField(
-              controller: _codeController,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Code partie',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: busy ? null : _joinGame,
-              child: const Text('Rejoindre une partie'),
-            ),
-            if ((_controller?.error) != null) ...<Widget>[
-              const SizedBox(height: 8),
-              Text(_controller!.error!, style: const TextStyle(color: Colors.red)),
-            ],
-          ],
+          ),
         ),
       ),
     );
