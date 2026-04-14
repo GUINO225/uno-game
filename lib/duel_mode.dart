@@ -1130,15 +1130,29 @@ class _DuelPageState extends State<DuelPage> {
             textAlign: TextAlign.center,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
           actions: <Widget>[
-            OutlinedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('NON'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('OUI'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                SizedBox(
+                  width: 112,
+                  height: 44,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('NON'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 112,
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: const Text('OUI'),
+                  ),
+                ),
+              ],
             ),
           ],
         );
@@ -1227,11 +1241,9 @@ class _DuelPageState extends State<DuelPage> {
         final String actorName = _displayNameUpper(session, action.actorId);
         final int forcedTotal = (action.payload['forcedTotal'] as num?)?.toInt() ?? 0;
         if (board.pendingDraw > 0) {
-          final String reminder = _forcedDrawReminder(board.pendingDraw);
-          return (
-            status: '$actorName pioche... ${reminder.toLowerCase()}',
-            overlay: '$actorName pioche... ${reminder.toLowerCase()}',
-          );
+          final String reminder = _forcedDrawReminder(board.pendingDraw).toLowerCase();
+          final String text = '$actorName a pioché — $reminder';
+          return (status: text, overlay: text);
         }
         final String finished = forcedTotal > 1
             ? '$actorName a fini de piocher ses $forcedTotal cartes'
@@ -1242,7 +1254,7 @@ class _DuelPageState extends State<DuelPage> {
         return (status: 'vous avez pioché', overlay: 'vous avez pioché');
       }
       final String actorName = _displayNameUpper(session, action.actorId);
-      return (status: '$actorName a pioché', overlay: '$actorName pioche');
+      return (status: '$actorName a pioché', overlay: '$actorName a pioché');
     }
     final DuelCard? card = (action.payload['cardId'] as String?) != null
         ? DuelCard.fromId(action.payload['cardId'] as String)
@@ -2518,8 +2530,8 @@ class _SuitOverlayText extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           lastChar,
-          style: TextStyle(
-            color: _suitGlyphColor(lastChar),
+          style: const TextStyle(
+            color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w700,
             height: 1,
