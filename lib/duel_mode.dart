@@ -1165,7 +1165,6 @@ class _DuelPageState extends State<DuelPage> {
         final String opponentName = opponentId.isEmpty
             ? 'JOUEUR 2'
             : _displayNameUpper(session, opponentId);
-        final String myName = _displayNameUpper(session, _controller.localPlayerId);
         final int myScore = session.scores[_controller.localPlayerId] ?? 0;
         final int opponentScore = session.scores[opponentId] ?? 0;
         final bool myTurn = _controller.isMyTurn && session.status != DuelGameStatus.finished;
@@ -1182,7 +1181,6 @@ class _DuelPageState extends State<DuelPage> {
                 children: <Widget>[
                   _DuelStatusBanner(
                     opponentName: opponentName,
-                    status: texts.status,
                     myScore: myScore,
                     opponentScore: opponentScore,
                     round: session.round,
@@ -1194,13 +1192,6 @@ class _DuelPageState extends State<DuelPage> {
                     wins: opponentScore,
                     losses: myScore,
                     fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
-                  ),
-                  const SizedBox(height: 8),
-                  _ProfileBlock(
-                    name: myName,
-                    wins: myScore,
-                    losses: opponentScore,
-                    fallbackInitial: myName.isNotEmpty ? myName[0] : '?',
                   ),
                   const SizedBox(height: 10),
                   _CenterArea(
@@ -1219,6 +1210,11 @@ class _DuelPageState extends State<DuelPage> {
                     onCardTap: _onCardTap,
                     playable: (DuelCard card) =>
                         myTurn && board.canPlay(_controller.localPlayerId, card),
+                  ),
+                  const SizedBox(height: 8),
+                  _ActionMessageCard(
+                    session: session,
+                    localPlayerId: _controller.localPlayerId,
                   ),
                   if (session.status == DuelGameStatus.finished)
                     Padding(
@@ -1574,14 +1570,12 @@ String _rankToLabel(int rank) {
 class _DuelStatusBanner extends StatelessWidget {
   const _DuelStatusBanner({
     required this.opponentName,
-    required this.status,
     required this.myScore,
     required this.opponentScore,
     required this.round,
   });
 
   final String opponentName;
-  final String status;
   final int myScore;
   final int opponentScore;
   final int round;
@@ -1671,21 +1665,6 @@ class _DuelStatusBanner extends StatelessWidget {
               ),
             ),
           ),
-          if (status.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                status,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -1722,23 +1701,32 @@ class _OpponentRow extends StatelessWidget {
             compact: true,
           ),
           const SizedBox(width: 8),
-          Text('🃏 $count', style: const TextStyle(color: Colors.white70)),
-          Flexible(
+          Expanded(
             child: Align(
               alignment: Alignment.centerRight,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                reverse: true,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List<Widget>.generate(
-                    count,
-                    (int _) => const Padding(
-                      padding: EdgeInsets.only(left: 4),
-                      child: _DuelCardBack(width: 24, height: 34),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List<Widget>.generate(
+                        count,
+                        (int _) => const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: _DuelCardBack(width: 28, height: 40),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  Positioned(
+                    top: -8,
+                    right: -8,
+                    child: _DrawCountBadge(count: count),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1934,6 +1922,130 @@ class _MyHandRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionMessageCard extends StatelessWidget {
+  const _ActionMessageCard({
+    required this.session,
+    required this.localPlayerId,
+  });
+
+  final DuelSession session;
+  final String localPlayerId;
+
+  @override
+  Widget build(BuildContext context) {
+    final DuelAction? action = session.lastAction;
+    if (action == null || action.type != DuelActionType.playCard) {
+      return const SizedBox.shrink();
+    }
+
+    final Map<String, dynamic>? rawCard = (action.payload['card'] as Map?)?.cast<String, dynamic>();
+    if (rawCard == null) {
+      return const SizedBox.shrink();
+    }
+
+    final DuelCard card = DuelCard.fromMap(rawCard);
+    final bool isMe = action.actorId == localPlayerId;
+    final String actorName = session.playerNames[action.actorId]?.toUpperCase() ?? 'JOUEUR';
+    final String prefix = isMe ? 'Vous avez joué' : '$actorName a joué';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Flexible(
+            child: Text(
+              prefix,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _PlayedCardMini(card: card),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayedCardMini extends StatelessWidget {
+  const _PlayedCardMini({required this.card});
+
+  final DuelCard card;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool red = card.isRed;
+    final Color ink = red ? const Color(0xFFC62828) : const Color(0xFF1B1B1B);
+    final String rank = card.isJoker ? 'JK' : card.rank;
+    final String suit = card.suit;
+
+    return SizedBox(
+      width: 40,
+      height: 58,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.black.withOpacity(0.22)),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: card.isJoker
+              ? Center(
+                  child: Text(
+                    'JK',
+                    style: TextStyle(
+                      color: ink,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                )
+              : Stack(
+                  children: <Widget>[
+                    Align(
+                      alignment: Alignment.topLeft,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            rank,
+                            style: TextStyle(
+                              color: ink,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10,
+                              height: 1,
+                            ),
+                          ),
+                          _SuitGlyph(suit: suit, color: ink, size: 8),
+                        ],
+                      ),
+                    ),
+                    Center(
+                      child: _SuitGlyph(suit: suit, color: ink, size: 16),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
