@@ -90,6 +90,8 @@ class MyApp extends StatelessWidget {
       routes: <String, WidgetBuilder>{
         GameModeRoutes.solo: (_) => const CrazyEightsPage(),
         GameModeRoutes.duel: (_) => const DuelLobbyPage(),
+        GameModeRoutes.credits: (_) =>
+            const DuelLobbyPage(mode: DuelRoomMode.credits),
       },
       home: const GameModePage(),
     );
@@ -98,11 +100,12 @@ class MyApp extends StatelessWidget {
 
 
 
-enum GameMode { solo, duel }
+enum GameMode { solo, duel, credits }
 
 class GameModeRoutes {
   static const String solo = '/solo';
   static const String duel = '/duel';
+  static const String credits = '/credits';
 }
 
 class GameModePalette {
@@ -147,6 +150,9 @@ class _GameModePageState extends State<GameModePage>
   late final Animation<double> _duelFade;
   late final Animation<Offset> _duelSlideUp;
   late final Animation<double> _duelScale;
+  late final Animation<double> _creditsFade;
+  late final Animation<Offset> _creditsSlideUp;
+  late final Animation<double> _creditsScale;
   GameMode? _selectedMode;
 
   @override
@@ -202,6 +208,25 @@ class _GameModePageState extends State<GameModePage>
       CurvedAnimation(
         parent: _introController,
         curve: const Interval(0.3, 0.9, curve: Curves.easeOutCubic),
+      ),
+    );
+    _creditsFade = CurvedAnimation(
+      parent: _introController,
+      curve: const Interval(0.42, 1, curve: Curves.easeOut),
+    );
+    _creditsSlideUp = Tween<Offset>(
+      begin: const Offset(0, 0.11),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.42, 1, curve: Curves.easeOutCubic),
+      ),
+    );
+    _creditsScale = Tween<double>(begin: 0.96, end: 1).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.42, 1, curve: Curves.easeOutCubic),
       ),
     );
     _introController.forward();
@@ -298,6 +323,27 @@ class _GameModePageState extends State<GameModePage>
                                                       GameMode.duel,
                                                   onTap: () => _selectMode(
                                                     GameMode.duel,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 20),
+                                          FadeTransition(
+                                            opacity: _creditsFade,
+                                            child: SlideTransition(
+                                              position: _creditsSlideUp,
+                                              child: ScaleTransition(
+                                                scale: _creditsScale,
+                                                child: ModeCardCredits(
+                                                  width: _modeCardWidth,
+                                                  height: _modeCardHeight,
+                                                  labelFontSize:
+                                                      _modeLabelFontSize,
+                                                  isSelected: _selectedMode ==
+                                                      GameMode.credits,
+                                                  onTap: () => _selectMode(
+                                                    GameMode.credits,
                                                   ),
                                                 ),
                                               ),
@@ -408,9 +454,11 @@ class _GameModePageState extends State<GameModePage>
     if (mode == null) {
       return;
     }
-    Navigator.of(context).pushNamed(
-      mode == GameMode.solo ? GameModeRoutes.solo : GameModeRoutes.duel,
-    );
+    Navigator.of(context).pushNamed(switch (mode) {
+      GameMode.solo => GameModeRoutes.solo,
+      GameMode.duel => GameModeRoutes.duel,
+      GameMode.credits => GameModeRoutes.credits,
+    });
   }
 }
 
@@ -698,6 +746,61 @@ class ModeCardDuel extends StatelessWidget {
   }
 }
 
+class ModeCardCredits extends StatelessWidget {
+  const ModeCardCredits({
+    super.key,
+    required this.width,
+    required this.height,
+    required this.labelFontSize,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final double width;
+  final double height;
+  final double labelFontSize;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PressableModeCard(
+      onTap: onTap,
+      isSelected: isSelected,
+      label: 'CRÉDITS',
+      labelFontSize: labelFontSize * 0.76,
+      child: SizedBox(
+        width: width + 36,
+        height: height + 20,
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            Positioned(
+              top: 16,
+              child: _GameCardFace(
+                width: width,
+                height: height,
+                color: GameModePalette.cardGreenSoft,
+                symbol: '♦',
+              ),
+            ),
+            Positioned(
+              child: Transform.rotate(
+                angle: -0.2,
+                child: _GameCardFace(
+                  width: width,
+                  height: height,
+                  symbol: '8♦',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PressableModeCard extends StatefulWidget {
   const _PressableModeCard({
     required this.child,
@@ -853,11 +956,13 @@ class _GameCardFace extends StatelessWidget {
     required this.width,
     required this.height,
     this.color = GameModePalette.cardGreen,
+    this.symbol = '♠',
   });
 
   final double width;
   final double height;
   final Color color;
+  final String symbol;
 
   @override
   Widget build(BuildContext context) {
@@ -884,7 +989,7 @@ class _GameCardFace extends StatelessWidget {
             top: 12,
             right: 12,
             child: Text(
-              '♠',
+              symbol,
               style: TextStyle(
                 color: GameModePalette.white,
                 fontSize: cornerSpadeSize,
@@ -898,7 +1003,7 @@ class _GameCardFace extends StatelessWidget {
             child: RotatedBox(
               quarterTurns: 2,
               child: Text(
-                '♠',
+                symbol,
                 style: TextStyle(
                   color: GameModePalette.white,
                   fontSize: cornerSpadeSize,
@@ -909,7 +1014,7 @@ class _GameCardFace extends StatelessWidget {
           ),
           Center(
             child: Text(
-              '♠',
+              symbol,
               style: TextStyle(
                 color: GameModePalette.white,
                 fontSize: centerSpadeSize,
