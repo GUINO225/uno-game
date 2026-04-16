@@ -116,6 +116,12 @@ class _GameModePageState extends State<GameModePage>
   late final AnimationController _introController;
   late final Animation<double> _fadeIn;
   late final Animation<Offset> _slideUp;
+  late final Animation<double> _soloFade;
+  late final Animation<Offset> _soloSlideUp;
+  late final Animation<double> _soloScale;
+  late final Animation<double> _duelFade;
+  late final Animation<Offset> _duelSlideUp;
+  late final Animation<double> _duelScale;
 
   double _clampFont(double value, double min, double max) {
     if (value < min) {
@@ -132,7 +138,7 @@ class _GameModePageState extends State<GameModePage>
     super.initState();
     _introController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 900),
     );
     _fadeIn = CurvedAnimation(
       parent: _introController,
@@ -143,6 +149,44 @@ class _GameModePageState extends State<GameModePage>
       end: Offset.zero,
     ).animate(
       CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic),
+    );
+    _soloFade = CurvedAnimation(
+      parent: _introController,
+      curve: const Interval(0.18, 0.74, curve: Curves.easeOut),
+    );
+    _soloSlideUp = Tween<Offset>(
+      begin: const Offset(0, 0.09),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.18, 0.74, curve: Curves.easeOutCubic),
+      ),
+    );
+    _soloScale = Tween<double>(begin: 0.96, end: 1).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.18, 0.74, curve: Curves.easeOutCubic),
+      ),
+    );
+    _duelFade = CurvedAnimation(
+      parent: _introController,
+      curve: const Interval(0.3, 0.9, curve: Curves.easeOut),
+    );
+    _duelSlideUp = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.3, 0.9, curve: Curves.easeOutCubic),
+      ),
+    );
+    _duelScale = Tween<double>(begin: 0.96, end: 1).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.3, 0.9, curve: Curves.easeOutCubic),
+      ),
     );
     _introController.forward();
   }
@@ -157,7 +201,7 @@ class _GameModePageState extends State<GameModePage>
   Widget build(BuildContext context) {
     final Size size = MediaQuery.sizeOf(context);
     final double width = size.width;
-    final double logoFontSize = _clampFont(width * 0.125, 54, 118);
+    final double logoFontSize = _clampFont(width * 0.132, 58, 124);
     final double subLogoFontSize = _clampFont(width * 0.026, 12, 24.5);
     final double titleFontSize = _clampFont(width * 0.0662, 26, 62.5);
     final double modeLabelFontSize = _clampFont(width * 0.0794, 28, 75);
@@ -199,30 +243,48 @@ class _GameModePageState extends State<GameModePage>
                             children: <Widget>[
                               Expanded(
                                 child: Align(
-                                  child: ModeCardSolo(
-                                    width: cardWidth,
-                                    height: cardHeight,
-                                    labelFontSize: modeLabelFontSize,
-                                    onTap: () {
-                                      Navigator.of(
-                                        context,
-                                      ).pushNamed(GameModeRoutes.solo);
-                                    },
+                                  child: FadeTransition(
+                                    opacity: _soloFade,
+                                    child: SlideTransition(
+                                      position: _soloSlideUp,
+                                      child: ScaleTransition(
+                                        scale: _soloScale,
+                                        child: ModeCardSolo(
+                                          width: cardWidth,
+                                          height: cardHeight,
+                                          labelFontSize: modeLabelFontSize,
+                                          onTap: () {
+                                            Navigator.of(
+                                              context,
+                                            ).pushNamed(GameModeRoutes.solo);
+                                          },
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: Align(
-                                  child: ModeCardDuel(
-                                    width: cardWidth,
-                                    height: cardHeight,
-                                    labelFontSize: modeLabelFontSize,
-                                    onTap: () {
-                                      Navigator.of(
-                                        context,
-                                      ).pushNamed(GameModeRoutes.duel);
-                                    },
+                                  child: FadeTransition(
+                                    opacity: _duelFade,
+                                    child: SlideTransition(
+                                      position: _duelSlideUp,
+                                      child: ScaleTransition(
+                                        scale: _duelScale,
+                                        child: ModeCardDuel(
+                                          width: cardWidth,
+                                          height: cardHeight,
+                                          labelFontSize: modeLabelFontSize,
+                                          onTap: () {
+                                            Navigator.of(
+                                              context,
+                                            ).pushNamed(GameModeRoutes.duel);
+                                          },
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -230,7 +292,7 @@ class _GameModePageState extends State<GameModePage>
                           ),
                           const Spacer(flex: 3),
                           Text(
-                            'V1.1',
+                            'V1.2',
                             style: TextStyle(
                               color: GameModePalette.white.withOpacity(0.9),
                               fontSize: versionFontSize,
@@ -335,21 +397,28 @@ class GameLogoHeader extends StatelessWidget {
     final double logoScaleFactor = logoFontSize / 118;
 
     return SizedBox(
-      height: 160,
+      height: 172,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
           Positioned(
-            top: 24,
-            right: 52,
-            child: Text(
-              '8AMERICAIN',
-              style: GoogleFonts.poppins(
-                color: GameModePalette.accentGreen,
-                fontWeight: FontWeight.w600,
-                fontStyle: FontStyle.italic,
-                letterSpacing: 0.4,
-                fontSize: subLogoFontSize,
+            top: 14,
+            left: 0,
+            right: 0,
+            child: Align(
+              alignment: Alignment.center,
+              child: Transform.translate(
+                offset: Offset(44 * logoScaleFactor, 0),
+                child: Text(
+                  '8AMERICAIN',
+                  style: GoogleFonts.poppins(
+                    color: GameModePalette.accentGreen,
+                    fontWeight: FontWeight.w600,
+                    fontStyle: FontStyle.italic,
+                    letterSpacing: 0.4,
+                    fontSize: subLogoFontSize,
+                  ),
+                ),
               ),
             ),
           ),
@@ -369,8 +438,11 @@ class GameLogoHeader extends StatelessWidget {
                   WidgetSpan(
                     alignment: PlaceholderAlignment.middle,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _MiniLogoCard(scaleFactor: logoScaleFactor),
+                      padding: const EdgeInsets.symmetric(horizontal: 0.5),
+                      child: Transform.translate(
+                        offset: Offset(-2.5 * logoScaleFactor, 0),
+                        child: _MiniLogoCard(scaleFactor: logoScaleFactor),
+                      ),
                     ),
                   ),
                   const TextSpan(text: 'INO'),
@@ -392,20 +464,20 @@ class _MiniLogoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Transform.rotate(
-      angle: -0.2,
+      angle: -0.32,
       child: Container(
-        width: 54 * scaleFactor,
-        height: 82 * scaleFactor,
+        width: 60 * scaleFactor,
+        height: 92 * scaleFactor,
         decoration: BoxDecoration(
           color: GameModePalette.cardGreen,
-          borderRadius: BorderRadius.circular(14 * scaleFactor),
+          borderRadius: BorderRadius.circular(15 * scaleFactor),
         ),
         child: Center(
           child: Text(
             '♠',
             style: TextStyle(
               color: GameModePalette.white,
-              fontSize: 40 * scaleFactor,
+              fontSize: 42 * scaleFactor,
               height: 1,
             ),
           ),
@@ -567,11 +639,11 @@ class _PressableModeCardState extends State<_PressableModeCard> {
             const SizedBox(height: 14),
             Text(
               widget.label,
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 color: GameModePalette.white,
                 fontSize: widget.labelFontSize,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.9,
               ),
             ),
           ],
@@ -594,6 +666,9 @@ class _GameCardFace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double cornerSpadeSize = (width * 0.16).clamp(18, 24);
+    final double centerSpadeSize = (height * 0.50).clamp(84, 106);
+
     return Container(
       width: width,
       height: height,
@@ -610,19 +685,19 @@ class _GameCardFace extends StatelessWidget {
       ),
       child: Stack(
         children: <Widget>[
-          const Positioned(
+          Positioned(
             top: 12,
             right: 12,
             child: Text(
               '♠',
               style: TextStyle(
                 color: GameModePalette.white,
-                fontSize: 28,
+                fontSize: cornerSpadeSize,
                 height: 1,
               ),
             ),
           ),
-          const Positioned(
+          Positioned(
             bottom: 12,
             left: 12,
             child: RotatedBox(
@@ -631,18 +706,18 @@ class _GameCardFace extends StatelessWidget {
                 '♠',
                 style: TextStyle(
                   color: GameModePalette.white,
-                  fontSize: 28,
+                  fontSize: cornerSpadeSize,
                   height: 1,
                 ),
               ),
             ),
           ),
-          const Center(
+          Center(
             child: Text(
               '♠',
               style: TextStyle(
                 color: GameModePalette.white,
-                fontSize: 120,
+                fontSize: centerSpadeSize,
                 height: 1,
               ),
             ),
