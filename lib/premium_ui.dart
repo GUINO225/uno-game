@@ -24,46 +24,55 @@ class TableBackground extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
           colors: <Color>[
-            PremiumColors.tableGreenMid,
-            PremiumColors.tableGreenDark,
+            Color(0xFF06623B),
+            Color(0xFF004F2C),
+            Color(0xFF013C25),
           ],
         ),
       ),
       child: Stack(
         children: <Widget>[
           Positioned(
-            top: -50,
-            right: -20,
+            top: -70,
+            left: -40,
             child: _GlowCircle(
-              size: 200,
-              color: Colors.white.withOpacity(0.07),
-            ),
-          ),
-          Positioned(
-            bottom: -40,
-            left: -20,
-            child: _GlowCircle(
-              size: 180,
+              size: 230,
               color: Colors.black.withOpacity(0.12),
             ),
           ),
           Positioned(
-            top: 90,
-            left: 20,
-            child: Transform.rotate(
-              angle: -0.24,
-              child: const Icon(Icons.style, color: Colors.white24, size: 36),
+            right: -90,
+            bottom: -110,
+            child: _GlowCircle(
+              size: 260,
+              color: Colors.black.withOpacity(0.1),
             ),
           ),
           Positioned(
-            bottom: 120,
-            right: 26,
-            child: Transform.rotate(
-              angle: 0.15,
-              child: const Icon(Icons.style, color: Colors.white24, size: 32),
+            top: 62,
+            left: -35,
+            child: Text(
+              '♠',
+              style: TextStyle(
+                fontSize: 148,
+                color: Colors.white.withOpacity(0.055),
+                height: 1,
+              ),
+            ),
+          ),
+          Positioned(
+            right: 20,
+            bottom: 34,
+            child: Text(
+              '♣',
+              style: TextStyle(
+                fontSize: 126,
+                color: Colors.white.withOpacity(0.05),
+                height: 1,
+              ),
             ),
           ),
           child,

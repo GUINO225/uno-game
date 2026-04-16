@@ -13,6 +13,16 @@ import 'premium_ui.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
   await _initializeFirebaseIfConfigured();
   runApp(const MyApp());
 }
@@ -122,6 +132,7 @@ class _GameModePageState extends State<GameModePage>
   late final Animation<double> _duelFade;
   late final Animation<Offset> _duelSlideUp;
   late final Animation<double> _duelScale;
+  GameMode? _selectedMode;
 
   double _clampFont(double value, double min, double max) {
     if (value < min) {
@@ -205,6 +216,7 @@ class _GameModePageState extends State<GameModePage>
     final double subLogoFontSize = _clampFont(width * 0.026, 12, 24.5);
     final double titleFontSize = _clampFont(width * 0.0662, 26, 62.5);
     final double modeLabelFontSize = _clampFont(width * 0.0794, 28, 75);
+    final double playLabelFontSize = _clampFont(width * 0.052, 20, 28);
     final double versionFontSize = _clampFont(width * 0.0328, 14, 31);
     final double cardHeight = (size.height * 0.20).clamp(170, 250);
     final double cardWidth = (size.width * 0.28).clamp(110, 150);
@@ -253,11 +265,10 @@ class _GameModePageState extends State<GameModePage>
                                           width: cardWidth,
                                           height: cardHeight,
                                           labelFontSize: modeLabelFontSize,
-                                          onTap: () {
-                                            Navigator.of(
-                                              context,
-                                            ).pushNamed(GameModeRoutes.solo);
-                                          },
+                                          isSelected:
+                                              _selectedMode == GameMode.solo,
+                                          onTap: () =>
+                                              _selectMode(GameMode.solo),
                                         ),
                                       ),
                                     ),
@@ -277,11 +288,10 @@ class _GameModePageState extends State<GameModePage>
                                           width: cardWidth,
                                           height: cardHeight,
                                           labelFontSize: modeLabelFontSize,
-                                          onTap: () {
-                                            Navigator.of(
-                                              context,
-                                            ).pushNamed(GameModeRoutes.duel);
-                                          },
+                                          isSelected:
+                                              _selectedMode == GameMode.duel,
+                                          onTap: () =>
+                                              _selectMode(GameMode.duel),
                                         ),
                                       ),
                                     ),
@@ -289,6 +299,42 @@ class _GameModePageState extends State<GameModePage>
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 24),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 280),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (
+                              Widget child,
+                              Animation<double> animation,
+                            ) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0, 0.18),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: ScaleTransition(
+                                    scale: Tween<double>(
+                                      begin: 0.96,
+                                      end: 1,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: _selectedMode == null
+                                ? const SizedBox.shrink(
+                                    key: ValueKey<String>('play-hidden'),
+                                  )
+                                : _PlayModeButton(
+                                    key: const ValueKey<String>('play-visible'),
+                                    fontSize: playLabelFontSize,
+                                    onTap: _startSelectedMode,
+                                  ),
                           ),
                           const Spacer(flex: 3),
                           Text(
@@ -311,6 +357,25 @@ class _GameModePageState extends State<GameModePage>
           ),
         ],
       ),
+    );
+  }
+
+  void _selectMode(GameMode mode) {
+    if (_selectedMode == mode) {
+      return;
+    }
+    setState(() {
+      _selectedMode = mode;
+    });
+  }
+
+  void _startSelectedMode() {
+    final GameMode? mode = _selectedMode;
+    if (mode == null) {
+      return;
+    }
+    Navigator.of(context).pushNamed(
+      mode == GameMode.solo ? GameModeRoutes.solo : GameModeRoutes.duel,
     );
   }
 }
@@ -401,21 +466,18 @@ class GameLogoHeader extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
-          Positioned(
-            top: 14,
-            left: 0,
-            right: 0,
+          Positioned.fill(
             child: Align(
               alignment: Alignment.center,
               child: Transform.translate(
-                offset: Offset(44 * logoScaleFactor, 0),
+                offset: Offset(47 * logoScaleFactor, 8 * logoScaleFactor),
                 child: Text(
                   '8AMERICAIN',
                   style: GoogleFonts.poppins(
                     color: GameModePalette.accentGreen,
                     fontWeight: FontWeight.w600,
                     fontStyle: FontStyle.italic,
-                    letterSpacing: 0.4,
+                    letterSpacing: 0.3,
                     fontSize: subLogoFontSize,
                   ),
                 ),
@@ -528,18 +590,21 @@ class ModeCardSolo extends StatelessWidget {
     required this.width,
     required this.height,
     required this.labelFontSize,
+    required this.isSelected,
     required this.onTap,
   });
 
   final double width;
   final double height;
   final double labelFontSize;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return _PressableModeCard(
       onTap: onTap,
+      isSelected: isSelected,
       label: 'SOLO',
       labelFontSize: labelFontSize,
       child: SizedBox(
@@ -560,18 +625,21 @@ class ModeCardDuel extends StatelessWidget {
     required this.width,
     required this.height,
     required this.labelFontSize,
+    required this.isSelected,
     required this.onTap,
   });
 
   final double width;
   final double height;
   final double labelFontSize;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return _PressableModeCard(
       onTap: onTap,
+      isSelected: isSelected,
       label: 'DUEL',
       labelFontSize: labelFontSize,
       child: SizedBox(
@@ -606,12 +674,14 @@ class _PressableModeCard extends StatefulWidget {
     required this.child,
     required this.label,
     required this.labelFontSize,
+    required this.isSelected,
     required this.onTap,
   });
 
   final Widget child;
   final String label;
   final double labelFontSize;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
@@ -629,24 +699,120 @@ class _PressableModeCardState extends State<_PressableModeCard> {
       onTapCancel: () => setState(() => _isPressed = false),
       onTap: widget.onTap,
       child: AnimatedScale(
-        scale: _isPressed ? 0.965 : 1,
+        scale: _isPressed
+            ? 0.965
+            : widget.isSelected
+                ? 1.02
+                : 1,
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOut,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            widget.child,
-            const SizedBox(height: 14),
-            Text(
-              widget.label,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: widget.isSelected
+                ? Colors.white.withOpacity(0.07)
+                : Colors.transparent,
+            border: Border.all(
+              color: widget.isSelected
+                  ? Colors.white.withOpacity(0.45)
+                  : Colors.transparent,
+            ),
+            boxShadow: widget.isSelected
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: GameModePalette.accentGreen.withOpacity(0.18),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ]
+                : const <BoxShadow>[],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              widget.child,
+              const SizedBox(height: 14),
+              Text(
+                widget.label,
+                style: GoogleFonts.poppins(
+                  color: GameModePalette.white,
+                  fontSize: widget.labelFontSize,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.9,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayModeButton extends StatefulWidget {
+  const _PlayModeButton({
+    super.key,
+    required this.fontSize,
+    required this.onTap,
+  });
+
+  final double fontSize;
+  final VoidCallback onTap;
+
+  @override
+  State<_PlayModeButton> createState() => _PlayModeButtonState();
+}
+
+class _PlayModeButtonState extends State<_PlayModeButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) => setState(() => _isPressed = false),
+        onTapCancel: () => setState(() => _isPressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          scale: _isPressed ? 0.97 : 1,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Color(0xFF96F8A6),
+                  Color(0xFF5DD978),
+                ],
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF8BFFAA).withOpacity(0.28),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Text(
+              'JOUER',
               style: GoogleFonts.poppins(
-                color: GameModePalette.white,
-                fontSize: widget.labelFontSize,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.9,
+                color: GameModePalette.backgroundShade,
+                fontSize: widget.fontSize,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1882,46 +2048,43 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         !_isResolvingTurn &&
         !_isInitialDealRunning &&
         !_isHumanForcedToDrawNow();
+    final double topInset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1B5E20),
-      appBar: AppBar(
-        title: const Text('GINO CARD'),
-        centerTitle: true,
-        actions: <Widget>[
-          IconButton(
-            onPressed: _startNewGame,
-            tooltip: 'Nouvelle manche',
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      backgroundColor: GameModePalette.background,
       body: Stack(
         children: <Widget>[
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -0.15),
-                  radius: 1.15,
-                  colors: <Color>[
-                    const Color(0xFF2E7D32),
-                    const Color(0xFF1B5E20),
-                    const Color(0xFF0E3E13),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
+          TableBackground(
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.fromLTRB(12, topInset + 8, 12, 12),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 980),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Text(
+                            'GINO CARD',
+                            style: GoogleFonts.leagueSpartan(
+                              color: GameModePalette.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: _startNewGame,
+                            tooltip: 'Nouvelle manche',
+                            icon: const Icon(
+                              Icons.refresh_rounded,
+                              color: GameModePalette.white,
+                            ),
+                          ),
+                        ],
+                      ),
                       _scoreBar(),
                       const SizedBox(height: 10),
                       _statusBanner(),
