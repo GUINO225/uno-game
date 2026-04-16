@@ -880,7 +880,8 @@ class _DuelPageState extends State<DuelPage> {
   bool _rematchActionBusy = false;
   bool _didNavigateHomeAfterDecline = false;
   List<DuelChatMessage> _chatMessages = const <DuelChatMessage>[];
-  final Set<String> _knownChatMessageIds = <String>{};
+  final Set<String> _seenChatMessageIds = <String>{};
+  bool _didPrimeChatSeenIds = false;
   bool _chatPanelOpen = false;
   int _unreadChatCount = 0;
   String? _chatError;
@@ -950,7 +951,8 @@ class _DuelPageState extends State<DuelPage> {
       return;
     }
     _chatSubscription?.cancel();
-    _knownChatMessageIds.clear();
+    _seenChatMessageIds.clear();
+    _didPrimeChatSeenIds = false;
     _chatMessages = const <DuelChatMessage>[];
     _chatError = null;
     _unreadChatCount = 0;
@@ -967,22 +969,24 @@ class _DuelPageState extends State<DuelPage> {
             };
             final List<DuelChatMessage> ordered = dedup.values.toList()
               ..sort((DuelChatMessage a, DuelChatMessage b) => a.createdAt.compareTo(b.createdAt));
-            final Set<String> incomingIds = ordered.map((DuelChatMessage m) => m.id).toSet();
-            final Iterable<DuelChatMessage> freshFromOpponent = ordered.where(
-              (DuelChatMessage message) =>
-                  !_knownChatMessageIds.contains(message.id) &&
-                  message.senderId != _controller.localPlayerId,
-            );
-            _knownChatMessageIds
-              ..clear()
-              ..addAll(incomingIds);
+            int unreadDelta = 0;
+            for (final DuelChatMessage message in ordered) {
+              if (_seenChatMessageIds.contains(message.id)) {
+                continue;
+              }
+              _seenChatMessageIds.add(message.id);
+              if (_didPrimeChatSeenIds &&
+                  !_chatPanelOpen &&
+                  message.senderId != _controller.localPlayerId) {
+                unreadDelta += 1;
+              }
+            }
             setState(() {
               _chatMessages = ordered;
               _chatError = null;
-              if (!_chatPanelOpen) {
-                _unreadChatCount += freshFromOpponent.length;
-              }
+              _unreadChatCount += unreadDelta;
             });
+            _didPrimeChatSeenIds = true;
           },
           onError: (Object errorValue, StackTrace _) {
             if (!mounted) {
@@ -1699,21 +1703,29 @@ class DuelChatButton extends StatelessWidget {
               Positioned(
                 right: -5,
                 top: -5,
-                child: Container(
-                  constraints: const BoxConstraints(minWidth: 18),
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF4D5A),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white70, width: 1),
-                  ),
-                  child: Text(
-                    unreadCount > 99 ? '99+' : '$unreadCount',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
+                child: TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 180),
+                  tween: Tween<double>(begin: 0.92, end: 1),
+                  curve: Curves.easeOut,
+                  builder: (BuildContext context, double value, Widget? child) {
+                    return Transform.scale(scale: value, child: child);
+                  },
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF4D5A),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white70, width: 1),
+                    ),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
