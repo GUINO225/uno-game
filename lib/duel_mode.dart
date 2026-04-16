@@ -2128,6 +2128,10 @@ class _MyHandRow extends StatelessWidget {
   final bool canInteract;
   final ValueChanged<DuelCard> onCardTap;
   final bool Function(DuelCard) playable;
+  static const double _cardAspectRatio = _FaceCard.width / _FaceCard.height;
+  static const double _baseCardWidth = _FaceCard.width;
+  static const double _hSpacing = 6;
+  static const double _vSpacing = 6;
 
   @override
   Widget build(BuildContext context) {
@@ -2145,28 +2149,81 @@ class _MyHandRow extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: <Widget>[
-                  ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemBuilder: (_, int index) {
-                      final DuelCard card = cards[index];
-                      final bool isPlayable = playable(card);
-                      return GestureDetector(
-                        onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
-                        child: Opacity(opacity: canInteract && !isPlayable ? 0.4 : 1, child: _FaceCard(card: card)),
-                      );
-                    },
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemCount: cards.length,
-                  ),
-                  Positioned(
-                    top: -6,
-                    right: -2,
-                    child: _DrawCountBadge(count: cards.length),
-                  ),
-                ],
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  if (cards.isEmpty) {
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: <Widget>[
+                        const SizedBox.expand(),
+                        Positioned(
+                          top: -6,
+                          right: -2,
+                          child: _DrawCountBadge(count: cards.length),
+                        ),
+                      ],
+                    );
+                  }
+
+                  final double availableWidth = constraints.maxWidth;
+                  final double availableHeight = constraints.maxHeight;
+                  final int baseCardsPerRow =
+                      ((availableWidth + _hSpacing) / (_baseCardWidth + _hSpacing)).floor().clamp(1, cards.length);
+                  final bool useTwoRows = cards.length > baseCardsPerRow;
+                  final int rowCount = useTwoRows ? 2 : 1;
+                  final int columns = rowCount == 1 ? cards.length : (cards.length / 2).ceil();
+
+                  final double widthDrivenCard = columns <= 1
+                      ? _baseCardWidth
+                      : (availableWidth - (_hSpacing * (columns - 1))) / columns;
+                  final double heightDrivenCard = ((availableHeight - (_vSpacing * (rowCount - 1))) / rowCount) *
+                      _cardAspectRatio;
+                  final double cardWidth = widthDrivenCard
+                      .clamp(24.0, _baseCardWidth)
+                      .clamp(24.0, heightDrivenCard.clamp(24.0, _baseCardWidth));
+                  final double cardHeight = cardWidth / _cardAspectRatio;
+                  final double gridWidth = (columns * cardWidth) + ((columns - 1) * _hSpacing);
+
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: <Widget>[
+                      Center(
+                        child: SizedBox(
+                          width: gridWidth,
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            runAlignment: WrapAlignment.center,
+                            spacing: _hSpacing,
+                            runSpacing: _vSpacing,
+                            children: List<Widget>.generate(cards.length, (int index) {
+                              final DuelCard card = cards[index];
+                              final bool isPlayable = playable(card);
+                              return GestureDetector(
+                                onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
+                                child: Opacity(
+                                  opacity: canInteract && !isPlayable ? 0.4 : 1,
+                                  child: SizedBox(
+                                    width: cardWidth,
+                                    height: cardHeight,
+                                    child: FittedBox(
+                                      fit: BoxFit.contain,
+                                      child: _FaceCard(card: card),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: -6,
+                        right: -2,
+                        child: _DrawCountBadge(count: cards.length),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
