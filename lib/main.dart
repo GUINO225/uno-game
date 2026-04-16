@@ -241,8 +241,8 @@ class _GameModePageState extends State<GameModePage>
                             const GameLogoHeader(),
                             const SizedBox(height: _titleTopSpacing),
                             const _ModeTitle(
-                              regularFontSize: 38,
-                              boldFontSize: 38,
+                              regularFontSize: 34.2,
+                              boldFontSize: 34.2,
                             ),
                             const SizedBox(height: _modeCardsTopSpacing),
                             Row(
@@ -325,7 +325,7 @@ class _GameModePageState extends State<GameModePage>
                             ),
                             const Spacer(),
                             Text(
-                              'V1.4',
+                              'V1.6',
                               style: TextStyle(
                                 color: GameModePalette.white.withOpacity(0.9),
                                 fontSize: _versionFontSize,
@@ -440,10 +440,10 @@ class GameLogoHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double logoScaleFactor = 1;
+    const double logoScaleFactor = 0.75;
 
     return SizedBox(
-      height: 172,
+      height: 172 * logoScaleFactor,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
@@ -458,7 +458,7 @@ class GameLogoHeader extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                   fontStyle: FontStyle.italic,
                   letterSpacing: 0.55,
-                  fontSize: 22,
+                  fontSize: 22 * logoScaleFactor,
                 ),
               ),
             ),
@@ -469,7 +469,7 @@ class GameLogoHeader extends StatelessWidget {
               text: TextSpan(
                 style: GoogleFonts.leagueSpartan(
                   fontWeight: FontWeight.w700,
-                  fontSize: 118,
+                  fontSize: 118 * logoScaleFactor,
                   color: GameModePalette.white,
                   letterSpacing: 0.2,
                   height: 0.88,
