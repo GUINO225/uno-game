@@ -131,6 +131,7 @@ class _GameModePageState extends State<GameModePage>
   static const double _titleTopSpacing = 22;
   static const double _modeCardsTopSpacing = 20;
   static const double _controlsTopSpacing = 24;
+  static const double _centerBlockVerticalOffset = -10;
   static const double _modeLabelFontSize = 34;
   static const double _playLabelFontSize = 20;
   static const double _versionFontSize = 14;
@@ -239,94 +240,120 @@ class _GameModePageState extends State<GameModePage>
                           children: <Widget>[
                             const SizedBox(height: _logoTopSpacing),
                             const GameLogoHeader(),
-                            const SizedBox(height: _titleTopSpacing),
-                            const _ModeTitle(
-                              regularFontSize: 25.0,
-                              boldFontSize: 25.3,
-                            ),
-                            const SizedBox(height: _modeCardsTopSpacing),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                FadeTransition(
-                                  opacity: _soloFade,
-                                  child: SlideTransition(
-                                    position: _soloSlideUp,
-                                    child: ScaleTransition(
-                                      scale: _soloScale,
-                                      child: ModeCardSolo(
-                                        width: _modeCardWidth,
-                                        height: _modeCardHeight,
-                                        labelFontSize: _modeLabelFontSize,
-                                        isSelected:
-                                            _selectedMode == GameMode.solo,
-                                        onTap: () => _selectMode(GameMode.solo),
+                            Expanded(
+                              child: Center(
+                                child: Transform.translate(
+                                  offset: const Offset(
+                                    0,
+                                    _centerBlockVerticalOffset,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      const SizedBox(height: _titleTopSpacing),
+                                      const _ModeTitle(
+                                        regularFontSize: 25.0,
+                                        boldFontSize: 25.3,
                                       ),
-                                    ),
+                                      const SizedBox(height: _modeCardsTopSpacing),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          FadeTransition(
+                                            opacity: _soloFade,
+                                            child: SlideTransition(
+                                              position: _soloSlideUp,
+                                              child: ScaleTransition(
+                                                scale: _soloScale,
+                                                child: ModeCardSolo(
+                                                  width: _modeCardWidth,
+                                                  height: _modeCardHeight,
+                                                  labelFontSize:
+                                                      _modeLabelFontSize,
+                                                  isSelected: _selectedMode ==
+                                                      GameMode.solo,
+                                                  onTap: () => _selectMode(
+                                                    GameMode.solo,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 20),
+                                          FadeTransition(
+                                            opacity: _duelFade,
+                                            child: SlideTransition(
+                                              position: _duelSlideUp,
+                                              child: ScaleTransition(
+                                                scale: _duelScale,
+                                                child: ModeCardDuel(
+                                                  width: _modeCardWidth,
+                                                  height: _modeCardHeight,
+                                                  labelFontSize:
+                                                      _modeLabelFontSize,
+                                                  isSelected: _selectedMode ==
+                                                      GameMode.duel,
+                                                  onTap: () => _selectMode(
+                                                    GameMode.duel,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: _controlsTopSpacing),
+                                      AnimatedSwitcher(
+                                        duration: const Duration(
+                                          milliseconds: 280,
+                                        ),
+                                        switchInCurve: Curves.easeOutCubic,
+                                        switchOutCurve: Curves.easeInCubic,
+                                        transitionBuilder: (
+                                          Widget child,
+                                          Animation<double> animation,
+                                        ) {
+                                          return FadeTransition(
+                                            opacity: animation,
+                                            child: SlideTransition(
+                                              position: Tween<Offset>(
+                                                begin: const Offset(0, 0.18),
+                                                end: Offset.zero,
+                                              ).animate(animation),
+                                              child: ScaleTransition(
+                                                scale: Tween<double>(
+                                                  begin: 0.96,
+                                                  end: 1,
+                                                ).animate(animation),
+                                                child: child,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: _selectedMode == null
+                                            ? const SizedBox.shrink(
+                                                key: ValueKey<String>(
+                                                  'play-hidden',
+                                                ),
+                                              )
+                                            : _PlayModeButton(
+                                                key: const ValueKey<String>(
+                                                  'play-visible',
+                                                ),
+                                                fontSize: _playLabelFontSize,
+                                                onTap: _startSelectedMode,
+                                              ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(width: 20),
-                                FadeTransition(
-                                  opacity: _duelFade,
-                                  child: SlideTransition(
-                                    position: _duelSlideUp,
-                                    child: ScaleTransition(
-                                      scale: _duelScale,
-                                      child: ModeCardDuel(
-                                        width: _modeCardWidth,
-                                        height: _modeCardHeight,
-                                        labelFontSize: _modeLabelFontSize,
-                                        isSelected:
-                                            _selectedMode == GameMode.duel,
-                                        onTap: () => _selectMode(GameMode.duel),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                            const SizedBox(height: _controlsTopSpacing),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 280),
-                              switchInCurve: Curves.easeOutCubic,
-                              switchOutCurve: Curves.easeInCubic,
-                              transitionBuilder: (
-                                Widget child,
-                                Animation<double> animation,
-                              ) {
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: SlideTransition(
-                                    position: Tween<Offset>(
-                                      begin: const Offset(0, 0.18),
-                                      end: Offset.zero,
-                                    ).animate(animation),
-                                    child: ScaleTransition(
-                                      scale: Tween<double>(
-                                        begin: 0.96,
-                                        end: 1,
-                                      ).animate(animation),
-                                      child: child,
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: _selectedMode == null
-                                  ? const SizedBox.shrink(
-                                      key: ValueKey<String>('play-hidden'),
-                                    )
-                                  : _PlayModeButton(
-                                      key: const ValueKey<String>(
-                                        'play-visible',
-                                      ),
-                                      fontSize: _playLabelFontSize,
-                                      onTap: _startSelectedMode,
-                                    ),
-                            ),
-                            const Spacer(),
                             Text(
-                              'V1.7',
+                              'V1.8',
                               style: TextStyle(
                                 color: GameModePalette.white.withOpacity(0.9),
                                 fontSize: _versionFontSize,
@@ -449,7 +476,7 @@ class GameLogoHeader extends StatelessWidget {
         alignment: Alignment.center,
         children: <Widget>[
           Positioned(
-            top: 18 * logoScaleFactor,
+            top: (18 * logoScaleFactor) - 2,
             child: Transform.translate(
               offset: Offset(34 * logoScaleFactor, 0),
               child: Text(
