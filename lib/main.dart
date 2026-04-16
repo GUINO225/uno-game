@@ -127,15 +127,15 @@ class _GameModePageState extends State<GameModePage>
   static const double _designHeight = 852;
   static const double _frameHorizontalPadding = 18;
   static const double _frameVerticalPadding = 14;
-  static const double _logoTopSpacing = 6;
-  static const double _titleTopSpacing = 6;
-  static const double _modeCardsTopSpacing = 18;
-  static const double _controlsTopSpacing = 22;
-  static const double _modeLabelFontSize = 38;
+  static const double _logoTopSpacing = 10;
+  static const double _titleTopSpacing = 10;
+  static const double _modeCardsTopSpacing = 20;
+  static const double _controlsTopSpacing = 24;
+  static const double _modeLabelFontSize = 34;
   static const double _playLabelFontSize = 20;
   static const double _versionFontSize = 14;
-  static const double _modeCardWidth = 116;
-  static const double _modeCardHeight = 182;
+  static const double _modeCardWidth = 96;
+  static const double _modeCardHeight = 150;
 
   late final AnimationController _introController;
   late final Animation<double> _fadeIn;
@@ -241,8 +241,8 @@ class _GameModePageState extends State<GameModePage>
                             const GameLogoHeader(),
                             const SizedBox(height: _titleTopSpacing),
                             const _ModeTitle(
-                              regularFontSize: 34.2,
-                              boldFontSize: 34.2,
+                              regularFontSize: 29.4,
+                              boldFontSize: 29.8,
                             ),
                             const SizedBox(height: _modeCardsTopSpacing),
                             Row(
@@ -440,7 +440,7 @@ class GameLogoHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double logoScaleFactor = 0.75;
+    const double logoScaleFactor = 0.64;
 
     return SizedBox(
       height: 172 * logoScaleFactor,
@@ -591,8 +591,8 @@ class ModeCardSolo extends StatelessWidget {
       label: 'SOLO',
       labelFontSize: labelFontSize,
       child: SizedBox(
-        width: width + 46,
-        height: height + 28,
+        width: width + 36,
+        height: height + 20,
         child: Align(
           alignment: Alignment.topCenter,
           child: _GameCardFace(width: width, height: height),
@@ -626,13 +626,13 @@ class ModeCardDuel extends StatelessWidget {
       label: 'DUEL',
       labelFontSize: labelFontSize,
       child: SizedBox(
-        width: width + 46,
-        height: height + 28,
+        width: width + 36,
+        height: height + 20,
         child: Stack(
           alignment: Alignment.center,
           children: <Widget>[
             Positioned(
-              top: 20,
+              top: 16,
               child: _GameCardFace(
                 width: width,
                 height: height,
@@ -692,9 +692,9 @@ class _PressableModeCardState extends State<_PressableModeCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(20),
             color: widget.isSelected
                 ? Colors.white.withOpacity(0.07)
                 : Colors.transparent,
@@ -717,7 +717,7 @@ class _PressableModeCardState extends State<_PressableModeCard> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               widget.child,
-              const SizedBox(height: 14),
+              const SizedBox(height: 11),
               Text(
                 widget.label,
                 style: GoogleFonts.poppins(
