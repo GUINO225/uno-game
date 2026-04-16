@@ -76,6 +76,10 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
+      routes: <String, WidgetBuilder>{
+        GameModeRoutes.solo: (_) => const CrazyEightsPage(),
+        GameModeRoutes.duel: (_) => const DuelLobbyPage(),
+      },
       home: const GameModePage(),
     );
   }
@@ -85,126 +89,287 @@ class MyApp extends StatelessWidget {
 
 enum GameMode { solo, duel }
 
-class _GameBrandTitle extends StatelessWidget {
-  const _GameBrandTitle({required this.version});
+class GameModeRoutes {
+  static const String solo = '/solo';
+  static const String duel = '/duel';
+}
 
-  final String version;
+class GameModePalette {
+  static const Color background = Color(0xFF004F2C);
+  static const Color backgroundShade = Color(0xFF013C25);
+  static const Color cardGreen = Color(0xFF08BF63);
+  static const Color cardGreenSoft = Color(0xFF0BA957);
+  static const Color white = Color(0xFFF6FFF9);
+}
+
+class GameModePage extends StatefulWidget {
+  const GameModePage({super.key});
+
+  @override
+  State<GameModePage> createState() => _GameModePageState();
+}
+
+class _GameModePageState extends State<GameModePage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _introController;
+  late final Animation<double> _fadeIn;
+  late final Animation<Offset> _slideUp;
+
+  @override
+  void initState() {
+    super.initState();
+    _introController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _fadeIn = CurvedAnimation(
+      parent: _introController,
+      curve: Curves.easeOutCubic,
+    );
+    _slideUp = Tween<Offset>(
+      begin: const Offset(0, 0.05),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic),
+    );
+    _introController.forward();
+  }
+
+  @override
+  void dispose() {
+    _introController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: <Widget>[
-        RichText(
-          textAlign: TextAlign.center,
-          text: const TextSpan(
-            children: <InlineSpan>[
-              TextSpan(
-                text: 'GINO ',
-                style: TextStyle(
-                  fontSize: 42,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2,
-                  color: Colors.white,
+    final Size size = MediaQuery.sizeOf(context);
+    final double cardHeight = (size.height * 0.20).clamp(170, 250);
+    final double cardWidth = (size.width * 0.28).clamp(110, 150);
+
+    return Scaffold(
+      backgroundColor: GameModePalette.background,
+      body: Stack(
+        children: <Widget>[
+          const BackgroundDecoration(),
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeIn,
+              child: SlideTransition(
+                position: _slideUp,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 460),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      child: Column(
+                        children: <Widget>[
+                          const SizedBox(height: 18),
+                          const GameLogoHeader(),
+                          const Spacer(flex: 2),
+                          const _ModeTitle(),
+                          const SizedBox(height: 34),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Expanded(
+                                child: Align(
+                                  child: ModeCardSolo(
+                                    width: cardWidth,
+                                    height: cardHeight,
+                                    onTap: () {
+                                      Navigator.of(
+                                        context,
+                                      ).pushNamed(GameModeRoutes.solo);
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Align(
+                                  child: ModeCardDuel(
+                                    width: cardWidth,
+                                    height: cardHeight,
+                                    onTap: () {
+                                      Navigator.of(
+                                        context,
+                                      ).pushNamed(GameModeRoutes.duel);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(flex: 3),
+                          Text(
+                            'V1.1',
+                            style: TextStyle(
+                              color: GameModePalette.white.withOpacity(0.9),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              TextSpan(
-                text: 'CARD',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w400,
-                  fontStyle: FontStyle.italic,
-                  letterSpacing: 1.1,
-                  color: Color(0xFFE8F5E9),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Text(
-              version.toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class GameModePage extends StatelessWidget {
-  const GameModePage({super.key});
+class BackgroundDecoration extends StatelessWidget {
+  const BackgroundDecoration({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: TableBackground(
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    const SizedBox(height: 12),
-                    const _GameBrandTitle(version: 'V1'),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Choisis ton mode de jeu',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white.withOpacity(0.82),
-                      ),
-                    ),
-                    const SizedBox(height: 34),
-                    _ModeTile(
-                      icon: Icons.person_rounded,
-                      title: 'SOLO',
-                      subtitle: 'Affronte le bot et améliore ton score',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const CrazyEightsPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 18),
-                    _ModeTile(
-                      icon: Icons.people_alt_rounded,
-                      title: 'DUEL',
-                      subtitle: 'Crée un salon privé et joue en ligne',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const DuelLobbyPage(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Stack(
+          children: <Widget>[
+            Positioned(
+              top: -70,
+              left: -40,
+              child: Transform.rotate(
+                angle: -0.55,
+                child: _decorCard(230, 360),
+              ),
+            ),
+            Positioned(
+              right: -95,
+              bottom: -115,
+              child: Transform.rotate(
+                angle: -0.36,
+                child: _decorCard(260, 360),
+              ),
+            ),
+            Positioned(
+              top: 65,
+              left: -38,
+              child: Text(
+                '♠',
+                style: TextStyle(
+                  fontSize: 150,
+                  color: Colors.white.withOpacity(0.055),
+                  height: 1,
                 ),
               ),
+            ),
+            Positioned(
+              right: 20,
+              bottom: 40,
+              child: Text(
+                '♣',
+                style: TextStyle(
+                  fontSize: 132,
+                  color: Colors.white.withOpacity(0.05),
+                  height: 1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _decorCard(double width, double height) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.black.withOpacity(0.1),
+      ),
+    );
+  }
+}
+
+class GameLogoHeader extends StatelessWidget {
+  const GameLogoHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 112,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Positioned(
+            top: 10,
+            right: 60,
+            child: Text(
+              '8 AMÉRICAIN',
+              style: TextStyle(
+                color: GameModePalette.cardGreen,
+                fontWeight: FontWeight.w800,
+                fontStyle: FontStyle.italic,
+                letterSpacing: 0.8,
+                fontSize: 20,
+              ),
+            ),
+          ),
+          RichText(
+            text: const TextSpan(
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 72,
+                color: GameModePalette.white,
+                letterSpacing: 1.2,
+                height: 1,
+              ),
+              children: <InlineSpan>[
+                TextSpan(text: 'G'),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 2),
+                    child: _MiniLogoCard(),
+                  ),
+                ),
+                TextSpan(text: 'INO'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniLogoCard extends StatelessWidget {
+  const _MiniLogoCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: -0.2,
+      child: Container(
+        width: 54,
+        height: 82,
+        decoration: BoxDecoration(
+          color: GameModePalette.cardGreen,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Center(
+          child: Text(
+            '♠',
+            style: TextStyle(
+              color: GameModePalette.white,
+              fontSize: 40,
+              height: 1,
             ),
           ),
         ),
@@ -213,76 +378,223 @@ class GameModePage extends StatelessWidget {
   }
 }
 
-class _ModeTile extends StatelessWidget {
-  const _ModeTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
+class _ModeTitle extends StatelessWidget {
+  const _ModeTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: <Widget>[
+        Text(
+          'CHOISISSEZ VOTRE',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: GameModePalette.white,
+            fontSize: 42,
+            fontWeight: FontWeight.w400,
+            letterSpacing: 1.2,
+            height: 1.08,
+          ),
+        ),
+        Text(
+          'MODE DE JEU',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: GameModePalette.white,
+            fontSize: 52,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.6,
+            height: 1.02,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ModeCardSolo extends StatelessWidget {
+  const ModeCardSolo({
+    super.key,
+    required this.width,
+    required this.height,
     required this.onTap,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final double width;
+  final double height;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return PremiumPanel(
-      padding: EdgeInsets.zero,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: PremiumColors.panelSoft,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: PremiumColors.textDark),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: PremiumColors.textDark,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: PremiumColors.textDark.withOpacity(0.74),
-                          fontSize: 13.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: PremiumColors.textDark,
-                  size: 18,
-                ),
-              ],
+    return _PressableModeCard(
+      onTap: onTap,
+      label: 'SOLO',
+      child: _GameCardFace(width: width, height: height),
+    );
+  }
+}
+
+class ModeCardDuel extends StatelessWidget {
+  const ModeCardDuel({
+    super.key,
+    required this.width,
+    required this.height,
+    required this.onTap,
+  });
+
+  final double width;
+  final double height;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PressableModeCard(
+      onTap: onTap,
+      label: 'DUEL',
+      child: SizedBox(
+        width: width + 46,
+        height: height + 28,
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            Positioned(
+              top: 20,
+              child: _GameCardFace(
+                width: width,
+                height: height,
+                color: GameModePalette.cardGreenSoft,
+              ),
+            ),
+            Positioned(
+              child: Transform.rotate(
+                angle: -0.2,
+                child: _GameCardFace(width: width, height: height),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PressableModeCard extends StatefulWidget {
+  const _PressableModeCard({
+    required this.child,
+    required this.label,
+    required this.onTap,
+  });
+
+  final Widget child;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_PressableModeCard> createState() => _PressableModeCardState();
+}
+
+class _PressableModeCardState extends State<_PressableModeCard> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.965 : 1,
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            widget.child,
+            const SizedBox(height: 14),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                color: GameModePalette.white,
+                fontSize: 64 / 2,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GameCardFace extends StatelessWidget {
+  const _GameCardFace({
+    required this.width,
+    required this.height,
+    this.color = GameModePalette.cardGreen,
+  });
+
+  final double width;
+  final double height;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
+            offset: const Offset(0, 10),
+            blurRadius: 20,
+          ),
+        ],
+      ),
+      child: Stack(
+        children: <Widget>[
+          const Positioned(
+            top: 12,
+            right: 12,
+            child: Text(
+              '♠',
+              style: TextStyle(
+                color: GameModePalette.white,
+                fontSize: 28,
+                height: 1,
+              ),
             ),
           ),
-        ),
+          const Positioned(
+            bottom: 12,
+            left: 12,
+            child: RotatedBox(
+              quarterTurns: 2,
+              child: Text(
+                '♠',
+                style: TextStyle(
+                  color: GameModePalette.white,
+                  fontSize: 28,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+          const Center(
+            child: Text(
+              '♠',
+              style: TextStyle(
+                color: GameModePalette.white,
+                fontSize: 120,
+                height: 1,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
