@@ -352,14 +352,32 @@ class _GameModePageState extends State<GameModePage>
                                 ),
                               ),
                             ),
-                            Text(
-                              'V1.8',
-                              style: TextStyle(
-                                color: GameModePalette.white.withOpacity(0.9),
-                                fontSize: _versionFontSize,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.6,
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Text(
+                                  'V1.8',
+                                  style: TextStyle(
+                                    color: GameModePalette.white.withOpacity(
+                                      0.9,
+                                    ),
+                                    fontSize: _versionFontSize,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                                Text(
+                                  ' DESIGNED BY AKENOO',
+                                  style: TextStyle(
+                                    color: GameModePalette.white.withOpacity(
+                                      0.85,
+                                    ),
+                                    fontSize: _versionFontSize,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.6,
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 6),
                           ],
@@ -476,9 +494,9 @@ class GameLogoHeader extends StatelessWidget {
         alignment: Alignment.center,
         children: <Widget>[
           Positioned(
-            top: (18 * logoScaleFactor) - 2,
+            top: (18 * logoScaleFactor) - 5,
             child: Transform.translate(
-              offset: Offset(34 * logoScaleFactor, 0),
+              offset: Offset((34 * logoScaleFactor) + 10, 0),
               child: Text(
                 '8AMERICAIN',
                 style: GoogleFonts.poppins(
