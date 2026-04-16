@@ -2140,63 +2140,48 @@ class _MyHandRow extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(color: Colors.black.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: <Widget>[
-            _TurnStateBadge(
-              text: canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
-              blink: canInteract,
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  if (cards.isEmpty) {
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: <Widget>[
-                        const SizedBox.expand(),
-                        Positioned(
-                          top: -6,
-                          right: -2,
-                          child: _DrawCountBadge(count: cards.length),
-                        ),
-                      ],
-                    );
-                  }
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  _TurnStateBadge(
+                    text: canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
+                    blink: canInteract,
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (BuildContext context, BoxConstraints constraints) {
+                        if (cards.isEmpty) {
+                          return const SizedBox.expand();
+                        }
 
-                  final double availableWidth = constraints.maxWidth;
-                  final double availableHeight = constraints.maxHeight;
-                  final int baseCardsPerRow =
-                      ((availableWidth + _hSpacing) / (_baseCardWidth + _hSpacing)).floor().clamp(1, cards.length);
-                  final bool useTwoRows = cards.length > baseCardsPerRow;
-                  final int rowCount = useTwoRows ? 2 : 1;
-                  final int columns = rowCount == 1 ? cards.length : (cards.length / 2).ceil();
+                        final int totalCards = cards.length;
+                        final int topRowCount = min(totalCards, 5);
+                        final int bottomRowCount = max(totalCards - 5, 0);
+                        final int rowCount = bottomRowCount > 0 ? 2 : 1;
+                        final int maxColumns = max(topRowCount, bottomRowCount);
 
-                  final double widthDrivenCard = columns <= 1
-                      ? _baseCardWidth
-                      : (availableWidth - (_hSpacing * (columns - 1))) / columns;
-                  final double heightDrivenCard = ((availableHeight - (_vSpacing * (rowCount - 1))) / rowCount) *
-                      _cardAspectRatio;
-                  final double cardWidth = widthDrivenCard
-                      .clamp(24.0, _baseCardWidth)
-                      .clamp(24.0, heightDrivenCard.clamp(24.0, _baseCardWidth));
-                  final double cardHeight = cardWidth / _cardAspectRatio;
-                  final double gridWidth = (columns * cardWidth) + ((columns - 1) * _hSpacing);
+                        final double availableWidth = constraints.maxWidth;
+                        final double availableHeight = constraints.maxHeight;
+                        final double widthDrivenCard = maxColumns <= 1
+                            ? _baseCardWidth
+                            : (availableWidth - (_hSpacing * (maxColumns - 1))) / maxColumns;
+                        final double heightDrivenCard = ((availableHeight - (_vSpacing * (rowCount - 1))) / rowCount) *
+                            _cardAspectRatio;
+                        final double cardWidth = widthDrivenCard
+                            .clamp(24.0, _baseCardWidth)
+                            .clamp(24.0, heightDrivenCard.clamp(24.0, _baseCardWidth));
+                        final double cardHeight = cardWidth / _cardAspectRatio;
 
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: <Widget>[
-                      Center(
-                        child: SizedBox(
-                          width: gridWidth,
-                          child: Wrap(
+                        Widget buildRow(List<DuelCard> rowCards) {
+                          return Wrap(
                             alignment: WrapAlignment.center,
-                            runAlignment: WrapAlignment.center,
                             spacing: _hSpacing,
-                            runSpacing: _vSpacing,
-                            children: List<Widget>.generate(cards.length, (int index) {
-                              final DuelCard card = cards[index];
+                            children: rowCards.map((DuelCard card) {
                               final bool isPlayable = playable(card);
                               return GestureDetector(
                                 onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
@@ -2212,19 +2197,37 @@ class _MyHandRow extends StatelessWidget {
                                   ),
                                 ),
                               );
-                            }),
+                            }).toList(),
+                          );
+                        }
+
+                        final List<DuelCard> topRowCards = cards.take(topRowCount).toList();
+                        final List<DuelCard> bottomRowCards = bottomRowCount > 0
+                            ? cards.skip(topRowCount).take(bottomRowCount).toList()
+                            : const <DuelCard>[];
+
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              buildRow(topRowCards),
+                              if (bottomRowCards.isNotEmpty) ...<Widget>[
+                                const SizedBox(height: _vSpacing),
+                                buildRow(bottomRowCards),
+                              ],
+                            ],
                           ),
-                        ),
-                      ),
-                      Positioned(
-                        top: -6,
-                        right: -2,
-                        child: _DrawCountBadge(count: cards.length),
-                      ),
-                    ],
-                  );
-                },
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
+            ),
+            Positioned(
+              top: 2,
+              right: 2,
+              child: _DrawCountBadge(count: cards.length),
             ),
           ],
         ),
