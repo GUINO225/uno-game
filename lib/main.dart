@@ -411,7 +411,7 @@ class _GameModePageState extends State<GameModePage>
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Text(
-                                  'V1.8',
+                                  'V2',
                                   style: TextStyle(
                                     color: GameModePalette.white.withOpacity(
                                       0.9,
