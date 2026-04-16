@@ -586,6 +586,7 @@ class GameService {
         throw StateError('Solde insuffisant pour cette proposition.');
       }
       tx.update(ref, <String, dynamic>{
+        'playerCredits.$proposedBy': balance - amount,
         'stakeOffer': DuelStakeOffer(
           proposedBy: proposedBy,
           amount: amount,
@@ -621,7 +622,9 @@ class GameService {
         return;
       }
       if (!accept) {
+        final int proposerCredits = session.playerCredits[offer.proposedBy!] ?? 0;
         tx.update(ref, <String, dynamic>{
+          'playerCredits.${offer.proposedBy!}': proposerCredits + offer.amount,
           'activeStakeCredits': 0,
           'stakeOffer': DuelStakeOffer(
             proposedBy: offer.proposedBy,
@@ -638,7 +641,8 @@ class GameService {
         throw StateError('Solde insuffisant pour accepter cet enjeu.');
       }
       tx.update(ref, <String, dynamic>{
-        'activeStakeCredits': offer.amount,
+        'playerCredits.$responderId': responderCredits - offer.amount,
+        'activeStakeCredits': offer.amount * 2,
         'stakeOffer': DuelStakeOffer(
           proposedBy: offer.proposedBy,
           acceptedBy: responderId,
@@ -680,10 +684,9 @@ class GameService {
       }
       final int winnerBalance = session.playerCredits[winnerId] ?? 0;
       final int loserBalance = session.playerCredits[loserId] ?? 0;
-      final int transfer = min(amount, loserBalance);
       tx.update(ref, <String, dynamic>{
-        'playerCredits.$winnerId': winnerBalance + transfer,
-        'playerCredits.$loserId': loserBalance - transfer,
+        'playerCredits.$winnerId': winnerBalance + amount,
+        'playerCredits.$loserId': loserBalance,
         'activeStakeCredits': 0,
         'stakeOffer': DuelStakeOffer(
           proposedBy: offer.proposedBy,
@@ -1169,7 +1172,9 @@ class _DuelPageState extends State<DuelPage> {
   bool _rematchActionBusy = false;
   bool _stakeActionBusy = false;
   bool _stakeDialogOpen = false;
+  bool _stakeSelectionDialogOpen = false;
   String? _lastStakeOfferKey;
+  String? _lastMandatoryStakePromptKey;
   bool _didNavigateHomeAfterDecline = false;
   final ValueNotifier<List<DuelChatMessage>> _chatMessagesNotifier =
       ValueNotifier<List<DuelChatMessage>>(const <DuelChatMessage>[]);
@@ -1192,6 +1197,8 @@ class _DuelPageState extends State<DuelPage> {
 
   DuelController get _controller => widget.controller;
   bool get _isCreditsMode => widget.mode == DuelRoomMode.credits;
+  bool _requiresStake(DuelSession session) =>
+      _isCreditsMode && session.players.length == 2 && session.activeStakeCredits <= 0;
 
   @override
   void initState() {
@@ -1240,6 +1247,7 @@ class _DuelPageState extends State<DuelPage> {
     _maybeShowForcedDrawPopup(session);
     _maybeHandleStakeFlow(session);
     _maybeHandleRematchFlow(session);
+    _maybePromptMandatoryStake(session);
   }
 
   void _bindChatRealtime(DuelSession session) {
@@ -1301,6 +1309,10 @@ class _DuelPageState extends State<DuelPage> {
     final DuelSession? session = _controller.session;
     final DuelBoardState? board = _board;
     if (session == null || board == null || !_controller.isMyTurn) {
+      return;
+    }
+    if (_requiresStake(session)) {
+      _showStakeRequiredMessage();
       return;
     }
     String? chosenSuit;
@@ -1547,6 +1559,10 @@ class _DuelPageState extends State<DuelPage> {
     if (session == null || board == null || !_controller.isMyTurn) {
       return;
     }
+    if (_requiresStake(session)) {
+      _showStakeRequiredMessage();
+      return;
+    }
     final DuelMoveResult move = board.tryDraw(actorId: _controller.localPlayerId);
     if (!move.accepted) {
       return;
@@ -1573,55 +1589,197 @@ class _DuelPageState extends State<DuelPage> {
     if (!_isCreditsMode || _stakeActionBusy || session.players.length < 2) {
       return;
     }
-    final List<int> options = <int>[50, 100, 200, 500];
     final int myCredits = _creditsOf(session, _controller.localPlayerId);
+    final int? selected = await _showStakeSelectionDialog(myCredits: myCredits);
+    if (selected == null) {
+      if (_requiresStake(session)) {
+        _showStakeRequiredMessage();
+      }
+      return;
+    }
+    await _submitStakeProposal(session: session, amount: selected);
+  }
+
+  Future<int?> _showStakeSelectionDialog({required int myCredits}) async {
+    if (_stakeSelectionDialogOpen) {
+      return null;
+    }
+    _stakeSelectionDialogOpen = true;
+    final TextEditingController amountController = TextEditingController();
+    int? selectedAmount;
+    String? validationError;
+    final List<int> options = <int>[100, 250, 500, 1000, 2000];
     final int? selected = await showModalBottomSheet<int>(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                const Text(
-                  'Proposition d’enjeu',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        return StatefulBuilder(
+          builder: (BuildContext context, void Function(void Function()) setModalState) {
+            String? validate(int? amount) {
+              if (amount == null) {
+                return 'Choisissez un enjeu valide.';
+              }
+              if (amount <= 0) {
+                return 'Le montant doit être supérieur à 0.';
+              }
+              if (amount > myCredits) {
+                return 'Crédit insuffisant pour cet enjeu.';
+              }
+              return null;
+            }
+
+            void selectAmount(int amount) {
+              amountController.text = amount.toString();
+              setModalState(() {
+                selectedAmount = amount;
+                validationError = validate(amount);
+              });
+            }
+
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  10,
+                  16,
+                  MediaQuery.viewInsetsOf(context).bottom + 14,
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: options.map((int amount) {
-                    final bool disabled = amount > myCredits;
-                    return ChoiceChip(
-                      label: Text('$amount crédits'),
-                      selected: false,
-                      onSelected: disabled
-                          ? null
-                          : (_) => Navigator.of(context).pop(amount),
-                    );
-                  }).toList(),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF142D22),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      const Text(
+                        'Choisir l’enjeu',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Crédit disponible: $myCredits',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: options.map((int amount) {
+                          final bool disabled = amount > myCredits;
+                          return ChoiceChip(
+                            label: Text('$amount'),
+                            selected: selectedAmount == amount,
+                            onSelected: disabled ? null : (_) => selectAmount(amount),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: amountController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: 'Montant personnalisé',
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          hintText: 'Ex: 750',
+                          hintStyle: const TextStyle(color: Colors.white38),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.08),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onChanged: (String value) {
+                          final int? parsed = int.tryParse(value.trim());
+                          setModalState(() {
+                            selectedAmount = parsed;
+                            validationError = validate(parsed);
+                          });
+                        },
+                      ),
+                      if (validationError != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        Text(
+                          validationError!,
+                          style: const TextStyle(
+                            color: Color(0xFFFFC9C9),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Annuler'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                final int? parsed = int.tryParse(amountController.text.trim());
+                                final String? error = validate(parsed);
+                                if (error != null) {
+                                  setModalState(() {
+                                    selectedAmount = parsed;
+                                    validationError = error;
+                                  });
+                                  return;
+                                }
+                                Navigator.of(context).pop(parsed);
+                              },
+                              icon: const Icon(Icons.lock_rounded),
+                              label: const Text('Valider'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
-          ),
+          },
         );
       },
     );
-    if (selected == null) {
+    _stakeSelectionDialogOpen = false;
+    amountController.dispose();
+    return selected;
+  }
+
+  Future<void> _submitStakeProposal({
+    required DuelSession session,
+    required int amount,
+  }) async {
+    final int myCredits = _creditsOf(session, _controller.localPlayerId);
+    if (amount <= 0 || amount > myCredits) {
+      _showStakeRequiredMessage(
+        amount > myCredits ? 'Crédit insuffisant pour cet enjeu.' : 'Montant invalide.',
+      );
       return;
     }
     setState(() {
       _stakeActionBusy = true;
     });
     try {
-      await _controller.proposeStake(selected);
+      await _controller.proposeStake(amount);
     } catch (_) {
       if (!mounted) {
         return;
@@ -1636,6 +1794,15 @@ class _DuelPageState extends State<DuelPage> {
         });
       }
     }
+  }
+
+  void _showStakeRequiredMessage([
+    String message = 'Un enjeu valide est obligatoire pour commencer cette manche.',
+  ]) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _showStakeDecisionDialog(DuelSession session) async {
@@ -1703,6 +1870,27 @@ class _DuelPageState extends State<DuelPage> {
         return;
       }
       await _showStakeDecisionDialog(session);
+    });
+  }
+
+  void _maybePromptMandatoryStake(DuelSession session) {
+    if (!_requiresStake(session) ||
+        _stakeActionBusy ||
+        _stakeDialogOpen ||
+        _stakeSelectionDialogOpen ||
+        session.stakeOffer.isPending) {
+      return;
+    }
+    final String promptKey = '${session.round}_${session.rematchRequestedAt?.millisecondsSinceEpoch ?? 0}';
+    if (_lastMandatoryStakePromptKey == promptKey) {
+      return;
+    }
+    _lastMandatoryStakePromptKey = promptKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      await _openStakeProposal(session);
     });
   }
 
@@ -2008,9 +2196,10 @@ class _DuelPageState extends State<DuelPage> {
         final int myScore = session.scores[_controller.localPlayerId] ?? 0;
         final int opponentScore = session.scores[opponentId] ?? 0;
         final int myCredits = _creditsOf(session, _controller.localPlayerId);
-        final int opponentCredits = _creditsOf(session, opponentId);
         final DuelStakeOffer stakeOffer = session.stakeOffer;
-        final bool myTurn = _controller.isMyTurn && session.status != DuelGameStatus.finished;
+        final bool myTurn = _controller.isMyTurn &&
+            session.status != DuelGameStatus.finished &&
+            !_requiresStake(session);
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         final double topInset = MediaQuery.paddingOf(context).top;
         return Scaffold(
@@ -2057,15 +2246,18 @@ class _DuelPageState extends State<DuelPage> {
                     const SizedBox(height: 8),
                     _CreditsStakeBanner(
                       myCredits: myCredits,
-                      opponentCredits: opponentCredits,
                       activeStakeCredits: session.activeStakeCredits,
-                      stakeText: switch (stakeOffer.status) {
-                        DuelStakeStatus.pending => 'Proposition en attente: ${stakeOffer.amount} crédits',
-                        DuelStakeStatus.accepted => 'Enjeu accepté: ${stakeOffer.amount} crédits',
-                        DuelStakeStatus.declined => 'Proposition refusée',
-                        DuelStakeStatus.resolved => 'Enjeu résolu',
-                        DuelStakeStatus.none => null,
-                      },
+                      stakeText: _requiresStake(session)
+                          ? switch (stakeOffer.status) {
+                              DuelStakeStatus.pending =>
+                                'Proposition en attente: ${stakeOffer.amount} crédits',
+                              DuelStakeStatus.declined => 'Proposition refusée. Définissez un nouvel enjeu.',
+                              DuelStakeStatus.none ||
+                              DuelStakeStatus.accepted ||
+                              DuelStakeStatus.resolved =>
+                                'Enjeu obligatoire avant de jouer.',
+                            }
+                          : null,
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -2106,11 +2298,13 @@ class _DuelPageState extends State<DuelPage> {
                       padding: const EdgeInsets.only(top: 8),
                       child: OutlinedButton.icon(
                         onPressed:
-                            _stakeActionBusy || stakeOffer.isPending || session.activeStakeCredits > 0
+                            _stakeActionBusy || stakeOffer.isPending
                                 ? null
                                 : () => _openStakeProposal(session),
                         icon: const Icon(Icons.local_offer_outlined),
-                        label: const Text('Proposer un enjeu'),
+                        label: Text(
+                          session.activeStakeCredits > 0 ? 'Modifier l’enjeu' : 'Définir l’enjeu',
+                        ),
                       ),
                     ),
                   if (session.status == DuelGameStatus.finished)
@@ -3016,13 +3210,11 @@ class _DuelStatusBanner extends StatelessWidget {
 class _CreditsStakeBanner extends StatelessWidget {
   const _CreditsStakeBanner({
     required this.myCredits,
-    required this.opponentCredits,
     required this.activeStakeCredits,
     this.stakeText,
   });
 
   final int myCredits;
-  final int opponentCredits;
   final int activeStakeCredits;
   final String? stakeText;
 
@@ -3041,33 +3233,44 @@ class _CreditsStakeBanner extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Expanded(
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white24),
+                ),
                 child: Text(
-                  'Toi: $myCredits crédits',
+                  '🪙 $myCredits',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              Expanded(
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2B3E25),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xAAE8C65D)),
+                ),
                 child: Text(
-                  'Adversaire: $opponentCredits crédits',
-                  textAlign: TextAlign.end,
+                  '🧰 Pot: ${activeStakeCredits > 0 ? activeStakeCredits : 0}',
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFFFE9A9),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
                   ),
                 ),
               ),
             ],
           ),
-          if (activeStakeCredits > 0 || stakeText != null) ...<Widget>[
+          if (stakeText != null) ...<Widget>[
             const SizedBox(height: 6),
             Text(
-              activeStakeCredits > 0
-                  ? 'Enjeu courant: $activeStakeCredits crédits'
-                  : stakeText!,
+              stakeText!,
               style: TextStyle(
                 color: Colors.white.withOpacity(0.92),
                 fontSize: 12.5,
@@ -3302,8 +3505,6 @@ class _MyHandRow extends StatelessWidget {
   final bool Function(DuelCard) playable;
   static const double _cardAspectRatio = _FaceCard.width / _FaceCard.height;
   static const double _baseCardWidth = _FaceCard.width;
-  static const double _hSpacing = 6;
-  static const double _vSpacing = 6;
 
   @override
   Widget build(BuildContext context) {
@@ -3331,64 +3532,57 @@ class _MyHandRow extends StatelessWidget {
                           return const SizedBox.expand();
                         }
 
-                        final List<List<DuelCard>> cardRows = <List<DuelCard>>[];
-                        for (int i = 0; i < cards.length; i += 5) {
-                          final int end = min(i + 5, cards.length);
-                          cardRows.add(cards.sublist(i, end));
-                        }
-
-                        final int rowCount = cardRows.length;
-                        final int maxColumns = cardRows.fold<int>(
-                          1,
-                          (int maxCount, List<DuelCard> rowCards) => max(maxCount, rowCards.length),
-                        );
-
                         final double availableWidth = constraints.maxWidth;
                         final double availableHeight = constraints.maxHeight;
-                        final double widthDrivenCard = maxColumns <= 1
+                        final int total = cards.length;
+                        final double cardWidth = total <= 7
                             ? _baseCardWidth
-                            : (availableWidth - (_hSpacing * (maxColumns - 1))) / maxColumns;
-                        final double heightDrivenCard = ((availableHeight - (_vSpacing * (rowCount - 1))) / rowCount) *
-                            _cardAspectRatio;
-                        final double cardWidth = widthDrivenCard
-                            .clamp(24.0, _baseCardWidth)
-                            .clamp(24.0, heightDrivenCard.clamp(24.0, _baseCardWidth));
-                        final double cardHeight = cardWidth / _cardAspectRatio;
+                            : total <= 11
+                                ? 56
+                                : 50;
+                        final double cardHeight = min(
+                          availableHeight - 2,
+                          cardWidth / _cardAspectRatio,
+                        );
+                        final double minStep = cardWidth * 0.42;
+                        final double idealStep = cardWidth * 0.72;
+                        final double compressedStep = total <= 1
+                            ? 0
+                            : (availableWidth - cardWidth) / (total - 1);
+                        final double step = compressedStep.clamp(minStep, idealStep);
+                        final double totalWidth = cardWidth + max(0, total - 1) * step;
 
-                        Widget buildRow(List<DuelCard> rowCards) {
-                          return Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: _hSpacing,
-                            children: rowCards.map((DuelCard card) {
-                              final bool isPlayable = playable(card);
-                              return GestureDetector(
-                                onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
-                                child: Opacity(
-                                  opacity: canInteract && !isPlayable ? 0.4 : 1,
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: SizedBox(
+                            width: max(availableWidth - 8, totalWidth),
+                            height: cardHeight + 2,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: List<Widget>.generate(total, (int index) {
+                                final DuelCard card = cards[index];
+                                final bool isPlayable = playable(card);
+                                return Positioned(
+                                  left: index * step,
                                   child: SizedBox(
                                     width: cardWidth,
                                     height: cardHeight,
-                                    child: FittedBox(
-                                      fit: BoxFit.contain,
-                                      child: _FaceCard(card: card),
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
+                                      child: Opacity(
+                                        opacity: canInteract && !isPlayable ? 0.45 : 1,
+                                        child: FittedBox(
+                                          fit: BoxFit.contain,
+                                          child: _FaceCard(card: card),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              );
-                            }).toList(),
-                          );
-                        }
-
-                        return Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List<Widget>.generate(cardRows.length, (int index) {
-                              return Padding(
-                                padding: EdgeInsets.only(top: index == 0 ? 0 : _vSpacing),
-                                child: buildRow(cardRows[index]),
-                              );
-                            }),
+                                );
+                              }),
+                            ),
                           ),
                         );
                       },
