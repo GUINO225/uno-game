@@ -351,7 +351,6 @@ class _GameModePageState extends State<GameModePage>
                                     ),
                                   ],
                                 ),
-                              ],
                               ),
                               Text(
                                 'V1.4',
