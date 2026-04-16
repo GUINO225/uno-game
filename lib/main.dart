@@ -350,7 +350,7 @@ class _GameModePageState extends State<GameModePage>
                             ),
                           ),
                           Text(
-                            'V1.3',
+                            'V1.4',
                             style: TextStyle(
                               color: GameModePalette.white.withOpacity(0.9),
                               fontSize: versionFontSize,
