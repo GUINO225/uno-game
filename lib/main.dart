@@ -113,24 +113,18 @@ class GameModePage extends StatefulWidget {
 
 class _GameModePageState extends State<GameModePage>
     with SingleTickerProviderStateMixin {
-  static const double _mobileDesignBaseWidth = 430;
-  static const double _minTextScale = 0.78;
-  static const double _maxTextScale = 1.08;
-
   late final AnimationController _introController;
   late final Animation<double> _fadeIn;
   late final Animation<Offset> _slideUp;
 
-  double _responsiveTextScale(BuildContext context) {
-    final double effectiveWidth = min(MediaQuery.sizeOf(context).width, 460);
-    return (effectiveWidth / _mobileDesignBaseWidth).clamp(
-      _minTextScale,
-      _maxTextScale,
-    );
-  }
-
-  double _responsiveFont(BuildContext context, double baseSize) {
-    return baseSize * _responsiveTextScale(context);
+  double _clampFont(double value, double min, double max) {
+    if (value < min) {
+      return min;
+    }
+    if (value > max) {
+      return max;
+    }
+    return value;
   }
 
   @override
@@ -162,7 +156,12 @@ class _GameModePageState extends State<GameModePage>
   @override
   Widget build(BuildContext context) {
     final Size size = MediaQuery.sizeOf(context);
-    final double textScale = _responsiveTextScale(context);
+    final double width = size.width;
+    final double logoFontSize = _clampFont(width * 0.125, 54, 118);
+    final double subLogoFontSize = _clampFont(width * 0.026, 12, 24.5);
+    final double titleFontSize = _clampFont(width * 0.0662, 26, 62.5);
+    final double modeLabelFontSize = _clampFont(width * 0.0794, 28, 75);
+    final double versionFontSize = _clampFont(width * 0.0328, 14, 31);
     final double cardHeight = (size.height * 0.20).clamp(170, 250);
     final double cardWidth = (size.width * 0.28).clamp(110, 150);
 
@@ -187,9 +186,12 @@ class _GameModePageState extends State<GameModePage>
                       child: Column(
                         children: <Widget>[
                           const SizedBox(height: 18),
-                          GameLogoHeader(scaleFactor: textScale),
+                          GameLogoHeader(
+                            logoFontSize: logoFontSize,
+                            subLogoFontSize: subLogoFontSize,
+                          ),
                           const Spacer(flex: 2),
-                          _ModeTitle(scaleFactor: textScale),
+                          _ModeTitle(fontSize: titleFontSize),
                           const SizedBox(height: 34),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -200,7 +202,7 @@ class _GameModePageState extends State<GameModePage>
                                   child: ModeCardSolo(
                                     width: cardWidth,
                                     height: cardHeight,
-                                    scaleFactor: textScale,
+                                    labelFontSize: modeLabelFontSize,
                                     onTap: () {
                                       Navigator.of(
                                         context,
@@ -215,7 +217,7 @@ class _GameModePageState extends State<GameModePage>
                                   child: ModeCardDuel(
                                     width: cardWidth,
                                     height: cardHeight,
-                                    scaleFactor: textScale,
+                                    labelFontSize: modeLabelFontSize,
                                     onTap: () {
                                       Navigator.of(
                                         context,
@@ -231,7 +233,7 @@ class _GameModePageState extends State<GameModePage>
                             'V1.1',
                             style: TextStyle(
                               color: GameModePalette.white.withOpacity(0.9),
-                              fontSize: _responsiveFont(context, 18),
+                              fontSize: versionFontSize,
                               fontWeight: FontWeight.w500,
                               letterSpacing: 0.6,
                             ),
@@ -319,12 +321,19 @@ class BackgroundDecoration extends StatelessWidget {
 }
 
 class GameLogoHeader extends StatelessWidget {
-  const GameLogoHeader({super.key, required this.scaleFactor});
+  const GameLogoHeader({
+    super.key,
+    required this.logoFontSize,
+    required this.subLogoFontSize,
+  });
 
-  final double scaleFactor;
+  final double logoFontSize;
+  final double subLogoFontSize;
 
   @override
   Widget build(BuildContext context) {
+    final double logoScaleFactor = logoFontSize / 118;
+
     return SizedBox(
       height: 160,
       child: Stack(
@@ -340,7 +349,7 @@ class GameLogoHeader extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 fontStyle: FontStyle.italic,
                 letterSpacing: 0.4,
-                fontSize: 24.5 * scaleFactor,
+                fontSize: subLogoFontSize,
               ),
             ),
           ),
@@ -350,7 +359,7 @@ class GameLogoHeader extends StatelessWidget {
               text: TextSpan(
                 style: GoogleFonts.leagueSpartan(
                   fontWeight: FontWeight.w700,
-                  fontSize: 118 * scaleFactor,
+                  fontSize: logoFontSize,
                   color: GameModePalette.white,
                   letterSpacing: 0.2,
                   height: 0.88,
@@ -361,7 +370,7 @@ class GameLogoHeader extends StatelessWidget {
                     alignment: PlaceholderAlignment.middle,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _MiniLogoCard(scaleFactor: scaleFactor),
+                      child: _MiniLogoCard(scaleFactor: logoScaleFactor),
                     ),
                   ),
                   const TextSpan(text: 'INO'),
@@ -407,9 +416,9 @@ class _MiniLogoCard extends StatelessWidget {
 }
 
 class _ModeTitle extends StatelessWidget {
-  const _ModeTitle({required this.scaleFactor});
+  const _ModeTitle({required this.fontSize});
 
-  final double scaleFactor;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -420,7 +429,7 @@ class _ModeTitle extends StatelessWidget {
           textAlign: TextAlign.center,
           style: GoogleFonts.leagueSpartan(
             color: GameModePalette.white,
-            fontSize: 62.5 * scaleFactor,
+            fontSize: fontSize,
             fontWeight: FontWeight.w400,
             height: 1,
           ),
@@ -431,7 +440,7 @@ class _ModeTitle extends StatelessWidget {
           textAlign: TextAlign.center,
           style: GoogleFonts.leagueSpartan(
             color: GameModePalette.white,
-            fontSize: 62.5 * scaleFactor,
+            fontSize: fontSize,
             fontWeight: FontWeight.w700,
             height: 1,
           ),
@@ -446,13 +455,13 @@ class ModeCardSolo extends StatelessWidget {
     super.key,
     required this.width,
     required this.height,
-    required this.scaleFactor,
+    required this.labelFontSize,
     required this.onTap,
   });
 
   final double width;
   final double height;
-  final double scaleFactor;
+  final double labelFontSize;
   final VoidCallback onTap;
 
   @override
@@ -460,7 +469,7 @@ class ModeCardSolo extends StatelessWidget {
     return _PressableModeCard(
       onTap: onTap,
       label: 'SOLO',
-      scaleFactor: scaleFactor,
+      labelFontSize: labelFontSize,
       child: SizedBox(
         width: width + 46,
         height: height + 28,
@@ -478,13 +487,13 @@ class ModeCardDuel extends StatelessWidget {
     super.key,
     required this.width,
     required this.height,
-    required this.scaleFactor,
+    required this.labelFontSize,
     required this.onTap,
   });
 
   final double width;
   final double height;
-  final double scaleFactor;
+  final double labelFontSize;
   final VoidCallback onTap;
 
   @override
@@ -492,7 +501,7 @@ class ModeCardDuel extends StatelessWidget {
     return _PressableModeCard(
       onTap: onTap,
       label: 'DUEL',
-      scaleFactor: scaleFactor,
+      labelFontSize: labelFontSize,
       child: SizedBox(
         width: width + 46,
         height: height + 28,
@@ -524,13 +533,13 @@ class _PressableModeCard extends StatefulWidget {
   const _PressableModeCard({
     required this.child,
     required this.label,
-    required this.scaleFactor,
+    required this.labelFontSize,
     required this.onTap,
   });
 
   final Widget child;
   final String label;
-  final double scaleFactor;
+  final double labelFontSize;
   final VoidCallback onTap;
 
   @override
@@ -560,7 +569,7 @@ class _PressableModeCardState extends State<_PressableModeCard> {
               widget.label,
               style: TextStyle(
                 color: GameModePalette.white,
-                fontSize: (64 / 2) * widget.scaleFactor,
+                fontSize: widget.labelFontSize,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.0,
               ),
