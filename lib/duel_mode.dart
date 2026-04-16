@@ -16,6 +16,56 @@ enum DuelRematchDecision { pending, accepted, declined }
 
 enum DuelChatDelivery { sending, sent, failed }
 
+enum DuelRoomMode { duel, credits }
+
+enum DuelStakeStatus { none, pending, accepted, declined, resolved }
+
+class DuelStakeOffer {
+  const DuelStakeOffer({
+    this.proposedBy,
+    this.acceptedBy,
+    this.amount = 0,
+    this.status = DuelStakeStatus.none,
+    this.createdAt,
+  });
+
+  final String? proposedBy;
+  final String? acceptedBy;
+  final int amount;
+  final DuelStakeStatus status;
+  final DateTime? createdAt;
+
+  bool get isPending => status == DuelStakeStatus.pending;
+  bool get isAccepted => status == DuelStakeStatus.accepted;
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'proposedBy': proposedBy,
+      'acceptedBy': acceptedBy,
+      'amount': amount,
+      'status': status.name,
+      'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
+    };
+  }
+
+  factory DuelStakeOffer.fromMap(Map<String, dynamic>? map) {
+    if (map == null || map.isEmpty) {
+      return const DuelStakeOffer();
+    }
+    return DuelStakeOffer(
+      proposedBy: map['proposedBy'] as String?,
+      acceptedBy: map['acceptedBy'] as String?,
+      amount: (map['amount'] as num?)?.toInt() ?? 0,
+      status: DuelStakeStatus.values.firstWhere(
+        (DuelStakeStatus value) =>
+            value.name == (map['status'] as String? ?? DuelStakeStatus.none.name),
+        orElse: () => DuelStakeStatus.none,
+      ),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
+    );
+  }
+}
+
 class DuelAction {
   const DuelAction({
     required this.type,
@@ -100,6 +150,10 @@ class DuelSession {
     required this.status,
     required this.scores,
     required this.round,
+    this.mode = DuelRoomMode.duel,
+    this.playerCredits = const <String, int>{},
+    this.activeStakeCredits = 0,
+    this.stakeOffer = const DuelStakeOffer(),
     this.lastAction,
     this.rematchRequestBy,
     this.rematchRequestedAt,
@@ -115,6 +169,10 @@ class DuelSession {
   final DuelGameStatus status;
   final Map<String, int> scores;
   final int round;
+  final DuelRoomMode mode;
+  final Map<String, int> playerCredits;
+  final int activeStakeCredits;
+  final DuelStakeOffer stakeOffer;
   final DuelAction? lastAction;
   final String? rematchRequestBy;
   final DateTime? rematchRequestedAt;
@@ -122,6 +180,7 @@ class DuelSession {
   final String? rematchDecisionBy;
 
   bool get canStart => players.length == 2;
+  bool get isCreditsMode => mode == DuelRoomMode.credits;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -132,6 +191,10 @@ class DuelSession {
       'status': status.name,
       'scores': scores,
       'round': round,
+      'mode': mode.name,
+      'playerCredits': playerCredits,
+      'activeStakeCredits': activeStakeCredits,
+      'stakeOffer': stakeOffer.toMap(),
       'lastAction': lastAction?.toMap(),
       'rematchRequestBy': rematchRequestBy,
       'rematchRequestedAt': rematchRequestedAt == null
@@ -165,6 +228,23 @@ class DuelSession {
         ),
       ),
       round: (json['round'] as num?)?.toInt() ?? 1,
+      mode: DuelRoomMode.values.firstWhere(
+        (DuelRoomMode value) =>
+            value.name == (json['mode'] as String? ?? DuelRoomMode.duel.name),
+        orElse: () => DuelRoomMode.duel,
+      ),
+      playerCredits: Map<String, int>.from(
+        (json['playerCredits'] as Map? ?? const <String, int>{}).map(
+          (Object? key, Object? value) => MapEntry(
+            key.toString(),
+            (value as num?)?.toInt() ?? 0,
+          ),
+        ),
+      ),
+      activeStakeCredits: (json['activeStakeCredits'] as num?)?.toInt() ?? 0,
+      stakeOffer: DuelStakeOffer.fromMap(
+        (json['stakeOffer'] as Map?)?.cast<String, dynamic>(),
+      ),
       lastAction: json['lastAction'] == null
           ? null
           : DuelAction.fromMap(Map<String, dynamic>.from(json['lastAction'] as Map)),
@@ -224,6 +304,7 @@ class GameService {
   Future<String> createGame({
     required String playerId,
     required String playerName,
+    DuelRoomMode mode = DuelRoomMode.duel,
   }) async {
     final String code = _generateCode();
     final CollectionReference<Map<String, dynamic>> games = await _games();
@@ -237,6 +318,10 @@ class GameService {
         status: DuelGameStatus.waiting,
         scores: <String, int>{playerId: 0},
         round: 1,
+        mode: mode,
+        playerCredits: mode == DuelRoomMode.credits
+            ? <String, int>{playerId: 1000}
+            : const <String, int>{},
       ).toMap(),
     );
     return code;
@@ -246,6 +331,7 @@ class GameService {
     required String gameId,
     required String playerId,
     required String playerName,
+    DuelRoomMode? expectedMode,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
@@ -256,6 +342,9 @@ class GameService {
         throw StateError('Partie introuvable');
       }
       final DuelSession session = DuelSession.fromDoc(snap);
+      if (expectedMode != null && session.mode != expectedMode) {
+        throw StateError('Ce salon n\'est pas compatible avec ce mode.');
+      }
       if (session.players.length >= 2 && !session.players.contains(playerId)) {
         throw StateError('Partie déjà complète');
       }
@@ -264,6 +353,8 @@ class GameService {
         'players': players,
         'playerNames.$playerId': playerName,
         'scores.$playerId': session.scores[playerId] ?? 0,
+        if (session.isCreditsMode)
+          'playerCredits.$playerId': session.playerCredits[playerId] ?? 1000,
         'status': players.length == 2 ? DuelGameStatus.inProgress.name : DuelGameStatus.waiting.name,
       });
     });
@@ -382,6 +473,8 @@ class GameService {
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
+        'activeStakeCredits': 0,
+        'stakeOffer': const DuelStakeOffer().toMap(),
         'rematchRequestBy': null,
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.pending.name,
@@ -449,12 +542,157 @@ class GameService {
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
+        'activeStakeCredits': 0,
+        'stakeOffer': const DuelStakeOffer().toMap(),
         'rematchRequestBy': null,
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.accepted.name,
         'rematchDecisionBy': responderId,
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
+    });
+  }
+
+  Future<void> proposeStake({
+    required DuelSession current,
+    required String proposedBy,
+    required int amount,
+  }) async {
+    if (!current.isCreditsMode) {
+      return;
+    }
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (!session.isCreditsMode ||
+          session.players.length < 2 ||
+          session.status == DuelGameStatus.finished) {
+        return;
+      }
+      if (session.stakeOffer.isPending) {
+        throw StateError('Une proposition est déjà en attente.');
+      }
+      if (amount <= 0) {
+        throw StateError('Enjeu invalide.');
+      }
+      final int balance = session.playerCredits[proposedBy] ?? 0;
+      if (amount > balance) {
+        throw StateError('Solde insuffisant pour cette proposition.');
+      }
+      tx.update(ref, <String, dynamic>{
+        'stakeOffer': DuelStakeOffer(
+          proposedBy: proposedBy,
+          amount: amount,
+          status: DuelStakeStatus.pending,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      });
+    });
+  }
+
+  Future<void> respondToStake({
+    required DuelSession current,
+    required String responderId,
+    required bool accept,
+  }) async {
+    if (!current.isCreditsMode) {
+      return;
+    }
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      final DuelStakeOffer offer = session.stakeOffer;
+      if (!offer.isPending ||
+          offer.proposedBy == null ||
+          offer.proposedBy == responderId ||
+          !session.players.contains(responderId)) {
+        return;
+      }
+      if (!accept) {
+        tx.update(ref, <String, dynamic>{
+          'activeStakeCredits': 0,
+          'stakeOffer': DuelStakeOffer(
+            proposedBy: offer.proposedBy,
+            amount: offer.amount,
+            status: DuelStakeStatus.declined,
+            createdAt: offer.createdAt,
+          ).toMap(),
+        });
+        return;
+      }
+      final int responderCredits = session.playerCredits[responderId] ?? 0;
+      final int proposerCredits = session.playerCredits[offer.proposedBy!] ?? 0;
+      if (offer.amount > responderCredits || offer.amount > proposerCredits) {
+        throw StateError('Solde insuffisant pour accepter cet enjeu.');
+      }
+      tx.update(ref, <String, dynamic>{
+        'activeStakeCredits': offer.amount,
+        'stakeOffer': DuelStakeOffer(
+          proposedBy: offer.proposedBy,
+          acceptedBy: responderId,
+          amount: offer.amount,
+          status: DuelStakeStatus.accepted,
+          createdAt: offer.createdAt ?? DateTime.now(),
+        ).toMap(),
+      });
+    });
+  }
+
+  Future<void> resolveStakeAfterRound({
+    required DuelSession current,
+    required String winnerId,
+  }) async {
+    if (!current.isCreditsMode) {
+      return;
+    }
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      final DuelStakeOffer offer = session.stakeOffer;
+      final int amount = session.activeStakeCredits;
+      if (!offer.isAccepted || amount <= 0 || !session.players.contains(winnerId)) {
+        return;
+      }
+      final String loserId = session.players.firstWhere(
+        (String id) => id != winnerId,
+        orElse: () => '',
+      );
+      if (loserId.isEmpty) {
+        return;
+      }
+      final int winnerBalance = session.playerCredits[winnerId] ?? 0;
+      final int loserBalance = session.playerCredits[loserId] ?? 0;
+      final int transfer = min(amount, loserBalance);
+      tx.update(ref, <String, dynamic>{
+        'playerCredits.$winnerId': winnerBalance + transfer,
+        'playerCredits.$loserId': loserBalance - transfer,
+        'activeStakeCredits': 0,
+        'stakeOffer': DuelStakeOffer(
+          proposedBy: offer.proposedBy,
+          acceptedBy: offer.acceptedBy,
+          amount: offer.amount,
+          status: DuelStakeStatus.resolved,
+          createdAt: offer.createdAt,
+        ).toMap(),
+      });
     });
   }
 }
@@ -464,11 +702,13 @@ class DuelController extends ChangeNotifier {
     required this.service,
     required this.localPlayerId,
     required this.localPlayerName,
+    this.roomMode = DuelRoomMode.duel,
   });
 
   final GameService service;
   final String localPlayerId;
   final String localPlayerName;
+  final DuelRoomMode roomMode;
 
   DuelSession? session;
   StreamSubscription<DuelSession>? _subscription;
@@ -483,6 +723,7 @@ class DuelController extends ChangeNotifier {
       final String id = await service.createGame(
         playerId: localPlayerId,
         playerName: localPlayerName,
+        mode: roomMode,
       );
       await attach(id);
     } catch (e) {
@@ -501,6 +742,7 @@ class DuelController extends ChangeNotifier {
         gameId: gameId,
         playerId: localPlayerId,
         playerName: localPlayerName,
+        expectedMode: roomMode,
       );
       await attach(gameId);
     } catch (e) {
@@ -599,6 +841,38 @@ class DuelController extends ChangeNotifier {
     );
   }
 
+  Future<void> proposeStake(int amount) async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.proposeStake(
+      current: current,
+      proposedBy: localPlayerId,
+      amount: amount,
+    );
+  }
+
+  Future<void> respondToStake(bool accept) async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.respondToStake(
+      current: current,
+      responderId: localPlayerId,
+      accept: accept,
+    );
+  }
+
+  Future<void> resolveStakeAfterRound(String winnerId) async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.resolveStakeAfterRound(current: current, winnerId: winnerId);
+  }
+
   @override
   void dispose() {
     _subscription?.cancel();
@@ -607,7 +881,9 @@ class DuelController extends ChangeNotifier {
 }
 
 class DuelLobbyPage extends StatefulWidget {
-  const DuelLobbyPage({super.key});
+  const DuelLobbyPage({super.key, this.mode = DuelRoomMode.duel});
+
+  final DuelRoomMode mode;
 
   @override
   State<DuelLobbyPage> createState() => _DuelLobbyPageState();
@@ -642,7 +918,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       _openedDuel = true;
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => DuelPage(controller: _controller!),
+          builder: (_) => DuelPage(controller: _controller!, mode: widget.mode),
         ),
       );
     }
@@ -660,6 +936,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         service: GameService(),
         localPlayerId: _localPlayerId,
         localPlayerName: _resolvedName(asHost: true),
+        roomMode: widget.mode,
       )..addListener(_onControllerChange);
     }
     await _controller!.create();
@@ -671,6 +948,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         service: GameService(),
         localPlayerId: _localPlayerId,
         localPlayerName: _resolvedName(asHost: false),
+        roomMode: widget.mode,
       )..addListener(_onControllerChange);
     }
     await _controller!.join(_codeController.text.trim().toUpperCase());
@@ -681,6 +959,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   Widget build(BuildContext context) {
     final DuelSession? session = _controller?.session;
     final bool busy = _controller?.busy ?? false;
+    final bool creditsMode = widget.mode == DuelRoomMode.credits;
+    final String title = creditsMode ? 'DUEL CRÉDITS' : 'DUEL EN LIGNE';
+    final String subtitle = creditsMode
+        ? 'Même duel, avec proposition d’enjeu en crédits.'
+        : 'Crée un salon privé ou rejoins une partie existante.';
     return Scaffold(
       body: TableBackground(
         child: SafeArea(
@@ -704,9 +987,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                             color: Colors.white,
                           ),
                         ),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'DUEL EN LIGNE',
+                            title,
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
@@ -721,7 +1004,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Crée un salon privé ou rejoins une partie existante.',
+                      subtitle,
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white.withOpacity(0.84)),
                     ),
@@ -862,9 +1145,14 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 }
 
 class DuelPage extends StatefulWidget {
-  const DuelPage({super.key, required this.controller});
+  const DuelPage({
+    super.key,
+    required this.controller,
+    this.mode = DuelRoomMode.duel,
+  });
 
   final DuelController controller;
+  final DuelRoomMode mode;
 
   @override
   State<DuelPage> createState() => _DuelPageState();
@@ -879,6 +1167,9 @@ class _DuelPageState extends State<DuelPage> {
   String? _lastRematchRequestKey;
   bool _rematchDialogOpen = false;
   bool _rematchActionBusy = false;
+  bool _stakeActionBusy = false;
+  bool _stakeDialogOpen = false;
+  String? _lastStakeOfferKey;
   bool _didNavigateHomeAfterDecline = false;
   final ValueNotifier<List<DuelChatMessage>> _chatMessagesNotifier =
       ValueNotifier<List<DuelChatMessage>>(const <DuelChatMessage>[]);
@@ -900,6 +1191,7 @@ class _DuelPageState extends State<DuelPage> {
   ];
 
   DuelController get _controller => widget.controller;
+  bool get _isCreditsMode => widget.mode == DuelRoomMode.credits;
 
   @override
   void initState() {
@@ -946,6 +1238,7 @@ class _DuelPageState extends State<DuelPage> {
     _bindChatRealtime(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
+    _maybeHandleStakeFlow(session);
     _maybeHandleRematchFlow(session);
   }
 
@@ -1038,6 +1331,10 @@ class _DuelPageState extends State<DuelPage> {
             }
           : const <String, dynamic>{},
     );
+    final String? winnerId = move.payload['winnerId'] as String?;
+    if (_isCreditsMode && winnerId != null && winnerId.isNotEmpty) {
+      await _controller.resolveStakeAfterRound(winnerId);
+    }
   }
 
   Future<String?> _showSuitChoice(BuildContext context) {
@@ -1268,6 +1565,146 @@ class _DuelPageState extends State<DuelPage> {
 
   String _displayNameUpper(DuelSession session, String playerId) =>
       _resolveName(session, playerId).toUpperCase();
+
+  int _creditsOf(DuelSession session, String playerId) =>
+      session.playerCredits[playerId] ?? 1000;
+
+  Future<void> _openStakeProposal(DuelSession session) async {
+    if (!_isCreditsMode || _stakeActionBusy || session.players.length < 2) {
+      return;
+    }
+    final List<int> options = <int>[50, 100, 200, 500];
+    final int myCredits = _creditsOf(session, _controller.localPlayerId);
+    final int? selected = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Text(
+                  'Proposition d’enjeu',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: options.map((int amount) {
+                    final bool disabled = amount > myCredits;
+                    return ChoiceChip(
+                      label: Text('$amount crédits'),
+                      selected: false,
+                      onSelected: disabled
+                          ? null
+                          : (_) => Navigator.of(context).pop(amount),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null) {
+      return;
+    }
+    setState(() {
+      _stakeActionBusy = true;
+    });
+    try {
+      await _controller.proposeStake(selected);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Proposition impossible pour le moment.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _stakeActionBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showStakeDecisionDialog(DuelSession session) async {
+    final DuelStakeOffer offer = session.stakeOffer;
+    final String proposer = _displayNameUpper(session, offer.proposedBy ?? '');
+    _stakeDialogOpen = true;
+    final bool? accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('PROPOSITION', textAlign: TextAlign.center),
+          content: Text(
+            '$proposer propose un enjeu de ${offer.amount} crédits',
+            textAlign: TextAlign.center,
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('REFUSER'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('ACCEPTER'),
+            ),
+          ],
+        );
+      },
+    );
+    _stakeDialogOpen = false;
+    if (accepted == null || _stakeActionBusy) {
+      return;
+    }
+    setState(() {
+      _stakeActionBusy = true;
+    });
+    try {
+      await _controller.respondToStake(accepted);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _stakeActionBusy = false;
+        });
+      }
+    }
+  }
+
+  void _maybeHandleStakeFlow(DuelSession session) {
+    if (!_isCreditsMode || !session.isCreditsMode || _stakeDialogOpen) {
+      return;
+    }
+    final DuelStakeOffer offer = session.stakeOffer;
+    if (!offer.isPending || offer.proposedBy == _controller.localPlayerId) {
+      return;
+    }
+    final String key =
+        '${offer.proposedBy}_${offer.amount}_${offer.createdAt?.millisecondsSinceEpoch ?? 0}';
+    if (_lastStakeOfferKey == key) {
+      return;
+    }
+    _lastStakeOfferKey = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      await _showStakeDecisionDialog(session);
+    });
+  }
 
   Future<void> _onReplayTap() async {
     if (_rematchActionBusy) {
@@ -1570,6 +2007,9 @@ class _DuelPageState extends State<DuelPage> {
             : _displayNameUpper(session, opponentId);
         final int myScore = session.scores[_controller.localPlayerId] ?? 0;
         final int opponentScore = session.scores[opponentId] ?? 0;
+        final int myCredits = _creditsOf(session, _controller.localPlayerId);
+        final int opponentCredits = _creditsOf(session, opponentId);
+        final DuelStakeOffer stakeOffer = session.stakeOffer;
         final bool myTurn = _controller.isMyTurn && session.status != DuelGameStatus.finished;
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         final double topInset = MediaQuery.paddingOf(context).top;
@@ -1591,7 +2031,7 @@ class _DuelPageState extends State<DuelPage> {
                       ),
                       const Spacer(),
                       Text(
-                        'DUEL',
+                        _isCreditsMode ? 'DUEL CRÉDITS' : 'DUEL',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.95),
                           fontWeight: FontWeight.w800,
@@ -1613,6 +2053,21 @@ class _DuelPageState extends State<DuelPage> {
                     opponentScore: opponentScore,
                     round: session.round,
                   ),
+                  if (_isCreditsMode) ...<Widget>[
+                    const SizedBox(height: 8),
+                    _CreditsStakeBanner(
+                      myCredits: myCredits,
+                      opponentCredits: opponentCredits,
+                      activeStakeCredits: session.activeStakeCredits,
+                      stakeText: switch (stakeOffer.status) {
+                        DuelStakeStatus.pending => 'Proposition en attente: ${stakeOffer.amount} crédits',
+                        DuelStakeStatus.accepted => 'Enjeu accepté: ${stakeOffer.amount} crédits',
+                        DuelStakeStatus.declined => 'Proposition refusée',
+                        DuelStakeStatus.resolved => 'Enjeu résolu',
+                        DuelStakeStatus.none => null,
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   _OpponentRow(
                     name: opponentName,
@@ -1644,6 +2099,20 @@ class _DuelPageState extends State<DuelPage> {
                     session: session,
                     localPlayerId: _controller.localPlayerId,
                   ),
+                  if (_isCreditsMode &&
+                      session.status != DuelGameStatus.finished &&
+                      session.players.length == 2)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            _stakeActionBusy || stakeOffer.isPending || session.activeStakeCredits > 0
+                                ? null
+                                : () => _openStakeProposal(session),
+                        icon: const Icon(Icons.local_offer_outlined),
+                        label: const Text('Proposer un enjeu'),
+                      ),
+                    ),
                   if (session.status == DuelGameStatus.finished)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
@@ -2538,6 +3007,74 @@ class _DuelStatusBanner extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreditsStakeBanner extends StatelessWidget {
+  const _CreditsStakeBanner({
+    required this.myCredits,
+    required this.opponentCredits,
+    required this.activeStakeCredits,
+    this.stakeText,
+  });
+
+  final int myCredits;
+  final int opponentCredits;
+  final int activeStakeCredits;
+  final String? stakeText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'Toi: $myCredits crédits',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'Adversaire: $opponentCredits crédits',
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (activeStakeCredits > 0 || stakeText != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(
+              activeStakeCredits > 0
+                  ? 'Enjeu courant: $activeStakeCredits crédits'
+                  : stakeText!,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.92),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ],
       ),
     );
