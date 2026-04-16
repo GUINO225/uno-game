@@ -2159,11 +2159,17 @@ class _MyHandRow extends StatelessWidget {
                           return const SizedBox.expand();
                         }
 
-                        final int totalCards = cards.length;
-                        final int topRowCount = min(totalCards, 5);
-                        final int bottomRowCount = max(totalCards - 5, 0);
-                        final int rowCount = bottomRowCount > 0 ? 2 : 1;
-                        final int maxColumns = max(topRowCount, bottomRowCount);
+                        final List<List<DuelCard>> cardRows = <List<DuelCard>>[];
+                        for (int i = 0; i < cards.length; i += 5) {
+                          final int end = min(i + 5, cards.length);
+                          cardRows.add(cards.sublist(i, end));
+                        }
+
+                        final int rowCount = cardRows.length;
+                        final int maxColumns = cardRows.fold<int>(
+                          1,
+                          (int maxCount, List<DuelCard> rowCards) => max(maxCount, rowCards.length),
+                        );
 
                         final double availableWidth = constraints.maxWidth;
                         final double availableHeight = constraints.maxHeight;
@@ -2201,21 +2207,16 @@ class _MyHandRow extends StatelessWidget {
                           );
                         }
 
-                        final List<DuelCard> topRowCards = cards.take(topRowCount).toList();
-                        final List<DuelCard> bottomRowCards = bottomRowCount > 0
-                            ? cards.skip(topRowCount).take(bottomRowCount).toList()
-                            : const <DuelCard>[];
-
                         return Center(
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: <Widget>[
-                              buildRow(topRowCards),
-                              if (bottomRowCards.isNotEmpty) ...<Widget>[
-                                const SizedBox(height: _vSpacing),
-                                buildRow(bottomRowCards),
-                              ],
-                            ],
+                            children: List<Widget>.generate(cardRows.length, (int index) {
+                              return Padding(
+                                padding: EdgeInsets.only(top: index == 0 ? 0 : _vSpacing),
+                                child: buildRow(cardRows[index]),
+                              );
+                            }),
                           ),
                         );
                       },
