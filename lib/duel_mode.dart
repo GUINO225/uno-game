@@ -355,7 +355,11 @@ class GameService {
         'scores.$playerId': session.scores[playerId] ?? 0,
         if (session.isCreditsMode)
           'playerCredits.$playerId': session.playerCredits[playerId] ?? 1000,
-        'status': players.length == 2 ? DuelGameStatus.inProgress.name : DuelGameStatus.waiting.name,
+        'status': players.length == 2
+            ? (session.isCreditsMode
+                ? DuelGameStatus.waiting.name
+                : DuelGameStatus.inProgress.name)
+            : DuelGameStatus.waiting.name,
       });
     });
   }
@@ -469,7 +473,7 @@ class GameService {
         },
       );
       tx.update(ref, <String, dynamic>{
-        'status': DuelGameStatus.inProgress.name,
+        'status': session.isCreditsMode ? DuelGameStatus.waiting.name : DuelGameStatus.inProgress.name,
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
@@ -538,12 +542,14 @@ class GameService {
         },
       );
       tx.update(ref, <String, dynamic>{
-        'status': DuelGameStatus.inProgress.name,
+        'status': session.isCreditsMode ? DuelGameStatus.waiting.name : DuelGameStatus.inProgress.name,
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
-        'activeStakeCredits': 0,
-        'stakeOffer': const DuelStakeOffer().toMap(),
+        'activeStakeCredits': session.isCreditsMode ? session.activeStakeCredits : 0,
+        'stakeOffer': session.isCreditsMode
+            ? session.stakeOffer.toMap()
+            : const DuelStakeOffer().toMap(),
         'rematchRequestBy': null,
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.accepted.name,
@@ -572,14 +578,14 @@ class GameService {
       final DuelSession session = DuelSession.fromDoc(snap);
       if (!session.isCreditsMode ||
           session.players.length < 2 ||
-          session.status == DuelGameStatus.finished) {
+          session.status == DuelGameStatus.inProgress) {
         return;
       }
       if (session.stakeOffer.isPending) {
         throw StateError('Une proposition est déjà en attente.');
       }
       if (amount <= 0) {
-        throw StateError('Enjeu invalide.');
+        throw StateError('Pari invalide.');
       }
       final int balance = session.playerCredits[proposedBy] ?? 0;
       if (amount > balance) {
@@ -638,11 +644,12 @@ class GameService {
       final int responderCredits = session.playerCredits[responderId] ?? 0;
       final int proposerCredits = session.playerCredits[offer.proposedBy!] ?? 0;
       if (offer.amount > responderCredits || offer.amount > proposerCredits) {
-        throw StateError('Solde insuffisant pour accepter cet enjeu.');
+        throw StateError('Solde insuffisant pour accepter ce pari.');
       }
       tx.update(ref, <String, dynamic>{
         'playerCredits.$responderId': responderCredits - offer.amount,
         'activeStakeCredits': offer.amount * 2,
+        'status': DuelGameStatus.inProgress.name,
         'stakeOffer': DuelStakeOffer(
           proposedBy: offer.proposedBy,
           acceptedBy: responderId,
@@ -963,9 +970,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final DuelSession? session = _controller?.session;
     final bool busy = _controller?.busy ?? false;
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
-    final String title = creditsMode ? 'DUEL CRÉDITS' : 'DUEL EN LIGNE';
+    final String title = creditsMode ? 'DUEL PARIS' : 'DUEL EN LIGNE';
     final String subtitle = creditsMode
-        ? 'Même duel, avec proposition d’enjeu en crédits.'
+        ? 'Même duel, avec pari défini avant le lancement.'
         : 'Crée un salon privé ou rejoins une partie existante.';
     return Scaffold(
       body: TableBackground(
@@ -1197,8 +1204,15 @@ class _DuelPageState extends State<DuelPage> {
 
   DuelController get _controller => widget.controller;
   bool get _isCreditsMode => widget.mode == DuelRoomMode.credits;
+  bool _canSetStake(DuelSession session) =>
+      _isCreditsMode &&
+      session.players.length == 2 &&
+      session.status != DuelGameStatus.inProgress;
   bool _requiresStake(DuelSession session) =>
-      _isCreditsMode && session.players.length == 2 && session.activeStakeCredits <= 0;
+      _isCreditsMode &&
+      session.players.length == 2 &&
+      session.status == DuelGameStatus.inProgress &&
+      session.activeStakeCredits <= 0;
 
   @override
   void initState() {
@@ -1586,7 +1600,7 @@ class _DuelPageState extends State<DuelPage> {
       session.playerCredits[playerId] ?? 1000;
 
   Future<void> _openStakeProposal(DuelSession session) async {
-    if (!_isCreditsMode || _stakeActionBusy || session.players.length < 2) {
+    if (!_canSetStake(session) || _stakeActionBusy) {
       return;
     }
     final int myCredits = _creditsOf(session, _controller.localPlayerId);
@@ -1618,13 +1632,13 @@ class _DuelPageState extends State<DuelPage> {
           builder: (BuildContext context, void Function(void Function()) setModalState) {
             String? validate(int? amount) {
               if (amount == null) {
-                return 'Choisissez un enjeu valide.';
+                return 'Choisissez un pari valide.';
               }
               if (amount <= 0) {
                 return 'Le montant doit être supérieur à 0.';
               }
               if (amount > myCredits) {
-                return 'Crédit insuffisant pour cet enjeu.';
+                return 'Solde insuffisant pour ce pari.';
               }
               return null;
             }
@@ -1658,7 +1672,7 @@ class _DuelPageState extends State<DuelPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       const Text(
-                        'Choisir l’enjeu',
+                        'Faire un pari',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
@@ -1668,7 +1682,7 @@ class _DuelPageState extends State<DuelPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Crédit disponible: $myCredits',
+                        'Solde disponible: $myCredits',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
                       ),
@@ -1691,7 +1705,7 @@ class _DuelPageState extends State<DuelPage> {
                         keyboardType: TextInputType.number,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                          labelText: 'Montant personnalisé',
+                          labelText: 'Montant du pari',
                           labelStyle: const TextStyle(color: Colors.white70),
                           hintText: 'Ex: 750',
                           hintStyle: const TextStyle(color: Colors.white38),
@@ -1764,29 +1778,31 @@ class _DuelPageState extends State<DuelPage> {
     return selected;
   }
 
-  Future<void> _submitStakeProposal({
+  Future<bool> _submitStakeProposal({
     required DuelSession session,
     required int amount,
   }) async {
     final int myCredits = _creditsOf(session, _controller.localPlayerId);
     if (amount <= 0 || amount > myCredits) {
       _showStakeRequiredMessage(
-        amount > myCredits ? 'Crédit insuffisant pour cet enjeu.' : 'Montant invalide.',
+        amount > myCredits ? 'Solde insuffisant pour ce pari.' : 'Montant invalide.',
       );
-      return;
+      return false;
     }
     setState(() {
       _stakeActionBusy = true;
     });
     try {
       await _controller.proposeStake(amount);
+      return true;
     } catch (_) {
       if (!mounted) {
-        return;
+        return false;
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Proposition impossible pour le moment.')),
       );
+      return false;
     } finally {
       if (mounted) {
         setState(() {
@@ -1797,7 +1813,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   void _showStakeRequiredMessage([
-    String message = 'Un enjeu valide est obligatoire pour commencer cette manche.',
+    String message = 'Un pari valide est obligatoire pour lancer la partie.',
   ]) {
     if (!mounted) {
       return;
@@ -1817,7 +1833,7 @@ class _DuelPageState extends State<DuelPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           title: const Text('PROPOSITION', textAlign: TextAlign.center),
           content: Text(
-            '$proposer propose un enjeu de ${offer.amount} crédits',
+            '$proposer propose un pari de ${offer.amount}',
             textAlign: TextAlign.center,
           ),
           actions: <Widget>[
@@ -1874,7 +1890,9 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   void _maybePromptMandatoryStake(DuelSession session) {
-    if (!_requiresStake(session) ||
+    final bool shouldPrompt =
+        (_canSetStake(session) && session.activeStakeCredits <= 0) || _requiresStake(session);
+    if (!shouldPrompt ||
         _stakeActionBusy ||
         _stakeDialogOpen ||
         _stakeSelectionDialogOpen ||
@@ -1905,6 +1923,17 @@ class _DuelPageState extends State<DuelPage> {
     if (session.rematchRequestBy == _controller.localPlayerId &&
         session.rematchDecision == DuelRematchDecision.pending) {
       return;
+    }
+    if (_isCreditsMode) {
+      final int myCredits = _creditsOf(session, _controller.localPlayerId);
+      final int? selected = await _showStakeSelectionDialog(myCredits: myCredits);
+      if (selected == null) {
+        return;
+      }
+      final bool proposalSent = await _submitStakeProposal(session: session, amount: selected);
+      if (!proposalSent) {
+        return;
+      }
     }
     setState(() {
       _rematchActionBusy = true;
@@ -2198,7 +2227,7 @@ class _DuelPageState extends State<DuelPage> {
         final int myCredits = _creditsOf(session, _controller.localPlayerId);
         final DuelStakeOffer stakeOffer = session.stakeOffer;
         final bool myTurn = _controller.isMyTurn &&
-            session.status != DuelGameStatus.finished &&
+            session.status == DuelGameStatus.inProgress &&
             !_requiresStake(session);
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         final double topInset = MediaQuery.paddingOf(context).top;
@@ -2220,7 +2249,7 @@ class _DuelPageState extends State<DuelPage> {
                       ),
                       const Spacer(),
                       Text(
-                        _isCreditsMode ? 'DUEL CRÉDITS' : 'DUEL',
+                        _isCreditsMode ? 'DUEL PARIS' : 'DUEL',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.95),
                           fontWeight: FontWeight.w800,
@@ -2250,12 +2279,12 @@ class _DuelPageState extends State<DuelPage> {
                       stakeText: _requiresStake(session)
                           ? switch (stakeOffer.status) {
                               DuelStakeStatus.pending =>
-                                'Proposition en attente: ${stakeOffer.amount} crédits',
-                              DuelStakeStatus.declined => 'Proposition refusée. Définissez un nouvel enjeu.',
+                                'Proposition en attente : ${stakeOffer.amount}',
+                              DuelStakeStatus.declined => 'Proposition refusée. Faites un nouveau pari.',
                               DuelStakeStatus.none ||
                               DuelStakeStatus.accepted ||
                               DuelStakeStatus.resolved =>
-                                'Enjeu obligatoire avant de jouer.',
+                                'Pari obligatoire avant de jouer.',
                             }
                           : null,
                     ),
@@ -2291,9 +2320,7 @@ class _DuelPageState extends State<DuelPage> {
                     session: session,
                     localPlayerId: _controller.localPlayerId,
                   ),
-                  if (_isCreditsMode &&
-                      session.status != DuelGameStatus.finished &&
-                      session.players.length == 2)
+                  if (_isCreditsMode && _canSetStake(session) && session.players.length == 2)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: OutlinedButton.icon(
@@ -2302,9 +2329,7 @@ class _DuelPageState extends State<DuelPage> {
                                 ? null
                                 : () => _openStakeProposal(session),
                         icon: const Icon(Icons.local_offer_outlined),
-                        label: Text(
-                          session.activeStakeCredits > 0 ? 'Modifier l’enjeu' : 'Définir l’enjeu',
-                        ),
+                        label: const Text('Faire un pari'),
                       ),
                     ),
                   if (session.status == DuelGameStatus.finished)
@@ -3256,13 +3281,24 @@ class _CreditsStakeBanner extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xAAE8C65D)),
                 ),
-                child: Text(
-                  '🧰 Pot: ${activeStakeCredits > 0 ? activeStakeCredits : 0}',
-                  style: const TextStyle(
-                    color: Color(0xFFFFE9A9),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(
+                      Icons.inventory_2_rounded,
+                      size: 16,
+                      color: Color(0xFFFFE9A9),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${activeStakeCredits > 0 ? activeStakeCredits : 0}',
+                      style: const TextStyle(
+                        color: Color(0xFFFFE9A9),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
