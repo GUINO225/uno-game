@@ -1340,16 +1340,35 @@ class _DuelPageState extends State<DuelPage> {
         final int opponentScore = session.scores[opponentId] ?? 0;
         final bool myTurn = _controller.isMyTurn && session.status != DuelGameStatus.finished;
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
+        final double topInset = MediaQuery.paddingOf(context).top;
         return Scaffold(
-          backgroundColor: const Color(0xFF1B5E20),
-          appBar: AppBar(
-            title: const SizedBox.shrink(),
-          ),
-          body: SafeArea(
+          backgroundColor: PremiumColors.tableGreenDark,
+          body: TableBackground(
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.fromLTRB(12, topInset + 8, 12, 12),
               child: Column(
                 children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      IconButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        tooltip: 'Retour',
+                        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                      ),
+                      const Spacer(),
+                      Text(
+                        'DUEL',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.95),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 20,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const Spacer(),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
                   _DuelStatusBanner(
                     opponentName: opponentName,
                     myScore: myScore,
