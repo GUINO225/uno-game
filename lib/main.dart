@@ -307,6 +307,7 @@ class _GameModePageState extends State<GameModePage>
                                             ),
                                           ),
                                         ),
+                                      ],
                                     ),
                                     SizedBox(height: controlsSpacing),
                                     AnimatedSwitcher(
