@@ -599,15 +599,32 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'DUEL EN LIGNE',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 30,
-                        letterSpacing: 1.1,
-                      ),
+                    Row(
+                      children: <Widget>[
+                        IconButton(
+                          onPressed: () => Navigator.of(context).popUntil(
+                            (Route<dynamic> route) => route.isFirst,
+                          ),
+                          tooltip: 'Retour aux modes',
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'DUEL EN LIGNE',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 30,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -1351,8 +1368,10 @@ class _DuelPageState extends State<DuelPage> {
                   Row(
                     children: <Widget>[
                       IconButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        tooltip: 'Retour',
+                        onPressed: () => Navigator.of(context).popUntil(
+                          (Route<dynamic> route) => route.isFirst,
+                        ),
+                        tooltip: 'Retour aux modes',
                         icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                       ),
                       const Spacer(),
