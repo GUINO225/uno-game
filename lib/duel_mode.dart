@@ -871,7 +871,7 @@ class DuelPage extends StatefulWidget {
 
 class _DuelPageState extends State<DuelPage> {
   StreamSubscription<List<DuelAction>>? _actionsSubscription;
-  StreamSubscription<List<DuelChatMessage>>? _chatSubscription;
+  StreamSubscription<List<DuelChatMessage>>? _chatSub;
   DuelBoardState? _board;
   String? _lastEightPopupKey;
   String? _lastForcedDrawPopupKey;
@@ -879,10 +879,11 @@ class _DuelPageState extends State<DuelPage> {
   bool _rematchDialogOpen = false;
   bool _rematchActionBusy = false;
   bool _didNavigateHomeAfterDecline = false;
-  List<DuelChatMessage> _chatMessages = const <DuelChatMessage>[];
-  final Set<String> _seenChatMessageIds = <String>{};
-  bool _didPrimeChatSeenIds = false;
-  bool _chatPanelOpen = false;
+  final ValueNotifier<List<DuelChatMessage>> _chatMessagesNotifier =
+      ValueNotifier<List<DuelChatMessage>>(const <DuelChatMessage>[]);
+  final Set<String> _knownMessageIds = <String>{};
+  bool _isChatOpen = false;
+  bool _chatBootstrapped = false;
   int _unreadChatCount = 0;
   String? _chatError;
   String? _chatGameId;
@@ -910,7 +911,8 @@ class _DuelPageState extends State<DuelPage> {
   void dispose() {
     _controller.removeListener(_onControllerChange);
     _actionsSubscription?.cancel();
-    _chatSubscription?.cancel();
+    _chatSub?.cancel();
+    _chatMessagesNotifier.dispose();
     super.dispose();
   }
 
@@ -940,24 +942,24 @@ class _DuelPageState extends State<DuelPage> {
             });
           });
     }
-    _ensureChatSubscription(session);
+    _bindChatRealtime(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
     _maybeHandleRematchFlow(session);
   }
 
-  void _ensureChatSubscription(DuelSession session) {
-    if (_chatSubscription != null && _chatGameId == session.gameId) {
+  void _bindChatRealtime(DuelSession session) {
+    if (_chatSub != null && _chatGameId == session.gameId) {
       return;
     }
-    _chatSubscription?.cancel();
-    _seenChatMessageIds.clear();
-    _didPrimeChatSeenIds = false;
-    _chatMessages = const <DuelChatMessage>[];
+    _chatSub?.cancel();
+    _knownMessageIds.clear();
+    _chatBootstrapped = false;
+    _chatMessagesNotifier.value = const <DuelChatMessage>[];
     _chatError = null;
     _unreadChatCount = 0;
     _chatGameId = session.gameId;
-    _chatSubscription = _controller.service
+    _chatSub = _controller.service
         .watchChatMessages(session.gameId)
         .listen(
           (List<DuelChatMessage> messages) {
@@ -971,22 +973,24 @@ class _DuelPageState extends State<DuelPage> {
               ..sort((DuelChatMessage a, DuelChatMessage b) => a.createdAt.compareTo(b.createdAt));
             int unreadDelta = 0;
             for (final DuelChatMessage message in ordered) {
-              if (_seenChatMessageIds.contains(message.id)) {
+              if (_knownMessageIds.contains(message.id)) {
                 continue;
               }
-              _seenChatMessageIds.add(message.id);
-              if (_didPrimeChatSeenIds &&
-                  !_chatPanelOpen &&
+              _knownMessageIds.add(message.id);
+              if (_chatBootstrapped &&
+                  !_isChatOpen &&
                   message.senderId != _controller.localPlayerId) {
                 unreadDelta += 1;
               }
             }
             setState(() {
-              _chatMessages = ordered;
+              _chatMessagesNotifier.value = List<DuelChatMessage>.unmodifiable(ordered);
               _chatError = null;
               _unreadChatCount += unreadDelta;
             });
-            _didPrimeChatSeenIds = true;
+            if (!_chatBootstrapped) {
+              _chatBootstrapped = true;
+            }
           },
           onError: (Object errorValue, StackTrace _) {
             if (!mounted) {
@@ -1503,7 +1507,7 @@ class _DuelPageState extends State<DuelPage> {
 
   Future<void> _openChatPanel(DuelSession session) async {
     setState(() {
-      _chatPanelOpen = true;
+      _isChatOpen = true;
       _unreadChatCount = 0;
     });
     await showModalBottomSheet<void>(
@@ -1512,8 +1516,7 @@ class _DuelPageState extends State<DuelPage> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
         return DuelChatPanel(
-          initialMessages: _chatMessages,
-          messagesStream: _controller.service.watchChatMessages(session.gameId),
+          messagesListenable: _chatMessagesNotifier,
           localPlayerId: _controller.localPlayerId,
           chatEnabled: session.players.length == 2,
           errorText: _chatError,
@@ -1526,7 +1529,7 @@ class _DuelPageState extends State<DuelPage> {
       return;
     }
     setState(() {
-      _chatPanelOpen = false;
+      _isChatOpen = false;
     });
   }
 
@@ -1741,8 +1744,7 @@ class DuelChatButton extends StatelessWidget {
 class DuelChatPanel extends StatefulWidget {
   const DuelChatPanel({
     super.key,
-    required this.initialMessages,
-    required this.messagesStream,
+    required this.messagesListenable,
     required this.localPlayerId,
     required this.chatEnabled,
     required this.onSend,
@@ -1750,8 +1752,7 @@ class DuelChatPanel extends StatefulWidget {
     this.errorText,
   });
 
-  final List<DuelChatMessage> initialMessages;
-  final Stream<List<DuelChatMessage>> messagesStream;
+  final ValueListenable<List<DuelChatMessage>> messagesListenable;
   final String localPlayerId;
   final bool chatEnabled;
   final Future<void> Function(String text) onSend;
@@ -1767,17 +1768,11 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
   final ScrollController _scrollController = ScrollController();
   bool _sending = false;
   int _lastRenderedMessageCount = 0;
-  bool _didInitialJump = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) {
-        return;
-      }
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scheduleAutoScroll(animated: false));
   }
 
   @override
@@ -1894,24 +1889,19 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
                   ),
                 ),
               Expanded(
-                child: StreamBuilder<List<DuelChatMessage>>(
-                  stream: widget.messagesStream,
-                  initialData: widget.initialMessages,
-                  builder: (BuildContext context, AsyncSnapshot<List<DuelChatMessage>> snapshot) {
-                    final List<DuelChatMessage> messages = _normalizeMessages(
-                      snapshot.data ?? widget.initialMessages,
-                    );
+                child: ValueListenableBuilder<List<DuelChatMessage>>(
+                  valueListenable: widget.messagesListenable,
+                  builder: (
+                    BuildContext context,
+                    List<DuelChatMessage> rawMessages,
+                    Widget? _,
+                  ) {
+                    final List<DuelChatMessage> messages = _normalizeMessages(rawMessages);
                     final int currentCount = messages.length;
-                    if (!_didInitialJump) {
-                      _didInitialJump = true;
-                      _lastRenderedMessageCount = currentCount;
-                      _scheduleAutoScroll(animated: false);
-                    } else if (currentCount > _lastRenderedMessageCount) {
-                      _lastRenderedMessageCount = currentCount;
+                    if (currentCount > _lastRenderedMessageCount) {
                       _scheduleAutoScroll(animated: true);
-                    } else {
-                      _lastRenderedMessageCount = currentCount;
                     }
+                    _lastRenderedMessageCount = currentCount;
                     return ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
