@@ -13,6 +13,8 @@ enum DuelActionType { playCard, drawCard, resetRound }
 
 enum DuelRematchDecision { pending, accepted, declined }
 
+enum DuelChatDelivery { sending, sent, failed }
+
 class DuelAction {
   const DuelAction({
     required this.type,
@@ -43,6 +45,46 @@ class DuelAction {
       actorId: json['actorId'] as String,
       createdAt: (json['createdAt'] as Timestamp).toDate(),
       payload: Map<String, dynamic>.from(json['payload'] as Map? ?? <String, dynamic>{}),
+    );
+  }
+}
+
+class DuelChatMessage {
+  const DuelChatMessage({
+    required this.id,
+    required this.senderId,
+    required this.senderName,
+    required this.text,
+    required this.createdAt,
+    this.delivery = DuelChatDelivery.sent,
+  });
+
+  final String id;
+  final String senderId;
+  final String senderName;
+  final String text;
+  final DateTime createdAt;
+  final DuelChatDelivery delivery;
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'senderId': senderId,
+      'senderName': senderName,
+      'text': text,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  factory DuelChatMessage.fromDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final Map<String, dynamic> data = doc.data();
+    return DuelChatMessage(
+      id: doc.id,
+      senderId: data['senderId'] as String? ?? '',
+      senderName: data['senderName'] as String? ?? '',
+      text: data['text'] as String? ?? '',
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 }
@@ -251,6 +293,43 @@ class GameService {
               )
               .toList(),
         );
+  }
+
+  Stream<List<DuelChatMessage>> watchChatMessages(String gameId) async* {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    yield* games
+        .doc(gameId)
+        .collection('chat_messages')
+        .orderBy('createdAt')
+        .snapshots()
+        .map(
+          (QuerySnapshot<Map<String, dynamic>> snap) => snap.docs
+              .map(DuelChatMessage.fromDoc)
+              .where((DuelChatMessage message) => message.text.trim().isNotEmpty)
+              .toList(),
+        );
+  }
+
+  Future<void> pushChatMessage({
+    required String gameId,
+    required String senderId,
+    required String senderName,
+    required String text,
+  }) async {
+    final String cleaned = text.trim();
+    if (cleaned.isEmpty) {
+      return;
+    }
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    await games.doc(gameId).collection('chat_messages').add(
+      DuelChatMessage(
+        id: '',
+        senderId: senderId,
+        senderName: senderName,
+        text: cleaned,
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
   }
 
   Future<void> pushAction({
@@ -503,6 +582,19 @@ class DuelController extends ChangeNotifier {
       current: current,
       responderId: localPlayerId,
       accept: accept,
+    );
+  }
+
+  Future<void> sendChatMessage(String text) async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.pushChatMessage(
+      gameId: current.gameId,
+      senderId: localPlayerId,
+      senderName: localPlayerName,
+      text: text,
     );
   }
 
@@ -779,6 +871,7 @@ class DuelPage extends StatefulWidget {
 
 class _DuelPageState extends State<DuelPage> {
   StreamSubscription<List<DuelAction>>? _actionsSubscription;
+  StreamSubscription<List<DuelChatMessage>>? _chatSubscription;
   DuelBoardState? _board;
   String? _lastEightPopupKey;
   String? _lastForcedDrawPopupKey;
@@ -786,6 +879,22 @@ class _DuelPageState extends State<DuelPage> {
   bool _rematchDialogOpen = false;
   bool _rematchActionBusy = false;
   bool _didNavigateHomeAfterDecline = false;
+  List<DuelChatMessage> _chatMessages = const <DuelChatMessage>[];
+  final Set<String> _knownChatMessageIds = <String>{};
+  bool _chatPanelOpen = false;
+  int _unreadChatCount = 0;
+  String? _chatError;
+  String? _chatGameId;
+
+  static const List<String> _quickMessages = <String>[
+    'Bien joué',
+    'À toi',
+    'J’arrive',
+    'Attends',
+    'Bravo',
+    'Oups',
+    'On recommence ?',
+  ];
 
   DuelController get _controller => widget.controller;
 
@@ -800,6 +909,7 @@ class _DuelPageState extends State<DuelPage> {
   void dispose() {
     _controller.removeListener(_onControllerChange);
     _actionsSubscription?.cancel();
+    _chatSubscription?.cancel();
     super.dispose();
   }
 
@@ -829,9 +939,60 @@ class _DuelPageState extends State<DuelPage> {
             });
           });
     }
+    _ensureChatSubscription(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
     _maybeHandleRematchFlow(session);
+  }
+
+  void _ensureChatSubscription(DuelSession session) {
+    if (_chatSubscription != null && _chatGameId == session.gameId) {
+      return;
+    }
+    _chatSubscription?.cancel();
+    _knownChatMessageIds.clear();
+    _chatMessages = const <DuelChatMessage>[];
+    _chatError = null;
+    _unreadChatCount = 0;
+    _chatGameId = session.gameId;
+    _chatSubscription = _controller.service
+        .watchChatMessages(session.gameId)
+        .listen(
+          (List<DuelChatMessage> messages) {
+            if (!mounted) {
+              return;
+            }
+            final Map<String, DuelChatMessage> dedup = <String, DuelChatMessage>{
+              for (final DuelChatMessage message in messages) message.id: message,
+            };
+            final List<DuelChatMessage> ordered = dedup.values.toList()
+              ..sort((DuelChatMessage a, DuelChatMessage b) => a.createdAt.compareTo(b.createdAt));
+            final Set<String> incomingIds = ordered.map((DuelChatMessage m) => m.id).toSet();
+            final Iterable<DuelChatMessage> freshFromOpponent = ordered.where(
+              (DuelChatMessage message) =>
+                  !_knownChatMessageIds.contains(message.id) &&
+                  message.senderId != _controller.localPlayerId,
+            );
+            _knownChatMessageIds
+              ..clear()
+              ..addAll(incomingIds);
+            setState(() {
+              _chatMessages = ordered;
+              _chatError = null;
+              if (!_chatPanelOpen) {
+                _unreadChatCount += freshFromOpponent.length;
+              }
+            });
+          },
+          onError: (Object errorValue, StackTrace _) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _chatError = '$errorValue';
+            });
+          },
+        );
   }
 
   Future<void> _onCardTap(DuelCard card) async {
@@ -1336,6 +1497,51 @@ class _DuelPageState extends State<DuelPage> {
     }
   }
 
+  Future<void> _openChatPanel(DuelSession session) async {
+    setState(() {
+      _chatPanelOpen = true;
+      _unreadChatCount = 0;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return DuelChatPanel(
+          messages: _chatMessages,
+          localPlayerId: _controller.localPlayerId,
+          chatEnabled: session.players.length == 2,
+          errorText: _chatError,
+          quickMessages: _quickMessages,
+          onSend: _handleSendChatMessage,
+        );
+      },
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _chatPanelOpen = false;
+    });
+  }
+
+  Future<void> _handleSendChatMessage(String text) async {
+    final DuelSession? session = _controller.session;
+    if (session == null || session.players.length < 2) {
+      return;
+    }
+    try {
+      await _controller.sendChatMessage(text);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Message non envoyé. Réessaie.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -1385,7 +1591,11 @@ class _DuelPageState extends State<DuelPage> {
                         ),
                       ),
                       const Spacer(),
-                      const SizedBox(width: 48),
+                      DuelChatButton(
+                        unreadCount: _unreadChatCount,
+                        enabled: session.players.length == 2,
+                        onPressed: () => _openChatPanel(session),
+                      ),
                     ],
                   ),
                   _DuelStatusBanner(
@@ -1445,6 +1655,393 @@ class _DuelPageState extends State<DuelPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class DuelChatButton extends StatelessWidget {
+  const DuelChatButton({
+    super.key,
+    required this.onPressed,
+    required this.unreadCount,
+    required this.enabled,
+  });
+
+  final VoidCallback onPressed;
+  final int unreadCount;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color base = Colors.white.withOpacity(enabled ? 0.22 : 0.12);
+    return InkWell(
+      onTap: enabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        width: 48,
+        height: 42,
+        decoration: BoxDecoration(
+          color: base,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            const Center(
+              child: Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: -5,
+                top: -5,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 18),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF4D5A),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white70, width: 1),
+                  ),
+                  child: Text(
+                    unreadCount > 99 ? '99+' : '$unreadCount',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DuelChatPanel extends StatefulWidget {
+  const DuelChatPanel({
+    super.key,
+    required this.messages,
+    required this.localPlayerId,
+    required this.chatEnabled,
+    required this.onSend,
+    required this.quickMessages,
+    this.errorText,
+  });
+
+  final List<DuelChatMessage> messages;
+  final String localPlayerId;
+  final bool chatEnabled;
+  final Future<void> Function(String text) onSend;
+  final List<String> quickMessages;
+  final String? errorText;
+
+  @override
+  State<DuelChatPanel> createState() => _DuelChatPanelState();
+}
+
+class _DuelChatPanelState extends State<DuelChatPanel> {
+  final TextEditingController _inputController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        return;
+      }
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant DuelChatPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.messages.length != widget.messages.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) {
+          return;
+        }
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 80,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendText([String? value]) async {
+    if (_sending || !widget.chatEnabled) {
+      return;
+    }
+    final String text = (value ?? _inputController.text).trim();
+    if (text.isEmpty) {
+      return;
+    }
+    setState(() {
+      _sending = true;
+    });
+    _inputController.clear();
+    try {
+      await widget.onSend(text);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final EdgeInsets keyboard = EdgeInsets.only(
+      bottom: MediaQuery.viewInsetsOf(context).bottom,
+    );
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: keyboard,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 470),
+          decoration: const BoxDecoration(
+            color: Color(0xFF0D3C31),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          child: Column(
+            children: <Widget>[
+              const SizedBox(height: 10),
+              Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 6),
+                child: Row(
+                  children: <Widget>[
+                    const Text(
+                      'Chat duel',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.errorText != null)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Text(
+                    'Chat indisponible pour le moment.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                  itemCount: widget.messages.length,
+                  itemBuilder: (BuildContext context, int index) {
+                    final DuelChatMessage message = widget.messages[index];
+                    return ChatMessageBubble(
+                      message: message,
+                      isMine: message.senderId == widget.localPlayerId,
+                    );
+                  },
+                ),
+              ),
+              QuickMessageBar(
+                messages: widget.quickMessages,
+                enabled: widget.chatEnabled && !_sending,
+                onSelect: (String value) => _sendText(value),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: TextField(
+                        controller: _inputController,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendText(),
+                        enabled: widget.chatEnabled && !_sending,
+                        maxLines: 1,
+                        decoration: InputDecoration(
+                          hintText: widget.chatEnabled
+                              ? 'Écrire un message...'
+                              : 'Chat indisponible',
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.08),
+                          hintStyle: const TextStyle(color: Colors.white60),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: widget.chatEnabled && !_sending ? () => _sendText() : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF2BC991),
+                        foregroundColor: const Color(0xFF093024),
+                        minimumSize: const Size(48, 46),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ChatMessageBubble extends StatelessWidget {
+  const ChatMessageBubble({
+    super.key,
+    required this.message,
+    required this.isMine,
+  });
+
+  final DuelChatMessage message;
+  final bool isMine;
+
+  @override
+  Widget build(BuildContext context) {
+    final CrossAxisAlignment alignment =
+        isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final Color bubbleColor =
+        isMine ? const Color(0xFFBDF2D5) : Colors.white.withOpacity(0.12);
+    final Color textColor = isMine ? const Color(0xFF083729) : Colors.white;
+    final String minute = message.createdAt.minute.toString().padLeft(2, '0');
+    final String hour = message.createdAt.hour.toString().padLeft(2, '0');
+    return Column(
+      crossAxisAlignment: alignment,
+      children: <Widget>[
+        Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          constraints: const BoxConstraints(maxWidth: 260),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: alignment,
+            children: <Widget>[
+              if (!isMine && message.senderName.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    message.senderName,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              Text(
+                message.text,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 14,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, left: 2, right: 2),
+          child: Text(
+            '$hour:$minute',
+            style: const TextStyle(color: Colors.white54, fontSize: 10),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class QuickMessageBar extends StatelessWidget {
+  const QuickMessageBar({
+    super.key,
+    required this.messages,
+    required this.onSelect,
+    required this.enabled,
+  });
+
+  final List<String> messages;
+  final ValueChanged<String> onSelect;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        scrollDirection: Axis.horizontal,
+        itemBuilder: (BuildContext context, int index) {
+          final String value = messages[index];
+          return ActionChip(
+            onPressed: enabled ? () => onSelect(value) : null,
+            backgroundColor: Colors.white.withOpacity(0.08),
+            side: BorderSide(color: Colors.white.withOpacity(0.12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            label: Text(
+              value,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          );
+        },
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemCount: messages.length,
+      ),
     );
   }
 }
