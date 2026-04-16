@@ -776,7 +776,7 @@ class ModeCardCredits extends StatelessWidget {
     return _PressableModeCard(
       onTap: onTap,
       isSelected: isSelected,
-      label: 'PARIS / CRÉDITS',
+      label: 'PARIS',
       labelFontSize: labelFontSize * 0.47,
       child: SizedBox(
         width: width + 36,
