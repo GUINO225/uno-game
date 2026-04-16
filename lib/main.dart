@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_config.dart';
 import 'duel_mode.dart';
@@ -99,6 +100,7 @@ class GameModePalette {
   static const Color backgroundShade = Color(0xFF013C25);
   static const Color cardGreen = Color(0xFF08BF63);
   static const Color cardGreenSoft = Color(0xFF0BA957);
+  static const Color accentGreen = Color(0xFF73F38A);
   static const Color white = Color(0xFFF6FFF9);
 }
 
@@ -303,44 +305,47 @@ class GameLogoHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 112,
+      height: 160,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
           Positioned(
-            top: 10,
-            right: 60,
+            top: 24,
+            right: 52,
             child: Text(
-              '8 AMÉRICAIN',
-              style: TextStyle(
-                color: GameModePalette.cardGreen,
-                fontWeight: FontWeight.w800,
+              '8AMERICAIN',
+              style: GoogleFonts.poppins(
+                color: GameModePalette.accentGreen,
+                fontWeight: FontWeight.w600,
                 fontStyle: FontStyle.italic,
-                letterSpacing: 0.8,
-                fontSize: 20,
+                letterSpacing: 0.4,
+                fontSize: 24.5,
               ),
             ),
           ),
-          RichText(
-            text: const TextSpan(
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 72,
-                color: GameModePalette.white,
-                letterSpacing: 1.2,
-                height: 1,
-              ),
-              children: <InlineSpan>[
-                TextSpan(text: 'G'),
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 2),
-                    child: _MiniLogoCard(),
-                  ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.leagueSpartan(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 118,
+                  color: GameModePalette.white,
+                  letterSpacing: 0.2,
+                  height: 0.88,
                 ),
-                TextSpan(text: 'INO'),
-              ],
+                children: const <InlineSpan>[
+                  TextSpan(text: 'G'),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 2),
+                      child: _MiniLogoCard(),
+                    ),
+                  ),
+                  TextSpan(text: 'INO'),
+                ],
+              ),
             ),
           ),
         ],
@@ -383,28 +388,27 @@ class _ModeTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: <Widget>[
         Text(
           'CHOISISSEZ VOTRE',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: GoogleFonts.leagueSpartan(
             color: GameModePalette.white,
-            fontSize: 42,
+            fontSize: 62.5,
             fontWeight: FontWeight.w400,
-            letterSpacing: 1.2,
-            height: 1.08,
+            height: 1,
           ),
         ),
+        const SizedBox(height: 4),
         Text(
           'MODE DE JEU',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: GoogleFonts.leagueSpartan(
             color: GameModePalette.white,
-            fontSize: 52,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.6,
-            height: 1.02,
+            fontSize: 62.5,
+            fontWeight: FontWeight.w700,
+            height: 1,
           ),
         ),
       ],
@@ -429,7 +433,14 @@ class ModeCardSolo extends StatelessWidget {
     return _PressableModeCard(
       onTap: onTap,
       label: 'SOLO',
-      child: _GameCardFace(width: width, height: height),
+      child: SizedBox(
+        width: width + 46,
+        height: height + 28,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: _GameCardFace(width: width, height: height),
+        ),
+      ),
     );
   }
 }
