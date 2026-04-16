@@ -1512,7 +1512,8 @@ class _DuelPageState extends State<DuelPage> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
         return DuelChatPanel(
-          messages: _chatMessages,
+          initialMessages: _chatMessages,
+          messagesStream: _controller.service.watchChatMessages(session.gameId),
           localPlayerId: _controller.localPlayerId,
           chatEnabled: session.players.length == 2,
           errorText: _chatError,
@@ -1740,7 +1741,8 @@ class DuelChatButton extends StatelessWidget {
 class DuelChatPanel extends StatefulWidget {
   const DuelChatPanel({
     super.key,
-    required this.messages,
+    required this.initialMessages,
+    required this.messagesStream,
     required this.localPlayerId,
     required this.chatEnabled,
     required this.onSend,
@@ -1748,7 +1750,8 @@ class DuelChatPanel extends StatefulWidget {
     this.errorText,
   });
 
-  final List<DuelChatMessage> messages;
+  final List<DuelChatMessage> initialMessages;
+  final Stream<List<DuelChatMessage>> messagesStream;
   final String localPlayerId;
   final bool chatEnabled;
   final Future<void> Function(String text) onSend;
@@ -1763,6 +1766,8 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _sending = false;
+  int _lastRenderedMessageCount = 0;
+  bool _didInitialJump = false;
 
   @override
   void initState() {
@@ -1773,23 +1778,6 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
       }
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     });
-  }
-
-  @override
-  void didUpdateWidget(covariant DuelChatPanel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.messages.length != widget.messages.length) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_scrollController.hasClients) {
-          return;
-        }
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent + 80,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-        );
-      });
-    }
   }
 
   @override
@@ -1820,6 +1808,33 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
         });
       }
     }
+  }
+
+  void _scheduleAutoScroll({required bool animated}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        return;
+      }
+      final double target = _scrollController.position.maxScrollExtent + 80;
+      if (animated) {
+        _scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+        return;
+      }
+      _scrollController.jumpTo(target);
+    });
+  }
+
+  List<DuelChatMessage> _normalizeMessages(List<DuelChatMessage> raw) {
+    final Map<String, DuelChatMessage> dedup = <String, DuelChatMessage>{
+      for (final DuelChatMessage message in raw) message.id: message,
+    };
+    final List<DuelChatMessage> ordered = dedup.values.toList()
+      ..sort((DuelChatMessage a, DuelChatMessage b) => a.createdAt.compareTo(b.createdAt));
+    return ordered;
   }
 
   @override
@@ -1879,15 +1894,35 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
                   ),
                 ),
               Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                  itemCount: widget.messages.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final DuelChatMessage message = widget.messages[index];
-                    return ChatMessageBubble(
-                      message: message,
-                      isMine: message.senderId == widget.localPlayerId,
+                child: StreamBuilder<List<DuelChatMessage>>(
+                  stream: widget.messagesStream,
+                  initialData: widget.initialMessages,
+                  builder: (BuildContext context, AsyncSnapshot<List<DuelChatMessage>> snapshot) {
+                    final List<DuelChatMessage> messages = _normalizeMessages(
+                      snapshot.data ?? widget.initialMessages,
+                    );
+                    final int currentCount = messages.length;
+                    if (!_didInitialJump) {
+                      _didInitialJump = true;
+                      _lastRenderedMessageCount = currentCount;
+                      _scheduleAutoScroll(animated: false);
+                    } else if (currentCount > _lastRenderedMessageCount) {
+                      _lastRenderedMessageCount = currentCount;
+                      _scheduleAutoScroll(animated: true);
+                    } else {
+                      _lastRenderedMessageCount = currentCount;
+                    }
+                    return ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                      itemCount: messages.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        final DuelChatMessage message = messages[index];
+                        return ChatMessageBubble(
+                          message: message,
+                          isMine: message.senderId == widget.localPlayerId,
+                        );
+                      },
                     );
                   },
                 ),
