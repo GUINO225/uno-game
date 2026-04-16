@@ -128,7 +128,7 @@ class _GameModePageState extends State<GameModePage>
   static const double _frameHorizontalPadding = 18;
   static const double _frameVerticalPadding = 14;
   static const double _logoTopSpacing = 10;
-  static const double _titleTopSpacing = 10;
+  static const double _titleTopSpacing = 22;
   static const double _modeCardsTopSpacing = 20;
   static const double _controlsTopSpacing = 24;
   static const double _modeLabelFontSize = 34;
@@ -241,12 +241,12 @@ class _GameModePageState extends State<GameModePage>
                             const GameLogoHeader(),
                             const SizedBox(height: _titleTopSpacing),
                             const _ModeTitle(
-                              regularFontSize: 29.4,
-                              boldFontSize: 29.8,
+                              regularFontSize: 25.0,
+                              boldFontSize: 25.3,
                             ),
                             const SizedBox(height: _modeCardsTopSpacing),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 FadeTransition(
@@ -266,6 +266,7 @@ class _GameModePageState extends State<GameModePage>
                                     ),
                                   ),
                                 ),
+                                const SizedBox(width: 20),
                                 FadeTransition(
                                   opacity: _duelFade,
                                   child: SlideTransition(
@@ -325,7 +326,7 @@ class _GameModePageState extends State<GameModePage>
                             ),
                             const Spacer(),
                             Text(
-                              'V1.6',
+                              'V1.7',
                               style: TextStyle(
                                 color: GameModePalette.white.withOpacity(0.9),
                                 fontSize: _versionFontSize,
@@ -440,7 +441,7 @@ class GameLogoHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double logoScaleFactor = 0.64;
+    const double logoScaleFactor = 0.544;
 
     return SizedBox(
       height: 172 * logoScaleFactor,
@@ -448,7 +449,7 @@ class GameLogoHeader extends StatelessWidget {
         alignment: Alignment.center,
         children: <Widget>[
           Positioned(
-            top: 26 * logoScaleFactor,
+            top: 18 * logoScaleFactor,
             child: Transform.translate(
               offset: Offset(34 * logoScaleFactor, 0),
               child: Text(
