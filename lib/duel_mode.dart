@@ -1754,7 +1754,7 @@ class _DuelPageState extends State<DuelPage> {
                   ),
                 ),
               ),
-            ),
+            );
           },
         );
       },
