@@ -530,5 +530,40 @@ class AudioService with WidgetsBindingObserver {
 class AppSfxService {
   AppSfxService._();
 
-  static AudioService get instance => AudioService.instance;
+  static final AppSfxService instance = AppSfxService._();
+
+  AudioService get _audio => AudioService.instance;
+
+  bool get isEnabled => _audio.isEnabled;
+  set isEnabled(bool value) => _audio.isEnabled = value;
+
+  bool get isReady => _audio.isReady;
+  bool get isBackgroundMusicEnabled => _audio.isBackgroundMusicEnabled;
+  bool get isBackgroundMusicPlaying => _audio.isBackgroundMusicPlaying;
+  bool get isBackgroundMusicActive => _audio.isBackgroundMusicActive;
+  bool get isBackgroundMusicUnlocked => _audio.isBackgroundMusicUnlocked;
+
+  Future<void> initialize({bool strict = false}) => _audio.initialize(strict: strict);
+  void registerUserGesture() => _audio.registerUserGesture();
+
+  Future<void> playClick() => _audio.playClick();
+  Future<void> playDraw() => _audio.playDraw();
+  Future<void> playCard() => _audio.playCard();
+  Future<void> playWin() => _audio.playWin();
+  Future<void> playLose() => _audio.playLose();
+  Future<void> playNotif() => _audio.playNotif();
+  Future<void> playChat() => _audio.playChat();
+  Future<void> playPopup() => _audio.playPopup();
+  Future<void> playError() => _audio.playError();
+  Future<void> playSuccess() => _audio.playSuccess();
+  Future<void> playShuffle() => _audio.playShuffle();
+
+  Future<void> enableBackgroundMusic() => _audio.enableBackgroundMusic();
+  Future<void> playDefaultBackgroundMusic({bool fromUserGesture = false}) =>
+      _audio.playDefaultBackgroundMusic(fromUserGesture: fromUserGesture);
+  Future<void> toggleBackgroundMusic() => _audio.toggleBackgroundMusic();
+  Future<void> toggleBackgroundMusicFromUserGesture() =>
+      _audio.toggleBackgroundMusicFromUserGesture();
+  Future<void> playRandomBackgroundTrack() => _audio.playRandomBackgroundTrack();
+  Future<void> stopBackgroundMusic() => _audio.stopBackgroundMusic();
 }
