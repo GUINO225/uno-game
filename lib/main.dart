@@ -87,6 +87,20 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
+        dialogTheme: DialogTheme(
+          backgroundColor: const Color(0xFFF8F6F0),
+          surfaceTintColor: Colors.transparent,
+          titleTextStyle: const TextStyle(
+            color: PremiumColors.textDark,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+          contentTextStyle: const TextStyle(
+            color: PremiumColors.textDark,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       routes: <String, WidgetBuilder>{
         GameModeRoutes.solo: (_) => const CrazyEightsPage(),
@@ -135,41 +149,60 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
   }
 }
 
-class _AudioWarmupPage extends StatelessWidget {
+class _AudioWarmupPage extends StatefulWidget {
   const _AudioWarmupPage();
 
   @override
+  State<_AudioWarmupPage> createState() => _AudioWarmupPageState();
+}
+
+class _AudioWarmupPageState extends State<_AudioWarmupPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _progressController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _progressController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: GameModePalette.background,
       body: Stack(
         children: <Widget>[
-          BackgroundDecoration(),
+          const BackgroundDecoration(),
           SafeArea(
             child: Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    GameLogoHeader(scaleFactor: 0.8),
-                    SizedBox(height: 34),
-                    CircularProgressIndicator(
-                      strokeWidth: 3.2,
-                      color: GameModePalette.accentGreen,
-                    ),
-                    SizedBox(height: 14),
-                    Text(
-                      'Préparation des bruitages...',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: GameModePalette.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.35,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const GameLogoHeader(scaleFactor: 0.82),
+                      const SizedBox(height: 28),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: AnimatedBuilder(
+                          animation: _progressController,
+                          builder: (BuildContext context, _) {
+                            return LinearProgressIndicator(
+                              minHeight: 8,
+                              value: _progressController.value,
+                              color: GameModePalette.accentGreen,
+                              backgroundColor: Colors.white24,
+                            );
+                          },
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -211,28 +244,32 @@ class IntroLandingPage extends StatelessWidget {
         children: <Widget>[
           const BackgroundDecoration(),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-              child: Column(
-                children: <Widget>[
-                  const Spacer(flex: 2),
-                  const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: GameLogoHeader(scaleFactor: 1.4),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: GameLogoHeader(scaleFactor: 1.4),
+                      ),
+                      const SizedBox(height: 34),
+                      _IntroPlayButton(
+                        onTap: () {
+                          unawaited(AppSfxService.instance.playClick());
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const GameModePage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 34),
-                  _IntroPlayButton(
-                    onTap: () {
-                      unawaited(AppSfxService.instance.playClick());
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const GameModePage(),
-                        ),
-                      );
-                    },
-                  ),
-                  const Spacer(flex: 3),
-                ],
+                ),
               ),
             ),
           ),
@@ -1492,11 +1529,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   String _turnLabel(PlayerTurn turn) {
-    return turn == PlayerTurn.human ? 'Vous' : 'Le bot';
+    return turn == PlayerTurn.human ? 'Vous' : 'GINO';
   }
 
   String _turnStartText(PlayerTurn turn) {
-    return turn == PlayerTurn.human ? 'Vous commencez' : 'Le bot commence';
+    return turn == PlayerTurn.human ? 'Vous commencez' : 'GINO commence';
   }
 
   List<PlayingCard> _dealCards(List<PlayingCard> deck, int count) {
@@ -1858,7 +1895,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         setState(() {
           _botMustAnswerAce = true;
           _status =
-          'Vous jouez un As : le bot doit répondre avec un As, un joker de même couleur, ou piocher.';
+          'Vous jouez un As : GINO doit répondre avec un As, un joker de même couleur, ou piocher.';
         });
         return const _PlayResolution(
           extraTurn: false,
@@ -1869,7 +1906,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       setState(() {
         _humanMustAnswerAce = true;
         _status =
-        'Le bot joue un As : répondez avec un As, un joker de même couleur, ou piochez.';
+        'GINO joue un As : répondez avec un As, un joker de même couleur, ou piochez.';
       });
 
       return const _PlayResolution(
@@ -1884,7 +1921,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
           count: 2,
-          announcement: 'Vous jouez un 2 : le bot doit piocher 2 cartes.',
+          announcement: 'Vous jouez un 2 : GINO doit piocher 2 cartes.',
         );
         await _runForcedDrawForBot();
         return const _PlayResolution(
@@ -1896,7 +1933,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
           count: 2,
-          announcement: 'Le bot joue un 2 : vous devez piocher 2 cartes.',
+          announcement: 'GINO joue un 2 : vous devez piocher 2 cartes.',
         );
       }
 
@@ -1912,7 +1949,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
           count: 9,
-          announcement: 'Vous jouez un joker : le bot doit piocher 9 cartes.',
+          announcement: 'Vous jouez un joker : GINO doit piocher 9 cartes.',
         );
         await _runForcedDrawForBot();
         return const _PlayResolution(
@@ -1924,7 +1961,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
           count: 9,
-          announcement: 'Le bot joue un joker : vous devez piocher 9 cartes.',
+          announcement: 'GINO joue un joker : vous devez piocher 9 cartes.',
         );
       }
 
@@ -1945,7 +1982,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
       final String demander = currentTurn == PlayerTurn.human
           ? 'Vous demandez ${_suitName(askedSuit)}.'
-          : 'Le bot demande ${_suitName(askedSuit)}.';
+          : 'GINO demande ${_suitName(askedSuit)}.';
 
       setState(() {
         _activeSuitConstraint = askedSuit;
@@ -1961,8 +1998,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     if (card.rank == 10 || card.rank == 11) {
       setState(() {
         _status = card.rank == 11
-            ? '$sourceLabel joue un Valet : tour adverse sauté, ${currentTurn == PlayerTurn.human ? 'vous' : 'le bot'} rejoue.'
-            : '$sourceLabel joue un 10 : tour adverse sauté, ${currentTurn == PlayerTurn.human ? 'vous' : 'le bot'} rejoue.';
+            ? '$sourceLabel joue un Valet : tour adverse sauté, ${currentTurn == PlayerTurn.human ? 'vous' : 'GINO'} rejoue.'
+            : '$sourceLabel joue un 10 : tour adverse sauté, ${currentTurn == PlayerTurn.human ? 'vous' : 'GINO'} rejoue.';
       });
 
       return const _PlayResolution(
@@ -2006,7 +2043,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
       if (card == null) {
         setState(() {
-          _status = 'Pioche vide pendant la pénalité du bot.';
+          _status = 'Pioche vide pendant la pénalité de GINO.';
           _forcedDrawCount = 0;
         });
         break;
@@ -2017,8 +2054,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _forcedDrawCount--;
         final String unit = _forcedDrawCount > 1 ? 'cartes' : 'carte';
         _status = _forcedDrawCount > 0
-            ? 'Le bot doit encore piocher $_forcedDrawCount $unit.'
-            : 'Le bot a terminé sa pioche forcée.';
+            ? 'GINO doit encore piocher $_forcedDrawCount $unit.'
+            : 'GINO a terminé sa pioche forcée.';
       });
       await Future<void>.delayed(const Duration(milliseconds: 300));
     }
@@ -2034,7 +2071,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     final Suit bestSuit = _chooseRequestedSuitForBot(_botHand);
     await _showEightDemandOverlay(
       suit: bestSuit,
-      message: 'Le bot demande ${_suitName(bestSuit)}',
+      message: 'GINO demande ${_suitName(bestSuit)}',
     );
     return bestSuit;
   }
@@ -2075,6 +2112,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: const Color(0xFFF9FAF8),
+          surfaceTintColor: Colors.transparent,
+          title: const Text(
+            'Choisis une enseigne',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF1A3427),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           content: SizedBox(
             width: 260,
             child: GridView.count(
@@ -2141,7 +2188,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     setState(() {
       _humanDidVoluntaryDrawThisTurn = false;
       _turn = PlayerTurn.bot;
-      _status = 'Tour du bot...';
+      _status = 'Tour de GINO...';
     });
 
     _ensureBotTurnProgress();
@@ -2207,8 +2254,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           setState(() {
             _botMustAnswerAce = false;
             _status = drawn > 0
-                ? 'Le bot choisit de piocher au lieu de répondre à l’As.'
-                : 'Le bot choisit de piocher, mais la pioche est vide.';
+                ? 'GINO choisit de piocher au lieu de répondre à l’As.'
+                : 'GINO choisit de piocher, mais la pioche est vide.';
           });
           _switchToHuman();
           return;
@@ -2218,7 +2265,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         await _playCard(
           hand: _botHand,
           card: botAce,
-          playerName: 'Le bot',
+          playerName: 'GINO',
         );
 
         setState(() {
@@ -2236,7 +2283,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         final _PlayResolution outcome = await _applyCardEffects(
           card: botAce,
           currentTurn: PlayerTurn.bot,
-          sourceLabel: 'Le bot',
+          sourceLabel: 'GINO',
         );
 
         if (outcome.extraTurn) {
@@ -2269,14 +2316,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         final List<PlayingCard> drawn = _drawCards(_botHand, 1);
         if (drawn.isEmpty) {
           setState(() {
-            _status = 'Le bot ne peut pas piocher. Pioche vide.';
+            _status = 'GINO ne peut pas piocher. Pioche vide.';
           });
           _switchToHuman();
           return;
         }
 
         setState(() {
-          _status = 'Le bot pioche une carte.';
+          _status = 'GINO pioche une carte.';
         });
 
         final PlayingCard drawnCard = drawn.first;
@@ -2291,13 +2338,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       await _playCard(
         hand: _botHand,
         card: chosen,
-        playerName: 'Le bot',
+        playerName: 'GINO',
       );
 
       final _PlayResolution outcome = await _applyCardEffects(
         card: chosen,
         currentTurn: PlayerTurn.bot,
-        sourceLabel: 'Le bot',
+        sourceLabel: 'GINO',
       );
 
       if (_checkVictory(
@@ -2401,6 +2448,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       case Suit.clubs:
         return Colors.black87;
     }
+  }
+
+  Color _statusSuitColor(Suit suit) {
+    if (suit == Suit.hearts || suit == Suit.diamonds) {
+      return const Color(0xFFFF8383);
+    }
+    return const Color(0xFFF2FFF7);
   }
 
   bool _humanHasPlayableCard() {
@@ -2777,7 +2831,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       children: <Widget>[
         _ScorePill(label: 'VOUS', value: _humanScore),
         const SizedBox(width: 10),
-        _ScorePill(label: 'Bot', value: _botScore),
+        _ScorePill(label: 'GINO', value: _botScore),
       ],
     );
   }
@@ -2826,7 +2880,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               Text(
                 'Enseigne demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
                 style: TextStyle(
-                  color: _suitColor(_activeSuitConstraint!),
+                  color: _statusSuitColor(_activeSuitConstraint!),
                   fontWeight: FontWeight.bold,
                 ),
               ),
