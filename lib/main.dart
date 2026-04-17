@@ -314,8 +314,8 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
                         onPressed: _toggleBackgroundMusic,
                         icon: Icon(
                           _backgroundMusicEnabled
-                              ? Icons.volume_up_rounded
-                              : Icons.volume_off_rounded,
+                              ? Icons.music_note_rounded
+                              : Icons.music_off_rounded,
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
@@ -329,7 +329,7 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
                           ),
                         ),
                         label: Text(
-                          _backgroundMusicEnabled ? 'Son activé' : 'Activer le son',
+                          _backgroundMusicEnabled ? 'Son activé' : 'Son désactivé',
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.2,
@@ -2100,6 +2100,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             ? 'GINO doit encore piocher $_forcedDrawCount $unit.'
             : 'GINO a terminé sa pioche forcée.';
       });
+      unawaited(_sfx.playDraw());
       await Future<void>.delayed(const Duration(milliseconds: 300));
     }
 
@@ -2294,6 +2295,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
         if (chooseToDraw) {
           final int drawn = _drawCards(_botHand, 1).length;
+          if (drawn > 0) {
+            unawaited(_sfx.playDraw());
+          }
           setState(() {
             _botMustAnswerAce = false;
             _status = drawn > 0
@@ -2305,6 +2309,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         }
 
         final PlayingCard botAce = aceResponses.first;
+        unawaited(_sfx.playCard());
         await _playCard(
           hand: _botHand,
           card: botAce,
@@ -2368,6 +2373,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         setState(() {
           _status = 'GINO pioche une carte.';
         });
+        unawaited(_sfx.playDraw());
 
         final PlayingCard drawnCard = drawn.first;
         if (_isCardPlayableForHand(drawnCard, _botHand)) {
@@ -2378,6 +2384,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         }
       }
 
+      unawaited(_sfx.playCard());
       await _playCard(
         hand: _botHand,
         card: chosen,
