@@ -139,8 +139,8 @@ class _GameModePageState extends State<GameModePage>
   static const double _modeLabelFontSize = 34;
   static const double _playLabelFontSize = 20;
   static const double _versionFontSize = 14;
-  static const double _modeCardWidth = 90;
-  static const double _modeCardHeight = 140;
+  static const double _modeCardWidth = 94;
+  static const double _modeCardHeight = 146;
 
   late final AnimationController _introController;
   late final Animation<double> _fadeIn;
@@ -244,7 +244,24 @@ class _GameModePageState extends State<GameModePage>
     return Scaffold(
       backgroundColor: GameModePalette.background,
       body: Stack(
-        children: <Widget>[
+                children: <Widget>[
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Colors.white.withOpacity(0.14),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.08),
+                  ],
+                  stops: const <double>[0.0, 0.32, 1.0],
+                ),
+              ),
+            ),
+          ),
           const BackgroundDecoration(),
           SafeArea(
             child: FadeTransition(
@@ -412,7 +429,7 @@ class _GameModePageState extends State<GameModePage>
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Text(
-                                  'v2.2',
+                                  'v2.3',
                                   style: TextStyle(
                                     color: GameModePalette.white.withOpacity(
                                       0.9,
@@ -695,7 +712,7 @@ class ModeCardSolo extends StatelessWidget {
       label: 'SOLO',
       labelFontSize: labelFontSize,
       child: SizedBox(
-        width: width + 36,
+        width: width + 34,
         height: height + 20,
         child: Align(
           alignment: Alignment.topCenter,
@@ -730,7 +747,7 @@ class ModeCardDuel extends StatelessWidget {
       label: 'DUEL',
       labelFontSize: labelFontSize,
       child: SizedBox(
-        width: width + 36,
+        width: width + 34,
         height: height + 20,
         child: Stack(
           alignment: Alignment.center,
@@ -777,10 +794,10 @@ class ModeCardCredits extends StatelessWidget {
     return _PressableModeCard(
       onTap: onTap,
       isSelected: isSelected,
-      label: 'PARI',
-      labelFontSize: labelFontSize * 0.47,
+      label: 'PARIS',
+      labelFontSize: labelFontSize,
       child: SizedBox(
-        width: width + 36,
+        width: width + 34,
         height: height + 20,
         child: Stack(
           alignment: Alignment.center,
@@ -983,18 +1000,53 @@ class _GameCardFace extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: color,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color.lerp(color, Colors.white, 0.14)!,
+            color,
+            Color.lerp(color, Colors.black, 0.12)!,
+          ],
+        ),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.18),
+          width: 1.1,
+        ),
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: Colors.black.withOpacity(0.22),
             offset: const Offset(0, 10),
             blurRadius: 20,
           ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.12),
+            offset: const Offset(-1, -1),
+            blurRadius: 5,
+            spreadRadius: -2,
+          ),
         ],
       ),
       child: Stack(
         children: <Widget>[
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Colors.white.withOpacity(0.14),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.08),
+                  ],
+                  stops: const <double>[0.0, 0.32, 1.0],
+                ),
+              ),
+            ),
+          ),
           Positioned(
             top: 12,
             right: 12,
