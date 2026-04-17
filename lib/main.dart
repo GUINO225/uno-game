@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_sfx_service.dart';
 import 'firebase_config.dart';
 import 'duel_mode.dart';
 import 'premium_ui.dart';
@@ -24,6 +25,7 @@ Future<void> main() async {
     ),
   );
   await _initializeFirebaseIfConfigured();
+  await AppSfxService.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -471,6 +473,7 @@ class _GameModePageState extends State<GameModePage>
     if (_selectedMode == mode) {
       return;
     }
+    unawaited(AppSfxService.instance.playClick());
     setState(() {
       _selectedMode = mode;
     });
@@ -481,6 +484,7 @@ class _GameModePageState extends State<GameModePage>
     if (mode == null) {
       return;
     }
+    unawaited(AppSfxService.instance.playClick());
     Navigator.of(context).pushNamed(switch (mode) {
       GameMode.solo => GameModeRoutes.solo,
       GameMode.duel => GameModeRoutes.duel,
@@ -1189,6 +1193,7 @@ class CrazyEightsPage extends StatefulWidget {
 class _CrazyEightsPageState extends State<CrazyEightsPage>
 {
   final Random _random = Random();
+  final AppSfxService _sfx = AppSfxService.instance;
 
   List<PlayingCard> _drawPile = <PlayingCard>[];
   final List<PlayingCard> _discardPile = <PlayingCard>[];
@@ -1228,6 +1233,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   void _startNewGame() {
+    unawaited(_sfx.playShuffle());
     final PlayerTurn dealer =
         _random.nextBool() ? PlayerTurn.human : PlayerTurn.bot;
     final PlayerTurn startingPlayer = _opponentOf(dealer);
@@ -1481,6 +1487,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     _isResolvingTurn = true;
     try {
+      unawaited(_sfx.playCard());
       await _humanPlayCard(card);
     } finally {
       _isResolvingTurn = false;
@@ -1556,6 +1563,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             ? 'Vous devez d’abord piocher $_forcedDrawCount $unit.'
             : 'Pioche forcée terminée.';
       });
+      unawaited(_sfx.playDraw());
 
       _finishForcedDrawIfNeeded();
       return;
@@ -1570,6 +1578,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             ? 'Vous choisissez de piocher au lieu de répondre à l’As.'
             : 'Vous choisissez de piocher, mais la pioche est vide.';
       });
+      if (drawn > 0) {
+        unawaited(_sfx.playDraw());
+      }
       _endHumanTurn();
       return;
     }
@@ -1597,6 +1608,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _status =
           'Vous piochez ${drawnCard.label}. Vous pouvez jouer une carte valide, ou retoucher la pioche pour passer.';
     });
+    unawaited(_sfx.playDraw());
   }
 
   List<PlayingCard> _drawCards(List<PlayingCard> destination, int count) {
@@ -2150,8 +2162,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     setState(() {
       if (winner == PlayerTurn.human) {
         _humanScore++;
+        unawaited(_sfx.playWin());
       } else {
         _botScore++;
+        unawaited(_sfx.playLose());
       }
       _gameOver = true;
       _status = '${_turnLabel(winner)} a gagné !';
@@ -2264,9 +2278,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       Row(
                         children: <Widget>[
                           IconButton(
-                            onPressed: () => Navigator.of(context).popUntil(
-                              (Route<dynamic> route) => route.isFirst,
-                            ),
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              Navigator.of(context).popUntil(
+                                (Route<dynamic> route) => route.isFirst,
+                              );
+                            },
                             tooltip: 'Retour aux modes',
                             icon: const Icon(
                               Icons.arrow_back_rounded,
@@ -2285,7 +2302,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                           ),
                           const Spacer(),
                           IconButton(
-                            onPressed: _startNewGame,
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              _startNewGame();
+                            },
                             tooltip: 'Nouvelle manche',
                             icon: const Icon(
                               Icons.refresh_rounded,
@@ -2369,7 +2389,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
                           child: ElevatedButton(
-                            onPressed: _startNewGame,
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              _startNewGame();
+                            },
                             child: const Text('Prendre sa revanche'),
                           ),
                         ),
