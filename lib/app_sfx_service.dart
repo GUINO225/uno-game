@@ -280,17 +280,18 @@ class AppSfxService {
 
     try {
       await player.setReleaseMode(ReleaseMode.loop);
-      await player.setPlayerMode(PlayerMode.mediaPlayer);
+      try {
+        await player.setPlayerMode(PlayerMode.mediaPlayer);
+      } catch (_) {
+        // best effort on unsupported platforms
+      }
       await player.setVolume(0.28);
-      _backgroundPlayer = player;
-      debugPrint('BGM player ready');
     } catch (error, stackTrace) {
-      debugPrint('Background music player unavailable: $error');
+      debugPrint('Background music player configuration failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      await player.dispose();
-      _backgroundPlayer = null;
-      _backgroundTrackPath = null;
     }
+    _backgroundPlayer = player;
+    debugPrint('BGM player ready');
   }
 
   Future<void> _resumeBackgroundMusic() async {
