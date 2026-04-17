@@ -23,31 +23,34 @@ class AppSfxService {
 
   static final AppSfxService instance = AppSfxService._();
 
-  final AudioPlayer _player = AudioPlayer();
+  final Map<AppSfxEvent, AudioPlayer> _players = <AppSfxEvent, AudioPlayer>{};
   final Map<AppSfxEvent, String> _eventToAsset = <AppSfxEvent, String>{};
+  final Set<AppSfxEvent> _readyEvents = <AppSfxEvent>{};
   bool _initialized = false;
+  bool _initializing = false;
   bool _enabled = true;
 
   bool get isEnabled => _enabled;
+  bool get isReady => _initialized && _readyEvents.isNotEmpty;
 
   set isEnabled(bool value) {
     _enabled = value;
     if (!value) {
-      _player.stop();
+      for (final AudioPlayer player in _players.values) {
+        unawaited(player.stop());
+      }
     }
   }
 
-  Future<void> initialize() async {
-    if (_initialized) {
+  Future<void> initialize({bool strict = false}) async {
+    if (_initialized) return;
+    if (_initializing) {
+      while (_initializing) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
       return;
     }
-    _initialized = true;
-
-    try {
-      await _player.setPlayerMode(PlayerMode.lowLatency);
-    } catch (_) {
-      // Player mode is best-effort depending on platform.
-    }
+    _initializing = true;
 
     final Set<String> availableAssets = await _loadSfxAssetPaths();
 
@@ -107,18 +110,41 @@ class AppSfxService {
     );
 
     _eventToAsset.removeWhere((AppSfxEvent _, String path) => path.isEmpty);
+
+    for (final MapEntry<AppSfxEvent, String> entry in _eventToAsset.entries) {
+      await _preparePlayer(entry.key, entry.value);
+    }
+
+    _initialized = true;
+    _initializing = false;
+
+    if (strict && !_hasMinimumRequiredAssetsReady()) {
+      throw StateError('No minimum SFX assets available.');
+    }
   }
 
   Future<Set<String>> _loadSfxAssetPaths() async {
+    const Set<String> fallbackAssets = <String>{
+      'assets/sfx/click.mp3',
+      'assets/sfx/pioche.mp3',
+      'assets/sfx/play_card.mp3',
+      'assets/sfx/notif_chat.mp3',
+      'assets/sfx/notif_chat_pop_up.mp3',
+      'assets/sfx/win.mp3',
+      'assets/sfx/loose.mp3',
+    };
     try {
-      final String manifestRaw = await rootBundle.loadString('AssetManifest.json');
+      final String manifestRaw = await rootBundle.loadString(
+        'AssetManifest.json',
+      );
       final Map<String, dynamic> manifest =
           jsonDecode(manifestRaw) as Map<String, dynamic>;
-      return manifest.keys
+      final Set<String> fromManifest = manifest.keys
           .where((String key) => key.startsWith('assets/sfx/'))
           .toSet();
+      return fromManifest.isEmpty ? fallbackAssets : fromManifest;
     } catch (_) {
-      return const <String>{};
+      return fallbackAssets;
     }
   }
 
@@ -174,24 +200,58 @@ class AppSfxService {
     if (!_initialized) {
       await initialize();
     }
-    final String? assetPath = _eventToAsset[event];
-    if (assetPath == null || assetPath.isEmpty) {
+    if (!_readyEvents.contains(event)) {
       return;
     }
+    final AudioPlayer? player = _players[event];
+    if (player == null) return;
 
+    try {
+      final double safeVolume = volume.clamp(0, 1).toDouble();
+      await player.setVolume(safeVolume);
+      await player.seek(Duration.zero);
+      await player.resume();
+    } catch (error, stackTrace) {
+      debugPrint('SFX skipped for $event: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  bool _hasMinimumRequiredAssetsReady() {
+    const Set<AppSfxEvent> priorities = <AppSfxEvent>{
+      AppSfxEvent.click,
+      AppSfxEvent.draw,
+      AppSfxEvent.playCard,
+      AppSfxEvent.notif,
+      AppSfxEvent.chat,
+      AppSfxEvent.win,
+      AppSfxEvent.lose,
+    };
+    return _readyEvents.any(priorities.contains);
+  }
+
+  Future<void> _preparePlayer(AppSfxEvent event, String assetPath) async {
     final String sourcePath = assetPath.startsWith('assets/')
         ? assetPath.substring('assets/'.length)
         : assetPath;
 
+    final AudioPlayer player = AudioPlayer();
     try {
-      await _player.stop();
-      await _player.play(
-        AssetSource(sourcePath),
-        volume: volume.clamp(0, 1).toDouble(),
-      );
+      await player.setReleaseMode(ReleaseMode.stop);
+      await player.setPlayerMode(PlayerMode.lowLatency);
+    } catch (_) {
+      // best effort on unsupported platforms
+    }
+    try {
+      await rootBundle.load(assetPath);
+      await player.setSource(AssetSource(sourcePath));
+      _players[event] = player;
+      _readyEvents.add(event);
+      debugPrint('SFX ready: $event => $assetPath');
     } catch (error, stackTrace) {
-      debugPrint('SFX skipped for $event: $error');
+      debugPrint('SFX asset unavailable for $event ($assetPath): $error');
       debugPrintStack(stackTrace: stackTrace);
+      await player.dispose();
     }
   }
 }

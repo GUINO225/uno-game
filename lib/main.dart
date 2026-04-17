@@ -25,7 +25,6 @@ Future<void> main() async {
     ),
   );
   await _initializeFirebaseIfConfigured();
-  await AppSfxService.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -95,7 +94,88 @@ class MyApp extends StatelessWidget {
         GameModeRoutes.credits: (_) =>
             const DuelLobbyPage(mode: DuelRoomMode.credits),
       },
-      home: const GameModePage(),
+      home: const AppBootstrapPage(),
+    );
+  }
+}
+
+class AppBootstrapPage extends StatefulWidget {
+  const AppBootstrapPage({super.key});
+
+  @override
+  State<AppBootstrapPage> createState() => _AppBootstrapPageState();
+}
+
+class _AppBootstrapPageState extends State<AppBootstrapPage> {
+  late final Future<void> _bootFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootFuture = AppSfxService.instance.initialize(strict: true).catchError((
+      Object error,
+      StackTrace stackTrace,
+    ) {
+      debugPrint('Audio warmup fallback: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _bootFuture,
+      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _AudioWarmupPage();
+        }
+        return const IntroLandingPage();
+      },
+    );
+  }
+}
+
+class _AudioWarmupPage extends StatelessWidget {
+  const _AudioWarmupPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: GameModePalette.background,
+      body: Stack(
+        children: <Widget>[
+          BackgroundDecoration(),
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    GameLogoHeader(scaleFactor: 0.8),
+                    SizedBox(height: 34),
+                    CircularProgressIndicator(
+                      strokeWidth: 3.2,
+                      color: GameModePalette.accentGreen,
+                    ),
+                    SizedBox(height: 14),
+                    Text(
+                      'Préparation des bruitages...',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: GameModePalette.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -118,6 +198,48 @@ class GameModePalette {
   static const Color cardGreenDeep = Color(0xFF0A6B3D);
   static const Color accentGreen = Color(0xFF73F38A);
   static const Color white = Color(0xFFF6FFF9);
+}
+
+class IntroLandingPage extends StatelessWidget {
+  const IntroLandingPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: GameModePalette.background,
+      body: Stack(
+        children: <Widget>[
+          const BackgroundDecoration(),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+              child: Column(
+                children: <Widget>[
+                  const Spacer(flex: 2),
+                  const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: GameLogoHeader(scaleFactor: 1.4),
+                  ),
+                  const SizedBox(height: 34),
+                  _IntroPlayButton(
+                    onTap: () {
+                      unawaited(AppSfxService.instance.playClick());
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const GameModePage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const Spacer(flex: 3),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class GameModePage extends StatefulWidget {
@@ -431,7 +553,7 @@ class _GameModePageState extends State<GameModePage>
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Text(
-                                  'v3.3',
+                                  'v2.4',
                                   style: TextStyle(
                                     color: GameModePalette.white.withOpacity(
                                       0.9,
@@ -561,11 +683,13 @@ class BackgroundDecoration extends StatelessWidget {
 }
 
 class GameLogoHeader extends StatelessWidget {
-  const GameLogoHeader({super.key});
+  const GameLogoHeader({super.key, this.scaleFactor = 1});
+
+  final double scaleFactor;
 
   @override
   Widget build(BuildContext context) {
-    const double logoScaleFactor = 0.544;
+    final double logoScaleFactor = 0.544 * scaleFactor;
 
     return SizedBox(
       height: 172 * logoScaleFactor,
@@ -967,13 +1091,70 @@ class _PlayModeButtonState extends State<_PlayModeButton> {
               ],
             ),
             child: Text(
-              'JOUER',
+              "LET'S GO",
               style: GoogleFonts.poppins(
                 color: GameModePalette.backgroundShade,
                 fontSize: widget.fontSize,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.1,
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IntroPlayButton extends StatefulWidget {
+  const _IntroPlayButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_IntroPlayButton> createState() => _IntroPlayButtonState();
+}
+
+class _IntroPlayButtonState extends State<_IntroPlayButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        scale: _isPressed ? 0.97 : 1,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 54, vertical: 15),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[Color(0xFF96F8A6), Color(0xFF5DD978)],
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: const Color(0xFF8BFFAA).withOpacity(0.28),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Text(
+            'JOUER',
+            style: GoogleFonts.poppins(
+              color: GameModePalette.backgroundShade,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
             ),
           ),
         ),
