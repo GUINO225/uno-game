@@ -839,8 +839,9 @@ class GameService {
         return;
       }
       final int responderCredits = session.playerCredits[responderId] ?? 0;
-      final int proposerCredits = session.playerCredits[offer.proposedBy!] ?? 0;
-      if (offer.amount > responderCredits || offer.amount > proposerCredits) {
+      // Le proposeur a déjà sa mise retenue lors de la proposition.
+      // On ne doit donc refuser ici que si le répondant n'a pas assez de crédit.
+      if (offer.amount > responderCredits) {
         final int proposerBalance = session.playerCredits[offer.proposedBy!] ?? 0;
         tx.update(ref, <String, dynamic>{
           'playerCredits.${offer.proposedBy!}': proposerBalance + offer.amount,
@@ -2210,18 +2211,10 @@ class _DuelPageState extends State<DuelPage> {
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, void Function(void Function()) setModalState) {
-            String? validate(int? amount) {
-              if (amount == null) {
-                return 'Choisissez un pari valide.';
-              }
-              if (amount <= 0) {
-                return 'Le montant doit être supérieur à 0.';
-              }
-              if (amount > myCredits) {
-                return 'Solde insuffisant pour ce pari.';
-              }
-              return null;
-            }
+            String? validate(int? amount) => _stakeValidationError(
+              amount: amount,
+              myCredits: myCredits,
+            );
 
             void selectAmount(int amount) {
               amountController.text = amount.toString();
@@ -2329,18 +2322,22 @@ class _DuelPageState extends State<DuelPage> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () {
-                                final int? parsed = int.tryParse(amountController.text.trim());
-                                final String? error = validate(parsed);
-                                if (error != null) {
-                                  setModalState(() {
-                                    selectedAmount = parsed;
-                                    validationError = error;
-                                  });
-                                  return;
-                                }
-                                Navigator.of(context).pop(parsed);
-                              },
+                              onPressed: validationError != null
+                                  ? null
+                                  : () {
+                                      final int? parsed = int.tryParse(
+                                        amountController.text.trim(),
+                                      );
+                                      final String? error = validate(parsed);
+                                      if (error != null) {
+                                        setModalState(() {
+                                          selectedAmount = parsed;
+                                          validationError = error;
+                                        });
+                                        return;
+                                      }
+                                      Navigator.of(context).pop(parsed);
+                                    },
                               icon: const Icon(Icons.lock_rounded),
                               label: const Text('Valider'),
                             ),
@@ -2374,9 +2371,13 @@ class _DuelPageState extends State<DuelPage> {
     required int amount,
   }) async {
     final int myCredits = _creditsOf(session, _controller.localPlayerId);
-    if (amount <= 0 || amount > myCredits) {
+    final String? validationError = _stakeValidationError(
+      amount: amount,
+      myCredits: myCredits,
+    );
+    if (validationError != null) {
       _showStakeRequiredMessage(
-        amount > myCredits ? 'Solde insuffisant pour ce pari.' : 'Montant invalide.',
+        validationError,
       );
       return false;
     }
@@ -2412,6 +2413,22 @@ class _DuelPageState extends State<DuelPage> {
     }
     unawaited(_sfx.playError());
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String? _stakeValidationError({
+    required int? amount,
+    required int myCredits,
+  }) {
+    if (amount == null) {
+      return 'Choisissez un pari valide.';
+    }
+    if (amount <= 0) {
+      return 'Le montant doit être supérieur à 0.';
+    }
+    if (amount > myCredits) {
+      return 'Solde insuffisant pour ce pari.';
+    }
+    return null;
   }
 
   Future<void> _showStakeDecisionDialog(DuelSession session) async {
