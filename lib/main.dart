@@ -246,14 +246,10 @@ class IntroLandingPage extends StatefulWidget {
 
 class _IntroLandingPageState extends State<IntroLandingPage>
     with WidgetsBindingObserver {
-  bool _backgroundMusicEnabled = _readBackgroundMusicEnabled();
-  bool _isTogglingMusic = false;
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_refreshBackgroundMusicState());
   }
 
   @override
@@ -265,70 +261,12 @@ class _IntroLandingPageState extends State<IntroLandingPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(_refreshBackgroundMusicState());
+      setState(() {});
     }
-  }
-
-  Future<void> _refreshBackgroundMusicState() async {
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _backgroundMusicEnabled = _readBackgroundMusicEnabled();
-    });
-  }
-
-  static bool _readBackgroundMusicEnabled() {
-    final dynamic sfx = AudioService.instance;
-    try {
-      final dynamic value = sfx.isBackgroundMusicEnabled;
-      if (value is bool) {
-        return value;
-      }
-    } on NoSuchMethodError {
-      // Backward compatibility.
-    }
-    try {
-      final dynamic value = sfx.isBackgroundMusicActive;
-      if (value is bool) {
-        return value;
-      }
-    } on NoSuchMethodError {
-      // Backward compatibility when the app_sfx_service API only exposes isEnabled.
-    }
-    return AudioService.instance.isEnabled;
-  }
-
-  static Future<void> _setBackgroundMusicEnabled(bool enabled) async {
-    final dynamic sfx = AudioService.instance;
-    try {
-      if (enabled) {
-        await sfx.playDefaultBackgroundMusic(fromUserGesture: true);
-      } else {
-        await sfx.stopBackgroundMusic();
-      }
-      return;
-    } on NoSuchMethodError {
-      // Backward compatibility when the app_sfx_service API only exposes isEnabled.
-    }
-    AudioService.instance.isEnabled = enabled;
   }
 
   Future<void> _toggleBackgroundMusic() async {
-    if (_isTogglingMusic) {
-      return;
-    }
-    setState(() {
-      _isTogglingMusic = true;
-    });
-    await _setBackgroundMusicEnabled(!_backgroundMusicEnabled);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _backgroundMusicEnabled = _readBackgroundMusicEnabled();
-      _isTogglingMusic = false;
-    });
+    await AudioService.instance.toggleBackgroundMusicFromUserGesture();
   }
 
   @override
@@ -352,42 +290,57 @@ class _IntroLandingPageState extends State<IntroLandingPage>
                         child: GameLogoHeader(scaleFactor: 1.4),
                       ),
                       const SizedBox(height: 34),
-                      OutlinedButton.icon(
-                        onPressed: _toggleBackgroundMusic,
-                        icon: Icon(
-                          _backgroundMusicEnabled
-                              ? Icons.music_note_rounded
-                              : Icons.music_off_rounded,
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: BorderSide(color: Colors.white.withOpacity(0.45)),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                      ListenableBuilder(
+                        listenable: AudioService.instance,
+                        builder: (BuildContext context, Widget? child) {
+                          final AudioService audio = AudioService.instance;
+                          final bool backgroundMusicEnabled = audio.isBackgroundMusicEnabled;
+                          final bool isTransitioning = audio.isTransitioningToNextTrack;
+                          final bool isWaitingUnlock =
+                              !audio.isBackgroundMusicUnlocked && backgroundMusicEnabled;
+                          return Column(
+                            children: <Widget>[
+                              OutlinedButton.icon(
+                                onPressed: _toggleBackgroundMusic,
+                                icon: Icon(
+                                  backgroundMusicEnabled
+                                      ? Icons.music_note_rounded
+                                      : Icons.music_off_rounded,
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: BorderSide(color: Colors.white.withOpacity(0.45)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                label: Text(
+                                  backgroundMusicEnabled
+                                      ? 'Musique activée'
+                                      : 'Musique désactivée / en attente',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ),
+                              if (isTransitioning || isWaitingUnlock) ...<Widget>[
+                                const SizedBox(height: 10),
+                                Text(
+                                  isWaitingUnlock
+                                      ? 'En attente d’un geste utilisateur'
+                                      : 'Changement de piste…',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                ),
+                              ],
+                            ],
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        label: Text(
-                          _backgroundMusicEnabled
-                              ? 'Musique activée'
-                              : 'Musique désactivée / en attente',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
+                        },
                       ),
-                      if (_isTogglingMusic) ...<Widget>[
-                        const SizedBox(height: 10),
-                        const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ],
                       const SizedBox(height: 16),
                       _IntroPlayButton(
                         onTap: () {
