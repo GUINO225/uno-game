@@ -44,6 +44,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _initialized = false;
   bool _initializing = false;
+  double _initializationProgress = 0;
   bool _sfxEnabled = true;
   bool _backgroundMusicEnabled = true;
   bool _isBackgroundPlaying = false;
@@ -57,6 +58,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   bool get isEnabled => _sfxEnabled;
   bool get isAudioInitialized => _initialized;
   bool get isAudioPreloading => _initializing;
+  double get initializationProgress => _initializationProgress;
   bool get isReady => _initialized && _readyEvents.isNotEmpty;
   bool get musicEnabled => _backgroundMusicEnabled;
   bool get isAudioUnlockedForWeb => _backgroundMusicUnlocked;
@@ -98,24 +100,36 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     _initializing = true;
+    _setInitializationProgress(0);
     _bindLifecycleIfNeeded();
     _log('audio init start');
 
     try {
       _availableAssets = await _loadSfxAssetPaths();
+      _setInitializationProgress(0.1);
       _log('audio manifest loaded');
-      await _preloadAllAudioAssets();
+      await _preloadAllAudioAssets(onProgress: (double progress) {
+        _setInitializationProgress(0.1 + (progress * 0.55));
+      });
       _buildEventMappings();
+      _setInitializationProgress(0.65);
       _backgroundTracks = _backgroundCandidates();
       _log('background tracks detected: ${_backgroundTracks.length}');
       for (final String track in _backgroundTracks) {
         _log('background track: $track');
       }
 
-      for (final MapEntry<AppSfxEvent, String> entry in _eventToAsset.entries) {
+      final List<MapEntry<AppSfxEvent, String>> eventEntries = _eventToAsset.entries.toList();
+      for (int index = 0; index < eventEntries.length; index++) {
+        final MapEntry<AppSfxEvent, String> entry = eventEntries[index];
         await _preparePlayer(entry.key, entry.value);
+        if (eventEntries.isNotEmpty) {
+          final double eventProgress = (index + 1) / eventEntries.length;
+          _setInitializationProgress(0.65 + (eventProgress * 0.25));
+        }
       }
       await _prepareBackgroundPlayer();
+      _setInitializationProgress(0.95);
 
       _initialized = true;
       _log('audio init complete');
@@ -127,6 +141,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       if (strict && !_hasMinimumRequiredAssetsReady()) {
         throw StateError('No minimum SFX assets available.');
       }
+      _setInitializationProgress(1);
     } finally {
       _initializing = false;
     }
@@ -179,8 +194,17 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _preloadAllAudioAssets() async {
-    for (final String assetPath in _availableAssets.toList()..sort()) {
+  Future<void> _preloadAllAudioAssets({
+    void Function(double progress)? onProgress,
+  }) async {
+    final List<String> sortedAssets = _availableAssets.toList()..sort();
+    if (sortedAssets.isEmpty) {
+      onProgress?.call(1);
+      return;
+    }
+
+    int loadedCount = 0;
+    for (final String assetPath in sortedAssets) {
       try {
         _log('preloading track: $assetPath');
         await rootBundle.load(assetPath);
@@ -189,9 +213,21 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       } catch (error, stackTrace) {
         _log('preload failed: $assetPath - $error');
         debugPrintStack(stackTrace: stackTrace);
+      } finally {
+        loadedCount += 1;
+        onProgress?.call(loadedCount / sortedAssets.length);
       }
     }
     _log('Preloaded ${_preloadedAssets.length}/${_availableAssets.length} audio assets.');
+  }
+
+  void _setInitializationProgress(double value) {
+    final double normalized = value.clamp(0, 1).toDouble();
+    if (_initializationProgress == normalized) {
+      return;
+    }
+    _initializationProgress = normalized;
+    notifyListeners();
   }
 
   void _buildEventMappings() {
