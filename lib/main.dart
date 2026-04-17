@@ -201,7 +201,7 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage>
                           },
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
