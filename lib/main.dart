@@ -87,7 +87,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        dialogTheme: DialogTheme(
+        dialogTheme: DialogThemeData(
           backgroundColor: const Color(0xFFF8F6F0),
           surfaceTintColor: Colors.transparent,
           titleTextStyle: const TextStyle(
