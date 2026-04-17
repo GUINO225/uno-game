@@ -281,7 +281,7 @@ class _IntroLandingPageState extends State<IntroLandingPage>
   static bool _readBackgroundMusicEnabled() {
     final dynamic sfx = AudioService.instance;
     try {
-      final dynamic value = sfx.isBackgroundMusicActive;
+      final dynamic value = sfx.isBackgroundMusicEnabled;
       if (value is bool) {
         return value;
       }
@@ -289,7 +289,7 @@ class _IntroLandingPageState extends State<IntroLandingPage>
       // Backward compatibility.
     }
     try {
-      final dynamic value = sfx.isBackgroundMusicEnabled;
+      final dynamic value = sfx.isBackgroundMusicActive;
       if (value is bool) {
         return value;
       }

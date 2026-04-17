@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -27,48 +28,55 @@ class AudioService with WidgetsBindingObserver {
 
   static const double _bgmVolume = 0.28;
   static const String _assetRoot = 'assets/sfx/';
-  static const String _defaultBackgroundTrack =
-      'assets/sfx/sound_background_10.mp3';
 
   final Map<AppSfxEvent, AudioPlayer> _players = <AppSfxEvent, AudioPlayer>{};
   final Map<AppSfxEvent, String> _eventToAsset = <AppSfxEvent, String>{};
   final Set<AppSfxEvent> _readyEvents = <AppSfxEvent>{};
   final Set<String> _preloadedAssets = <String>{};
+  final Random _random = Random();
 
   Set<String> _availableAssets = <String>{};
+  List<String> _backgroundTracks = <String>[];
   AudioPlayer? _backgroundPlayer;
-  String? _backgroundTrackPath;
+  String? _currentBackgroundTrack;
+  StreamSubscription<void>? _backgroundCompleteSubscription;
+  StreamSubscription<PlayerState>? _backgroundStateSubscription;
 
   bool _initialized = false;
   bool _initializing = false;
-  bool _enabled = true;
+  bool _sfxEnabled = true;
   bool _backgroundMusicEnabled = true;
   bool _isBackgroundPlaying = false;
+  bool _isBackgroundPaused = false;
+  bool _isTransitioningToNextTrack = false;
+  bool _isBackgroundToggleInFlight = false;
   bool _backgroundMusicUnlocked = !kIsWeb;
   bool _lifecycleBound = false;
 
-  bool get isEnabled => _enabled;
+  bool get isEnabled => _sfxEnabled;
   bool get isReady => _initialized && _readyEvents.isNotEmpty;
   bool get isBackgroundMusicEnabled => _backgroundMusicEnabled;
   bool get isBackgroundMusicPlaying => _isBackgroundPlaying;
+  bool get isBackgroundMusicPaused => _isBackgroundPaused;
   bool get isBackgroundMusicActive => _backgroundMusicEnabled && _isBackgroundPlaying;
   bool get isBackgroundMusicUnlocked => _backgroundMusicUnlocked;
+  bool get isTransitioningToNextTrack => _isTransitioningToNextTrack;
+  String? get currentBackgroundTrack => _currentBackgroundTrack;
+  List<String> get backgroundTracks => List<String>.unmodifiable(_backgroundTracks);
 
   set isEnabled(bool value) {
-    _enabled = value;
+    _sfxEnabled = value;
     _log('Global audio enabled = $value');
     if (!value) {
       for (final AudioPlayer player in _players.values) {
         unawaited(player.stop());
       }
-      final AudioPlayer? backgroundPlayer = _backgroundPlayer;
-      if (backgroundPlayer != null) {
-        unawaited(backgroundPlayer.stop());
-        _isBackgroundPlaying = false;
-      }
+      _backgroundMusicEnabled = false;
+      unawaited(stopBackgroundMusic());
       return;
     }
-    unawaited(_resumeBackgroundMusic());
+    _backgroundMusicEnabled = true;
+    unawaited(_resumeOrStartBackgroundMusic());
   }
 
   Future<void> initialize({bool strict = false}) async {
@@ -90,6 +98,8 @@ class AudioService with WidgetsBindingObserver {
       _availableAssets = await _loadSfxAssetPaths();
       await _preloadAllAudioAssets();
       _buildEventMappings();
+      _backgroundTracks = _backgroundCandidates();
+      _log('bgm init: ${_backgroundTracks.length} background tracks.');
 
       for (final MapEntry<AppSfxEvent, String> entry in _eventToAsset.entries) {
         await _preparePlayer(entry.key, entry.value);
@@ -119,7 +129,7 @@ class AudioService with WidgetsBindingObserver {
       return;
     }
     _backgroundMusicUnlocked = true;
-    _log('Audio unlocked from first user gesture (web policy).');
+    _log('web audio unlocked');
     if (_backgroundMusicEnabled) {
       unawaited(playDefaultBackgroundMusic(fromUserGesture: true));
     }
@@ -266,7 +276,7 @@ class AudioService with WidgetsBindingObserver {
   Future<void> playShuffle() => _play(AppSfxEvent.shuffle, volume: 0.82);
 
   Future<void> _play(AppSfxEvent event, {double volume = 1}) async {
-    if (!_enabled) {
+    if (!_sfxEnabled) {
       return;
     }
     if (!_initialized) {
@@ -336,9 +346,12 @@ class AudioService with WidgetsBindingObserver {
   }
 
   Future<void> _prepareBackgroundPlayer() async {
+    if (_backgroundPlayer != null) {
+      return;
+    }
     final AudioPlayer player = AudioPlayer();
     try {
-      await player.setReleaseMode(ReleaseMode.loop);
+      await player.setReleaseMode(ReleaseMode.stop);
       try {
         await player.setPlayerMode(PlayerMode.mediaPlayer);
       } catch (_) {
@@ -351,10 +364,28 @@ class AudioService with WidgetsBindingObserver {
     }
 
     _backgroundPlayer = player;
-    _log('BGM player ready (loop mode enabled).');
+    _backgroundCompleteSubscription = player.onPlayerComplete.listen((_) {
+      unawaited(_handleBackgroundTrackCompleted());
+    });
+    _backgroundStateSubscription = player.onPlayerStateChanged.listen((PlayerState state) {
+      if (state == PlayerState.playing) {
+        _isBackgroundPlaying = true;
+        _isBackgroundPaused = false;
+        return;
+      }
+      if (state == PlayerState.paused) {
+        _isBackgroundPlaying = false;
+        _isBackgroundPaused = true;
+        return;
+      }
+      if (state == PlayerState.stopped) {
+        _isBackgroundPlaying = false;
+      }
+    });
+    _log('bgm init');
   }
 
-  Future<void> _resumeBackgroundMusic() async {
+  Future<void> _resumeOrStartBackgroundMusic() async {
     if (!_backgroundMusicEnabled || !_canPlayBackgroundMusic) {
       return;
     }
@@ -363,13 +394,35 @@ class AudioService with WidgetsBindingObserver {
       return;
     }
 
+    if (_isBackgroundPaused && _currentBackgroundTrack != null) {
+      try {
+        await player.setVolume(_bgmVolume);
+        await player.resume();
+        _isBackgroundPlaying = true;
+        _isBackgroundPaused = false;
+        _log('bgm resumed: $_currentBackgroundTrack');
+        return;
+      } catch (error) {
+        _log('BGM resume skipped: $error');
+      }
+    }
+
+    await _playRandomBackgroundTrack(trigger: 'resume_or_start');
+  }
+
+  Future<void> _pauseBackgroundMusic() async {
+    final AudioPlayer? player = _backgroundPlayer;
+    if (player == null) {
+      return;
+    }
+
     try {
-      await player.setVolume(_bgmVolume);
-      await player.resume();
-      _isBackgroundPlaying = true;
-      _log('BGM resumed.');
+      await player.pause();
+      _isBackgroundPlaying = false;
+      _isBackgroundPaused = true;
+      _log('bgm paused');
     } catch (error) {
-      _log('BGM resume skipped: $error');
+      _log('BGM pause skipped: $error');
     }
   }
 
@@ -399,41 +452,7 @@ class AudioService with WidgetsBindingObserver {
       return;
     }
 
-    final List<String> candidates = _backgroundCandidates();
-    if (candidates.isEmpty) {
-      _log('BGM play skipped: no background track found in assets.');
-      return;
-    }
-
-    final String preferredTrack = candidates.first;
-    if (_isBackgroundPlaying && _backgroundTrackPath == preferredTrack) {
-      return;
-    }
-
-    for (final String track in candidates) {
-      final String sourcePath = track.startsWith('assets/')
-          ? track.substring('assets/'.length)
-          : track;
-
-      try {
-        if (!_preloadedAssets.contains(track)) {
-          await rootBundle.load(track);
-        }
-        await player.stop();
-        await player.setSource(AssetSource(sourcePath));
-        await player.setVolume(_bgmVolume);
-        await player.resume();
-        _backgroundTrackPath = track;
-        _isBackgroundPlaying = true;
-        _log('BGM playing in loop: $track');
-        return;
-      } catch (error, stackTrace) {
-        _log('BGM track unavailable for $track: $error');
-        debugPrintStack(stackTrace: stackTrace);
-      }
-    }
-
-    _isBackgroundPlaying = false;
+    await _resumeOrStartBackgroundMusic();
   }
 
   List<String> _backgroundCandidates() {
@@ -447,34 +466,32 @@ class AudioService with WidgetsBindingObserver {
     if (allBackgroundTracks.isEmpty) {
       return const <String>[];
     }
-
-    final List<String> ordered = <String>[];
-    if (allBackgroundTracks.contains(_defaultBackgroundTrack)) {
-      ordered.add(_defaultBackgroundTrack);
-    }
-    ordered.addAll(
-      allBackgroundTracks.where((String track) => track != _defaultBackgroundTrack),
-    );
-    return ordered;
+    return allBackgroundTracks;
   }
 
   Future<void> toggleBackgroundMusic() async {
-    if (_backgroundMusicEnabled && _isBackgroundPlaying) {
-      await stopBackgroundMusic();
+    if (_isBackgroundToggleInFlight) {
       return;
     }
-    _backgroundMusicEnabled = true;
-    await playDefaultBackgroundMusic();
+    _isBackgroundToggleInFlight = true;
+    try {
+      if (_backgroundMusicEnabled) {
+        _log('toggle off');
+        _backgroundMusicEnabled = false;
+        await _pauseBackgroundMusic();
+      } else {
+        _log('toggle on');
+        _backgroundMusicEnabled = true;
+        await playDefaultBackgroundMusic();
+      }
+    } finally {
+      _isBackgroundToggleInFlight = false;
+    }
   }
 
   Future<void> toggleBackgroundMusicFromUserGesture() async {
     registerUserGesture();
-    if (_backgroundMusicEnabled && _isBackgroundPlaying) {
-      await stopBackgroundMusic();
-      return;
-    }
-    _backgroundMusicEnabled = true;
-    await playDefaultBackgroundMusic(fromUserGesture: true);
+    await toggleBackgroundMusic();
   }
 
   @Deprecated('Use playDefaultBackgroundMusic() for deterministic background music.')
@@ -489,6 +506,7 @@ class AudioService with WidgetsBindingObserver {
     try {
       await player.stop();
       _isBackgroundPlaying = false;
+      _isBackgroundPaused = false;
       _log('BGM stopped.');
     } catch (error) {
       _log('BGM stop skipped: $error');
@@ -512,13 +530,81 @@ class AudioService with WidgetsBindingObserver {
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden) {
       _log('Lifecycle -> $state, pausing BGM.');
-      unawaited(_backgroundPlayer?.pause());
-      _isBackgroundPlaying = false;
+      unawaited(_pauseBackgroundMusic());
       return;
     }
     if (state == AppLifecycleState.resumed) {
       _log('Lifecycle -> resumed, restoring BGM if enabled.');
-      unawaited(_resumeBackgroundMusic());
+      unawaited(_resumeOrStartBackgroundMusic());
+    }
+  }
+
+  Future<void> _handleBackgroundTrackCompleted() async {
+    _log('bgm completed: $_currentBackgroundTrack');
+    _isBackgroundPlaying = false;
+    _isBackgroundPaused = false;
+    if (!_backgroundMusicEnabled || !_canPlayBackgroundMusic) {
+      return;
+    }
+    if (_isTransitioningToNextTrack) {
+      return;
+    }
+    _isTransitioningToNextTrack = true;
+    try {
+      await _playRandomBackgroundTrack(trigger: 'completed');
+    } finally {
+      _isTransitioningToNextTrack = false;
+    }
+  }
+
+  Future<void> _playRandomBackgroundTrack({required String trigger}) async {
+    final AudioPlayer? player = _backgroundPlayer;
+    if (player == null) {
+      return;
+    }
+
+    if (_backgroundTracks.isEmpty) {
+      _backgroundTracks = _backgroundCandidates();
+    }
+    if (_backgroundTracks.isEmpty) {
+      _log('missing asset: no sound_background* track found in assets/sfx');
+      _isBackgroundPlaying = false;
+      _isBackgroundPaused = false;
+      return;
+    }
+
+    final String? previousTrack = _currentBackgroundTrack;
+    String selectedTrack = _backgroundTracks[_random.nextInt(_backgroundTracks.length)];
+    if (_backgroundTracks.length > 1 && previousTrack != null) {
+      int attempts = 0;
+      while (selectedTrack == previousTrack && attempts < 6) {
+        selectedTrack = _backgroundTracks[_random.nextInt(_backgroundTracks.length)];
+        attempts += 1;
+      }
+    }
+    _log('next random bgm selected: $selectedTrack (trigger=$trigger)');
+
+    final String sourcePath = selectedTrack.startsWith('assets/')
+        ? selectedTrack.substring('assets/'.length)
+        : selectedTrack;
+
+    try {
+      if (!_preloadedAssets.contains(selectedTrack)) {
+        await rootBundle.load(selectedTrack);
+      }
+      await player.stop();
+      await player.setSource(AssetSource(sourcePath));
+      await player.setVolume(_bgmVolume);
+      await player.resume();
+      _currentBackgroundTrack = selectedTrack;
+      _isBackgroundPlaying = true;
+      _isBackgroundPaused = false;
+      _log('bgm started: $selectedTrack');
+    } catch (error, stackTrace) {
+      _isBackgroundPlaying = false;
+      _isBackgroundPaused = false;
+      _log('BGM track unavailable for $selectedTrack: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -540,8 +626,12 @@ class AppSfxService {
   bool get isReady => _audio.isReady;
   bool get isBackgroundMusicEnabled => _audio.isBackgroundMusicEnabled;
   bool get isBackgroundMusicPlaying => _audio.isBackgroundMusicPlaying;
+  bool get isBackgroundMusicPaused => _audio.isBackgroundMusicPaused;
   bool get isBackgroundMusicActive => _audio.isBackgroundMusicActive;
   bool get isBackgroundMusicUnlocked => _audio.isBackgroundMusicUnlocked;
+  bool get isTransitioningToNextTrack => _audio.isTransitioningToNextTrack;
+  String? get currentBackgroundTrack => _audio.currentBackgroundTrack;
+  List<String> get backgroundTracks => _audio.backgroundTracks;
 
   Future<void> initialize({bool strict = false}) => _audio.initialize(strict: strict);
   void registerUserGesture() => _audio.registerUserGesture();
