@@ -21,7 +21,7 @@ enum AppSfxEvent {
   shuffle,
 }
 
-class AudioService with WidgetsBindingObserver {
+class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   AudioService._();
 
   static final AudioService instance = AudioService._();
@@ -52,6 +52,7 @@ class AudioService with WidgetsBindingObserver {
   bool _isBackgroundToggleInFlight = false;
   bool _backgroundMusicUnlocked = !kIsWeb;
   bool _lifecycleBound = false;
+  PlayerState? _backgroundPlayerState;
 
   bool get isEnabled => _sfxEnabled;
   bool get isReady => _initialized && _readyEvents.isNotEmpty;
@@ -63,10 +64,12 @@ class AudioService with WidgetsBindingObserver {
   bool get isTransitioningToNextTrack => _isTransitioningToNextTrack;
   String? get currentBackgroundTrack => _currentBackgroundTrack;
   List<String> get backgroundTracks => List<String>.unmodifiable(_backgroundTracks);
+  PlayerState? get playerState => _backgroundPlayerState;
 
   set isEnabled(bool value) {
     _sfxEnabled = value;
     _log('Global audio enabled = $value');
+    notifyListeners();
     if (!value) {
       for (final AudioPlayer player in _players.values) {
         unawaited(player.stop());
@@ -130,6 +133,7 @@ class AudioService with WidgetsBindingObserver {
     }
     _backgroundMusicUnlocked = true;
     _log('web audio unlocked');
+    notifyListeners();
     if (_backgroundMusicEnabled) {
       unawaited(playDefaultBackgroundMusic(fromUserGesture: true));
     }
@@ -368,19 +372,19 @@ class AudioService with WidgetsBindingObserver {
       unawaited(_handleBackgroundTrackCompleted());
     });
     _backgroundStateSubscription = player.onPlayerStateChanged.listen((PlayerState state) {
+      _backgroundPlayerState = state;
+      _log('playerState changed => $state');
       if (state == PlayerState.playing) {
         _isBackgroundPlaying = true;
         _isBackgroundPaused = false;
-        return;
-      }
-      if (state == PlayerState.paused) {
+      } else if (state == PlayerState.paused) {
         _isBackgroundPlaying = false;
         _isBackgroundPaused = true;
-        return;
-      }
-      if (state == PlayerState.stopped) {
+      } else if (state == PlayerState.stopped || state == PlayerState.completed) {
         _isBackgroundPlaying = false;
+        _isBackgroundPaused = false;
       }
+      notifyListeners();
     });
     _log('bgm init');
   }
@@ -400,7 +404,9 @@ class AudioService with WidgetsBindingObserver {
         await player.resume();
         _isBackgroundPlaying = true;
         _isBackgroundPaused = false;
+        _backgroundPlayerState = PlayerState.playing;
         _log('bgm resumed: $_currentBackgroundTrack');
+        notifyListeners();
         return;
       } catch (error) {
         _log('BGM resume skipped: $error');
@@ -420,7 +426,9 @@ class AudioService with WidgetsBindingObserver {
       await player.pause();
       _isBackgroundPlaying = false;
       _isBackgroundPaused = true;
+      _backgroundPlayerState = PlayerState.paused;
       _log('bgm paused');
+      notifyListeners();
     } catch (error) {
       _log('BGM pause skipped: $error');
     }
@@ -439,6 +447,7 @@ class AudioService with WidgetsBindingObserver {
     }
     if (fromUserGesture) {
       _backgroundMusicUnlocked = true;
+      notifyListeners();
     }
 
     final AudioPlayer? player = _backgroundPlayer;
@@ -471,21 +480,40 @@ class AudioService with WidgetsBindingObserver {
 
   Future<void> toggleBackgroundMusic() async {
     if (_isBackgroundToggleInFlight) {
+      _log('toggle pressed but guard locked');
       return;
     }
+    _log('toggle pressed');
     _isBackgroundToggleInFlight = true;
+    _log('guard locked');
+    notifyListeners();
     try {
+      final bool beforeEnabled = _backgroundMusicEnabled;
+      final PlayerState? beforeState = _backgroundPlayerState;
+      _log('musicEnabled before=$beforeEnabled, playerState before=$beforeState');
+
       if (_backgroundMusicEnabled) {
-        _log('toggle off');
         _backgroundMusicEnabled = false;
+        _log('musicEnabled after=$_backgroundMusicEnabled');
+        notifyListeners();
         await _pauseBackgroundMusic();
       } else {
-        _log('toggle on');
         _backgroundMusicEnabled = true;
+        _log('musicEnabled after=$_backgroundMusicEnabled');
+        notifyListeners();
+        if (!_backgroundMusicUnlocked) {
+          _log('toggle on requires web unlock before playback');
+        }
         await playDefaultBackgroundMusic();
       }
+      _log('playerState after=${_backgroundPlayerState}');
+    } catch (error, stackTrace) {
+      _log('toggleMusic error: $error');
+      debugPrintStack(stackTrace: stackTrace);
     } finally {
       _isBackgroundToggleInFlight = false;
+      _log('guard released');
+      notifyListeners();
     }
   }
 
@@ -499,6 +527,7 @@ class AudioService with WidgetsBindingObserver {
 
   Future<void> stopBackgroundMusic() async {
     _backgroundMusicEnabled = false;
+    notifyListeners();
     final AudioPlayer? player = _backgroundPlayer;
     if (player == null) {
       return;
@@ -507,7 +536,9 @@ class AudioService with WidgetsBindingObserver {
       await player.stop();
       _isBackgroundPlaying = false;
       _isBackgroundPaused = false;
+      _backgroundPlayerState = PlayerState.stopped;
       _log('BGM stopped.');
+      notifyListeners();
     } catch (error) {
       _log('BGM stop skipped: $error');
     }
@@ -540,9 +571,11 @@ class AudioService with WidgetsBindingObserver {
   }
 
   Future<void> _handleBackgroundTrackCompleted() async {
-    _log('bgm completed: $_currentBackgroundTrack');
+    _log('completed received for: $_currentBackgroundTrack');
     _isBackgroundPlaying = false;
     _isBackgroundPaused = false;
+    _backgroundPlayerState = PlayerState.completed;
+    notifyListeners();
     if (!_backgroundMusicEnabled || !_canPlayBackgroundMusic) {
       return;
     }
@@ -550,10 +583,15 @@ class AudioService with WidgetsBindingObserver {
       return;
     }
     _isTransitioningToNextTrack = true;
+    notifyListeners();
     try {
       await _playRandomBackgroundTrack(trigger: 'completed');
+    } catch (error, stackTrace) {
+      _log('bgm transition failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     } finally {
       _isTransitioningToNextTrack = false;
+      notifyListeners();
     }
   }
 
@@ -599,11 +637,15 @@ class AudioService with WidgetsBindingObserver {
       _currentBackgroundTrack = selectedTrack;
       _isBackgroundPlaying = true;
       _isBackgroundPaused = false;
-      _log('bgm started: $selectedTrack');
+      _backgroundPlayerState = PlayerState.playing;
+      _log('bgm play success: $selectedTrack');
+      notifyListeners();
     } catch (error, stackTrace) {
       _isBackgroundPlaying = false;
       _isBackgroundPaused = false;
-      _log('BGM track unavailable for $selectedTrack: $error');
+      _backgroundPlayerState = PlayerState.stopped;
+      _log('bgm play fail for $selectedTrack: $error');
+      notifyListeners();
       debugPrintStack(stackTrace: stackTrace);
     }
   }
