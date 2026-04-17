@@ -1834,10 +1834,16 @@ class _DuelPageState extends State<DuelPage> {
           ('♥', 'Cœur'),
         ];
         return AlertDialog(
+          backgroundColor: const Color(0xFFF8F6F0),
+          surfaceTintColor: Colors.transparent,
           title: const Center(
             child: Text(
               'TU COMMANDES ?',
-              style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5),
+              style: TextStyle(
+                color: Color(0xFF152B22),
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
           content: SizedBox(
@@ -1854,9 +1860,9 @@ class _DuelPageState extends State<DuelPage> {
                       borderRadius: BorderRadius.circular(12),
                       child: Ink(
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.black12),
+                          border: Border.all(color: const Color(0x3320332B)),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1870,7 +1876,13 @@ class _DuelPageState extends State<DuelPage> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(suit.$2),
+                            Text(
+                              suit.$2,
+                              style: const TextStyle(
+                                color: Color(0xFF1A342A),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1900,12 +1912,18 @@ class _DuelPageState extends State<DuelPage> {
           }),
         );
         return AlertDialog(
+          backgroundColor: const Color(0xFFF8F6F0),
+          surfaceTintColor: Colors.transparent,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
                 actorName,
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  color: Color(0xFF152B22),
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
@@ -1914,7 +1932,11 @@ class _DuelPageState extends State<DuelPage> {
                 children: <Widget>[
                   const Text(
                     'a commandé',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Color(0xFF1A342A),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -1947,6 +1969,8 @@ class _DuelPageState extends State<DuelPage> {
           }),
         );
         return AlertDialog(
+          backgroundColor: const Color(0xFFF8F6F0),
+          surfaceTintColor: Colors.transparent,
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           content: Column(
@@ -1958,6 +1982,7 @@ class _DuelPageState extends State<DuelPage> {
                 'PIOCHEZ $amount CARTES',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
+                  color: Color(0xFF13261D),
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.8,
@@ -2192,7 +2217,10 @@ class _DuelPageState extends State<DuelPage> {
                       Text(
                         'Solde disponible: $myCredits',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          color: Color(0xFFE8FFF3),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Wrap(
@@ -2216,7 +2244,7 @@ class _DuelPageState extends State<DuelPage> {
                           labelText: 'Montant du pari',
                           labelStyle: const TextStyle(color: Colors.white70),
                           hintText: 'Ex: 750',
-                          hintStyle: const TextStyle(color: Colors.white38),
+                          hintStyle: const TextStyle(color: Colors.white70),
                           filled: true,
                           fillColor: Colors.white.withOpacity(0.08),
                           border: OutlineInputBorder(
@@ -4980,7 +5008,7 @@ Color _suitGlyphColor(String suit) {
     case '♦':
       return const Color(0xFFC62828);
     default:
-      return const Color(0xFF1B1B1B);
+      return const Color(0xFF0B2B1E);
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -26,6 +27,9 @@ class AppSfxService {
   final Map<AppSfxEvent, AudioPlayer> _players = <AppSfxEvent, AudioPlayer>{};
   final Map<AppSfxEvent, String> _eventToAsset = <AppSfxEvent, String>{};
   final Set<AppSfxEvent> _readyEvents = <AppSfxEvent>{};
+  final Random _random = Random();
+  AudioPlayer? _backgroundPlayer;
+  String? _backgroundTrackPath;
   bool _initialized = false;
   bool _initializing = false;
   bool _enabled = true;
@@ -39,6 +43,12 @@ class AppSfxService {
       for (final AudioPlayer player in _players.values) {
         unawaited(player.stop());
       }
+      final AudioPlayer? backgroundPlayer = _backgroundPlayer;
+      if (backgroundPlayer != null) {
+        unawaited(backgroundPlayer.stop());
+      }
+    } else {
+      unawaited(_resumeBackgroundMusic());
     }
   }
 
@@ -114,6 +124,7 @@ class AppSfxService {
     for (final MapEntry<AppSfxEvent, String> entry in _eventToAsset.entries) {
       await _preparePlayer(entry.key, entry.value);
     }
+    await _prepareBackgroundPlayer(availableAssets);
 
     _initialized = true;
     _initializing = false;
@@ -252,6 +263,58 @@ class AppSfxService {
       debugPrint('SFX asset unavailable for $event ($assetPath): $error');
       debugPrintStack(stackTrace: stackTrace);
       await player.dispose();
+    }
+  }
+
+  Future<void> _prepareBackgroundPlayer(Set<String> availableAssets) async {
+    final List<String> tracks = availableAssets
+        .where(
+          (String path) =>
+              _basenameWithoutExtension(path).startsWith('sound_background'),
+        )
+        .toList()
+      ..sort();
+    if (tracks.isEmpty) {
+      return;
+    }
+
+    final String selectedTrack = tracks[_random.nextInt(tracks.length)];
+    final String sourcePath = selectedTrack.startsWith('assets/')
+        ? selectedTrack.substring('assets/'.length)
+        : selectedTrack;
+    final AudioPlayer player = AudioPlayer();
+
+    try {
+      await player.setReleaseMode(ReleaseMode.loop);
+      await player.setPlayerMode(PlayerMode.mediaPlayer);
+      await player.setVolume(0.28);
+      await rootBundle.load(selectedTrack);
+      await player.setSource(AssetSource(sourcePath));
+      _backgroundPlayer = player;
+      _backgroundTrackPath = selectedTrack;
+      if (_enabled) {
+        await player.resume();
+      }
+      debugPrint('BGM ready: $selectedTrack');
+    } catch (error, stackTrace) {
+      debugPrint('Background music unavailable for $selectedTrack: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      await player.dispose();
+      _backgroundPlayer = null;
+      _backgroundTrackPath = null;
+    }
+  }
+
+  Future<void> _resumeBackgroundMusic() async {
+    final AudioPlayer? player = _backgroundPlayer;
+    if (player == null || _backgroundTrackPath == null) {
+      return;
+    }
+    try {
+      await player.setVolume(0.28);
+      await player.resume();
+    } catch (_) {
+      // best effort: gameplay SFX should keep working even if BGM resume fails
     }
   }
 }
