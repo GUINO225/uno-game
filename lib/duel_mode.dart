@@ -1549,6 +1549,17 @@ class DuelPage extends StatefulWidget {
 }
 
 class _DuelPageState extends State<DuelPage> {
+  static const List<DuelCard> _avatarCardPool = <DuelCard>[
+    DuelCard(suit: '♠', rank: 'A'),
+    DuelCard(suit: '♥', rank: 'K'),
+    DuelCard(suit: '♦', rank: 'Q'),
+    DuelCard(suit: '♣', rank: 'J'),
+    DuelCard(suit: '♠', rank: '9'),
+    DuelCard(suit: '♥', rank: '8'),
+    DuelCard(suit: '♦', rank: '7'),
+    DuelCard(suit: '♣', rank: '10'),
+  ];
+
   StreamSubscription<List<DuelAction>>? _actionsSubscription;
   StreamSubscription<List<DuelChatMessage>>? _chatSub;
   DuelBoardState? _board;
@@ -2131,6 +2142,18 @@ class _DuelPageState extends State<DuelPage> {
 
   int _creditsOf(DuelSession session, String playerId) =>
       session.playerCredits[playerId] ?? 1000;
+
+  DuelCard _avatarCardForPlayer(String playerId) {
+    if (playerId.isEmpty) {
+      return _avatarCardPool.first;
+    }
+    final int index = playerId.runes.fold<int>(
+          0,
+          (int value, int rune) => value + rune,
+        ) %
+        _avatarCardPool.length;
+    return _avatarCardPool[index];
+  }
 
   Future<void> _openStakeProposal(DuelSession session) async {
     if (!_canSetStake(session) || _stakeActionBusy) {
@@ -3047,9 +3070,17 @@ class _DuelPageState extends State<DuelPage> {
         final String opponentName = opponentId.isEmpty
             ? 'JOUEUR 2'
             : _displayNameUpper(session, opponentId);
+        final String localName = _displayNameUpper(
+          session,
+          _controller.localPlayerId,
+        );
         final int myScore = session.scores[_controller.localPlayerId] ?? 0;
         final int opponentScore = session.scores[opponentId] ?? 0;
         final int myCredits = _creditsOf(session, _controller.localPlayerId);
+        final DuelCard localAvatarCard = _avatarCardForPlayer(
+          _controller.localPlayerId,
+        );
+        final DuelCard opponentAvatarCard = _avatarCardForPlayer(opponentId);
         final DuelStakeOffer stakeOffer = session.stakeOffer;
         final bool myTurn = _controller.isMyTurn &&
             session.status == DuelGameStatus.inProgress &&
@@ -3115,6 +3146,16 @@ class _DuelPageState extends State<DuelPage> {
                   ),
                   if (_isCreditsMode) ...<Widget>[
                     const SizedBox(height: 8),
+                    Row(
+                      children: <Widget>[
+                        _LocalCreditBadge(
+                          name: localName,
+                          credits: myCredits,
+                          avatarCard: localAvatarCard,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     _CreditsStakeBanner(
                       myCredits: myCredits,
                       activeStakeCredits: session.activeStakeCredits,
@@ -3141,6 +3182,7 @@ class _DuelPageState extends State<DuelPage> {
                     wins: opponentScore,
                     losses: myScore,
                     fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
+                    avatarCard: opponentAvatarCard,
                   ),
                   const SizedBox(height: 10),
                   _CenterArea(
@@ -3159,6 +3201,11 @@ class _DuelPageState extends State<DuelPage> {
                     onCardTap: _onCardTap,
                     playable: (DuelCard card) =>
                         myTurn && board.canPlay(_controller.localPlayerId, card),
+                    profileName: localName,
+                    wins: myScore,
+                    losses: opponentScore,
+                    fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
+                    avatarCard: localAvatarCard,
                   ),
                   const SizedBox(height: 8),
                   _ActionMessageCard(
@@ -4310,6 +4357,7 @@ class _OpponentRow extends StatelessWidget {
     required this.wins,
     required this.losses,
     required this.fallbackInitial,
+    required this.avatarCard,
   });
 
   final String name;
@@ -4317,6 +4365,7 @@ class _OpponentRow extends StatelessWidget {
   final int wins;
   final int losses;
   final String fallbackInitial;
+  final DuelCard avatarCard;
 
   @override
   Widget build(BuildContext context) {
@@ -4331,6 +4380,7 @@ class _OpponentRow extends StatelessWidget {
             losses: losses,
             fallbackInitial: fallbackInitial,
             compact: true,
+            avatarCard: avatarCard,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -4368,12 +4418,75 @@ class _OpponentRow extends StatelessWidget {
   }
 }
 
+class _LocalCreditBadge extends StatelessWidget {
+  const _LocalCreditBadge({
+    required this.name,
+    required this.credits,
+    required this.avatarCard,
+  });
+
+  final String name;
+  final int credits;
+  final DuelCard avatarCard;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 240),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.28),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _AvatarCardCircle(card: avatarCard, size: 36, fallbackInitial: '?'),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Crédit: $credits',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFFFE8A0),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProfileBlock extends StatelessWidget {
   const _ProfileBlock({
     required this.name,
     required this.wins,
     required this.losses,
     required this.fallbackInitial,
+    required this.avatarCard,
     this.compact = false,
   });
 
@@ -4381,6 +4494,7 @@ class _ProfileBlock extends StatelessWidget {
   final int wins;
   final int losses;
   final String fallbackInitial;
+  final DuelCard avatarCard;
   final bool compact;
 
   @override
@@ -4398,46 +4512,99 @@ class _ProfileBlock extends StatelessWidget {
           Container(
             width: avatarSize,
             height: avatarSize,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white12,
-            ),
             alignment: Alignment.center,
-            child: Text(
-              fallbackInitial,
-              style: TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.w700,
-                fontSize: compact ? 14 : 16,
-              ),
+            child: _AvatarCardCircle(
+              card: avatarCard,
+              size: avatarSize,
+              fallbackInitial: fallbackInitial,
             ),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(
-                name,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: compact ? 13 : 15,
-                  letterSpacing: 0.3,
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: compact ? 116 : 148),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: compact ? 13 : 15,
+                    letterSpacing: 0.3,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'V $wins   D $losses',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w600,
-                  fontSize: compact ? 10 : 11,
+                const SizedBox(height: 2),
+                Text(
+                  'V $wins   D $losses',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                    fontSize: compact ? 10 : 11,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AvatarCardCircle extends StatelessWidget {
+  const _AvatarCardCircle({
+    required this.card,
+    required this.size,
+    required this.fallbackInitial,
+  });
+
+  final DuelCard card;
+  final double size;
+  final String fallbackInitial;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool red = card.isRed;
+    final Color ink = red ? const Color(0xFFC62828) : const Color(0xFF161616);
+    final String rank = card.isJoker ? 'JK' : card.rank;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white60, width: 1.2),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Colors.black38,
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(color: Colors.white),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '${rank.isEmpty ? fallbackInitial : rank}${card.suit}',
+                  style: TextStyle(
+                    color: ink,
+                    fontWeight: FontWeight.w900,
+                    fontSize: size * 0.32,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -4516,12 +4683,22 @@ class _MyHandRow extends StatelessWidget {
     required this.canInteract,
     required this.onCardTap,
     required this.playable,
+    required this.profileName,
+    required this.wins,
+    required this.losses,
+    required this.fallbackInitial,
+    required this.avatarCard,
   });
 
   final List<DuelCard> cards;
   final bool canInteract;
   final ValueChanged<DuelCard> onCardTap;
   final bool Function(DuelCard) playable;
+  final String profileName;
+  final int wins;
+  final int losses;
+  final String fallbackInitial;
+  final DuelCard avatarCard;
   static const int _maxCardsPerRow = 5;
   static const double _cardGap = 8;
 
@@ -4539,9 +4716,27 @@ class _MyHandRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  _TurnStateBadge(
-                    text: canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
-                    blink: canInteract,
+                  Row(
+                    children: <Widget>[
+                      _ProfileBlock(
+                        name: profileName,
+                        wins: wins,
+                        losses: losses,
+                        fallbackInitial: fallbackInitial,
+                        compact: true,
+                        avatarCard: avatarCard,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: _TurnStateBadge(
+                            text: canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
+                            blink: canInteract,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Expanded(

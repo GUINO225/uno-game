@@ -233,8 +233,37 @@ class GameModePalette {
   static const Color white = Color(0xFFF6FFF9);
 }
 
-class IntroLandingPage extends StatelessWidget {
+class IntroLandingPage extends StatefulWidget {
   const IntroLandingPage({super.key});
+
+  @override
+  State<IntroLandingPage> createState() => _IntroLandingPageState();
+}
+
+class _IntroLandingPageState extends State<IntroLandingPage> {
+  bool _backgroundMusicEnabled = AppSfxService.instance.isBackgroundMusicEnabled;
+  bool _isTogglingMusic = false;
+
+  Future<void> _toggleBackgroundMusic() async {
+    if (_isTogglingMusic) {
+      return;
+    }
+    setState(() {
+      _isTogglingMusic = true;
+    });
+    if (_backgroundMusicEnabled) {
+      await AppSfxService.instance.stopBackgroundMusic();
+    } else {
+      await AppSfxService.instance.enableBackgroundMusic();
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _backgroundMusicEnabled = AppSfxService.instance.isBackgroundMusicEnabled;
+      _isTogglingMusic = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -257,6 +286,41 @@ class IntroLandingPage extends StatelessWidget {
                         child: GameLogoHeader(scaleFactor: 1.4),
                       ),
                       const SizedBox(height: 34),
+                      OutlinedButton.icon(
+                        onPressed: _toggleBackgroundMusic,
+                        icon: Icon(
+                          _backgroundMusicEnabled
+                              ? Icons.volume_up_rounded
+                              : Icons.volume_off_rounded,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withOpacity(0.45)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        label: Text(
+                          _backgroundMusicEnabled ? 'Son activé' : 'Activer le son',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                      if (_isTogglingMusic) ...<Widget>[
+                        const SizedBox(height: 10),
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
                       _IntroPlayButton(
                         onTap: () {
                           unawaited(AppSfxService.instance.playClick());
@@ -293,8 +357,7 @@ class _GameModePageState extends State<GameModePage>
   static const double _frameHorizontalPadding = 18;
   static const double _frameVerticalPadding = 14;
   static const double _logoTopSpacing = 10;
-  static const double _titleTopSpacing = 22;
-  static const double _modeCardsTopSpacing = 20;
+  static const double _modeCardsTopSpacing = 16;
   static const double _controlsTopSpacing = 24;
   static const double _centerBlockVerticalOffset = -10;
   static const double _modeLabelFontSize = 34;
@@ -454,11 +517,6 @@ class _GameModePageState extends State<GameModePage>
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      const SizedBox(height: _titleTopSpacing),
-                                      const _ModeTitle(
-                                        regularFontSize: 25.0,
-                                        boldFontSize: 25.3,
-                                      ),
                                       const SizedBox(height: _modeCardsTopSpacing),
                                       FittedBox(
                                         fit: BoxFit.scaleDown,
@@ -810,45 +868,6 @@ class _MiniLogoCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ModeTitle extends StatelessWidget {
-  const _ModeTitle({
-    required this.regularFontSize,
-    required this.boldFontSize,
-  });
-
-  final double regularFontSize;
-  final double boldFontSize;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        Text(
-          'CHOISISSEZ VOTRE',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.leagueSpartan(
-            color: GameModePalette.white,
-            fontSize: regularFontSize,
-            fontWeight: FontWeight.w400,
-            height: 1,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'MODE DE JEU',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.leagueSpartan(
-            color: GameModePalette.white,
-            fontSize: boldFontSize,
-            fontWeight: FontWeight.w700,
-            height: 1,
-          ),
-        ),
-      ],
     );
   }
 }
