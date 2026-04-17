@@ -247,6 +247,14 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
   static bool _readBackgroundMusicEnabled() {
     final dynamic sfx = AppSfxService.instance;
     try {
+      final dynamic value = sfx.isBackgroundMusicActive;
+      if (value is bool) {
+        return value;
+      }
+    } on NoSuchMethodError {
+      // Backward compatibility.
+    }
+    try {
       final dynamic value = sfx.isBackgroundMusicEnabled;
       if (value is bool) {
         return value;
@@ -261,7 +269,7 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
     final dynamic sfx = AppSfxService.instance;
     try {
       if (enabled) {
-        await sfx.enableBackgroundMusic();
+        await sfx.playDefaultBackgroundMusic(fromUserGesture: true);
       } else {
         await sfx.stopBackgroundMusic();
       }
@@ -329,7 +337,9 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
                           ),
                         ),
                         label: Text(
-                          _backgroundMusicEnabled ? 'Son activé' : 'Son désactivé',
+                          _backgroundMusicEnabled
+                              ? 'Musique activée'
+                              : 'Musique désactivée',
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.2,
