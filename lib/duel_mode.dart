@@ -2838,6 +2838,7 @@ class DuelBoardState {
     required this.gameId,
     required this.players,
     required this.drawPile,
+    required this.discardPile,
     required this.hands,
     required this.discardTop,
     required this.requiredSuit,
@@ -2852,6 +2853,7 @@ class DuelBoardState {
   final String gameId;
   final List<String> players;
   final List<DuelCard> drawPile;
+  final List<DuelCard> discardPile;
   final Map<String, List<DuelCard>> hands;
   final DuelCard discardTop;
   final String? requiredSuit;
@@ -2895,6 +2897,7 @@ class DuelBoardState {
       gameId: gameId,
       players: players,
       drawPile: deck,
+      discardPile: <DuelCard>[top],
       hands: hands,
       discardTop: top,
       requiredSuit: null,
@@ -2949,7 +2952,7 @@ class DuelBoardState {
     return card.matches(discardTop);
   }
 
-  bool canDraw(String actorId) => drawPile.isNotEmpty;
+  bool canDraw(String actorId) => drawPile.isNotEmpty || discardPile.length > 1;
 
   DuelMoveResult tryPlay({
     required String actorId,
@@ -2981,7 +2984,7 @@ class DuelBoardState {
   }
 
   DuelMoveResult tryDraw({required String actorId}) {
-    if (drawPile.isEmpty) {
+    if (!canDraw(actorId)) {
       return const DuelMoveResult(accepted: false);
     }
     final bool forced = pendingDraw > 0;
@@ -3005,6 +3008,7 @@ class DuelBoardState {
         e.key: List<DuelCard>.from(e.value),
     };
     final List<DuelCard> newPile = List<DuelCard>.from(drawPile);
+    final List<DuelCard> newDiscardPile = List<DuelCard>.from(discardPile);
     DuelCard newTop = discardTop;
     String? newRequiredSuit = requiredSuit;
     int newPendingDraw = pendingDraw;
@@ -3016,8 +3020,18 @@ class DuelBoardState {
     if (action.type == DuelActionType.drawCard) {
       final int count = (action.payload['count'] as int?) ?? 1;
       final int amount = count.clamp(1, 9);
+      if (newPile.isEmpty) {
+        _rebuildDrawPile(newPile, newDiscardPile, action.id.hashCode);
+      }
       for (int i = 0; i < amount && newPile.isNotEmpty; i++) {
         newHands[action.actorId]?.add(newPile.removeLast());
+        if (newPile.isEmpty && i < amount - 1) {
+          _rebuildDrawPile(
+            newPile,
+            newDiscardPile,
+            Object.hash(action.id, i, action.at.microsecondsSinceEpoch),
+          );
+        }
       }
       if (newPendingDraw > 0) {
         newPendingDraw = max(0, newPendingDraw - amount);
@@ -3036,6 +3050,7 @@ class DuelBoardState {
       final DuelCard card = DuelCard.fromId(action.payload['cardId'] as String);
       newHands[action.actorId]?.removeWhere((DuelCard c) => c.id == card.id);
       newTop = card;
+      newDiscardPile.add(card);
       newRequiredSuit = null;
       newOverlay = '${action.actorId} a joué ${card.label}';
       newStatus = newOverlay;
@@ -3085,6 +3100,7 @@ class DuelBoardState {
       gameId: gameId,
       players: players,
       drawPile: newPile,
+      discardPile: newDiscardPile,
       hands: newHands,
       discardTop: newTop,
       requiredSuit: newRequiredSuit,
@@ -3110,6 +3126,22 @@ class DuelBoardState {
       next = (next + 1) % players.length;
     }
     return players[next];
+  }
+
+  void _rebuildDrawPile(
+    List<DuelCard> pile,
+    List<DuelCard> discard,
+    int seed,
+  ) {
+    if (discard.length <= 1) {
+      return;
+    }
+    final DuelCard topCard = discard.removeLast();
+    pile.addAll(discard);
+    discard
+      ..clear()
+      ..add(topCard);
+    pile.shuffle(Random(seed));
   }
 }
 
@@ -3539,8 +3571,8 @@ class _MyHandRow extends StatelessWidget {
   final bool canInteract;
   final ValueChanged<DuelCard> onCardTap;
   final bool Function(DuelCard) playable;
-  static const double _cardAspectRatio = _FaceCard.width / _FaceCard.height;
-  static const double _baseCardWidth = _FaceCard.width;
+  static const int _maxCardsPerRow = 5;
+  static const double _cardGap = 8;
 
   @override
   Widget build(BuildContext context) {
@@ -3568,56 +3600,40 @@ class _MyHandRow extends StatelessWidget {
                           return const SizedBox.expand();
                         }
 
-                        final double availableWidth = constraints.maxWidth;
-                        final double availableHeight = constraints.maxHeight;
-                        final int total = cards.length;
-                        final double cardWidth = total <= 7
-                            ? _baseCardWidth
-                            : total <= 11
-                                ? 56
-                                : 50;
-                        final double cardHeight = min(
-                          availableHeight - 2,
-                          cardWidth / _cardAspectRatio,
+                        final double maxRowWidth =
+                            (_FaceCard.width * _maxCardsPerRow) +
+                            (_cardGap * (_maxCardsPerRow - 1));
+                        final double wrapWidth = min(
+                          constraints.maxWidth - 8,
+                          maxRowWidth,
                         );
-                        final double minStep = cardWidth * 0.42;
-                        final double idealStep = cardWidth * 0.72;
-                        final double compressedStep = total <= 1
-                            ? 0
-                            : (availableWidth - cardWidth) / (total - 1);
-                        final double step = compressedStep.clamp(minStep, idealStep);
-                        final double totalWidth = cardWidth + max(0, total - 1) * step;
 
                         return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: SizedBox(
-                            width: max(availableWidth - 8, totalWidth),
-                            height: cardHeight + 2,
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: List<Widget>.generate(total, (int index) {
-                                final DuelCard card = cards[index];
-                                final bool isPlayable = playable(card);
-                                return Positioned(
-                                  left: index * step,
-                                  child: SizedBox(
-                                    width: cardWidth,
-                                    height: cardHeight,
+                          scrollDirection: Axis.vertical,
+                          padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: SizedBox(
+                              width: wrapWidth,
+                              child: Wrap(
+                                spacing: _cardGap,
+                                runSpacing: _cardGap,
+                                children: List<Widget>.generate(cards.length, (int index) {
+                                  final DuelCard card = cards[index];
+                                  final bool isPlayable = playable(card);
+                                  return SizedBox(
+                                    width: _FaceCard.width,
                                     child: GestureDetector(
                                       behavior: HitTestBehavior.opaque,
                                       onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
                                       child: Opacity(
                                         opacity: canInteract && !isPlayable ? 0.45 : 1,
-                                        child: FittedBox(
-                                          fit: BoxFit.contain,
-                                          child: _FaceCard(card: card),
-                                        ),
+                                        child: _FaceCard(card: card),
                                       ),
                                     ),
-                                  ),
-                                );
-                              }),
+                                  );
+                                }),
+                              ),
                             ),
                           ),
                         );
