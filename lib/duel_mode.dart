@@ -3016,12 +3016,17 @@ class DuelBoardState {
     bool newAceRequired = aceColorRequired;
     String newOverlay = overlay;
     String newStatus = status;
+    final int reshuffleSeedBase = Object.hash(
+      action.type.name,
+      action.actorId,
+      action.createdAt.microsecondsSinceEpoch,
+    );
 
     if (action.type == DuelActionType.drawCard) {
       final int count = (action.payload['count'] as int?) ?? 1;
       final int amount = count.clamp(1, 9);
       if (newPile.isEmpty) {
-        _rebuildDrawPile(newPile, newDiscardPile, action.id.hashCode);
+        _rebuildDrawPile(newPile, newDiscardPile, reshuffleSeedBase);
       }
       for (int i = 0; i < amount && newPile.isNotEmpty; i++) {
         newHands[action.actorId]?.add(newPile.removeLast());
@@ -3029,7 +3034,7 @@ class DuelBoardState {
           _rebuildDrawPile(
             newPile,
             newDiscardPile,
-            Object.hash(action.id, i, action.at.microsecondsSinceEpoch),
+            Object.hash(reshuffleSeedBase, i),
           );
         }
       }
