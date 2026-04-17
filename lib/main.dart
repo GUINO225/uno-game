@@ -203,25 +203,8 @@ class _AudioWarmupErrorPage extends StatelessWidget {
   }
 }
 
-class _AudioWarmupPage extends StatefulWidget {
+class _AudioWarmupPage extends StatelessWidget {
   const _AudioWarmupPage();
-
-  @override
-  State<_AudioWarmupPage> createState() => _AudioWarmupPageState();
-}
-
-class _AudioWarmupPageState extends State<_AudioWarmupPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _progressController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _progressController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -241,18 +224,40 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage>
                     children: <Widget>[
                       const GameLogoHeader(scaleFactor: 0.82),
                       const SizedBox(height: 28),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: AnimatedBuilder(
-                          animation: _progressController,
-                          builder: (BuildContext context, _) {
-                            return LinearProgressIndicator(
-                              minHeight: 8,
-                              value: _progressController.value,
-                              color: GameModePalette.accentGreen,
-                              backgroundColor: Colors.white24,
-                            );
-                          },
+                      ListenableBuilder(
+                        listenable: AudioService.instance,
+                        builder: (BuildContext context, _) {
+                          final double progress = AudioService.instance.initializationProgress;
+                          final int percent = (progress * 100).round().clamp(0, 100);
+                          return Column(
+                            children: <Widget>[
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(999),
+                                child: TweenAnimationBuilder<double>(
+                                  tween: Tween<double>(begin: 0, end: progress),
+                                  duration: const Duration(milliseconds: 120),
+                                  curve: Curves.easeOutCubic,
+                                  builder: (BuildContext context, double animatedValue, _) {
+                                    return LinearProgressIndicator(
+                                      minHeight: 8,
+                                      value: animatedValue,
+                                      color: GameModePalette.accentGreen,
+                                      backgroundColor: Colors.white24,
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                '$percent%',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          );
                         ),
                       ),
                     ],
