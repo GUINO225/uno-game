@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'firebase_config.dart';
 import 'premium_ui.dart';
 
@@ -35,6 +36,55 @@ enum DuelBetFlowState {
   rematchAccepted,
   rematchRejected,
   partyExited,
+}
+
+String _localizeUserError(Object error) {
+  String message = error.toString().trim();
+  message = message
+      .replaceFirst(RegExp(r'^Bad state:\s*'), '')
+      .replaceFirst(RegExp(r'^StateError:\s*'), '')
+      .replaceFirst(RegExp(r'^Exception:\s*'), '');
+  final String lowercase = message.toLowerCase();
+
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'unavailable':
+      case 'network-request-failed':
+      case 'deadline-exceeded':
+        return 'Erreur réseau. Vérifie ta connexion et réessaie.';
+      case 'not-found':
+        return 'Partie introuvable.';
+      case 'permission-denied':
+        return 'Connexion échouée. Accès refusé.';
+      default:
+        return 'Connexion échouée. Réessaie dans un instant.';
+    }
+  }
+
+  if (lowercase.contains('partie introuvable') ||
+      lowercase.contains('not found')) {
+    return 'Partie introuvable.';
+  }
+  if (lowercase.contains('déjà complète') || lowercase.contains('full')) {
+    return 'Impossible de rejoindre la partie : elle est déjà complète.';
+  }
+  if (lowercase.contains('compatible')) {
+    return 'Code invalide pour ce mode de jeu.';
+  }
+  if (lowercase.contains('network') || lowercase.contains('socket')) {
+    return 'Erreur réseau. Vérifie ta connexion et réessaie.';
+  }
+  if (lowercase.contains('permission')) {
+    return 'Connexion échouée. Accès refusé.';
+  }
+  if (lowercase.contains('firebase non configuré') ||
+      lowercase.contains('firebaseoptions')) {
+    return 'Connexion échouée. Le service en ligne est indisponible.';
+  }
+
+  return message.isEmpty
+      ? 'Une erreur est survenue. Veuillez réessayer.'
+      : message;
 }
 
 class DuelStakeOffer {
@@ -934,7 +984,7 @@ class DuelController extends ChangeNotifier {
       );
       await attach(id);
     } catch (e) {
-      error = '$e';
+      error = _localizeUserError(e);
     }
     busy = false;
     notifyListeners();
@@ -953,7 +1003,7 @@ class DuelController extends ChangeNotifier {
       );
       await attach(gameId);
     } catch (e) {
-      error = '$e';
+      error = _localizeUserError(e);
     }
     busy = false;
     notifyListeners();
@@ -1110,6 +1160,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   bool _openedDuel = false;
+  String? _profileError;
   late final String _localPlayerId;
 
   @override
@@ -1141,33 +1192,85 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     setState(() {});
   }
 
-  String _resolvedName({required bool asHost}) {
-    final String raw = _nameController.text.trim();
-    return raw.isEmpty ? (asHost ? 'Joueur 1' : 'Joueur 2') : raw;
+  String? _validatePseudo() {
+    final String cleaned = _nameController.text.trim();
+    if (cleaned.isEmpty) {
+      return 'Veuillez entrer un pseudonyme';
+    }
+    return null;
+  }
+
+  String? _validateCodePartie() {
+    final String cleaned = _codeController.text.trim().toUpperCase();
+    if (cleaned.isEmpty) {
+      return 'Veuillez entrer un code de partie';
+    }
+    if (cleaned.length != 6) {
+      return 'Code invalide. Format attendu : 6 caractères.';
+    }
+    return null;
+  }
+
+  DuelController _buildController(String pseudo) {
+    final DuelController? existing = _controller;
+    if (existing != null) {
+      existing.removeListener(_onControllerChange);
+      existing.dispose();
+    }
+    final DuelController created = DuelController(
+      service: GameService(),
+      localPlayerId: _localPlayerId,
+      localPlayerName: pseudo,
+      roomMode: widget.mode,
+    )..addListener(_onControllerChange);
+    _controller = created;
+    return created;
   }
 
   Future<void> _createGame() async {
-    if (_controller == null) {
-      _controller = DuelController(
-        service: GameService(),
-        localPlayerId: _localPlayerId,
-        localPlayerName: _resolvedName(asHost: true),
-        roomMode: widget.mode,
-      )..addListener(_onControllerChange);
+    final String? pseudoError = _validatePseudo();
+    if (pseudoError != null) {
+      setState(() {
+        _profileError = pseudoError;
+      });
+      return;
     }
-    await _controller!.create();
+    final String pseudo = _nameController.text.trim();
+    setState(() {
+      _profileError = null;
+    });
+    final DuelController controller = (_controller != null &&
+            _controller!.localPlayerName == pseudo)
+        ? _controller!
+        : _buildController(pseudo);
+    await controller.create();
   }
 
   Future<void> _joinGame() async {
-    if (_controller == null) {
-      _controller = DuelController(
-        service: GameService(),
-        localPlayerId: _localPlayerId,
-        localPlayerName: _resolvedName(asHost: false),
-        roomMode: widget.mode,
-      )..addListener(_onControllerChange);
+    final String? pseudoError = _validatePseudo();
+    if (pseudoError != null) {
+      setState(() {
+        _profileError = pseudoError;
+      });
+      return;
     }
-    await _controller!.join(_codeController.text.trim().toUpperCase());
+    final String? codeError = _validateCodePartie();
+    if (codeError != null) {
+      setState(() {
+        _profileError = codeError;
+      });
+      return;
+    }
+    final String pseudo = _nameController.text.trim();
+    final String code = _codeController.text.trim().toUpperCase();
+    setState(() {
+      _profileError = null;
+    });
+    final DuelController controller = (_controller != null &&
+            _controller!.localPlayerName == pseudo)
+        ? _controller!
+        : _buildController(pseudo);
+    await controller.join(code);
   }
 
 
@@ -1240,12 +1343,30 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                           const SizedBox(height: 12),
                           TextField(
                             controller: _nameController,
+                            onChanged: (_) {
+                              if (_profileError != null) {
+                                setState(() {
+                                  _profileError = null;
+                                });
+                              }
+                            },
                             decoration: const InputDecoration(
                               labelText: 'Pseudo',
-                              hintText: 'Joueur 1',
+                              hintText: 'Ton pseudonyme',
                               prefixIcon: Icon(Icons.badge_outlined),
                             ),
                           ),
+                          if (_profileError != null) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Text(
+                              _profileError!,
+                              style: const TextStyle(
+                                color: Color(0xFFB71C1C),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 10),
                           SelectableText(
                             'ID local: $_localPlayerId',
@@ -1294,6 +1415,31 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () async {
+                                        await Clipboard.setData(
+                                          ClipboardData(text: session.gameId),
+                                        );
+                                        if (!mounted) {
+                                          return;
+                                        }
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Code de la partie copié'),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.copy_rounded, size: 18),
+                                      label: const Text('Copier le code'),
+                                      style: OutlinedButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                        foregroundColor: PremiumColors.textDark,
+                                      ),
+                                    ),
+                                  ),
                                   const SizedBox(height: 4),
                                   Text(
                                     'Joueurs connectés: ${session.players.length}/2',
@@ -1323,6 +1469,13 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                           TextField(
                             controller: _codeController,
                             textCapitalization: TextCapitalization.characters,
+                            onChanged: (_) {
+                              if (_profileError != null) {
+                                setState(() {
+                                  _profileError = null;
+                                });
+                              }
+                            },
                             decoration: const InputDecoration(
                               labelText: 'Code de partie',
                               hintText: 'AB12CD',
@@ -1550,7 +1703,7 @@ class _DuelPageState extends State<DuelPage> {
               return;
             }
             setState(() {
-              _chatError = '$errorValue';
+              _chatError = _localizeUserError(errorValue);
             });
           },
         );
@@ -3334,7 +3487,7 @@ class DuelCard {
     if (cardId != null && cardId.isNotEmpty) {
       return DuelCard.fromId(cardId);
     }
-    throw ArgumentError('Invalid DuelCard payload: $json');
+    throw ArgumentError('Carte de duel invalide : $json');
   }
 }
 
