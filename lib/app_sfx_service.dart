@@ -35,10 +35,14 @@ class AppSfxService {
   bool _enabled = true;
   bool _backgroundMusicEnabled = true;
   bool _isBackgroundPlaying = false;
+  bool _backgroundMusicUnlocked = !kIsWeb;
 
   bool get isEnabled => _enabled;
   bool get isReady => _initialized && _readyEvents.isNotEmpty;
   bool get isBackgroundMusicEnabled => _backgroundMusicEnabled;
+  bool get isBackgroundMusicPlaying => _isBackgroundPlaying;
+  bool get isBackgroundMusicActive => _backgroundMusicEnabled && _isBackgroundPlaying;
+  bool get isBackgroundMusicUnlocked => _backgroundMusicUnlocked;
 
   set isEnabled(bool value) {
     _enabled = value;
@@ -295,7 +299,7 @@ class AppSfxService {
   }
 
   Future<void> _resumeBackgroundMusic() async {
-    if (!_backgroundMusicEnabled) {
+    if (!_backgroundMusicEnabled || !_canPlayBackgroundMusic) {
       return;
     }
     final AudioPlayer? player = _backgroundPlayer;
@@ -316,12 +320,22 @@ class AppSfxService {
     await playDefaultBackgroundMusic();
   }
 
-  Future<void> playDefaultBackgroundMusic() async {
+  bool get _canPlayBackgroundMusic =>
+      !kIsWeb || _backgroundMusicUnlocked;
+
+  Future<void> playDefaultBackgroundMusic({bool fromUserGesture = false}) async {
     if (!_initialized) {
       await initialize();
     }
+    if (fromUserGesture) {
+      _backgroundMusicUnlocked = true;
+    }
     final AudioPlayer? player = _backgroundPlayer;
     if (player == null || !_backgroundMusicEnabled) {
+      return;
+    }
+    if (!_canPlayBackgroundMusic) {
+      _isBackgroundPlaying = false;
       return;
     }
 
@@ -375,11 +389,21 @@ class AppSfxService {
   }
 
   Future<void> toggleBackgroundMusic() async {
-    if (_backgroundMusicEnabled) {
+    if (_backgroundMusicEnabled && _isBackgroundPlaying) {
       await stopBackgroundMusic();
       return;
     }
-    await enableBackgroundMusic();
+    _backgroundMusicEnabled = true;
+    await playDefaultBackgroundMusic();
+  }
+
+  Future<void> toggleBackgroundMusicFromUserGesture() async {
+    if (_backgroundMusicEnabled && _isBackgroundPlaying) {
+      await stopBackgroundMusic();
+      return;
+    }
+    _backgroundMusicEnabled = true;
+    await playDefaultBackgroundMusic(fromUserGesture: true);
   }
 
   @Deprecated('Use playDefaultBackgroundMusic() for deterministic background music.')
