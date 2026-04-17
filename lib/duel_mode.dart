@@ -81,7 +81,7 @@ String _localizeUserError(Object error) {
   }
   if (lowercase.contains('firebase non configuré') ||
       lowercase.contains('firebaseoptions')) {
-    return 'Connexion échouée. Le service en ligne est indisponible.';
+    return 'Connexion échouée. Service en ligne indisponible sur cette version de l’app (configuration Firebase manquante).';
   }
 
   return message.isEmpty
@@ -368,12 +368,12 @@ class GameService {
           await Firebase.initializeApp(options: options);
         } else {
           throw StateError(
-            'FirebaseOptions manquantes pour cette plateforme.',
+            'FirebaseOptions manquantes pour cette plateforme (web: FIREBASE_WEB_*, android: FIREBASE_ANDROID_*).',
           );
         }
       } catch (e) {
         throw StateError(
-          'Firebase non configuré. Le mode duel nécessite Firebase.initializeApp(). Détail: $e',
+          'Firebase non configuré. Le mode duel nécessite Firebase.initializeApp(options: ...). Détail: $e',
         );
       }
     }
