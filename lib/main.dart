@@ -130,12 +130,8 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
   @override
   void initState() {
     super.initState();
-    _bootFuture = AudioService.instance.initialize(strict: true).catchError((
-      Object error,
-      StackTrace stackTrace,
-    ) {
-      debugPrint('Audio warmup fallback: $error');
-      debugPrintStack(stackTrace: stackTrace);
+    _bootFuture = AudioService.instance.initialize(strict: true).then((_) {
+      debugPrint('[AudioService] game launch allowed');
     });
   }
 
@@ -147,8 +143,62 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
         if (snapshot.connectionState != ConnectionState.done) {
           return const _AudioWarmupPage();
         }
+        if (snapshot.hasError) {
+          return _AudioWarmupErrorPage(error: snapshot.error);
+        }
         return const IntroLandingPage();
       },
+    );
+  }
+}
+
+class _AudioWarmupErrorPage extends StatelessWidget {
+  const _AudioWarmupErrorPage({required this.error});
+
+  final Object? error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: GameModePalette.background,
+      body: Stack(
+        children: <Widget>[
+          const BackgroundDecoration(),
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.white,
+                      size: 40,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Audio initialization failed',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '$error',
+                      style: const TextStyle(color: Colors.white70),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
