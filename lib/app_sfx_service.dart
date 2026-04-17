@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -29,13 +28,13 @@ class AppSfxService {
   final Map<AppSfxEvent, String> _eventToAsset = <AppSfxEvent, String>{};
   final Set<AppSfxEvent> _readyEvents = <AppSfxEvent>{};
   Set<String> _availableAssets = <String>{};
-  final Random _random = Random();
   AudioPlayer? _backgroundPlayer;
   String? _backgroundTrackPath;
   bool _initialized = false;
   bool _initializing = false;
   bool _enabled = true;
-  bool _backgroundMusicEnabled = false;
+  bool _backgroundMusicEnabled = true;
+  bool _isBackgroundPlaying = false;
 
   bool get isEnabled => _enabled;
   bool get isReady => _initialized && _readyEvents.isNotEmpty;
@@ -50,6 +49,7 @@ class AppSfxService {
       final AudioPlayer? backgroundPlayer = _backgroundPlayer;
       if (backgroundPlayer != null) {
         unawaited(backgroundPlayer.stop());
+        _isBackgroundPlaying = false;
       }
     } else {
       unawaited(_resumeBackgroundMusic());
@@ -133,6 +133,10 @@ class AppSfxService {
 
     _initialized = true;
     _initializing = false;
+
+    if (_backgroundMusicEnabled) {
+      await playDefaultBackgroundMusic();
+    }
 
     if (strict && !_hasMinimumRequiredAssetsReady()) {
       throw StateError('No minimum SFX assets available.');
@@ -300,6 +304,7 @@ class AppSfxService {
     try {
       await player.setVolume(0.28);
       await player.resume();
+      _isBackgroundPlaying = true;
     } catch (_) {
       // best effort: gameplay SFX should keep working even if BGM resume fails
     }
@@ -307,10 +312,10 @@ class AppSfxService {
 
   Future<void> enableBackgroundMusic() async {
     _backgroundMusicEnabled = true;
-    await playRandomBackgroundTrack();
+    await playDefaultBackgroundMusic();
   }
 
-  Future<void> playRandomBackgroundTrack() async {
+  Future<void> playDefaultBackgroundMusic() async {
     if (!_initialized) {
       await initialize();
     }
@@ -319,14 +324,15 @@ class AppSfxService {
       return;
     }
 
-    final List<String> candidates = <String>[
-      for (int i = 1; i <= 10; i++) 'assets/sfx/sound_background_$i.mp3',
-    ].where(_availableAssets.contains).toList()
-      ..shuffle(_random);
+    final List<String> candidates = _backgroundCandidates();
     if (candidates.isEmpty) {
       return;
     }
 
+    final String preferredTrack = candidates.first;
+    if (_isBackgroundPlaying && _backgroundTrackPath == preferredTrack) {
+      return;
+    }
     for (final String track in candidates) {
       final String sourcePath = track.startsWith('assets/')
           ? track.substring('assets/'.length)
@@ -338,6 +344,7 @@ class AppSfxService {
         await player.setVolume(0.28);
         await player.resume();
         _backgroundTrackPath = track;
+        _isBackgroundPlaying = true;
         debugPrint('BGM playing: $track');
         return;
       } catch (error, stackTrace) {
@@ -347,6 +354,36 @@ class AppSfxService {
     }
   }
 
+  List<String> _backgroundCandidates() {
+    final List<String> allBackgroundTracks = _availableAssets
+        .where((String path) => _basenameWithoutExtension(path).startsWith('sound_background'))
+        .toList()
+      ..sort();
+    if (allBackgroundTracks.isEmpty) {
+      return const <String>[];
+    }
+    const String defaultTrack = 'assets/sfx/sound_background_10.mp3';
+    final List<String> ordered = <String>[];
+    if (allBackgroundTracks.contains(defaultTrack)) {
+      ordered.add(defaultTrack);
+    }
+    ordered.addAll(
+      allBackgroundTracks.where((String track) => track != defaultTrack),
+    );
+    return ordered;
+  }
+
+  Future<void> toggleBackgroundMusic() async {
+    if (_backgroundMusicEnabled) {
+      await stopBackgroundMusic();
+      return;
+    }
+    await enableBackgroundMusic();
+  }
+
+  @Deprecated('Use playDefaultBackgroundMusic() for deterministic background music.')
+  Future<void> playRandomBackgroundTrack() => playDefaultBackgroundMusic();
+
   Future<void> stopBackgroundMusic() async {
     _backgroundMusicEnabled = false;
     final AudioPlayer? player = _backgroundPlayer;
@@ -355,6 +392,7 @@ class AppSfxService {
     }
     try {
       await player.stop();
+      _isBackgroundPlaying = false;
     } catch (_) {
       // best effort: SFX should keep working even if BGM stop fails
     }
