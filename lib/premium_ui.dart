@@ -8,7 +8,61 @@ class PremiumColors {
   static const Color panel = Color(0xFFF7F4EC);
   static const Color panelSoft = Color(0xFFEFE8D8);
   static const Color accent = Color(0xFFE2B34B);
+  static const Color accentGreen = Color(0xFF4CD177);
   static const Color textDark = Color(0xFF13261D);
+}
+
+class PremiumCardEffects {
+  const PremiumCardEffects._();
+
+  static List<BoxShadow> get bevelShadow => const <BoxShadow>[
+        BoxShadow(
+          color: Color(0x33000000),
+          blurRadius: 8,
+          offset: Offset(0, 3),
+        ),
+      ];
+
+  static BoxDecoration bevelFace({
+    required BorderRadius borderRadius,
+    required Color color,
+    Color borderColor = const Color(0x33000000),
+  }) {
+    return BoxDecoration(
+      color: color,
+      borderRadius: borderRadius,
+      border: Border.all(color: borderColor),
+      boxShadow: bevelShadow,
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Color.lerp(color, Colors.white, 0.18)!,
+          color,
+          Color.lerp(color, Colors.black, 0.08)!,
+        ],
+      ),
+    );
+  }
+
+  static BoxDecoration bevelBack({
+    required BorderRadius borderRadius,
+    DecorationImage? image,
+  }) {
+    return BoxDecoration(
+      borderRadius: borderRadius,
+      border: Border.all(color: Colors.white70),
+      boxShadow: bevelShadow,
+      image: image,
+      gradient: image == null
+          ? const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[Color(0xFF1D7E54), Color(0xFF14563B)],
+            )
+          : null,
+    );
+  }
 }
 
 class TableBackground extends StatelessWidget {
