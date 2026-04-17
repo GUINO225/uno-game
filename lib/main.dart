@@ -113,6 +113,7 @@ class GameModePalette {
   static const Color backgroundShade = Color(0xFF013C25);
   static const Color cardGreen = Color(0xFF08BF63);
   static const Color cardGreenSoft = Color(0xFF0BA957);
+  static const Color cardGreenDeep = Color(0xFF0A6B3D);
   static const Color accentGreen = Color(0xFF73F38A);
   static const Color white = Color(0xFFF6FFF9);
 }
@@ -411,7 +412,7 @@ class _GameModePageState extends State<GameModePage>
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Text(
-                                  'V2.2',
+                                  'v2.2',
                                   style: TextStyle(
                                     color: GameModePalette.white.withOpacity(
                                       0.9,
@@ -776,7 +777,7 @@ class ModeCardCredits extends StatelessWidget {
     return _PressableModeCard(
       onTap: onTap,
       isSelected: isSelected,
-      label: 'PARIS',
+      label: 'PARI',
       labelFontSize: labelFontSize * 0.47,
       child: SizedBox(
         width: width + 36,
@@ -789,7 +790,7 @@ class ModeCardCredits extends StatelessWidget {
               child: _GameCardFace(
                 width: width,
                 height: height,
-                color: GameModePalette.cardGreenSoft,
+                color: GameModePalette.cardGreenDeep,
                 symbol: '♦',
               ),
             ),

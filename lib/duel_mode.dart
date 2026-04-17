@@ -608,6 +608,22 @@ class GameService {
           session.status == DuelGameStatus.inProgress) {
         return;
       }
+      final bool isInitialStakeFlow =
+          session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
+      final bool isRematchStakeFlow =
+          session.status == DuelGameStatus.finished &&
+          session.rematchDecision == DuelRematchDecision.accepted &&
+          session.rematchRequestBy != null &&
+          session.rematchDecisionBy != null;
+      if (!isInitialStakeFlow && !isRematchStakeFlow) {
+        return;
+      }
+      if (isInitialStakeFlow && proposedBy != session.hostId) {
+        throw StateError('Seul le créateur peut proposer la première mise.');
+      }
+      if (isRematchStakeFlow && proposedBy != session.rematchDecisionBy) {
+        throw StateError('Seul le gagnant qui a accepté la revanche peut proposer la mise.');
+      }
       if (session.stakeOffer.isPending) {
         throw StateError('Une proposition est déjà en attente.');
       }
@@ -656,10 +672,6 @@ class GameService {
       }
       if (!accept) {
         final int proposerCredits = session.playerCredits[offer.proposedBy!] ?? 0;
-        final bool isCounterProposalFlow = session.status == DuelGameStatus.finished &&
-            session.rematchDecision == DuelRematchDecision.accepted &&
-            session.rematchRequestBy != null &&
-            offer.proposedBy != session.rematchRequestBy;
         tx.update(ref, <String, dynamic>{
           'playerCredits.${offer.proposedBy!}': proposerCredits + offer.amount,
           'activeStakeCredits': 0,
@@ -669,8 +681,6 @@ class GameService {
             status: DuelStakeStatus.declined,
             createdAt: offer.createdAt,
           ).toMap(),
-          if (isCounterProposalFlow) 'rematchDecision': DuelRematchDecision.declined.name,
-          if (isCounterProposalFlow) 'rematchDecisionBy': responderId,
         });
         return;
       }
@@ -1034,7 +1044,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final DuelSession? session = _controller?.session;
     final bool busy = _controller?.busy ?? false;
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
-    final String title = creditsMode ? 'DUEL PARIS' : 'DUEL EN LIGNE';
+    final String title = creditsMode ? 'DUEL PARI' : 'DUEL EN LIGNE';
     final String subtitle = creditsMode
         ? 'Même duel, avec pari défini avant le lancement.'
         : 'Crée un salon privé ou rejoins une partie existante.';
@@ -1244,8 +1254,10 @@ class _DuelPageState extends State<DuelPage> {
   bool _stakeActionBusy = false;
   bool _stakeDialogOpen = false;
   bool _stakeSelectionDialogOpen = false;
+  bool _stakeRejectedDialogOpen = false;
   bool _winDialogOpen = false;
   String? _lastStakeOfferKey;
+  String? _lastStakeRejectedKey;
   String? _lastMandatoryStakePromptKey;
   String? _lastWinPopupKey;
   bool _didNavigateHomeAfterDecline = false;
@@ -1270,19 +1282,36 @@ class _DuelPageState extends State<DuelPage> {
 
   DuelController get _controller => widget.controller;
   bool get _isCreditsMode => widget.mode == DuelRoomMode.credits;
-  bool _canSetStake(DuelSession session) =>
-      _isCreditsMode &&
-      session.players.length == 2 &&
-      (session.status == DuelGameStatus.waiting ||
-          (session.status == DuelGameStatus.finished &&
-              session.rematchDecision == DuelRematchDecision.accepted));
+  bool _isInitialStakePhase(DuelSession session) =>
+      session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
+  bool _isRematchStakePhase(DuelSession session) =>
+      session.status == DuelGameStatus.finished &&
+      session.rematchDecision == DuelRematchDecision.accepted &&
+      session.rematchRequestBy != null &&
+      session.rematchDecisionBy != null;
+  bool _canSetStake(DuelSession session) {
+    if (!_isCreditsMode || session.players.length != 2) {
+      return false;
+    }
+    if (_isInitialStakePhase(session)) {
+      return _controller.localPlayerId == session.hostId;
+    }
+    if (_isRematchStakePhase(session)) {
+      return _controller.localPlayerId == session.rematchDecisionBy;
+    }
+    return false;
+  }
   bool _requiresStake(DuelSession session) =>
       _isCreditsMode &&
       session.players.length == 2 &&
       session.status == DuelGameStatus.inProgress &&
       session.activeStakeCredits <= 0;
   bool _isBlockingDialogOpen() =>
-      _rematchDialogOpen || _stakeDialogOpen || _stakeSelectionDialogOpen || _winDialogOpen;
+      _rematchDialogOpen ||
+      _stakeDialogOpen ||
+      _stakeSelectionDialogOpen ||
+      _stakeRejectedDialogOpen ||
+      _winDialogOpen;
 
   @override
   void initState() {
@@ -1330,6 +1359,7 @@ class _DuelPageState extends State<DuelPage> {
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
     _maybeHandleStakeFlow(session);
+    _maybeHandleStakeRejected(session);
     _maybeHandleRematchFlow(session);
     _maybePromptMandatoryStake(session);
     _maybeShowWinPopup(session);
@@ -1687,9 +1717,8 @@ class _DuelPageState extends State<DuelPage> {
 
   bool _canPromptRematchStake(DuelSession session) {
     return _isCreditsMode &&
-        session.status == DuelGameStatus.finished &&
-        session.rematchDecision == DuelRematchDecision.accepted &&
-        session.rematchRequestBy == _controller.localPlayerId &&
+        _isRematchStakePhase(session) &&
+        _controller.localPlayerId == session.rematchDecisionBy &&
         session.activeStakeCredits <= 0 &&
         !session.stakeOffer.isPending;
   }
@@ -2000,6 +2029,71 @@ class _DuelPageState extends State<DuelPage> {
         return;
       }
       await _showStakeDecisionDialog(session);
+    });
+  }
+
+  Future<void> _showStakeRejectedDialog(DuelSession session) async {
+    final DuelStakeOffer offer = session.stakeOffer;
+    final String proposerId = offer.proposedBy ?? '';
+    if (proposerId.isEmpty) {
+      return;
+    }
+    final String rejecterId = session.players.firstWhere(
+      (String id) => id != proposerId,
+      orElse: () => '',
+    );
+    final String rejecterName = rejecterId.isEmpty
+        ? 'Votre adversaire'
+        : _displayNameUpper(session, rejecterId);
+    _stakeRejectedDialogOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text(
+            'MISE REFUSÉE',
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            '$rejecterName a refusé cette mise.',
+            textAlign: TextAlign.center,
+          ),
+          actions: <Widget>[
+            Center(
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    _stakeRejectedDialogOpen = false;
+  }
+
+  void _maybeHandleStakeRejected(DuelSession session) {
+    if (!_isCreditsMode || _isBlockingDialogOpen()) {
+      return;
+    }
+    final DuelStakeOffer offer = session.stakeOffer;
+    if (offer.status != DuelStakeStatus.declined ||
+        offer.proposedBy != _controller.localPlayerId) {
+      return;
+    }
+    final String key =
+        '${offer.proposedBy}_${offer.amount}_${offer.createdAt?.millisecondsSinceEpoch ?? 0}';
+    if (_lastStakeRejectedKey == key) {
+      return;
+    }
+    _lastStakeRejectedKey = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      await _showStakeRejectedDialog(session);
     });
   }
 
@@ -2417,7 +2511,7 @@ class _DuelPageState extends State<DuelPage> {
                       ),
                       const Spacer(),
                       Text(
-                        _isCreditsMode ? 'DUEL PARIS' : 'DUEL',
+                        _isCreditsMode ? 'DUEL PARI' : 'DUEL',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.95),
                           fontWeight: FontWeight.w800,
@@ -2496,7 +2590,7 @@ class _DuelPageState extends State<DuelPage> {
                       padding: const EdgeInsets.only(top: 8),
                       child: OutlinedButton.icon(
                         onPressed:
-                            _stakeActionBusy || stakeOffer.isPending
+                            _stakeActionBusy || stakeOffer.isPending || !_canSetStake(session)
                                 ? null
                                 : () => _openStakeProposal(session),
                         icon: const Icon(Icons.local_offer_outlined),
@@ -3545,7 +3639,7 @@ class _CreditsStakeBanner extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Votre mise : $playerStakeCredits',
+                    '$playerStakeCredits',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12.5,
