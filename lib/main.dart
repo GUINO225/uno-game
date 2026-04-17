@@ -338,7 +338,7 @@ class _IntroLandingPageState extends State<IntroLandingPage>
                                 ),
                               ],
                             ],
-                          ),
+                          );
                         },
                       ),
                       const SizedBox(height: 16),
