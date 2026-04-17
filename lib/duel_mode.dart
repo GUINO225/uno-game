@@ -1594,6 +1594,7 @@ class _DuelPageState extends State<DuelPage> {
   String? _activeChatPreview;
   Timer? _chatPreviewTimer;
   String? _lastOutcomeSfxKey;
+  String? _lastOpponentActionSfxKey;
   final AppSfxService _sfx = AppSfxService.instance;
 
   static const List<String> _quickMessages = <String>[
@@ -1685,6 +1686,7 @@ class _DuelPageState extends State<DuelPage> {
     _bindChatRealtime(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
+    _maybePlayOpponentActionSfx(session);
     _maybeHandleStakeFlow(session);
     _maybeHandleStakeRejected(session);
     _maybeHandleInsufficientFunds(session);
@@ -2061,6 +2063,28 @@ class _DuelPageState extends State<DuelPage> {
       }
       await _showForcedDrawPopup(amount);
     });
+  }
+
+  void _maybePlayOpponentActionSfx(DuelSession session) {
+    final DuelAction? action = session.lastAction;
+    if (action == null || action.actorId == _controller.localPlayerId) {
+      return;
+    }
+    if (action.type != DuelActionType.playCard &&
+        action.type != DuelActionType.drawCard) {
+      return;
+    }
+    final String key =
+        '${session.gameId}_${action.actorId}_${action.type.name}_${action.createdAt.toIso8601String()}';
+    if (_lastOpponentActionSfxKey == key) {
+      return;
+    }
+    _lastOpponentActionSfxKey = key;
+    if (action.type == DuelActionType.playCard) {
+      unawaited(_sfx.playCard());
+      return;
+    }
+    unawaited(_sfx.playDraw());
   }
 
   Future<void> _onDrawTap() async {
