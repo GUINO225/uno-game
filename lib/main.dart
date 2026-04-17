@@ -241,8 +241,36 @@ class IntroLandingPage extends StatefulWidget {
 }
 
 class _IntroLandingPageState extends State<IntroLandingPage> {
-  bool _backgroundMusicEnabled = AppSfxService.instance.isBackgroundMusicEnabled;
+  bool _backgroundMusicEnabled = _readBackgroundMusicEnabled();
   bool _isTogglingMusic = false;
+
+  static bool _readBackgroundMusicEnabled() {
+    final dynamic sfx = AppSfxService.instance;
+    try {
+      final dynamic value = sfx.isBackgroundMusicEnabled;
+      if (value is bool) {
+        return value;
+      }
+    } on NoSuchMethodError {
+      // Backward compatibility when the app_sfx_service API only exposes isEnabled.
+    }
+    return AppSfxService.instance.isEnabled;
+  }
+
+  static Future<void> _setBackgroundMusicEnabled(bool enabled) async {
+    final dynamic sfx = AppSfxService.instance;
+    try {
+      if (enabled) {
+        await sfx.enableBackgroundMusic();
+      } else {
+        await sfx.stopBackgroundMusic();
+      }
+      return;
+    } on NoSuchMethodError {
+      // Backward compatibility when the app_sfx_service API only exposes isEnabled.
+    }
+    AppSfxService.instance.isEnabled = enabled;
+  }
 
   Future<void> _toggleBackgroundMusic() async {
     if (_isTogglingMusic) {
@@ -251,16 +279,12 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
     setState(() {
       _isTogglingMusic = true;
     });
-    if (_backgroundMusicEnabled) {
-      await AppSfxService.instance.stopBackgroundMusic();
-    } else {
-      await AppSfxService.instance.enableBackgroundMusic();
-    }
+    await _setBackgroundMusicEnabled(!_backgroundMusicEnabled);
     if (!mounted) {
       return;
     }
     setState(() {
-      _backgroundMusicEnabled = AppSfxService.instance.isBackgroundMusicEnabled;
+      _backgroundMusicEnabled = _readBackgroundMusicEnabled();
       _isTogglingMusic = false;
     });
   }
