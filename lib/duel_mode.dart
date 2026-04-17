@@ -3170,18 +3170,7 @@ class _DuelPageState extends State<DuelPage> {
                   ),
                   if (_isCreditsMode) ...<Widget>[
                     const SizedBox(height: 8),
-                    Row(
-                      children: <Widget>[
-                        _LocalCreditBadge(
-                          name: localName,
-                          credits: myCredits,
-                          avatarCard: localAvatarCard,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
                     _CreditsStakeBanner(
-                      myCredits: myCredits,
                       activeStakeCredits: session.activeStakeCredits,
                       playerStakeCredits: session.stakeOffer.amount,
                       stakeText: _requiresStake(session)
@@ -3228,6 +3217,7 @@ class _DuelPageState extends State<DuelPage> {
                     profileName: localName,
                     wins: myScore,
                     losses: opponentScore,
+                    credits: _isCreditsMode ? myCredits : null,
                     fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
                     avatarCard: localAvatarCard,
                   ),
@@ -4256,13 +4246,11 @@ class _DuelStatusBanner extends StatelessWidget {
 
 class _CreditsStakeBanner extends StatelessWidget {
   const _CreditsStakeBanner({
-    required this.myCredits,
     required this.activeStakeCredits,
     required this.playerStakeCredits,
     this.stakeText,
   });
 
-  final int myCredits;
   final int activeStakeCredits;
   final int playerStakeCredits;
   final String? stakeText;
@@ -4282,47 +4270,21 @@ class _CreditsStakeBanner extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Text(
-                  '🪙 $myCredits',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
+              Expanded(
+                child: _StakeInfoChip(
+                  label: 'Mise',
+                  icon: Icons.workspace_premium_rounded,
+                  value: playerStakeCredits > 0 ? playerStakeCredits : 0,
+                  highlighted: false,
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2B3E25),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xAAE8C65D)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const Icon(
-                      Icons.inventory_2_rounded,
-                      size: 16,
-                      color: Color(0xFFFFE9A9),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${activeStakeCredits > 0 ? activeStakeCredits : 0}',
-                      style: const TextStyle(
-                        color: Color(0xFFFFE9A9),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: _StakeInfoChip(
+                  label: 'Coffre',
+                  icon: Icons.inventory_2_rounded,
+                  value: activeStakeCredits > 0 ? activeStakeCredits : 0,
+                  highlighted: true,
                 ),
               ),
             ],
@@ -4338,36 +4300,64 @@ class _CreditsStakeBanner extends StatelessWidget {
               ),
             ),
           ],
-          if (playerStakeCredits > 0) ...<Widget>[
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Icon(
-                    Icons.workspace_premium_rounded,
-                    size: 16,
-                    color: Color(0xFFFFE9A9),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '$playerStakeCredits',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StakeInfoChip extends StatelessWidget {
+  const _StakeInfoChip({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.highlighted,
+  });
+
+  final String label;
+  final IconData icon;
+  final int value;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color baseColor = highlighted ? const Color(0xFF2B3E25) : Colors.white.withOpacity(0.1);
+    final Color borderColor =
+        highlighted ? const Color(0xAAE8C65D) : Colors.white.withOpacity(0.24);
+    final Color textColor = highlighted ? const Color(0xFFFFE9A9) : Colors.white;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: baseColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.88),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
               ),
             ),
-          ],
+          ),
+          const SizedBox(width: 8),
+          Icon(icon, size: 15, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            '$value',
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 12.5,
+            ),
+          ),
         ],
       ),
     );
@@ -4442,68 +4432,6 @@ class _OpponentRow extends StatelessWidget {
   }
 }
 
-class _LocalCreditBadge extends StatelessWidget {
-  const _LocalCreditBadge({
-    required this.name,
-    required this.credits,
-    required this.avatarCard,
-  });
-
-  final String name;
-  final int credits;
-  final DuelCard avatarCard;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 240),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.28),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _AvatarCardCircle(card: avatarCard, size: 36, fallbackInitial: '?'),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Crédit: $credits',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFFFFE8A0),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ProfileBlock extends StatelessWidget {
   const _ProfileBlock({
     required this.name,
@@ -4511,12 +4439,14 @@ class _ProfileBlock extends StatelessWidget {
     required this.losses,
     required this.fallbackInitial,
     required this.avatarCard,
+    this.credits,
     this.compact = false,
   });
 
   final String name;
   final int wins;
   final int losses;
+  final int? credits;
   final String fallbackInitial;
   final DuelCard avatarCard;
   final bool compact;
@@ -4570,6 +4500,17 @@ class _ProfileBlock extends StatelessWidget {
                     fontSize: compact ? 10 : 11,
                   ),
                 ),
+                if (credits != null) ...<Widget>[
+                  const SizedBox(height: 1),
+                  Text(
+                    'Crédit $credits',
+                    style: TextStyle(
+                      color: const Color(0xFFFFE8A0).withOpacity(0.96),
+                      fontWeight: FontWeight.w800,
+                      fontSize: compact ? 10 : 11,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -4710,6 +4651,7 @@ class _MyHandRow extends StatelessWidget {
     required this.profileName,
     required this.wins,
     required this.losses,
+    this.credits,
     required this.fallbackInitial,
     required this.avatarCard,
   });
@@ -4721,6 +4663,7 @@ class _MyHandRow extends StatelessWidget {
   final String profileName;
   final int wins;
   final int losses;
+  final int? credits;
   final String fallbackInitial;
   final DuelCard avatarCard;
   static const int _maxCardsPerRow = 5;
@@ -4746,6 +4689,7 @@ class _MyHandRow extends StatelessWidget {
                         name: profileName,
                         wins: wins,
                         losses: losses,
+                        credits: credits,
                         fallbackInitial: fallbackInitial,
                         compact: true,
                         avatarCard: avatarCard,
