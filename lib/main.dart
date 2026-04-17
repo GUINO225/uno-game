@@ -48,7 +48,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'GINO CARD',
+      title: 'UNO GAME',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -429,7 +429,7 @@ class _GameModePageState extends State<GameModePage>
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Text(
-                                  'v2.3',
+                                  'v3.3',
                                   style: TextStyle(
                                     color: GameModePalette.white.withOpacity(
                                       0.9,
@@ -794,7 +794,7 @@ class ModeCardCredits extends StatelessWidget {
     return _PressableModeCard(
       onTap: onTap,
       isSelected: isSelected,
-      label: 'PARIS',
+      label: 'PARI',
       labelFontSize: labelFontSize,
       child: SizedBox(
         width: width + 34,
@@ -1267,7 +1267,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     setState(() {
       _isInitialDealRunning = false;
-      _status = '${_turnLabel(startingPlayer)} commence.';
+      _status = _turnStartText(startingPlayer);
     });
 
     _applyOpeningCardPenaltyIfNeeded(
@@ -1308,6 +1308,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return turn == PlayerTurn.human ? 'Vous' : 'Le bot';
   }
 
+  String _turnStartText(PlayerTurn turn) {
+    return turn == PlayerTurn.human ? 'Vous commencez' : 'Le bot commence';
+  }
+
   List<PlayingCard> _dealCards(List<PlayingCard> deck, int count) {
     final List<PlayingCard> dealt = <PlayingCard>[];
     for (int i = 0; i < count && deck.isNotEmpty; i++) {
@@ -1346,8 +1350,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         target: startingPlayer,
         source: dealer,
         count: 2,
-        announcement:
-        '${_turnLabel(startingPlayer)} commence, mais la carte d’ouverture est un 2.',
+        announcement: '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un 2.',
       );
       return;
     }
@@ -1357,8 +1360,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         target: startingPlayer,
         source: dealer,
         count: 9,
-        announcement:
-        '${_turnLabel(startingPlayer)} commence, mais la carte d’ouverture est un joker.',
+        announcement: '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un joker.',
       );
     }
   }
@@ -2273,7 +2275,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'GINO CARD',
+                            'SOLO',
                             style: GoogleFonts.leagueSpartan(
                               color: GameModePalette.white,
                               fontSize: 28,
@@ -2368,7 +2370,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                           padding: const EdgeInsets.only(top: 10),
                           child: ElevatedButton(
                             onPressed: _startNewGame,
-                            child: const Text('Rejouer'),
+                            child: const Text('Prendre sa revanche'),
                           ),
                         ),
                     ],
@@ -2516,11 +2518,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const Text(
-                      'Défausse',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 20),
                     if (hasDiscard)
                       Transform.scale(
                         scale: 1.08,
@@ -2542,11 +2540,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const Text(
-                      'Pioche',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 20),
                     GestureDetector(
                       onTap: canDraw ? _onHumanDraw : null,
                       child: Stack(
@@ -2577,7 +2571,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
-        _ScorePill(label: 'Joueur', value: _humanScore),
+        _ScorePill(label: 'VOUS', value: _humanScore),
         const SizedBox(width: 10),
         _ScorePill(label: 'Bot', value: _botScore),
       ],
@@ -2662,9 +2656,8 @@ class CardBackView extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      decoration: BoxDecoration(
+      decoration: PremiumCardEffects.bevelBack(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white70),
         image: const DecorationImage(
           image: AssetImage('assets/img/card_back.jpeg'),
           fit: BoxFit.cover,
@@ -2846,18 +2839,16 @@ class CardView extends StatelessWidget {
     final Widget cardWidget = Container(
       width: 64,
       height: 96,
-      decoration: BoxDecoration(
+      decoration: PremiumCardEffects.bevelFace(
+        borderRadius: BorderRadius.circular(12),
         color: card.isJoker
             ? (card.isRed ? Colors.red.shade50 : Colors.grey.shade200)
             : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+      ).copyWith(
         border: Border.all(
           color: enabled ? Colors.amber : Colors.black26,
           width: enabled ? 3 : 1,
         ),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(1, 2)),
-        ],
       ),
       padding: const EdgeInsets.all(8),
       child: card.isJoker
@@ -3034,16 +3025,15 @@ class _SuitChoiceTile extends StatelessWidget {
       child: Container(
         width: 156,
         height: 124,
-        decoration: BoxDecoration(
-          color: Colors.white,
+        decoration: PremiumCardEffects.bevelFace(
           borderRadius: BorderRadius.circular(14),
+          color: Colors.white,
+          borderColor: _color.withOpacity(0.45),
+        ).copyWith(
           border: Border.all(
             color: _color.withOpacity(0.55),
             width: 1.8,
           ),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(1, 2)),
-          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -3102,10 +3092,12 @@ class _EightSuitCard extends StatelessWidget {
     return Container(
       width: 112,
       height: 146,
-      decoration: BoxDecoration(
+      decoration: PremiumCardEffects.bevelFace(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blueGrey, width: 1.6),
         color: Colors.white,
+        borderColor: Colors.blueGrey,
+      ).copyWith(
+        border: Border.all(color: Colors.blueGrey, width: 1.6),
       ),
       padding: const EdgeInsets.all(10),
       child: Column(
