@@ -48,67 +48,71 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'UNO GAME',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: PremiumColors.tableGreenMid,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white.withOpacity(0.92),
-          labelStyle: const TextStyle(color: PremiumColors.textDark),
-          hintStyle: TextStyle(color: Colors.black.withOpacity(0.45)),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => AudioService.instance.registerUserGesture(),
+      child: MaterialApp(
+        title: 'UNO GAME',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: PremiumColors.tableGreenMid,
+            brightness: Brightness.dark,
           ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            elevation: 0,
-            foregroundColor: PremiumColors.textDark,
-            backgroundColor: PremiumColors.accent,
-            minimumSize: const Size.fromHeight(52),
-            textStyle: const TextStyle(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-            shape: RoundedRectangleBorder(
+          useMaterial3: true,
+          fontFamily: 'Roboto',
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.92),
+            labelStyle: const TextStyle(color: PremiumColors.textDark),
+            hintStyle: TextStyle(color: Colors.black.withOpacity(0.45)),
+            border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              foregroundColor: PremiumColors.textDark,
+              backgroundColor: PremiumColors.accent,
+              minimumSize: const Size.fromHeight(52),
+              textStyle: const TextStyle(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+          dialogTheme: DialogThemeData(
+            backgroundColor: const Color(0xFFF8F6F0),
+            surfaceTintColor: Colors.transparent,
+            titleTextStyle: const TextStyle(
+              color: PremiumColors.textDark,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+            contentTextStyle: const TextStyle(
+              color: PremiumColors.textDark,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
-        dialogTheme: DialogThemeData(
-          backgroundColor: const Color(0xFFF8F6F0),
-          surfaceTintColor: Colors.transparent,
-          titleTextStyle: const TextStyle(
-            color: PremiumColors.textDark,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-          ),
-          contentTextStyle: const TextStyle(
-            color: PremiumColors.textDark,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        routes: <String, WidgetBuilder>{
+          GameModeRoutes.solo: (_) => const CrazyEightsPage(),
+          GameModeRoutes.duel: (_) => const DuelLobbyPage(),
+          GameModeRoutes.credits: (_) =>
+              const DuelLobbyPage(mode: DuelRoomMode.credits),
+        },
+        home: const AppBootstrapPage(),
       ),
-      routes: <String, WidgetBuilder>{
-        GameModeRoutes.solo: (_) => const CrazyEightsPage(),
-        GameModeRoutes.duel: (_) => const DuelLobbyPage(),
-        GameModeRoutes.credits: (_) =>
-            const DuelLobbyPage(mode: DuelRoomMode.credits),
-      },
-      home: const AppBootstrapPage(),
     );
   }
 }
@@ -126,7 +130,7 @@ class _AppBootstrapPageState extends State<AppBootstrapPage> {
   @override
   void initState() {
     super.initState();
-    _bootFuture = AppSfxService.instance.initialize(strict: true).catchError((
+    _bootFuture = AudioService.instance.initialize(strict: true).catchError((
       Object error,
       StackTrace stackTrace,
     ) {
@@ -240,12 +244,42 @@ class IntroLandingPage extends StatefulWidget {
   State<IntroLandingPage> createState() => _IntroLandingPageState();
 }
 
-class _IntroLandingPageState extends State<IntroLandingPage> {
+class _IntroLandingPageState extends State<IntroLandingPage>
+    with WidgetsBindingObserver {
   bool _backgroundMusicEnabled = _readBackgroundMusicEnabled();
   bool _isTogglingMusic = false;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_refreshBackgroundMusicState());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshBackgroundMusicState());
+    }
+  }
+
+  Future<void> _refreshBackgroundMusicState() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _backgroundMusicEnabled = _readBackgroundMusicEnabled();
+    });
+  }
+
   static bool _readBackgroundMusicEnabled() {
-    final dynamic sfx = AppSfxService.instance;
+    final dynamic sfx = AudioService.instance;
     try {
       final dynamic value = sfx.isBackgroundMusicActive;
       if (value is bool) {
@@ -262,11 +296,11 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
     } on NoSuchMethodError {
       // Backward compatibility when the app_sfx_service API only exposes isEnabled.
     }
-    return AppSfxService.instance.isEnabled;
+    return AudioService.instance.isEnabled;
   }
 
   static Future<void> _setBackgroundMusicEnabled(bool enabled) async {
-    final dynamic sfx = AppSfxService.instance;
+    final dynamic sfx = AudioService.instance;
     try {
       if (enabled) {
         await sfx.playDefaultBackgroundMusic(fromUserGesture: true);
@@ -277,7 +311,7 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
     } on NoSuchMethodError {
       // Backward compatibility when the app_sfx_service API only exposes isEnabled.
     }
-    AppSfxService.instance.isEnabled = enabled;
+    AudioService.instance.isEnabled = enabled;
   }
 
   Future<void> _toggleBackgroundMusic() async {
@@ -339,7 +373,7 @@ class _IntroLandingPageState extends State<IntroLandingPage> {
                         label: Text(
                           _backgroundMusicEnabled
                               ? 'Musique activée'
-                              : 'Musique désactivée',
+                              : 'Musique désactivée / en attente',
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.2,
