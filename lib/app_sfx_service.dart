@@ -55,7 +55,11 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   PlayerState? _backgroundPlayerState;
 
   bool get isEnabled => _sfxEnabled;
+  bool get isAudioInitialized => _initialized;
+  bool get isAudioPreloading => _initializing;
   bool get isReady => _initialized && _readyEvents.isNotEmpty;
+  bool get musicEnabled => _backgroundMusicEnabled;
+  bool get isAudioUnlockedForWeb => _backgroundMusicUnlocked;
   bool get isBackgroundMusicEnabled => _backgroundMusicEnabled;
   bool get isBackgroundMusicPlaying => _isBackgroundPlaying;
   bool get isBackgroundMusicPaused => _isBackgroundPaused;
@@ -95,14 +99,18 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
 
     _initializing = true;
     _bindLifecycleIfNeeded();
-    _log('Initializing audio service...');
+    _log('audio init start');
 
     try {
       _availableAssets = await _loadSfxAssetPaths();
+      _log('audio manifest loaded');
       await _preloadAllAudioAssets();
       _buildEventMappings();
       _backgroundTracks = _backgroundCandidates();
-      _log('bgm init: ${_backgroundTracks.length} background tracks.');
+      _log('background tracks detected: ${_backgroundTracks.length}');
+      for (final String track in _backgroundTracks) {
+        _log('background track: $track');
+      }
 
       for (final MapEntry<AppSfxEvent, String> entry in _eventToAsset.entries) {
         await _preparePlayer(entry.key, entry.value);
@@ -110,10 +118,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       await _prepareBackgroundPlayer();
 
       _initialized = true;
-      _log(
-        'Audio initialization complete '
-        '(assets=${_availableAssets.length}, preloaded=${_preloadedAssets.length}, readyEvents=${_readyEvents.length}).',
-      );
+      _log('audio init complete');
 
       if (_backgroundMusicEnabled) {
         await playDefaultBackgroundMusic();
@@ -140,45 +145,49 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<Set<String>> _loadSfxAssetPaths() async {
-    const Set<String> fallbackAssets = <String>{
-      'assets/sfx/click.mp3',
-      'assets/sfx/pioche.mp3',
-      'assets/sfx/play_card.mp3',
-      'assets/sfx/notif_chat.mp3',
-      'assets/sfx/notif_chat_pop_up.mp3',
-      'assets/sfx/win.mp3',
-      'assets/sfx/loose.mp3',
-      'assets/sfx/sound_background.mp3',
-      'assets/sfx/sound_background_10.mp3',
-    };
+    try {
+      final AssetManifest manifest = await AssetManifest.loadFromAssetBundle(
+        rootBundle,
+      );
+      final Set<String> fromManifest = manifest
+          .listAssets()
+          .where((String key) => key.startsWith(_assetRoot))
+          .toSet();
+      if (fromManifest.isNotEmpty) {
+        _log('AssetManifest(listAssets) found ${fromManifest.length} sfx assets.');
+        return fromManifest;
+      }
+      _log('AssetManifest(listAssets) returned no sfx assets, trying JSON fallback.');
+    } catch (error, stackTrace) {
+      _log('AssetManifest(listAssets) load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
 
     try {
       final String manifestRaw = await rootBundle.loadString('AssetManifest.json');
       final Map<String, dynamic> manifest =
           jsonDecode(manifestRaw) as Map<String, dynamic>;
-      final Set<String> fromManifest = manifest.keys
+      final Set<String> fromJson = manifest.keys
           .where((String key) => key.startsWith(_assetRoot))
           .toSet();
-      if (fromManifest.isEmpty) {
-        _log('AssetManifest has no sfx assets, using fallback list.');
-        return fallbackAssets;
-      }
-      _log('Found ${fromManifest.length} audio assets in AssetManifest.');
-      return fromManifest;
+      _log('AssetManifest.json found ${fromJson.length} sfx assets.');
+      return fromJson;
     } catch (error, stackTrace) {
-      _log('Failed to read AssetManifest, using fallback list. Error: $error');
+      _log('AssetManifest.json load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      return fallbackAssets;
+      return <String>{};
     }
   }
 
   Future<void> _preloadAllAudioAssets() async {
     for (final String assetPath in _availableAssets.toList()..sort()) {
       try {
+        _log('preloading track: $assetPath');
         await rootBundle.load(assetPath);
         _preloadedAssets.add(assetPath);
+        _log('preload success: $assetPath');
       } catch (error, stackTrace) {
-        _log('Preload failed for $assetPath: $error');
+        _log('preload failed: $assetPath - $error');
         debugPrintStack(stackTrace: stackTrace);
       }
     }
@@ -620,7 +629,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
         attempts += 1;
       }
     }
-    _log('next random bgm selected: $selectedTrack (trigger=$trigger)');
+    _log('random bgm selected: $selectedTrack (trigger=$trigger)');
 
     final String sourcePath = selectedTrack.startsWith('assets/')
         ? selectedTrack.substring('assets/'.length)
@@ -665,6 +674,10 @@ class AppSfxService {
   bool get isEnabled => _audio.isEnabled;
   set isEnabled(bool value) => _audio.isEnabled = value;
 
+  bool get isAudioInitialized => _audio.isAudioInitialized;
+  bool get isAudioPreloading => _audio.isAudioPreloading;
+  bool get musicEnabled => _audio.musicEnabled;
+  bool get isAudioUnlockedForWeb => _audio.isAudioUnlockedForWeb;
   bool get isReady => _audio.isReady;
   bool get isBackgroundMusicEnabled => _audio.isBackgroundMusicEnabled;
   bool get isBackgroundMusicPlaying => _audio.isBackgroundMusicPlaying;
