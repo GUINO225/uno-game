@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'app_sfx_service.dart';
 import 'firebase_config.dart';
 import 'premium_ui.dart';
 
@@ -1158,6 +1159,7 @@ class DuelLobbyPage extends StatefulWidget {
 
 class _DuelLobbyPageState extends State<DuelLobbyPage> {
   DuelController? _controller;
+  final AppSfxService _sfx = AppSfxService.instance;
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   bool _openedDuel = false;
@@ -1229,8 +1231,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _createGame() async {
+    unawaited(_sfx.playClick());
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
+      unawaited(_sfx.playError());
       setState(() {
         _profileError = pseudoError;
       });
@@ -1248,8 +1252,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _joinGame() async {
+    unawaited(_sfx.playClick());
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
+      unawaited(_sfx.playError());
       setState(() {
         _profileError = pseudoError;
       });
@@ -1257,6 +1263,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     }
     final String? codeError = _validateCodePartie();
     if (codeError != null) {
+      unawaited(_sfx.playError());
       setState(() {
         _profileError = codeError;
       });
@@ -1298,9 +1305,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                     Row(
                       children: <Widget>[
                         IconButton(
-                          onPressed: () => Navigator.of(context).popUntil(
-                            (Route<dynamic> route) => route.isFirst,
-                          ),
+                          onPressed: () {
+                            unawaited(_sfx.playClick());
+                            Navigator.of(context).popUntil(
+                              (Route<dynamic> route) => route.isFirst,
+                            );
+                          },
                           tooltip: 'Retour aux modes',
                           icon: const Icon(
                             Icons.arrow_back_rounded,
@@ -1425,6 +1435,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                                     alignment: Alignment.centerLeft,
                                     child: OutlinedButton.icon(
                                       onPressed: () async {
+                                        unawaited(_sfx.playClick());
                                         await Clipboard.setData(
                                           ClipboardData(text: session.gameId),
                                         );
@@ -1436,6 +1447,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                                             content: Text('Code de la partie copié'),
                                           ),
                                         );
+                                        unawaited(_sfx.playNotif());
                                       },
                                       icon: const Icon(Icons.copy_rounded, size: 18),
                                       label: const Text('Copier le code'),
@@ -1570,6 +1582,8 @@ class _DuelPageState extends State<DuelPage> {
   final Queue<String> _chatPreviewQueue = Queue<String>();
   String? _activeChatPreview;
   Timer? _chatPreviewTimer;
+  String? _lastOutcomeSfxKey;
+  final AppSfxService _sfx = AppSfxService.instance;
 
   static const List<String> _quickMessages = <String>[
     'Bien joué',
@@ -1667,6 +1681,7 @@ class _DuelPageState extends State<DuelPage> {
     _maybeHandlePartyExit(session);
     _maybePromptMandatoryStake(session);
     _maybeShowWinPopup(session);
+    _maybePlayRoundOutcomeSfx(session);
   }
 
   void _bindChatRealtime(DuelSession session) {
@@ -1750,6 +1765,7 @@ class _DuelPageState extends State<DuelPage> {
     setState(() {
       _activeChatPreview = next;
     });
+    unawaited(_sfx.playChat());
     _chatPreviewTimer?.cancel();
     _chatPreviewTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted) {
@@ -1787,6 +1803,7 @@ class _DuelPageState extends State<DuelPage> {
     if (!move.accepted) {
       return;
     }
+    unawaited(_sfx.playCard());
     await _controller.sendAction(
       DuelActionType.playCard,
       payload: move.payload,
@@ -2024,6 +2041,7 @@ class _DuelPageState extends State<DuelPage> {
     if (!move.accepted) {
       return;
     }
+    unawaited(_sfx.playDraw());
     await _controller.sendAction(
       DuelActionType.drawCard,
       payload: move.payload,
@@ -2056,6 +2074,27 @@ class _DuelPageState extends State<DuelPage> {
 
   bool _isLocalWinner(DuelSession session) => _winnerId(session) == _controller.localPlayerId;
   bool _isLocalLoser(DuelSession session) => _loserId(session) == _controller.localPlayerId;
+
+  void _maybePlayRoundOutcomeSfx(DuelSession session) {
+    if (session.status != DuelGameStatus.finished) {
+      return;
+    }
+    final String? winnerId = _winnerId(session);
+    if (winnerId == null || winnerId.isEmpty) {
+      return;
+    }
+    final String key =
+        '${session.gameId}_${session.round}_${session.lastAction?.createdAt.toIso8601String() ?? ''}_$winnerId';
+    if (_lastOutcomeSfxKey == key) {
+      return;
+    }
+    _lastOutcomeSfxKey = key;
+    if (winnerId == _controller.localPlayerId) {
+      unawaited(_sfx.playWin());
+    } else {
+      unawaited(_sfx.playLose());
+    }
+  }
 
   bool _canPromptRematchStake(DuelSession session) {
     return _isCreditsMode &&
@@ -2276,6 +2315,7 @@ class _DuelPageState extends State<DuelPage> {
       if (!mounted) {
         return false;
       }
+      unawaited(_sfx.playError());
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Proposition impossible pour le moment.')),
       );
@@ -2295,6 +2335,7 @@ class _DuelPageState extends State<DuelPage> {
     if (!mounted) {
       return;
     }
+    unawaited(_sfx.playError());
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
@@ -2504,6 +2545,7 @@ class _DuelPageState extends State<DuelPage> {
       if (!mounted) {
         return;
       }
+      unawaited(_sfx.playError());
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$playerName n’a pas cette somme.')),
       );
@@ -2911,6 +2953,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   Future<void> _openChatPanel(DuelSession session) async {
+    unawaited(_sfx.playPopup());
     setState(() {
       _isChatOpen = true;
       _unreadChatCount = 0;
@@ -2952,6 +2995,7 @@ class _DuelPageState extends State<DuelPage> {
       if (!mounted) {
         return;
       }
+      unawaited(_sfx.playError());
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Message non envoyé. Réessaie.')),
       );
@@ -2994,9 +3038,12 @@ class _DuelPageState extends State<DuelPage> {
                   Row(
                     children: <Widget>[
                       IconButton(
-                        onPressed: () => Navigator.of(context).popUntil(
-                          (Route<dynamic> route) => route.isFirst,
-                        ),
+                        onPressed: () {
+                          unawaited(_sfx.playClick());
+                          Navigator.of(context).popUntil(
+                            (Route<dynamic> route) => route.isFirst,
+                          );
+                        },
                         tooltip: 'Retour aux modes',
                         icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                       ),
@@ -3017,7 +3064,10 @@ class _DuelPageState extends State<DuelPage> {
                           DuelChatButton(
                             unreadCount: _unreadChatCount,
                             enabled: session.players.length == 2,
-                            onPressed: () => _openChatPanel(session),
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              _openChatPanel(session);
+                            },
                           ),
                           if (_activeChatPreview != null)
                             Positioned(
@@ -3107,7 +3157,10 @@ class _DuelPageState extends State<DuelPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: ElevatedButton.icon(
-                        onPressed: _onReplayTap,
+                        onPressed: () {
+                          unawaited(_sfx.playClick());
+                          _onReplayTap();
+                        },
                         icon: const Icon(Icons.refresh),
                         label: Text(
                           session.rematchRequestBy == _controller.localPlayerId &&
@@ -3216,27 +3269,48 @@ class _DuelChatPreviewBubble extends StatelessWidget {
       builder: (BuildContext context, double value, Widget? child) {
         return Transform.scale(scale: value, alignment: Alignment.topRight, child: child);
       },
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 190),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xE619241D),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white24),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(color: Color(0x55000000), blurRadius: 10, offset: Offset(0, 3)),
-          ],
-        ),
-        child: Text(
-          preview,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Container(
+            constraints: const BoxConstraints(maxWidth: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xE2263F36),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white24),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(color: Color(0x40000000), blurRadius: 8, offset: Offset(0, 3)),
+              ],
+            ),
+            child: Text(
+              preview,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.2,
+              ),
+            ),
           ),
-        ),
+          Positioned(
+            right: -4,
+            top: 12,
+            child: Transform.rotate(
+              angle: 0.785398,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: const Color(0xE2263F36),
+                  border: Border.all(color: Colors.white24),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
