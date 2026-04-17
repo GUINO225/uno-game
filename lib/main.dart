@@ -281,79 +281,84 @@ class _GameModePageState extends State<GameModePage>
                                         boldFontSize: 25.3,
                                       ),
                                       const SizedBox(height: _modeCardsTopSpacing),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: <Widget>[
-                                          FadeTransition(
-                                            opacity: _soloFade,
-                                            child: SlideTransition(
-                                              position: _soloSlideUp,
-                                              child: ScaleTransition(
-                                                scale: _soloScale,
-                                                child: ModeCardSolo(
-                                                  width: _modeCardWidth,
-                                                  height: _modeCardHeight,
-                                                  labelFontSize:
-                                                      _modeLabelFontSize,
-                                                  isSelected:
-                                                      _selectedMode ==
-                                                      GameMode.solo,
-                                                  onTap:
-                                                      () => _selectMode(
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.center,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: <Widget>[
+                                            FadeTransition(
+                                              opacity: _soloFade,
+                                              child: SlideTransition(
+                                                position: _soloSlideUp,
+                                                child: ScaleTransition(
+                                                  scale: _soloScale,
+                                                  child: ModeCardSolo(
+                                                    width: _modeCardWidth,
+                                                    height: _modeCardHeight,
+                                                    labelFontSize:
+                                                        _modeLabelFontSize,
+                                                    isSelected:
+                                                        _selectedMode ==
                                                         GameMode.solo,
-                                                      ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          FadeTransition(
-                                            opacity: _duelFade,
-                                            child: SlideTransition(
-                                              position: _duelSlideUp,
-                                              child: ScaleTransition(
-                                                scale: _duelScale,
-                                                child: ModeCardDuel(
-                                                  width: _modeCardWidth,
-                                                  height: _modeCardHeight,
-                                                  labelFontSize:
-                                                      _modeLabelFontSize,
-                                                  isSelected:
-                                                      _selectedMode ==
-                                                      GameMode.duel,
-                                                  onTap:
-                                                      () => _selectMode(
-                                                        GameMode.duel,
-                                                      ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          FadeTransition(
-                                            opacity: _creditsFade,
-                                            child: SlideTransition(
-                                              position: _creditsSlideUp,
-                                              child: ScaleTransition(
-                                                scale: _creditsScale,
-                                                child: ModeCardCredits(
-                                                  width: _modeCardWidth,
-                                                  height: _modeCardHeight,
-                                                  labelFontSize:
-                                                      _modeLabelFontSize,
-                                                  isSelected: _selectedMode ==
-                                                      GameMode.credits,
-                                                  onTap: () => _selectMode(
-                                                    GameMode.credits,
+                                                    onTap:
+                                                        () => _selectMode(
+                                                          GameMode.solo,
+                                                        ),
                                                   ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(width: 10),
+                                            FadeTransition(
+                                              opacity: _duelFade,
+                                              child: SlideTransition(
+                                                position: _duelSlideUp,
+                                                child: ScaleTransition(
+                                                  scale: _duelScale,
+                                                  child: ModeCardDuel(
+                                                    width: _modeCardWidth,
+                                                    height: _modeCardHeight,
+                                                    labelFontSize:
+                                                        _modeLabelFontSize,
+                                                    isSelected:
+                                                        _selectedMode ==
+                                                        GameMode.duel,
+                                                    onTap:
+                                                        () => _selectMode(
+                                                          GameMode.duel,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            FadeTransition(
+                                              opacity: _creditsFade,
+                                              child: SlideTransition(
+                                                position: _creditsSlideUp,
+                                                child: ScaleTransition(
+                                                  scale: _creditsScale,
+                                                  child: ModeCardCredits(
+                                                    width: _modeCardWidth,
+                                                    height: _modeCardHeight,
+                                                    labelFontSize:
+                                                        _modeLabelFontSize,
+                                                    isSelected: _selectedMode ==
+                                                        GameMode.credits,
+                                                    onTap: () => _selectMode(
+                                                      GameMode.credits,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                       const SizedBox(height: _controlsTopSpacing),
                                       AnimatedSwitcher(
@@ -406,7 +411,7 @@ class _GameModePageState extends State<GameModePage>
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Text(
-                                  'V2.1',
+                                  'V2.2',
                                   style: TextStyle(
                                     color: GameModePalette.white.withOpacity(
                                       0.9,

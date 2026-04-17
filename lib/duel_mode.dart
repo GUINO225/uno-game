@@ -492,12 +492,29 @@ class GameService {
     required String gameId,
     required String requestedBy,
   }) async {
-    final CollectionReference<Map<String, dynamic>> games = await _games();
-    await games.doc(gameId).update(<String, dynamic>{
-      'rematchRequestBy': requestedBy,
-      'rematchRequestedAt': FieldValue.serverTimestamp(),
-      'rematchDecision': DuelRematchDecision.pending.name,
-      'rematchDecisionBy': null,
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      final String? winnerId = session.lastAction?.payload['winnerId'] as String?;
+      if (session.status != DuelGameStatus.finished ||
+          winnerId == null ||
+          winnerId.isEmpty ||
+          winnerId == requestedBy ||
+          !session.players.contains(requestedBy)) {
+        return;
+      }
+      tx.update(ref, <String, dynamic>{
+        'rematchRequestBy': requestedBy,
+        'rematchRequestedAt': FieldValue.serverTimestamp(),
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+      });
     });
   }
 
@@ -524,6 +541,16 @@ class GameService {
       if (!accept) {
         tx.update(ref, <String, dynamic>{
           'rematchDecision': DuelRematchDecision.declined.name,
+          'rematchDecisionBy': responderId,
+        });
+        return;
+      }
+      if (session.isCreditsMode) {
+        tx.update(ref, <String, dynamic>{
+          'status': DuelGameStatus.finished.name,
+          'activeStakeCredits': 0,
+          'stakeOffer': const DuelStakeOffer().toMap(),
+          'rematchDecision': DuelRematchDecision.accepted.name,
           'rematchDecisionBy': responderId,
         });
         return;
@@ -629,6 +656,10 @@ class GameService {
       }
       if (!accept) {
         final int proposerCredits = session.playerCredits[offer.proposedBy!] ?? 0;
+        final bool isCounterProposalFlow = session.status == DuelGameStatus.finished &&
+            session.rematchDecision == DuelRematchDecision.accepted &&
+            session.rematchRequestBy != null &&
+            offer.proposedBy != session.rematchRequestBy;
         tx.update(ref, <String, dynamic>{
           'playerCredits.${offer.proposedBy!}': proposerCredits + offer.amount,
           'activeStakeCredits': 0,
@@ -638,6 +669,8 @@ class GameService {
             status: DuelStakeStatus.declined,
             createdAt: offer.createdAt,
           ).toMap(),
+          if (isCounterProposalFlow) 'rematchDecision': DuelRematchDecision.declined.name,
+          if (isCounterProposalFlow) 'rematchDecisionBy': responderId,
         });
         return;
       }
@@ -646,17 +679,48 @@ class GameService {
       if (offer.amount > responderCredits || offer.amount > proposerCredits) {
         throw StateError('Solde insuffisant pour accepter ce pari.');
       }
+      final DuelStakeOffer acceptedOffer = DuelStakeOffer(
+        proposedBy: offer.proposedBy,
+        acceptedBy: responderId,
+        amount: offer.amount,
+        status: DuelStakeStatus.accepted,
+        createdAt: offer.createdAt ?? DateTime.now(),
+      );
+      if (session.status == DuelGameStatus.finished) {
+        final int nextRound = session.round + 1;
+        final String starter = session.players.contains(session.rematchRequestBy)
+            ? session.rematchRequestBy!
+            : (offer.proposedBy ?? session.hostId);
+        final DuelAction action = DuelAction(
+          type: DuelActionType.resetRound,
+          actorId: responderId,
+          createdAt: DateTime.now(),
+          payload: <String, dynamic>{
+            'round': nextRound,
+            'startingPlayerId': starter,
+          },
+        );
+        tx.update(ref, <String, dynamic>{
+          'playerCredits.$responderId': responderCredits - offer.amount,
+          'activeStakeCredits': offer.amount * 2,
+          'status': DuelGameStatus.inProgress.name,
+          'round': nextRound,
+          'currentTurn': starter,
+          'lastAction': action.toMap(),
+          'stakeOffer': acceptedOffer.toMap(),
+          'rematchRequestBy': null,
+          'rematchRequestedAt': null,
+          'rematchDecision': DuelRematchDecision.pending.name,
+          'rematchDecisionBy': null,
+        });
+        tx.set(ref.collection('actions').doc(), action.toMap());
+        return;
+      }
       tx.update(ref, <String, dynamic>{
         'playerCredits.$responderId': responderCredits - offer.amount,
         'activeStakeCredits': offer.amount * 2,
         'status': DuelGameStatus.inProgress.name,
-        'stakeOffer': DuelStakeOffer(
-          proposedBy: offer.proposedBy,
-          acceptedBy: responderId,
-          amount: offer.amount,
-          status: DuelStakeStatus.accepted,
-          createdAt: offer.createdAt ?? DateTime.now(),
-        ).toMap(),
+        'stakeOffer': acceptedOffer.toMap(),
       });
     });
   }
@@ -1180,8 +1244,10 @@ class _DuelPageState extends State<DuelPage> {
   bool _stakeActionBusy = false;
   bool _stakeDialogOpen = false;
   bool _stakeSelectionDialogOpen = false;
+  bool _winDialogOpen = false;
   String? _lastStakeOfferKey;
   String? _lastMandatoryStakePromptKey;
+  String? _lastWinPopupKey;
   bool _didNavigateHomeAfterDecline = false;
   final ValueNotifier<List<DuelChatMessage>> _chatMessagesNotifier =
       ValueNotifier<List<DuelChatMessage>>(const <DuelChatMessage>[]);
@@ -1207,12 +1273,16 @@ class _DuelPageState extends State<DuelPage> {
   bool _canSetStake(DuelSession session) =>
       _isCreditsMode &&
       session.players.length == 2 &&
-      session.status != DuelGameStatus.inProgress;
+      (session.status == DuelGameStatus.waiting ||
+          (session.status == DuelGameStatus.finished &&
+              session.rematchDecision == DuelRematchDecision.accepted));
   bool _requiresStake(DuelSession session) =>
       _isCreditsMode &&
       session.players.length == 2 &&
       session.status == DuelGameStatus.inProgress &&
       session.activeStakeCredits <= 0;
+  bool _isBlockingDialogOpen() =>
+      _rematchDialogOpen || _stakeDialogOpen || _stakeSelectionDialogOpen || _winDialogOpen;
 
   @override
   void initState() {
@@ -1262,6 +1332,7 @@ class _DuelPageState extends State<DuelPage> {
     _maybeHandleStakeFlow(session);
     _maybeHandleRematchFlow(session);
     _maybePromptMandatoryStake(session);
+    _maybeShowWinPopup(session);
   }
 
   void _bindChatRealtime(DuelSession session) {
@@ -1596,6 +1667,33 @@ class _DuelPageState extends State<DuelPage> {
   String _displayNameUpper(DuelSession session, String playerId) =>
       _resolveName(session, playerId).toUpperCase();
 
+  String? _winnerId(DuelSession session) =>
+      session.lastAction?.payload['winnerId'] as String?;
+
+  String? _loserId(DuelSession session) {
+    final String? winnerId = _winnerId(session);
+    if (winnerId == null || winnerId.isEmpty) {
+      return null;
+    }
+    final String loserId = session.players.firstWhere(
+      (String id) => id != winnerId,
+      orElse: () => '',
+    );
+    return loserId.isEmpty ? null : loserId;
+  }
+
+  bool _isLocalWinner(DuelSession session) => _winnerId(session) == _controller.localPlayerId;
+  bool _isLocalLoser(DuelSession session) => _loserId(session) == _controller.localPlayerId;
+
+  bool _canPromptRematchStake(DuelSession session) {
+    return _isCreditsMode &&
+        session.status == DuelGameStatus.finished &&
+        session.rematchDecision == DuelRematchDecision.accepted &&
+        session.rematchRequestBy == _controller.localPlayerId &&
+        session.activeStakeCredits <= 0 &&
+        !session.stakeOffer.isPending;
+  }
+
   int _creditsOf(DuelSession session, String playerId) =>
       session.playerCredits[playerId] ?? 1000;
 
@@ -1824,6 +1922,9 @@ class _DuelPageState extends State<DuelPage> {
   Future<void> _showStakeDecisionDialog(DuelSession session) async {
     final DuelStakeOffer offer = session.stakeOffer;
     final String proposer = _displayNameUpper(session, offer.proposedBy ?? '');
+    final bool isCounterProposal = session.rematchRequestBy != null &&
+        session.rematchDecision == DuelRematchDecision.accepted &&
+        offer.proposedBy != session.rematchRequestBy;
     _stakeDialogOpen = true;
     final bool? accepted = await showDialog<bool>(
       context: context,
@@ -1831,9 +1932,14 @@ class _DuelPageState extends State<DuelPage> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text('PROPOSITION', textAlign: TextAlign.center),
+          title: Text(
+            isCounterProposal ? 'CONTRE-PROPOSITION' : 'PROPOSITION',
+            textAlign: TextAlign.center,
+          ),
           content: Text(
-            '$proposer propose un pari de ${offer.amount}',
+            isCounterProposal
+                ? '$proposer veut plutôt parier ${offer.amount}'
+                : '$proposer propose une mise de ${offer.amount}',
             textAlign: TextAlign.center,
           ),
           actions: <Widget>[
@@ -1865,10 +1971,18 @@ class _DuelPageState extends State<DuelPage> {
         });
       }
     }
+    if (!accepted &&
+        mounted &&
+        _isLocalWinner(session) &&
+        session.rematchDecision == DuelRematchDecision.accepted &&
+        session.rematchRequestBy != null &&
+        offer.proposedBy == session.rematchRequestBy) {
+      await _openStakeProposal(session);
+    }
   }
 
   void _maybeHandleStakeFlow(DuelSession session) {
-    if (!_isCreditsMode || !session.isCreditsMode || _stakeDialogOpen) {
+    if (!_isCreditsMode || !session.isCreditsMode || _isBlockingDialogOpen()) {
       return;
     }
     final DuelStakeOffer offer = session.stakeOffer;
@@ -1891,11 +2005,14 @@ class _DuelPageState extends State<DuelPage> {
 
   void _maybePromptMandatoryStake(DuelSession session) {
     final bool shouldPrompt =
-        (_canSetStake(session) && session.activeStakeCredits <= 0) || _requiresStake(session);
+        (session.status == DuelGameStatus.waiting &&
+            _canSetStake(session) &&
+            session.activeStakeCredits <= 0) ||
+        _requiresStake(session) ||
+        _canPromptRematchStake(session);
     if (!shouldPrompt ||
         _stakeActionBusy ||
-        _stakeDialogOpen ||
-        _stakeSelectionDialogOpen ||
+        _isBlockingDialogOpen() ||
         session.stakeOffer.isPending) {
       return;
     }
@@ -1917,23 +2034,14 @@ class _DuelPageState extends State<DuelPage> {
       return;
     }
     final DuelSession? session = _controller.session;
-    if (session == null || session.status != DuelGameStatus.finished) {
+    if (session == null ||
+        session.status != DuelGameStatus.finished ||
+        !_isLocalLoser(session)) {
       return;
     }
     if (session.rematchRequestBy == _controller.localPlayerId &&
         session.rematchDecision == DuelRematchDecision.pending) {
       return;
-    }
-    if (_isCreditsMode) {
-      final int myCredits = _creditsOf(session, _controller.localPlayerId);
-      final int? selected = await _showStakeSelectionDialog(myCredits: myCredits);
-      if (selected == null) {
-        return;
-      }
-      final bool proposalSent = await _submitStakeProposal(session: session, amount: selected);
-      if (!proposalSent) {
-        return;
-      }
     }
     setState(() {
       _rematchActionBusy = true;
@@ -1967,7 +2075,7 @@ class _DuelPageState extends State<DuelPage> {
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
           content: Text(
-            '$requester VEUT REJOUER',
+            '$requester veut prendre sa revanche',
             textAlign: TextAlign.center,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
@@ -2036,7 +2144,7 @@ class _DuelPageState extends State<DuelPage> {
         requesterId.isEmpty ||
         requesterId == _controller.localPlayerId ||
         session.status != DuelGameStatus.finished ||
-        _rematchDialogOpen) {
+        _isBlockingDialogOpen()) {
       return;
     }
     final String requestKey = '${requesterId}_${session.rematchRequestedAt?.millisecondsSinceEpoch ?? 0}';
@@ -2049,6 +2157,66 @@ class _DuelPageState extends State<DuelPage> {
         return;
       }
       await _showRematchConfirmDialog(session: session, requesterId: requesterId);
+    });
+  }
+
+  Future<void> _showWinPopup({required int gainAmount}) async {
+    _winDialogOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          titlePadding: const EdgeInsets.fromLTRB(16, 8, 6, 0),
+          title: Row(
+            children: <Widget>[
+              const Expanded(
+                child: Text(
+                  'VICTOIRE',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Fermer',
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          content: Text(
+            'Vous avez gagné $gainAmount',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+        );
+      },
+    );
+    _winDialogOpen = false;
+  }
+
+  void _maybeShowWinPopup(DuelSession session) {
+    if (!_isCreditsMode ||
+        session.status != DuelGameStatus.finished ||
+        !_isLocalWinner(session) ||
+        _isBlockingDialogOpen()) {
+      return;
+    }
+    final String key =
+        '${session.round}_${session.lastAction?.createdAt.toIso8601String() ?? ''}_${session.stakeOffer.amount}';
+    if (_lastWinPopupKey == key) {
+      return;
+    }
+    _lastWinPopupKey = key;
+    final int gainAmount = session.stakeOffer.amount > 0
+        ? session.stakeOffer.amount * 2
+        : session.activeStakeCredits;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      await _showWinPopup(gainAmount: gainAmount);
     });
   }
 
@@ -2276,6 +2444,7 @@ class _DuelPageState extends State<DuelPage> {
                     _CreditsStakeBanner(
                       myCredits: myCredits,
                       activeStakeCredits: session.activeStakeCredits,
+                      playerStakeCredits: session.stakeOffer.amount,
                       stakeText: _requiresStake(session)
                           ? switch (stakeOffer.status) {
                               DuelStakeStatus.pending =>
@@ -2320,7 +2489,9 @@ class _DuelPageState extends State<DuelPage> {
                     session: session,
                     localPlayerId: _controller.localPlayerId,
                   ),
-                  if (_isCreditsMode && _canSetStake(session) && session.players.length == 2)
+                  if (_isCreditsMode &&
+                      session.status == DuelGameStatus.waiting &&
+                      session.players.length == 2)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: OutlinedButton.icon(
@@ -2332,7 +2503,9 @@ class _DuelPageState extends State<DuelPage> {
                         label: const Text('Faire un pari'),
                       ),
                     ),
-                  if (session.status == DuelGameStatus.finished)
+                  if (session.status == DuelGameStatus.finished &&
+                      _isLocalLoser(session) &&
+                      session.rematchDecision != DuelRematchDecision.accepted)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: ElevatedButton.icon(
@@ -3273,11 +3446,13 @@ class _CreditsStakeBanner extends StatelessWidget {
   const _CreditsStakeBanner({
     required this.myCredits,
     required this.activeStakeCredits,
+    required this.playerStakeCredits,
     this.stakeText,
   });
 
   final int myCredits;
   final int activeStakeCredits;
+  final int playerStakeCredits;
   final String? stakeText;
 
   @override
@@ -3348,6 +3523,36 @@ class _CreditsStakeBanner extends StatelessWidget {
                 color: Colors.white.withOpacity(0.92),
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (playerStakeCredits > 0) ...<Widget>[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(
+                    Icons.workspace_premium_rounded,
+                    size: 16,
+                    color: Color(0xFFFFE9A9),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Votre mise : $playerStakeCredits',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
