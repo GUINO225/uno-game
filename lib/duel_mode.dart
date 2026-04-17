@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1396,6 +1397,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                             onPressed: busy ? null : _createGame,
                             icon: const Icon(Icons.add_circle_outline_rounded),
                             label: const Text('Créer maintenant'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: PremiumColors.accentGreen,
+                              foregroundColor: PremiumColors.textDark,
+                            ),
                           ),
                           if (session != null) ...<Widget>[
                             const SizedBox(height: 14),
@@ -1487,6 +1492,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                             onPressed: busy ? null : _joinGame,
                             icon: const Icon(Icons.login_rounded),
                             label: const Text('Rejoindre'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: PremiumColors.accentGreen,
+                              foregroundColor: PremiumColors.textDark,
+                            ),
                           ),
                         ],
                       ),
@@ -1556,6 +1565,11 @@ class _DuelPageState extends State<DuelPage> {
   int _unreadChatCount = 0;
   String? _chatError;
   String? _chatGameId;
+  String? _pendingStakeOfferAfterVictoryKey;
+  String? _pendingRematchAfterVictoryKey;
+  final Queue<String> _chatPreviewQueue = Queue<String>();
+  String? _activeChatPreview;
+  Timer? _chatPreviewTimer;
 
   static const List<String> _quickMessages = <String>[
     'Bien joué',
@@ -1612,6 +1626,7 @@ class _DuelPageState extends State<DuelPage> {
     _controller.removeListener(_onControllerChange);
     _actionsSubscription?.cancel();
     _chatSub?.cancel();
+    _chatPreviewTimer?.cancel();
     _chatMessagesNotifier.dispose();
     super.dispose();
   }
@@ -1678,6 +1693,7 @@ class _DuelPageState extends State<DuelPage> {
             final List<DuelChatMessage> ordered = dedup.values.toList()
               ..sort((DuelChatMessage a, DuelChatMessage b) => a.createdAt.compareTo(b.createdAt));
             int unreadDelta = 0;
+            final List<String> previews = <String>[];
             for (final DuelChatMessage message in ordered) {
               if (_knownMessageIds.contains(message.id)) {
                 continue;
@@ -1687,6 +1703,7 @@ class _DuelPageState extends State<DuelPage> {
                   !_isChatOpen &&
                   message.senderId != _controller.localPlayerId) {
                 unreadDelta += 1;
+                previews.add(message.text);
               }
             }
             setState(() {
@@ -1694,6 +1711,9 @@ class _DuelPageState extends State<DuelPage> {
               _chatError = null;
               _unreadChatCount += unreadDelta;
             });
+            if (previews.isNotEmpty) {
+              _enqueueChatPreview(previews);
+            }
             if (!_chatBootstrapped) {
               _chatBootstrapped = true;
             }
@@ -1707,6 +1727,39 @@ class _DuelPageState extends State<DuelPage> {
             });
           },
         );
+  }
+
+  void _enqueueChatPreview(List<String> previews) {
+    if (_isChatOpen) {
+      return;
+    }
+    for (final String preview in previews) {
+      final String trimmed = preview.trim();
+      if (trimmed.isNotEmpty) {
+        _chatPreviewQueue.add(trimmed);
+      }
+    }
+    _showNextChatPreviewIfIdle();
+  }
+
+  void _showNextChatPreviewIfIdle() {
+    if (!mounted || _activeChatPreview != null || _chatPreviewQueue.isEmpty || _isChatOpen) {
+      return;
+    }
+    final String next = _chatPreviewQueue.removeFirst();
+    setState(() {
+      _activeChatPreview = next;
+    });
+    _chatPreviewTimer?.cancel();
+    _chatPreviewTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activeChatPreview = null;
+      });
+      _showNextChatPreviewIfIdle();
+    });
   }
 
   Future<void> _onCardTap(DuelCard card) async {
@@ -2328,7 +2381,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   void _maybeHandleStakeFlow(DuelSession session) {
-    if (!_isCreditsMode || !session.isCreditsMode || _isBlockingDialogOpen()) {
+    if (!_isCreditsMode || !session.isCreditsMode) {
       return;
     }
     final DuelStakeOffer offer = session.stakeOffer;
@@ -2338,6 +2391,13 @@ class _DuelPageState extends State<DuelPage> {
     final String key =
         '${offer.proposedBy}_${offer.amount}_${offer.createdAt?.millisecondsSinceEpoch ?? 0}';
     if (_lastStakeOfferKey == key) {
+      return;
+    }
+    if (_winDialogOpen) {
+      _pendingStakeOfferAfterVictoryKey = key;
+      return;
+    }
+    if (_isBlockingDialogOpen()) {
       return;
     }
     _lastStakeOfferKey = key;
@@ -2630,6 +2690,13 @@ class _DuelPageState extends State<DuelPage> {
     if (_lastRematchRequestKey == requestKey) {
       return;
     }
+    if (_winDialogOpen) {
+      _pendingRematchAfterVictoryKey = requestKey;
+      return;
+    }
+    if (_isBlockingDialogOpen()) {
+      return;
+    }
     _lastRematchRequestKey = requestKey;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) {
@@ -2690,6 +2757,26 @@ class _DuelPageState extends State<DuelPage> {
       },
     );
     _winDialogOpen = false;
+    _drainDialogsAfterVictory();
+  }
+
+  void _drainDialogsAfterVictory() {
+    if (!mounted) {
+      return;
+    }
+    final DuelSession? session = _controller.session;
+    if (session == null || _isBlockingDialogOpen()) {
+      return;
+    }
+    if (_pendingStakeOfferAfterVictoryKey != null) {
+      _pendingStakeOfferAfterVictoryKey = null;
+      _maybeHandleStakeFlow(session);
+      return;
+    }
+    if (_pendingRematchAfterVictoryKey != null) {
+      _pendingRematchAfterVictoryKey = null;
+      _maybeHandleRematchFlow(session);
+    }
   }
 
   void _maybeShowWinPopup(DuelSession session) {
@@ -2827,7 +2914,10 @@ class _DuelPageState extends State<DuelPage> {
     setState(() {
       _isChatOpen = true;
       _unreadChatCount = 0;
+      _activeChatPreview = null;
     });
+    _chatPreviewQueue.clear();
+    _chatPreviewTimer?.cancel();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -2921,10 +3011,21 @@ class _DuelPageState extends State<DuelPage> {
                         ),
                       ),
                       const Spacer(),
-                      DuelChatButton(
-                        unreadCount: _unreadChatCount,
-                        enabled: session.players.length == 2,
-                        onPressed: () => _openChatPanel(session),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: <Widget>[
+                          DuelChatButton(
+                            unreadCount: _unreadChatCount,
+                            enabled: session.players.length == 2,
+                            onPressed: () => _openChatPanel(session),
+                          ),
+                          if (_activeChatPreview != null)
+                            Positioned(
+                              right: 54,
+                              top: 0,
+                              child: _DuelChatPreviewBubble(text: _activeChatPreview!),
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -3012,7 +3113,7 @@ class _DuelPageState extends State<DuelPage> {
                           session.rematchRequestBy == _controller.localPlayerId &&
                                   session.rematchDecision == DuelRematchDecision.pending
                               ? 'EN ATTENTE...'
-                              : 'REJOUER',
+                              : 'PRENDRE SA REVANCHE',
                         ),
                       ),
                     ),
@@ -3094,6 +3195,47 @@ class DuelChatButton extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DuelChatPreviewBubble extends StatelessWidget {
+  const _DuelChatPreviewBubble({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final String preview = text.length > 46 ? '${text.substring(0, 43)}…' : text;
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 180),
+      tween: Tween<double>(begin: 0.96, end: 1),
+      curve: Curves.easeOutCubic,
+      builder: (BuildContext context, double value, Widget? child) {
+        return Transform.scale(scale: value, alignment: Alignment.topRight, child: child);
+      },
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 190),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xE619241D),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(color: Color(0x55000000), blurRadius: 10, offset: Offset(0, 3)),
+          ],
+        ),
+        child: Text(
+          preview,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );
@@ -4433,13 +4575,9 @@ class _PlayedCardMini extends StatelessWidget {
       width: 40,
       height: 58,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
+        decoration: PremiumCardEffects.bevelFace(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black.withOpacity(0.22)),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
-          ],
+          color: Colors.white,
         ),
         child: Padding(
           padding: const EdgeInsets.all(4),
@@ -4626,13 +4764,9 @@ class _FaceCard extends StatelessWidget {
       width: width,
       height: height,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
+        decoration: PremiumCardEffects.bevelFace(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.black.withOpacity(0.22)),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(color: Colors.black26, blurRadius: 5, offset: Offset(0, 2)),
-          ],
+          color: Colors.white,
         ),
         child: Padding(
           padding: const EdgeInsets.all(7),
@@ -4798,9 +4932,8 @@ class _DuelCardBack extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      decoration: BoxDecoration(
+      decoration: PremiumCardEffects.bevelBack(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white70),
         image: const DecorationImage(
           image: AssetImage('assets/img/card_back.jpeg'),
           fit: BoxFit.cover,
