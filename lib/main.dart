@@ -437,11 +437,11 @@ class _GameModePageState extends State<GameModePage>
   static const double _modeCardsTopSpacing = 16;
   static const double _controlsTopSpacing = 24;
   static const double _centerBlockVerticalOffset = -10;
-  static const double _modeLabelFontSize = 34;
+  static const double _modeLabelFontSize = 22;
   static const double _playLabelFontSize = 20;
   static const double _versionFontSize = 14;
-  static const double _modeCardWidth = 94;
-  static const double _modeCardHeight = 146;
+  static const double _modeCardWidth = 116;
+  static const double _modeCardHeight = 178;
 
   late final AnimationController _introController;
   late final Animation<double> _fadeIn;
@@ -964,19 +964,29 @@ class _ModeSelectionImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: width + 34,
-      height: height + 20,
-      child: Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: Image.asset(
-              assetPath,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+      width: width,
+      height: height,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.5),
+            width: 1.2,
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withOpacity(0.26),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
             ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Image.asset(
+            assetPath,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
           ),
         ),
       ),
@@ -1024,7 +1034,7 @@ class _PressableModeCardState extends State<_PressableModeCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             color: widget.isSelected
@@ -1056,7 +1066,7 @@ class _PressableModeCardState extends State<_PressableModeCard> {
                   color: GameModePalette.white,
                   fontSize: widget.labelFontSize,
                   fontWeight: FontWeight.w400,
-                  letterSpacing: 0.8,
+                  letterSpacing: 0.6,
                 ),
               ),
             ],
