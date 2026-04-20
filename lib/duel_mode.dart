@@ -1335,7 +1335,13 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    const AppLogo(size: 120),
+                    const Align(
+                      alignment: Alignment.topLeft,
+                      child: AppLogo(
+                        size: 56,
+                        padding: EdgeInsets.only(left: 6),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       subtitle,
@@ -3289,14 +3295,14 @@ class _DuelPageState extends State<DuelPage> {
                 ),
               ),
               Positioned(
-                top: 12,
-                right: 12,
+                top: topInset + 4,
+                left: 12,
                 child: IgnorePointer(
                   child: Opacity(
                     opacity: 0.82,
                     child: AppLogo(
-                      size: 48,
-                      padding: EdgeInsets.only(top: 2, right: 2),
+                      size: 42,
+                      padding: EdgeInsets.only(top: 2, left: 2),
                     ),
                   ),
                 ),
