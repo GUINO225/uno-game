@@ -8,7 +8,7 @@ class AppLogo extends StatelessWidget {
     this.padding = EdgeInsets.zero,
   });
 
-  static const String assetPath = 'assets/logo.png';
+  static const String assetPath = 'assets/img/logo.png';
 
   final double size;
   final AlignmentGeometry alignment;
@@ -22,10 +22,14 @@ class AppLogo extends StatelessWidget {
         padding: padding,
         child: SizedBox(
           width: size,
+          height: size,
           child: Image.asset(
             assetPath,
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
+            errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
+              return const SizedBox.shrink();
+            },
           ),
         ),
       ),
