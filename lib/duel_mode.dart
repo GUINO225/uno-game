@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'firebase_config.dart';
 import 'premium_ui.dart';
@@ -1333,6 +1334,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                         const SizedBox(width: 48),
                       ],
                     ),
+                    const SizedBox(height: 10),
+                    const AppLogo(size: 120),
                     const SizedBox(height: 8),
                     Text(
                       subtitle,
@@ -3130,155 +3133,172 @@ class _DuelPageState extends State<DuelPage> {
         final double topInset = MediaQuery.paddingOf(context).top;
         return Scaffold(
           backgroundColor: PremiumColors.tableGreenDark,
-          body: TableBackground(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12, topInset + 8, 12, 12),
-              child: Column(
-                children: <Widget>[
-                  Row(
+          body: Stack(
+            children: <Widget>[
+              TableBackground(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(12, topInset + 8, 12, 12),
+                  child: Column(
                     children: <Widget>[
-                      IconButton(
-                        onPressed: () {
-                          unawaited(_sfx.playClick());
-                          Navigator.of(context).popUntil(
-                            (Route<dynamic> route) => route.isFirst,
-                          );
-                        },
-                        tooltip: 'Retour aux modes',
-                        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                      ),
-                      const Spacer(),
-                      Text(
-                        _isCreditsMode ? 'DUEL PARI' : 'DUEL',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.95),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 20,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const Spacer(),
-                      Stack(
-                        clipBehavior: Clip.none,
+                      Row(
                         children: <Widget>[
-                          DuelChatButton(
-                            unreadCount: _unreadChatCount,
-                            enabled: session.players.length == 2,
+                          IconButton(
                             onPressed: () {
                               unawaited(_sfx.playClick());
-                              _openChatPanel(session);
+                              Navigator.of(context).popUntil(
+                                (Route<dynamic> route) => route.isFirst,
+                              );
                             },
+                            tooltip: 'Retour aux modes',
+                            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                           ),
-                          if (_activeChatPreview != null)
-                            Positioned(
-                              right: 54,
-                              top: 0,
-                              child: _DuelChatPreviewBubble(text: _activeChatPreview!),
+                          const Spacer(),
+                          Text(
+                            _isCreditsMode ? 'DUEL PARI' : 'DUEL',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.95),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 20,
+                              letterSpacing: 0.8,
                             ),
+                          ),
+                          const Spacer(),
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: <Widget>[
+                              DuelChatButton(
+                                unreadCount: _unreadChatCount,
+                                enabled: session.players.length == 2,
+                                onPressed: () {
+                                  unawaited(_sfx.playClick());
+                                  _openChatPanel(session);
+                                },
+                              ),
+                              if (_activeChatPreview != null)
+                                Positioned(
+                                  right: 54,
+                                  top: 0,
+                                  child: _DuelChatPreviewBubble(text: _activeChatPreview!),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
-                    ],
-                  ),
-                  _DuelStatusBanner(
-                    opponentName: opponentName,
-                    myScore: myScore,
-                    opponentScore: opponentScore,
-                    round: session.round,
-                  ),
-                  if (_isCreditsMode) ...<Widget>[
-                    const SizedBox(height: 8),
-                    _CreditsStakeBanner(
-                      activeStakeCredits: session.activeStakeCredits,
-                      playerStakeCredits: session.stakeOffer.amount,
-                      stakeText: _requiresStake(session)
-                          ? switch (stakeOffer.status) {
-                              DuelStakeStatus.pending =>
-                                'Proposition en attente : ${stakeOffer.amount}',
-                              DuelStakeStatus.declined => 'Proposition refusée. Faites un nouveau pari.',
-                              DuelStakeStatus.insufficientFunds =>
-                                'Solde insuffisant détecté. Proposez une autre mise.',
-                              DuelStakeStatus.none ||
-                              DuelStakeStatus.accepted ||
-                              DuelStakeStatus.resolved =>
-                                'Pari obligatoire avant de jouer.',
-                            }
-                          : null,
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  _OpponentRow(
-                    name: opponentName,
-                    count: board.handOf(opponentId).length,
-                    wins: opponentScore,
-                    losses: myScore,
-                    fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
-                    avatarCard: opponentAvatarCard,
-                  ),
-                  const SizedBox(height: 10),
-                  _CenterArea(
-                    discard: board.discardTop,
-                    drawCount: board.drawPile.length,
-                    canDraw: myTurn && board.canDraw(_controller.localPlayerId),
-                    onDrawTap: _onDrawTap,
-                    overlay: texts.overlay,
-                    requiredSuit: board.requiredSuit,
-                    mustDraw: myTurn && board.pendingDraw > 0,
-                  ),
-                  const SizedBox(height: 10),
-                  _MyHandRow(
-                    cards: board.handOf(_controller.localPlayerId),
-                    canInteract: myTurn,
-                    onCardTap: _onCardTap,
-                    playable: (DuelCard card) =>
-                        myTurn && board.canPlay(_controller.localPlayerId, card),
-                    profileName: localName,
-                    wins: myScore,
-                    losses: opponentScore,
-                    credits: _isCreditsMode ? myCredits : null,
-                    fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
-                    avatarCard: localAvatarCard,
-                  ),
-                  const SizedBox(height: 8),
-                  _ActionMessageCard(
-                    session: session,
-                    localPlayerId: _controller.localPlayerId,
-                  ),
-                  if (_isCreditsMode &&
-                      session.status == DuelGameStatus.waiting &&
-                      session.players.length == 2)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: OutlinedButton.icon(
-                        onPressed:
-                            _stakeActionBusy || stakeOffer.isPending || !_canSetStake(session)
+                      _DuelStatusBanner(
+                        opponentName: opponentName,
+                        myScore: myScore,
+                        opponentScore: opponentScore,
+                        round: session.round,
+                      ),
+                      if (_isCreditsMode) ...<Widget>[
+                        const SizedBox(height: 8),
+                        _CreditsStakeBanner(
+                          activeStakeCredits: session.activeStakeCredits,
+                          playerStakeCredits: session.stakeOffer.amount,
+                          stakeText: _requiresStake(session)
+                              ? switch (stakeOffer.status) {
+                                  DuelStakeStatus.pending =>
+                                    'Proposition en attente : ${stakeOffer.amount}',
+                                  DuelStakeStatus.declined =>
+                                    'Proposition refusée. Faites un nouveau pari.',
+                                  DuelStakeStatus.insufficientFunds =>
+                                    'Solde insuffisant détecté. Proposez une autre mise.',
+                                  DuelStakeStatus.none ||
+                                  DuelStakeStatus.accepted ||
+                                  DuelStakeStatus.resolved =>
+                                    'Pari obligatoire avant de jouer.',
+                                }
+                              : null,
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      _OpponentRow(
+                        name: opponentName,
+                        count: board.handOf(opponentId).length,
+                        wins: opponentScore,
+                        losses: myScore,
+                        fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
+                        avatarCard: opponentAvatarCard,
+                      ),
+                      const SizedBox(height: 10),
+                      _CenterArea(
+                        discard: board.discardTop,
+                        drawCount: board.drawPile.length,
+                        canDraw: myTurn && board.canDraw(_controller.localPlayerId),
+                        onDrawTap: _onDrawTap,
+                        overlay: texts.overlay,
+                        requiredSuit: board.requiredSuit,
+                        mustDraw: myTurn && board.pendingDraw > 0,
+                      ),
+                      const SizedBox(height: 10),
+                      _MyHandRow(
+                        cards: board.handOf(_controller.localPlayerId),
+                        canInteract: myTurn,
+                        onCardTap: _onCardTap,
+                        playable: (DuelCard card) =>
+                            myTurn && board.canPlay(_controller.localPlayerId, card),
+                        profileName: localName,
+                        wins: myScore,
+                        losses: opponentScore,
+                        credits: _isCreditsMode ? myCredits : null,
+                        fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
+                        avatarCard: localAvatarCard,
+                      ),
+                      const SizedBox(height: 8),
+                      _ActionMessageCard(
+                        session: session,
+                        localPlayerId: _controller.localPlayerId,
+                      ),
+                      if (_isCreditsMode &&
+                          session.status == DuelGameStatus.waiting &&
+                          session.players.length == 2)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: OutlinedButton.icon(
+                            onPressed: _stakeActionBusy ||
+                                    stakeOffer.isPending ||
+                                    !_canSetStake(session)
                                 ? null
                                 : () => _openStakeProposal(session),
-                        icon: const Icon(Icons.local_offer_outlined),
-                        label: const Text('Faire un pari'),
-                      ),
-                    ),
-                  if (session.status == DuelGameStatus.finished &&
-                      _isLocalLoser(session) &&
-                      session.rematchDecision != DuelRematchDecision.accepted)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          unawaited(_sfx.playClick());
-                          _onReplayTap();
-                        },
-                        icon: const Icon(Icons.refresh),
-                        label: Text(
-                          session.rematchRequestBy == _controller.localPlayerId &&
-                                  session.rematchDecision == DuelRematchDecision.pending
-                              ? 'EN ATTENTE...'
-                              : 'PRENDRE SA REVANCHE',
+                            icon: const Icon(Icons.local_offer_outlined),
+                            label: const Text('Faire un pari'),
+                          ),
                         ),
-                      ),
-                    ),
-                ],
+                      if (session.status == DuelGameStatus.finished &&
+                          _isLocalLoser(session) &&
+                          session.rematchDecision != DuelRematchDecision.accepted)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              _onReplayTap();
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: Text(
+                              session.rematchRequestBy == _controller.localPlayerId &&
+                                      session.rematchDecision ==
+                                          DuelRematchDecision.pending
+                                  ? 'EN ATTENTE...'
+                                  : 'PRENDRE SA REVANCHE',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              const Positioned(
+                top: 12,
+                right: 12,
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: 0.82,
+                    child: AppLogo(size: 52),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },

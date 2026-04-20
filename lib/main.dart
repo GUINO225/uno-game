@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'firebase_config.dart';
 import 'duel_mode.dart';
@@ -222,7 +223,7 @@ class _AudioWarmupPage extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      const GameLogoHeader(scaleFactor: 0.82),
+                      const AppLogo(size: 190),
                       const SizedBox(height: 28),
                       ListenableBuilder(
                         listenable: AudioService.instance,
@@ -342,7 +343,7 @@ class _IntroLandingPageState extends State<IntroLandingPage>
                     children: <Widget>[
                       const FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: GameLogoHeader(scaleFactor: 1.4),
+                        child: AppLogo(size: 280),
                       ),
                       const SizedBox(height: 34),
                       ListenableBuilder(
@@ -582,7 +583,7 @@ class _GameModePageState extends State<GameModePage>
                         child: Column(
                           children: <Widget>[
                             const SizedBox(height: _logoTopSpacing),
-                            const GameLogoHeader(),
+                            const AppLogo(size: 170),
                             Expanded(
                               child: Center(
                                 child: Transform.translate(
@@ -848,101 +849,6 @@ class BackgroundDecoration extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         color: Colors.black.withOpacity(0.1),
-      ),
-    );
-  }
-}
-
-class GameLogoHeader extends StatelessWidget {
-  const GameLogoHeader({super.key, this.scaleFactor = 1});
-
-  final double scaleFactor;
-
-  @override
-  Widget build(BuildContext context) {
-    final double logoScaleFactor = 0.544 * scaleFactor;
-
-    return SizedBox(
-      height: 172 * logoScaleFactor,
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          Positioned(
-            top: (18 * logoScaleFactor) - 5,
-            child: Transform.translate(
-              offset: Offset((34 * logoScaleFactor) + 10, 0),
-              child: Text(
-                '8AMERICAIN',
-                style: GoogleFonts.poppins(
-                  color: GameModePalette.accentGreen,
-                  fontWeight: FontWeight.w500,
-                  fontStyle: FontStyle.italic,
-                  letterSpacing: 0.55,
-                  fontSize: 22 * logoScaleFactor,
-                ),
-              ),
-            ),
-          ),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: RichText(
-              text: TextSpan(
-                style: GoogleFonts.leagueSpartan(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 118 * logoScaleFactor,
-                  color: GameModePalette.white,
-                  letterSpacing: 0.2,
-                  height: 0.88,
-                ),
-                children: <InlineSpan>[
-                  const TextSpan(text: 'G'),
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.middle,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 0.5),
-                      child: Transform.translate(
-                        offset: Offset(-2.5 * logoScaleFactor, 0),
-                        child: _MiniLogoCard(scaleFactor: logoScaleFactor),
-                      ),
-                    ),
-                  ),
-                  const TextSpan(text: 'INO'),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniLogoCard extends StatelessWidget {
-  const _MiniLogoCard({required this.scaleFactor});
-
-  final double scaleFactor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: -0.32,
-      child: Container(
-        width: 60 * scaleFactor,
-        height: 92 * scaleFactor,
-        decoration: BoxDecoration(
-          color: GameModePalette.cardGreen,
-          borderRadius: BorderRadius.circular(15 * scaleFactor),
-        ),
-        child: Center(
-          child: Text(
-            '♠',
-            style: TextStyle(
-              color: GameModePalette.white,
-              fontSize: 42 * scaleFactor,
-              height: 1,
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -2736,6 +2642,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                     ],
                   ),
                 ),
+              ),
+            ),
+          ),
+          const Positioned(
+            top: 12,
+            right: 12,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.84,
+                child: AppLogo(size: 56),
               ),
             ),
           ),
