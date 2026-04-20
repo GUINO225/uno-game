@@ -725,7 +725,7 @@ class _GameModePageState extends State<GameModePage>
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
                                 Text(
-                                  'v2.4',
+                                  'v2.9',
                                   style: GoogleFonts.poppins(
                                     color: GameModePalette.white.withOpacity(
                                       0.9,
@@ -969,13 +969,7 @@ class _ModeSelectionImage extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Colors.black.withOpacity(0.26),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          boxShadow: const <BoxShadow>[],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
