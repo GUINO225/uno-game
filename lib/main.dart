@@ -2645,13 +2645,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               ),
             ),
           ),
-          const Positioned(
+          Positioned(
             top: 12,
             right: 12,
             child: IgnorePointer(
               child: Opacity(
                 opacity: 0.84,
-                child: AppLogo(size: 56),
+                child: AppLogo(
+                  size: 48,
+                  padding: EdgeInsets.only(top: 2, right: 2),
+                ),
               ),
             ),
           ),
