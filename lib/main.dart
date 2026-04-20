@@ -726,24 +726,24 @@ class _GameModePageState extends State<GameModePage>
                               children: <Widget>[
                                 Text(
                                   'v2.4',
-                                  style: TextStyle(
+                                  style: GoogleFonts.poppins(
                                     color: GameModePalette.white.withOpacity(
                                       0.9,
                                     ),
                                     fontSize: _versionFontSize,
-                                    fontWeight: FontWeight.w500,
-                                    letterSpacing: 0.6,
+                                    fontWeight: FontWeight.w400,
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                                 Text(
                                   ' DESIGNED BY AKENOO',
-                                  style: TextStyle(
+                                  style: GoogleFonts.poppins(
                                     color: GameModePalette.white.withOpacity(
                                       0.85,
                                     ),
                                     fontSize: _versionFontSize,
-                                    fontWeight: FontWeight.w500,
-                                    letterSpacing: 0.6,
+                                    fontWeight: FontWeight.w400,
+                                    letterSpacing: 0.5,
                                   ),
                                 ),
                               ],
@@ -877,13 +877,10 @@ class ModeCardSolo extends StatelessWidget {
       isSelected: isSelected,
       label: 'SOLO',
       labelFontSize: labelFontSize,
-      child: SizedBox(
-        width: width + 34,
-        height: height + 20,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: _GameCardFace(width: width, height: height),
-        ),
+      child: _ModeSelectionImage(
+        width: width,
+        height: height,
+        assetPath: 'assets/img/SOLO.png',
       ),
     );
   }
@@ -912,28 +909,10 @@ class ModeCardDuel extends StatelessWidget {
       isSelected: isSelected,
       label: 'DUEL',
       labelFontSize: labelFontSize,
-      child: SizedBox(
-        width: width + 34,
-        height: height + 20,
-        child: Stack(
-          alignment: Alignment.center,
-          children: <Widget>[
-            Positioned(
-              top: 16,
-              child: _GameCardFace(
-                width: width,
-                height: height,
-                color: GameModePalette.cardGreenSoft,
-              ),
-            ),
-            Positioned(
-              child: Transform.rotate(
-                angle: -0.2,
-                child: _GameCardFace(width: width, height: height),
-              ),
-            ),
-          ],
-        ),
+      child: _ModeSelectionImage(
+        width: width,
+        height: height,
+        assetPath: 'assets/img/DUEL.png',
       ),
     );
   }
@@ -962,32 +941,43 @@ class ModeCardCredits extends StatelessWidget {
       isSelected: isSelected,
       label: 'PARI',
       labelFontSize: labelFontSize,
-      child: SizedBox(
-        width: width + 34,
-        height: height + 20,
-        child: Stack(
-          alignment: Alignment.center,
-          children: <Widget>[
-            Positioned(
-              top: 16,
-              child: _GameCardFace(
-                width: width,
-                height: height,
-                color: GameModePalette.cardGreenDeep,
-                symbol: '♦',
-              ),
+      child: _ModeSelectionImage(
+        width: width,
+        height: height,
+        assetPath: 'assets/img/PARI.png',
+      ),
+    );
+  }
+}
+
+class _ModeSelectionImage extends StatelessWidget {
+  const _ModeSelectionImage({
+    required this.width,
+    required this.height,
+    required this.assetPath,
+  });
+
+  final double width;
+  final double height;
+  final String assetPath;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width + 34,
+      height: height + 20,
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Image.asset(
+              assetPath,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
             ),
-            Positioned(
-              child: Transform.rotate(
-                angle: -0.2,
-                child: _GameCardFace(
-                  width: width,
-                  height: height,
-                  symbol: '8♦',
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1065,8 +1055,8 @@ class _PressableModeCardState extends State<_PressableModeCard> {
                 style: GoogleFonts.poppins(
                   color: GameModePalette.white,
                   fontSize: widget.labelFontSize,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.9,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.8,
                 ),
               ),
             ],
@@ -1133,8 +1123,8 @@ class _PlayModeButtonState extends State<_PlayModeButton> {
               style: GoogleFonts.poppins(
                 color: GameModePalette.backgroundShade,
                 fontSize: widget.fontSize,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
+                fontWeight: FontWeight.w400,
+                letterSpacing: 1.0,
               ),
             ),
           ),
@@ -1196,118 +1186,6 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _GameCardFace extends StatelessWidget {
-  const _GameCardFace({
-    required this.width,
-    required this.height,
-    this.color = GameModePalette.cardGreen,
-    this.symbol = '♠',
-  });
-
-  final double width;
-  final double height;
-  final Color color;
-  final String symbol;
-
-  @override
-  Widget build(BuildContext context) {
-    final double cornerSpadeSize = (width * 0.16).clamp(18, 24);
-    final double centerSpadeSize = (height * 0.50).clamp(84, 106);
-
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            Color.lerp(color, Colors.white, 0.14)!,
-            color,
-            Color.lerp(color, Colors.black, 0.12)!,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.18),
-          width: 1.1,
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(0.22),
-            offset: const Offset(0, 10),
-            blurRadius: 20,
-          ),
-          BoxShadow(
-            color: Colors.white.withOpacity(0.12),
-            offset: const Offset(-1, -1),
-            blurRadius: 5,
-            spreadRadius: -2,
-          ),
-        ],
-      ),
-      child: Stack(
-        children: <Widget>[
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    Colors.white.withOpacity(0.14),
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.08),
-                  ],
-                  stops: const <double>[0.0, 0.32, 1.0],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Text(
-              symbol,
-              style: TextStyle(
-                color: GameModePalette.white,
-                fontSize: cornerSpadeSize,
-                height: 1,
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 12,
-            left: 12,
-            child: RotatedBox(
-              quarterTurns: 2,
-              child: Text(
-                symbol,
-                style: TextStyle(
-                  color: GameModePalette.white,
-                  fontSize: cornerSpadeSize,
-                  height: 1,
-                ),
-              ),
-            ),
-          ),
-          Center(
-            child: Text(
-              symbol,
-              style: TextStyle(
-                color: GameModePalette.white,
-                fontSize: centerSpadeSize,
-                height: 1,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -2646,14 +2524,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             ),
           ),
           Positioned(
-            top: 12,
-            right: 12,
+            top: topInset + 4,
+            left: 12,
             child: IgnorePointer(
               child: Opacity(
                 opacity: 0.84,
                 child: AppLogo(
-                  size: 48,
-                  padding: EdgeInsets.only(top: 2, right: 2),
+                  size: 42,
+                  padding: EdgeInsets.only(top: 2, left: 2),
                 ),
               ),
             ),
