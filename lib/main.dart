@@ -969,10 +969,6 @@ class _ModeSelectionImage extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.5),
-            width: 1.2,
-          ),
           boxShadow: <BoxShadow>[
             BoxShadow(
               color: Colors.black.withOpacity(0.26),
