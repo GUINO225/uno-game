@@ -204,8 +204,37 @@ class _AudioWarmupErrorPage extends StatelessWidget {
   }
 }
 
-class _AudioWarmupPage extends StatelessWidget {
+class _AudioWarmupPage extends StatefulWidget {
   const _AudioWarmupPage();
+
+  @override
+  State<_AudioWarmupPage> createState() => _AudioWarmupPageState();
+}
+
+class _AudioWarmupPageState extends State<_AudioWarmupPage> {
+  static const List<String> _loadingSuits = <String>['♦', '♥', '♠', '♣'];
+  static const Duration _symbolStep = Duration(milliseconds: 620);
+  int _symbolIndex = 0;
+  Timer? _symbolTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _symbolTimer = Timer.periodic(_symbolStep, (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _symbolIndex = (_symbolIndex + 1) % _loadingSuits.length;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _symbolTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +261,37 @@ class _AudioWarmupPage extends StatelessWidget {
                           final int percent = (progress * 100).round().clamp(0, 100);
                           return Column(
                             children: <Widget>[
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 340),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder:
+                                    (Widget child, Animation<double> animation) {
+                                      return FadeTransition(
+                                        opacity: animation,
+                                        child: ScaleTransition(
+                                          scale: Tween<double>(begin: 0.9, end: 1).animate(
+                                            CurvedAnimation(
+                                              parent: animation,
+                                              curve: Curves.easeOutCubic,
+                                            ),
+                                          ),
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                child: Text(
+                                  _loadingSuits[_symbolIndex],
+                                  key: ValueKey<int>(_symbolIndex),
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.88),
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(999),
                                 child: TweenAnimationBuilder<double>(
@@ -616,6 +676,10 @@ class _GameModePageState extends State<GameModePage>
                                                     height: _modeCardHeight,
                                                     labelFontSize:
                                                         _modeLabelFontSize,
+                                                    appearDelay:
+                                                        const Duration(
+                                                          milliseconds: 60,
+                                                        ),
                                                     isSelected:
                                                         _selectedMode ==
                                                         GameMode.solo,
@@ -639,6 +703,10 @@ class _GameModePageState extends State<GameModePage>
                                                     height: _modeCardHeight,
                                                     labelFontSize:
                                                         _modeLabelFontSize,
+                                                    appearDelay:
+                                                        const Duration(
+                                                          milliseconds: 140,
+                                                        ),
                                                     isSelected:
                                                         _selectedMode ==
                                                         GameMode.duel,
@@ -662,6 +730,10 @@ class _GameModePageState extends State<GameModePage>
                                                     height: _modeCardHeight,
                                                     labelFontSize:
                                                         _modeLabelFontSize,
+                                                    appearDelay:
+                                                        const Duration(
+                                                          milliseconds: 220,
+                                                        ),
                                                     isSelected: _selectedMode ==
                                                         GameMode.credits,
                                                     onTap: () => _selectMode(
@@ -860,6 +932,7 @@ class ModeCardSolo extends StatelessWidget {
     required this.width,
     required this.height,
     required this.labelFontSize,
+    required this.appearDelay,
     required this.isSelected,
     required this.onTap,
   });
@@ -867,6 +940,7 @@ class ModeCardSolo extends StatelessWidget {
   final double width;
   final double height;
   final double labelFontSize;
+  final Duration appearDelay;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -877,6 +951,7 @@ class ModeCardSolo extends StatelessWidget {
       isSelected: isSelected,
       label: 'SOLO',
       labelFontSize: labelFontSize,
+      appearDelay: appearDelay,
       child: _ModeSelectionImage(
         width: width,
         height: height,
@@ -892,6 +967,7 @@ class ModeCardDuel extends StatelessWidget {
     required this.width,
     required this.height,
     required this.labelFontSize,
+    required this.appearDelay,
     required this.isSelected,
     required this.onTap,
   });
@@ -899,6 +975,7 @@ class ModeCardDuel extends StatelessWidget {
   final double width;
   final double height;
   final double labelFontSize;
+  final Duration appearDelay;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -909,6 +986,7 @@ class ModeCardDuel extends StatelessWidget {
       isSelected: isSelected,
       label: 'DUEL',
       labelFontSize: labelFontSize,
+      appearDelay: appearDelay,
       child: _ModeSelectionImage(
         width: width,
         height: height,
@@ -924,6 +1002,7 @@ class ModeCardCredits extends StatelessWidget {
     required this.width,
     required this.height,
     required this.labelFontSize,
+    required this.appearDelay,
     required this.isSelected,
     required this.onTap,
   });
@@ -931,6 +1010,7 @@ class ModeCardCredits extends StatelessWidget {
   final double width;
   final double height;
   final double labelFontSize;
+  final Duration appearDelay;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -941,6 +1021,7 @@ class ModeCardCredits extends StatelessWidget {
       isSelected: isSelected,
       label: 'PARI',
       labelFontSize: labelFontSize,
+      appearDelay: appearDelay,
       child: _ModeSelectionImage(
         width: width,
         height: height,
@@ -963,21 +1044,106 @@ class _ModeSelectionImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: const <BoxShadow>[],
-        ),
+    const BorderRadius radius = BorderRadius.all(Radius.circular(24));
+    return RepaintBoundary(
+      child: SizedBox(
+        width: width,
+        height: height,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Image.asset(
-            assetPath,
-            fit: BoxFit.cover,
-            filterQuality: FilterQuality.high,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Image.asset(
+                assetPath,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                filterQuality: FilterQuality.high,
+                isAntiAlias: true,
+              ),
+              IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        Colors.white.withOpacity(0.16),
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.08),
+                      ],
+                      stops: const <double>[0.0, 0.45, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+              IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 0.8,
+                    ),
+                    boxShadow: const <BoxShadow>[
+                      BoxShadow(
+                        color: Color(0x30000000),
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CardAppearWrapper extends StatefulWidget {
+  const _CardAppearWrapper({required this.delay, required this.child});
+
+  final Duration delay;
+  final Widget child;
+
+  @override
+  State<_CardAppearWrapper> createState() => _CardAppearWrapperState();
+}
+
+class _CardAppearWrapperState extends State<_CardAppearWrapper> {
+  bool _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(widget.delay, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSlide(
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      offset: _visible ? Offset.zero : const Offset(0, 0.06),
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        scale: _visible ? 1 : 0.97,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+          opacity: _visible ? 1 : 0,
+          child: widget.child,
         ),
       ),
     );
@@ -989,6 +1155,7 @@ class _PressableModeCard extends StatefulWidget {
     required this.child,
     required this.label,
     required this.labelFontSize,
+    required this.appearDelay,
     required this.isSelected,
     required this.onTap,
   });
@@ -996,6 +1163,7 @@ class _PressableModeCard extends StatefulWidget {
   final Widget child;
   final String label;
   final double labelFontSize;
+  final Duration appearDelay;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -1008,58 +1176,61 @@ class _PressableModeCardState extends State<_PressableModeCard> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _isPressed
-            ? 0.965
-            : widget.isSelected
-                ? 1.02
-                : 1,
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: widget.isSelected
-                ? Colors.white.withOpacity(0.07)
-                : Colors.transparent,
-            border: Border.all(
+    return _CardAppearWrapper(
+      delay: widget.appearDelay,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) => setState(() => _isPressed = false),
+        onTapCancel: () => setState(() => _isPressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _isPressed
+              ? 0.965
+              : widget.isSelected
+                  ? 1.02
+                  : 1,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
               color: widget.isSelected
-                  ? Colors.white.withOpacity(0.45)
+                  ? Colors.white.withOpacity(0.07)
                   : Colors.transparent,
-            ),
-            boxShadow: widget.isSelected
-                ? <BoxShadow>[
-                    BoxShadow(
-                      color: GameModePalette.accentGreen.withOpacity(0.18),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
-                : const <BoxShadow>[],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              widget.child,
-              const SizedBox(height: 11),
-              Text(
-                widget.label,
-                style: GoogleFonts.poppins(
-                  color: GameModePalette.white,
-                  fontSize: widget.labelFontSize,
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0.6,
-                ),
+              border: Border.all(
+                color: widget.isSelected
+                    ? Colors.white.withOpacity(0.45)
+                    : Colors.transparent,
               ),
-            ],
+              boxShadow: widget.isSelected
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: GameModePalette.accentGreen.withOpacity(0.18),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ]
+                  : const <BoxShadow>[],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                widget.child,
+                const SizedBox(height: 11),
+                Text(
+                  widget.label,
+                  style: GoogleFonts.poppins(
+                    color: GameModePalette.white,
+                    fontSize: widget.labelFontSize,
+                    fontWeight: FontWeight.w400,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
