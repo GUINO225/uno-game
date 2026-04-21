@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_sfx_service.dart';
 
 class PremiumColors {
   const PremiumColors._();
@@ -184,6 +185,47 @@ class _GlowCircle extends StatelessWidget {
         shape: BoxShape.circle,
         color: color,
       ),
+    );
+  }
+}
+
+class GlobalMusicToggleButton extends StatelessWidget {
+  const GlobalMusicToggleButton({
+    super.key,
+    this.margin = const EdgeInsets.only(top: 6, left: 6),
+  });
+
+  final EdgeInsets margin;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AudioService.instance,
+      builder: (BuildContext context, _) {
+        final AudioService audio = AudioService.instance;
+        final bool enabled = audio.isBackgroundMusicEnabled;
+        return Padding(
+          padding: margin,
+          child: Material(
+            color: Colors.black.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              onTap: () async {
+                await audio.toggleBackgroundMusicFromUserGesture();
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(
+                  enabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                  size: 18,
+                  color: Colors.white.withOpacity(enabled ? 0.95 : 0.72),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
