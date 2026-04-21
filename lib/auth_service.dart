@@ -44,6 +44,8 @@ class AuthService {
   AuthService._();
 
   static final AuthService instance = AuthService._();
+  static final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  static bool _isGoogleSignInInitialized = false;
 
   FirebaseAuth? get _authOrNull {
     try {
@@ -78,14 +80,11 @@ class AuthService {
         return GoogleAuthResult.success(user);
       }
 
-      final GoogleSignInAccount? account = await GoogleSignIn().signIn();
-      if (account == null) {
-        return GoogleAuthResult.failure(reason: AuthFailureReason.cancelled);
-      }
+      await _ensureGoogleSignInInitialized();
+      final GoogleSignInAccount account = await _googleSignIn.authenticate();
 
-      final GoogleSignInAuthentication authentication = await account.authentication;
+      final GoogleSignInAuthentication authentication = account.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: authentication.accessToken,
         idToken: authentication.idToken,
       );
       final UserCredential result = await auth.signInWithCredential(credential);
@@ -120,6 +119,16 @@ class AuthService {
         message: '$e',
       );
     }
+  }
+
+
+  Future<void> _ensureGoogleSignInInitialized() async {
+    if (_isGoogleSignInInitialized) {
+      return;
+    }
+
+    await _googleSignIn.initialize();
+    _isGoogleSignInInitialized = true;
   }
 
   GoogleAuthResult _mapFirebaseAuthException(FirebaseAuthException e) {
