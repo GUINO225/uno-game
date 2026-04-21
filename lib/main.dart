@@ -872,18 +872,23 @@ class _GameModePageState extends State<GameModePage>
             context: context,
             builder: (BuildContext context) {
               return GamePopupDialog(
-                title: 'CONNEXION REQUISE',
-                subtitle: 'Connectez-vous avec Google pour jouer en mode Paris.',
-                child: const SizedBox.shrink(),
+                title: 'CONNEXION',
+                subtitle: 'Mode Paris',
+                child: const Icon(
+                  Icons.g_mobiledata_rounded,
+                  size: 68,
+                  color: Color(0xFF1A73E8),
+                ),
                 actions: <Widget>[
-                  GamePopupButton(
-                    label: 'ANNULER',
+                  GamePopupIconButton(
+                    icon: Icons.close_rounded,
+                    semanticLabel: 'Annuler',
                     onPressed: () => Navigator.of(context).pop(false),
                     expanded: true,
                   ),
                   const SizedBox(height: 8),
                   GamePopupButton(
-                    label: 'CONNEXION GOOGLE',
+                    label: 'CONNEXION',
                     onPressed: () => Navigator.of(context).pop(true),
                     expanded: true,
                   ),
