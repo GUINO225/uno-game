@@ -12,71 +12,39 @@ class CreditCoinsIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double coinWidth = size;
-    final double coinHeight = size * 0.58;
-    final Color shadowColor = Colors.black.withOpacity(0.2);
     return SizedBox(
-      width: coinWidth + (size * 0.6),
+      width: size,
       height: size,
-      child: Stack(
-        children: <Widget>[
-          _coin(
-            offset: Offset(size * 0.04, size * 0.34),
-            width: coinWidth,
-            height: coinHeight,
-            shade: color.withOpacity(0.72),
-            shadowColor: shadowColor,
-          ),
-          _coin(
-            offset: Offset(size * 0.30, size * 0.20),
-            width: coinWidth,
-            height: coinHeight,
-            shade: color.withOpacity(0.82),
-            shadowColor: shadowColor,
-          ),
-          _coin(
-            offset: Offset(size * 0.56, size * 0.06),
-            width: coinWidth,
-            height: coinHeight,
-            shade: color,
-            shadowColor: shadowColor,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _coin({
-    required Offset offset,
-    required double width,
-    required double height,
-    required Color shade,
-    required Color shadowColor,
-  }) {
-    return Positioned(
-      left: offset.dx,
-      top: offset.dy,
-      child: Container(
-        width: width,
-        height: height,
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(height),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            center: const Alignment(-0.28, -0.36),
+            radius: 0.92,
             colors: <Color>[
-              shade.withOpacity(0.95),
-              shade.withOpacity(0.72),
+              color.withOpacity(0.98),
+              color.withOpacity(0.85),
+              const Color(0xFFC08A24),
             ],
           ),
-          border: Border.all(color: Colors.white.withOpacity(0.35), width: 0.8),
-          boxShadow: <BoxShadow>[
+          border: Border.all(color: Colors.white.withOpacity(0.5), width: 0.9),
+          boxShadow: const <BoxShadow>[
             BoxShadow(
-              color: shadowColor,
+              color: Color(0x40000000),
               blurRadius: 4,
-              offset: const Offset(0, 1.5),
+              offset: Offset(0, 1.5),
             ),
           ],
+        ),
+        child: Center(
+          child: Container(
+            width: size * 0.42,
+            height: size * 0.42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withOpacity(0.55), width: 0.8),
+            ),
+          ),
         ),
       ),
     );

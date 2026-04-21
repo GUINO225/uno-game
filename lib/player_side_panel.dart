@@ -381,28 +381,28 @@ class _PanelAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String? avatarUrl = profile.resolvedAvatarUrl;
-    if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(size / 2),
-        child: Image.network(
-          avatarUrl,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _generatedAvatar(),
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.92), width: 1.1),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x2A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: GameCardAvatar(
+        size: size - 6,
+        data: GameCardAvatarPalette.fromSeed(
+          profile.id,
+          salt: 2,
         ),
-      );
-    }
-    return _generatedAvatar();
-  }
-
-  Widget _generatedAvatar() {
-    return GameCardAvatar(
-      size: size,
-      data: GameCardAvatarPalette.fromSeed(
-        profile.id,
-        salt: 2,
       ),
     );
   }
