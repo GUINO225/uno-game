@@ -149,7 +149,7 @@ class _LeaderboardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final String safeDisplayName = player.displayName.trim().isEmpty
         ? 'Joueur inconnu'
-        : player.displayName.trim();
+        : player.effectivePseudo.trim();
 
     return PremiumPanel(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -253,19 +253,6 @@ class _ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String? avatarUrl = player.resolvedAvatarUrl;
-    if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(size / 2),
-        child: Image.network(
-          avatarUrl,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _generatedAvatar(),
-        ),
-      );
-    }
     return _generatedAvatar();
   }
 
