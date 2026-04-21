@@ -828,14 +828,17 @@ class _GameModePageState extends State<GameModePage>
           ),
           SafeArea(
             child: Align(
-              alignment: Alignment.topRight,
-              child: IconButton(
-                tooltip: 'Classement',
-                onPressed: () {
-                  unawaited(AppSfxService.instance.playClick());
-                  Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
-                },
-                icon: const Icon(Icons.leaderboard_rounded, color: Colors.white),
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: IconButton(
+                  tooltip: 'Classement',
+                  onPressed: () {
+                    unawaited(AppSfxService.instance.playClick());
+                    Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+                  },
+                  icon: const Icon(Icons.leaderboard_rounded, color: Colors.white),
+                ),
               ),
             ),
           ),
