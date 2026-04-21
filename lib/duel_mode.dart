@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
+import 'credit_coins_icon.dart';
 import 'firebase_config.dart';
 import 'game_popup_ui.dart';
 import 'leaderboard_page.dart';
@@ -241,6 +242,7 @@ class DuelSession {
     this.invitedRefusalCount = 0,
     this.exitedBy,
     this.lastInsufficientFundsPlayerId,
+    this.playerCardCounts = const <String, int>{},
   });
 
   final String gameId;
@@ -264,6 +266,7 @@ class DuelSession {
   final int invitedRefusalCount;
   final String? exitedBy;
   final String? lastInsufficientFundsPlayerId;
+  final Map<String, int> playerCardCounts;
 
   bool get canStart => players.length == 2;
   bool get isCreditsMode => mode == DuelRoomMode.credits;
@@ -292,6 +295,7 @@ class DuelSession {
       'invitedRefusalCount': invitedRefusalCount,
       'exitedBy': exitedBy,
       'lastInsufficientFundsPlayerId': lastInsufficientFundsPlayerId,
+      'playerCardCounts': playerCardCounts,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -354,6 +358,14 @@ class DuelSession {
       invitedRefusalCount: (json['invitedRefusalCount'] as num?)?.toInt() ?? 0,
       exitedBy: json['exitedBy'] as String?,
       lastInsufficientFundsPlayerId: json['lastInsufficientFundsPlayerId'] as String?,
+      playerCardCounts: Map<String, int>.from(
+        (json['playerCardCounts'] as Map? ?? const <String, int>{}).map(
+          (Object? key, Object? value) => MapEntry(
+            key.toString(),
+            (value as num?)?.toInt() ?? 0,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -430,6 +442,7 @@ class GameService {
         playerCredits: mode == DuelRoomMode.credits
             ? <String, int>{playerId: initialCredits}
             : const <String, int>{},
+        playerCardCounts: <String, int>{playerId: 7},
         betFlowState: mode == DuelRoomMode.credits
             ? DuelBetFlowState.initialStakeProposed
             : DuelBetFlowState.idle,
@@ -474,6 +487,7 @@ class GameService {
         'players': players,
         'playerNames.$playerId': playerName,
         'scores.$playerId': session.scores[playerId] ?? 0,
+        'playerCardCounts.$playerId': session.playerCardCounts[playerId] ?? 7,
         if (session.isCreditsMode)
           'playerCredits.$playerId':
               session.playerCredits[playerId] ?? joiningPlayerCredits,
@@ -557,15 +571,57 @@ class GameService {
     DuelGameStatus status = DuelGameStatus.inProgress,
     Map<String, dynamic> sessionPatch = const <String, dynamic>{},
   }) async {
-    final CollectionReference<Map<String, dynamic>> games = await _games();
-    final DocumentReference<Map<String, dynamic>> gameRef = games.doc(gameId);
-    await gameRef.update(<String, dynamic>{
-      'currentTurn': nextTurn,
-      'lastAction': action.toMap(),
-      'status': status.name,
-      ...sessionPatch,
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> gameRef =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(gameRef);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      final Map<String, int> cardCounts = <String, int>{...session.playerCardCounts};
+      final String actor = action.actorId;
+      final int currentCount = cardCounts[actor] ?? 7;
+      final Map<String, dynamic> normalizedPayload =
+          Map<String, dynamic>.from(action.payload);
+
+      if (action.type == DuelActionType.playCard) {
+        cardCounts[actor] = max(0, currentCount - 1);
+        if (cardCounts[actor] == 0) {
+          normalizedPayload['winnerId'] = actor;
+        } else {
+          normalizedPayload.remove('winnerId');
+        }
+      } else if (action.type == DuelActionType.drawCard) {
+        final int drawCount = (action.payload['count'] as int?) ?? 1;
+        cardCounts[actor] = currentCount + drawCount.clamp(1, 9);
+      } else if (action.type == DuelActionType.resetRound) {
+        for (final String playerId in session.players) {
+          cardCounts[playerId] = 7;
+        }
+      }
+
+      final DuelAction sanitizedAction = DuelAction(
+        type: action.type,
+        actorId: action.actorId,
+        createdAt: action.createdAt,
+        payload: normalizedPayload,
+      );
+      final bool hasWinner = (normalizedPayload['winnerId'] as String?)?.isNotEmpty ?? false;
+      final DuelGameStatus resolvedStatus =
+          action.type == DuelActionType.playCard && !hasWinner
+              ? DuelGameStatus.inProgress
+              : (hasWinner ? DuelGameStatus.finished : status);
+      tx.update(gameRef, <String, dynamic>{
+        'currentTurn': nextTurn,
+        'lastAction': sanitizedAction.toMap(),
+        'status': resolvedStatus.name,
+        'playerCardCounts': cardCounts,
+        ...sessionPatch,
+      });
+      tx.set(gameRef.collection('actions').doc(), sanitizedAction.toMap());
     });
-    await gameRef.collection('actions').add(action.toMap());
   }
 
   Future<void> startNewRound({
@@ -611,6 +667,9 @@ class GameService {
         'invitedRefusalCount': 0,
         'exitedBy': null,
         'lastInsufficientFundsPlayerId': null,
+        'playerCardCounts': <String, int>{
+          for (final String playerId in session.players) playerId: 7,
+        },
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -663,6 +722,21 @@ class GameService {
       'exitedBy': playerId,
       'stakeOffer': const DuelStakeOffer().toMap(),
       'activeStakeCredits': 0,
+    });
+  }
+
+  Future<void> exitGame({
+    required String gameId,
+    required String playerId,
+    required bool creditsMode,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await ref.update(<String, dynamic>{
+      'exitedBy': playerId,
+      'status': DuelGameStatus.finished.name,
+      if (creditsMode) 'betFlowState': DuelBetFlowState.partyExited.name,
     });
   }
 
@@ -729,6 +803,9 @@ class GameService {
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.accepted.name,
         'rematchDecisionBy': responderId,
+        'playerCardCounts': <String, int>{
+          for (final String playerId in session.players) playerId: 7,
+        },
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -935,6 +1012,9 @@ class GameService {
           'invitedRefusalCount': 0,
           'exitedBy': null,
           'lastInsufficientFundsPlayerId': null,
+          'playerCardCounts': <String, int>{
+            for (final String playerId in session.players) playerId: 7,
+          },
         });
         tx.set(ref.collection('actions').doc(), action.toMap());
         return;
@@ -1178,6 +1258,18 @@ class DuelController extends ChangeNotifier {
     await service.exitBetParty(gameId: current.gameId, playerId: localPlayerId);
   }
 
+  Future<void> exitGame() async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.exitGame(
+      gameId: current.gameId,
+      playerId: localPlayerId,
+      creditsMode: current.isCreditsMode,
+    );
+  }
+
   Future<void> resolveStakeAfterRound(String winnerId) async {
     final DuelSession? current = session;
     if (current == null) {
@@ -1353,19 +1445,21 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           context: context,
           barrierDismissible: true,
           builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('Mode Paris'),
-              content: const Text(
-                'Connectez-vous avec Google pour jouer en mode Paris.',
-              ),
+            return GamePopupDialog(
+              title: 'MODE PARIS',
+              subtitle: 'Connectez-vous avec Google pour jouer en mode Paris.',
+              child: const SizedBox.shrink(),
               actions: <Widget>[
-                TextButton(
+                GamePopupButton(
+                  label: 'RETOUR',
                   onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Retour'),
+                  expanded: true,
                 ),
-                ElevatedButton(
+                const SizedBox(height: 8),
+                GamePopupButton(
+                  label: 'CONNEXION GOOGLE',
                   onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('Connexion Google'),
+                  expanded: true,
                 ),
               ],
             );
@@ -1806,6 +1900,7 @@ class _DuelPageState extends State<DuelPage> {
   String? _lastOutcomeSfxKey;
   String? _lastStatsSyncKey;
   String? _lastOpponentActionSfxKey;
+  bool _exitNotified = false;
   final AppSfxService _sfx = AppSfxService.instance;
 
   static const List<String> _quickMessages = <String>[
@@ -2431,6 +2526,18 @@ class _DuelPageState extends State<DuelPage> {
   int _creditsOf(DuelSession session, String playerId) =>
       session.playerCredits[playerId] ?? 1000;
 
+  int _cardCountOf({
+    required DuelSession session,
+    required DuelBoardState board,
+    required String playerId,
+  }) {
+    final int sessionCount = session.playerCardCounts[playerId] ?? -1;
+    if (sessionCount >= 0) {
+      return sessionCount;
+    }
+    return board.handOf(playerId).length;
+  }
+
   DuelCard _avatarCardForPlayer(String playerId) {
     if (playerId.isEmpty) {
       return _avatarCardPool.first;
@@ -3024,11 +3131,19 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   Future<void> _exitPartyFlow() async {
-    final DuelSession? session = _controller.session;
-    if (session == null || !_isCreditsMode) {
+    await _leaveMatchAndReturnHome();
+  }
+
+  Future<void> _leaveMatchAndReturnHome() async {
+    if (_exitNotified) {
       return;
     }
-    await _controller.exitBetParty();
+    _exitNotified = true;
+    try {
+      await _controller.exitGame();
+    } catch (_) {
+      // Ne bloque pas la navigation locale si le réseau échoue.
+    }
     if (!mounted) {
       return;
     }
@@ -3135,7 +3250,10 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   void _maybeHandlePartyExit(DuelSession session) {
-    if (!_isCreditsMode || session.betFlowState != DuelBetFlowState.partyExited) {
+    if (session.exitedBy == null || session.exitedBy!.isEmpty) {
+      return;
+    }
+    if (session.exitedBy == _controller.localPlayerId) {
       return;
     }
     final String key = '${session.round}_${session.exitedBy ?? ''}';
@@ -3409,14 +3527,25 @@ class _DuelPageState extends State<DuelPage> {
                 opponentId: opponentId,
               );
         final DuelStakeOffer stakeOffer = session.stakeOffer;
+        final int opponentCardCount = opponentId.isEmpty
+            ? 0
+            : _cardCountOf(session: session, board: board, playerId: opponentId);
         final bool myTurn = _controller.isMyTurn &&
             session.status == DuelGameStatus.inProgress &&
             !_requiresStake(session);
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         final double topInset = MediaQuery.paddingOf(context).top;
-        return Scaffold(
-          backgroundColor: PremiumColors.tableGreenDark,
-          body: Stack(
+        return PopScope(
+          canPop: false,
+          onPopInvoked: (bool didPop) {
+            if (didPop) {
+              return;
+            }
+            unawaited(_leaveMatchAndReturnHome());
+          },
+          child: Scaffold(
+            backgroundColor: PremiumColors.tableGreenDark,
+            body: Stack(
             children: <Widget>[
               TableBackground(
                 child: Padding(
@@ -3429,9 +3558,7 @@ class _DuelPageState extends State<DuelPage> {
                           IconButton(
                             onPressed: () {
                               unawaited(_sfx.playClick());
-                              Navigator.of(context).popUntil(
-                                (Route<dynamic> route) => route.isFirst,
-                              );
+                              unawaited(_leaveMatchAndReturnHome());
                             },
                             tooltip: 'Retour aux modes',
                             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -3494,9 +3621,8 @@ class _DuelPageState extends State<DuelPage> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: <Widget>[
-                                  const Icon(
-                                    Icons.monetization_on_rounded,
-                                    size: 16,
+                                  const CreditCoinsIcon(
+                                    size: 13,
                                     color: Color(0xFFFFD45F),
                                   ),
                                   const SizedBox(width: 6),
@@ -3544,7 +3670,7 @@ class _DuelPageState extends State<DuelPage> {
                       const SizedBox(height: 8),
                       _OpponentRow(
                         name: opponentName,
-                        count: board.handOf(opponentId).length,
+                        count: opponentCardCount,
                         wins: opponentScore,
                         losses: myScore,
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
@@ -3627,6 +3753,7 @@ class _DuelPageState extends State<DuelPage> {
                 ),
               ),
             ],
+          ),
           ),
         );
       },
@@ -4818,7 +4945,7 @@ class _ProfileBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double avatarSize = compact ? 34 : 42;
+    final double avatarSize = compact ? 37.5 : 46.0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -4832,6 +4959,10 @@ class _ProfileBlock extends StatelessWidget {
             width: avatarSize,
             height: avatarSize,
             alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
             child: _AvatarCardCircle(
               card: avatarCard,
               size: avatarSize,
@@ -5002,7 +5133,7 @@ class _CenterArea extends StatelessWidget {
             const SizedBox(width: 20),
             Column(
               children: <Widget>[
-                _FaceCard(card: discard),
+                _DiscardPileAnimated(card: discard),
               ],
             ),
           ],
@@ -5015,6 +5146,68 @@ class _CenterArea extends StatelessWidget {
             child: _SuitOverlayText(message: overlay),
           ),
       ],
+    );
+  }
+}
+
+class _DiscardPileAnimated extends StatefulWidget {
+  const _DiscardPileAnimated({required this.card});
+
+  final DuelCard card;
+
+  @override
+  State<_DiscardPileAnimated> createState() => _DiscardPileAnimatedState();
+}
+
+class _DiscardPileAnimatedState extends State<_DiscardPileAnimated> {
+  Key _cardKey = UniqueKey();
+
+  @override
+  void didUpdateWidget(covariant _DiscardPileAnimated oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.card.id != widget.card.id) {
+      _cardKey = UniqueKey();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _FaceCard.width + 16,
+      height: _FaceCard.height + 16,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Transform.translate(
+            offset: const Offset(-3, 3),
+            child: Transform.rotate(
+              angle: -0.03,
+              child: const Opacity(opacity: 0.3, child: _DuelCardBack(width: _FaceCard.width, height: _FaceCard.height)),
+            ),
+          ),
+          Transform.translate(
+            offset: const Offset(3, -2),
+            child: Transform.rotate(
+              angle: 0.025,
+              child: const Opacity(opacity: 0.2, child: _DuelCardBack(width: _FaceCard.width, height: _FaceCard.height)),
+            ),
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: Tween<double>(begin: 0.96, end: 1).animate(animation), child: child),
+              );
+            },
+            child: Transform.rotate(
+              key: _cardKey,
+              angle: 0.01,
+              child: _FaceCard(card: widget.card),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
