@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class PlayerProfile {
   const PlayerProfile({
     required this.uid,
+    required this.pseudo,
     required this.displayName,
     this.email,
     this.photoUrl,
@@ -17,6 +18,7 @@ class PlayerProfile {
   });
 
   final String uid;
+  final String pseudo;
   final String displayName;
   final String? email;
   final String? photoUrl;
@@ -34,10 +36,12 @@ class PlayerProfile {
   String get id => uid;
   int get score => rankScore;
   String? get resolvedAvatarUrl => avatarUrl ?? photoUrl;
+  String get effectivePseudo => pseudo.trim().isEmpty ? displayName : pseudo;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'uid': uid,
+      'pseudo': pseudo,
       'displayName': displayName,
       'email': email,
       'photoUrl': photoUrl,
@@ -56,6 +60,7 @@ class PlayerProfile {
   factory PlayerProfile.fromMap(Map<String, dynamic> map) {
     return PlayerProfile(
       uid: map['uid'] as String? ?? '',
+      pseudo: map['pseudo'] as String? ?? map['displayName'] as String? ?? 'Joueur',
       displayName: map['displayName'] as String? ?? 'Joueur',
       email: map['email'] as String?,
       photoUrl: map['photoUrl'] as String?,
