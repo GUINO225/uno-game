@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 
 import 'game_card_avatar.dart';
 import 'leaderboard_service.dart';
 import 'player_profile.dart';
 import 'premium_ui.dart';
-
-final RouteObserver<ModalRoute<dynamic>> leaderboardRouteObserver =
-    RouteObserver<ModalRoute<dynamic>>();
 
 class LeaderboardPage extends StatefulWidget {
   const LeaderboardPage({super.key});
@@ -16,82 +12,21 @@ class LeaderboardPage extends StatefulWidget {
   State<LeaderboardPage> createState() => _LeaderboardPageState();
 }
 
-class _LeaderboardPageState extends State<LeaderboardPage> with RouteAware {
+class _LeaderboardPageState extends State<LeaderboardPage> {
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
-  bool _isLoading = true;
-  String? _errorMessage;
-  List<PlayerProfile> _players = const <PlayerProfile>[];
-  bool _didSubscribeRoute = false;
+  late Future<List<PlayerProfile>> _leaderboardFuture;
 
   @override
   void initState() {
     super.initState();
-    _loadLeaderboard(reason: 'initState');
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_didSubscribeRoute) {
-      return;
-    }
-    final ModalRoute<dynamic>? route = ModalRoute.of(context);
-    if (route != null) {
-      leaderboardRouteObserver.subscribe(this, route);
-      _didSubscribeRoute = true;
-    }
-  }
-
-  @override
-  void dispose() {
-    if (_didSubscribeRoute) {
-      leaderboardRouteObserver.unsubscribe(this);
-    }
-    super.dispose();
-  }
-
-  @override
-  void didPopNext() {
-    _loadLeaderboard(reason: 'didPopNext');
-  }
-
-  Future<void> _loadLeaderboard({
-    required String reason,
-    bool showLoader = true,
-  }) async {
-    debugPrint('[RANKING] chargement démarré (reason=$reason)');
-    if (showLoader && mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-    }
-    try {
-      final List<PlayerProfile> players =
-          await _leaderboardService.fetchTopPlayers(limit: 100);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _players = players;
-        _isLoading = false;
-        _errorMessage = null;
-      });
-      debugPrint('[RANKING] nombre d’utilisateurs récupérés = ${players.length}');
-    } catch (error, stackTrace) {
-      debugPrint('[RANKING] erreur $error\n$stackTrace');
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isLoading = false;
-        _errorMessage = '$error';
-      });
-    }
+    _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 100);
   }
 
   Future<void> _refresh() async {
-    await _loadLeaderboard(reason: 'pull-to-refresh', showLoader: false);
+    setState(() {
+      _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 100);
+    });
+    await _leaderboardFuture;
   }
 
   @override
@@ -103,74 +38,57 @@ class _LeaderboardPageState extends State<LeaderboardPage> with RouteAware {
         title: const Text('Classement'),
         backgroundColor: Colors.transparent,
       ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-          children: <Widget>[
-            PremiumPanel(
-              child: Text(
-                'Classement des joueurs connectés',
-                style: textTheme.titleMedium?.copyWith(
-                      color: PremiumColors.textDark,
-                      fontWeight: FontWeight.w800,
+      body: FutureBuilder<List<PlayerProfile>>(
+          future: _leaderboardFuture,
+          builder: (BuildContext context, AsyncSnapshot<List<PlayerProfile>> snapshot) {
+            final List<PlayerProfile> players = snapshot.data ?? const <PlayerProfile>[];
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                children: <Widget>[
+                  PremiumPanel(
+                    child: Text(
+                      'Classement des joueurs connectés',
+                      style: textTheme.titleMedium?.copyWith(
+                            color: PremiumColors.textDark,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const _LeaderboardHeader(),
-            if (_isLoading) const LinearProgressIndicator(minHeight: 2),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: PremiumPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      const Text(
-                        'Impossible de charger le classement pour le moment.',
-                        style: TextStyle(
-                          color: PremiumColors.textDark,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _errorMessage!,
-                        style: TextStyle(
-                          color: PremiumColors.textDark.withOpacity(0.78),
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: () => _loadLeaderboard(reason: 'retry-button'),
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Réessayer'),
-                      ),
-                    ],
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  const _LeaderboardHeader(),
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    const LinearProgressIndicator(minHeight: 2),
+                  if (snapshot.hasError)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text(
+                        'Impossible de charger le classement pour le moment.',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  if (players.isEmpty && snapshot.connectionState == ConnectionState.done)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text(
+                        'Aucun joueur classé pour le moment.',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ...List<Widget>.generate(players.length, (int index) {
+                    final PlayerProfile player = players[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: _LeaderboardRow(player: player, rank: index + 1),
+                    );
+                  }),
+                ],
               ),
-            if (!_isLoading && _errorMessage == null && _players.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: Text(
-                  'Aucun joueur classé pour le moment.',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ...List<Widget>.generate(_players.length, (int index) {
-              final PlayerProfile player = _players[index];
-              return Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: _LeaderboardRow(player: player, rank: index + 1),
-              );
-            }),
-          ],
+            );
+          },
         ),
-      ),
     );
   }
 }
@@ -229,7 +147,9 @@ class _LeaderboardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String safeDisplayName = player.safeDisplayName;
+    final String safeDisplayName = player.displayName.trim().isEmpty
+        ? 'Joueur inconnu'
+        : player.displayName.trim();
 
     return PremiumPanel(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -333,14 +253,17 @@ class _ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String? avatarUrl = player.resolvedAvatarUrl?.trim();
+    final String? avatarUrl = player.resolvedAvatarUrl;
     if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundColor: Colors.white,
-        backgroundImage: NetworkImage(avatarUrl),
-        onBackgroundImageError: (_, __) {},
-        child: const SizedBox.shrink(),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size / 2),
+        child: Image.network(
+          avatarUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _generatedAvatar(),
+        ),
       );
     }
     return _generatedAvatar();

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:collection';
 import 'dart:math';
 
@@ -146,14 +145,12 @@ class DuelStakeOffer {
 
 class DuelAction {
   const DuelAction({
-    this.id,
     required this.type,
     required this.actorId,
     required this.createdAt,
     this.payload = const <String, dynamic>{},
   });
 
-  final String? id;
   final DuelActionType type;
   final String actorId;
   final DateTime createdAt;
@@ -168,11 +165,6 @@ class DuelAction {
     };
   }
 
-  String get signature {
-    final Object canonicalPayload = SplayTreeMap<String, dynamic>.from(payload);
-    return '${type.name}|$actorId|${createdAt.toUtc().microsecondsSinceEpoch}|${jsonEncode(canonicalPayload)}';
-  }
-
   factory DuelAction.fromMap(Map<String, dynamic> json) {
     return DuelAction(
       type: DuelActionType.values.firstWhere(
@@ -181,17 +173,6 @@ class DuelAction {
       actorId: json['actorId'] as String,
       createdAt: (json['createdAt'] as Timestamp).toDate(),
       payload: Map<String, dynamic>.from(json['payload'] as Map? ?? <String, dynamic>{}),
-    );
-  }
-
-  factory DuelAction.fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-    final DuelAction action = DuelAction.fromMap(doc.data());
-    return DuelAction(
-      id: doc.id,
-      type: action.type,
-      actorId: action.actorId,
-      createdAt: action.createdAt,
-      payload: action.payload,
     );
   }
 }
@@ -500,23 +481,14 @@ class GameService {
         .collection('actions')
         .orderBy('createdAt')
         .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snap) {
-          final LinkedHashMap<String, DuelAction> dedup =
-              LinkedHashMap<String, DuelAction>();
-          for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snap.docs) {
-            final DuelAction action = DuelAction.fromDoc(doc);
-            dedup[action.id ?? action.signature] = action;
-          }
-          final List<DuelAction> actions = dedup.values.toList()
-            ..sort((DuelAction a, DuelAction b) {
-              final int byDate = a.createdAt.compareTo(b.createdAt);
-              if (byDate != 0) {
-                return byDate;
-              }
-              return (a.id ?? a.signature).compareTo(b.id ?? b.signature);
-            });
-          return actions;
-        });
+        .map(
+          (QuerySnapshot<Map<String, dynamic>> snap) => snap.docs
+              .map(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    DuelAction.fromMap(doc.data()),
+              )
+              .toList(),
+        );
   }
 
   Stream<List<DuelChatMessage>> watchChatMessages(String gameId) async* {
@@ -657,7 +629,7 @@ class GameService {
     });
   }
 
-  Future<void> exitParty({
+  Future<void> exitBetParty({
     required String gameId,
     required String playerId,
   }) async {
@@ -669,7 +641,6 @@ class GameService {
       'exitedBy': playerId,
       'stakeOffer': const DuelStakeOffer().toMap(),
       'activeStakeCredits': 0,
-      'status': DuelGameStatus.finished.name,
     });
   }
 
@@ -1173,12 +1144,12 @@ class DuelController extends ChangeNotifier {
     );
   }
 
-  Future<void> exitParty() async {
+  Future<void> exitBetParty() async {
     final DuelSession? current = session;
-    if (current == null) {
+    if (current == null || !current.isCreditsMode) {
       return;
     }
-    await service.exitParty(gameId: current.gameId, playerId: localPlayerId);
+    await service.exitBetParty(gameId: current.gameId, playerId: localPlayerId);
   }
 
   Future<void> resolveStakeAfterRound(String winnerId) async {
@@ -1262,7 +1233,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return null;
     }
     final String cleaned = _nameController.text.trim();
-    return _profileService.validatePseudo(cleaned);
+    if (cleaned.isEmpty) {
+      return 'Veuillez entrer un pseudonyme';
+    }
+    return null;
   }
 
   Future<void> _hydrateExistingAuthSession() async {
@@ -2999,9 +2973,10 @@ class _DuelPageState extends State<DuelPage> {
 
   Future<void> _exitPartyFlow() async {
     final DuelSession? session = _controller.session;
-    if (session != null) {
-      await _controller.exitParty();
+    if (session == null || !_isCreditsMode) {
+      return;
     }
+    await _controller.exitBetParty();
     if (!mounted) {
       return;
     }
@@ -3135,7 +3110,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   void _maybeHandlePartyExit(DuelSession session) {
-    if (session.betFlowState != DuelBetFlowState.partyExited) {
+    if (!_isCreditsMode || session.betFlowState != DuelBetFlowState.partyExited) {
       return;
     }
     final String key = '${session.round}_${session.exitedBy ?? ''}';
@@ -3146,11 +3121,6 @@ class _DuelPageState extends State<DuelPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
-      }
-      if (session.exitedBy != _controller.localPlayerId) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("L'autre joueur a quitté la partie.")),
-        );
       }
       Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
     });
@@ -3447,7 +3417,9 @@ class _DuelPageState extends State<DuelPage> {
                           IconButton(
                             onPressed: () {
                               unawaited(_sfx.playClick());
-                              unawaited(_exitPartyFlow());
+                              Navigator.of(context).popUntil(
+                                (Route<dynamic> route) => route.isFirst,
+                              );
                             },
                             tooltip: 'Retour aux modes',
                             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -3560,7 +3532,7 @@ class _DuelPageState extends State<DuelPage> {
                       const SizedBox(height: 8),
                       _OpponentRow(
                         name: opponentName,
-                        count: board.handCountOf(opponentId),
+                        count: board.handOf(opponentId).length,
                         wins: opponentScore,
                         losses: myScore,
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
@@ -4275,7 +4247,6 @@ class DuelBoardState {
   }
 
   List<DuelCard> handOf(String playerId) => hands[playerId] ?? <DuelCard>[];
-  int handCountOf(String playerId) => handOf(playerId).length;
 
   bool canPlay(String actorId, DuelCard card) {
     if (!handOf(actorId).any((DuelCard c) => c.id == card.id)) {
@@ -4285,19 +4256,16 @@ class DuelBoardState {
       return false;
     }
     if (aceColorRequired) {
-      if (card.rank == 'A') {
-        return true;
-      }
-      if (card.isJoker) {
-        return card.isSameColorAsSuit(discardTop.suit);
-      }
-      return false;
+      return card.rank == 'A';
     }
     if (card.rank == '8') {
       return true;
     }
     if (card.isJoker) {
       final String colorRefSuit = requiredSuit ?? discardTop.suit;
+      if (requiredSuit != null) {
+        return false;
+      }
       return card.isSameColorAsSuit(colorRefSuit);
     }
     if (requiredSuit != null) {
@@ -4838,7 +4806,7 @@ class _ProfileBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double avatarSize = compact ? 40 : 48;
+    final double avatarSize = compact ? 34 : 42;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -4987,39 +4955,34 @@ class _CenterArea extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             GestureDetector(
-              behavior: HitTestBehavior.opaque,
               onTap: canDraw ? onDrawTap : null,
-              child: SizedBox(
-                width: 72,
-                height: 104,
-                child: _BlinkingDrawCard(
-                  enabled: mustDraw,
-                  child: Opacity(
-                    opacity: canDraw ? 1 : 0.45,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: <Widget>[
-                        Transform.translate(
-                          offset: const Offset(-4, 3),
-                          child: Transform.rotate(
-                            angle: -0.08,
-                            child: Opacity(
-                              opacity: 0.9,
-                              child: const _DuelCardBack(width: 64, height: 92),
-                            ),
+              child: _BlinkingDrawCard(
+                enabled: mustDraw,
+                child: Opacity(
+                  opacity: canDraw ? 1 : 0.45,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: <Widget>[
+                      Transform.translate(
+                        offset: const Offset(-4, 3),
+                        child: Transform.rotate(
+                          angle: -0.08,
+                          child: Opacity(
+                            opacity: 0.9,
+                            child: const _DuelCardBack(width: 64, height: 92),
                           ),
                         ),
-                        Transform.rotate(
-                          angle: 0.05,
-                          child: const _DuelCardBack(width: 64, height: 92),
-                        ),
-                        Positioned(
-                          top: -8,
-                          right: -8,
-                          child: _DrawCountBadge(count: drawCount),
-                        ),
-                      ],
-                    ),
+                      ),
+                      Transform.rotate(
+                        angle: 0.05,
+                        child: const _DuelCardBack(width: 64, height: 92),
+                      ),
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: _DrawCountBadge(count: drawCount),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -5120,11 +5083,8 @@ class _MyHandRow extends StatelessWidget {
                         final double maxRowWidth =
                             (_FaceCard.width * _maxCardsPerRow) +
                             (_cardGap * (_maxCardsPerRow - 1));
-                        // Stabilisation: évite une largeur négative/non bornée
-                        // qui peut créer un render object non layouté.
-                        final double safeAvailableWidth = max(0, constraints.maxWidth - 8);
                         final double wrapWidth = min(
-                          safeAvailableWidth,
+                          constraints.maxWidth - 8,
                           maxRowWidth,
                         );
 
@@ -5143,7 +5103,6 @@ class _MyHandRow extends StatelessWidget {
                                   final bool isPlayable = playable(card);
                                   return SizedBox(
                                     width: _FaceCard.width,
-                                    height: _FaceCard.height,
                                     child: GestureDetector(
                                       behavior: HitTestBehavior.opaque,
                                       onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
