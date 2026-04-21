@@ -11,6 +11,7 @@ import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'firebase_config.dart';
 import 'duel_mode.dart';
+import 'game_popup_ui.dart';
 import 'leaderboard_page.dart';
 import 'player_side_panel.dart';
 import 'premium_ui.dart';
@@ -1482,7 +1483,7 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 54, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 66, vertical: 18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             gradient: const LinearGradient(
@@ -1502,8 +1503,8 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
             'JOUER',
             style: GoogleFonts.poppins(
               color: GameModePalette.backgroundShade,
-              fontSize: 24,
-              fontWeight: FontWeight.w400,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
               letterSpacing: 1.0,
             ),
           ),
@@ -1633,9 +1634,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   bool _botMustAnswerAce = false;
   Suit? _activeSuitConstraint;
 
-  bool _isEightDemandOverlayVisible = false;
-  Suit? _eightDemandOverlaySuit;
-  String _eightDemandOverlayMessage = '';
+  bool _isSpecialPopupVisible = false;
+  PlayingCard? _specialPopupCard;
+  String _specialPopupTitle = '';
+  String _specialPopupMessage = '';
+  Suit? _specialPopupSuit;
   bool _humanDidVoluntaryDrawThisTurn = false;
 
   int _humanScore = 0;
@@ -1682,9 +1685,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _humanMustAnswerAce = false;
       _botMustAnswerAce = false;
       _activeSuitConstraint = null;
-      _isEightDemandOverlayVisible = false;
-      _eightDemandOverlaySuit = null;
-      _eightDemandOverlayMessage = '';
+      _isSpecialPopupVisible = false;
+      _specialPopupCard = null;
+      _specialPopupTitle = '';
+      _specialPopupMessage = '';
+      _specialPopupSuit = null;
       _humanDidVoluntaryDrawThisTurn = false;
       _humanHand.addAll(humanInitialCards);
       _botHand.addAll(botInitialCards);
@@ -1842,7 +1847,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return false;
     }
 
-    return !card.isJoker && card.rank == 1;
+    if (!card.isJoker && card.rank == 1) {
+      return true;
+    }
+    return card.isJoker && _sameColor(card, _topDiscard);
   }
 
   void _setForcedDraw({
@@ -2099,6 +2107,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
       if (currentTurn == PlayerTurn.human) {
+        await _showSpecialCardOverlay(
+          card: card,
+          title: 'AS EST CHAUD',
+          message: 'GINO doit répondre avec un As',
+        );
         setState(() {
           _botMustAnswerAce = true;
           _status =
@@ -2110,6 +2123,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         );
       }
 
+      await _showSpecialCardOverlay(
+        card: card,
+        title: 'AS EST CHAUD',
+        message: 'Répondez avec un As ou un joker de même couleur',
+      );
       setState(() {
         _humanMustAnswerAce = true;
         _status =
@@ -2124,6 +2142,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (card.rank == 2) {
       if (currentTurn == PlayerTurn.human) {
+        await _showSpecialCardOverlay(
+          card: card,
+          title: 'CARTE SPÉCIALE',
+          message: 'GINO doit piocher 3 cartes',
+        );
         _setForcedDraw(
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
@@ -2136,6 +2159,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           skipTurnSwitch: false,
         );
       } else {
+        await _showSpecialCardOverlay(
+          card: card,
+          title: 'PIOCHE OBLIGATOIRE',
+          message: 'Piochez 3 cartes',
+        );
         _setForcedDraw(
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
@@ -2152,6 +2180,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (card.isJoker) {
       if (currentTurn == PlayerTurn.human) {
+        await _showSpecialCardOverlay(
+          card: card,
+          title: 'JOKER',
+          message: 'GINO doit piocher 9 cartes',
+        );
         _setForcedDraw(
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
@@ -2164,6 +2197,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           skipTurnSwitch: false,
         );
       } else {
+        await _showSpecialCardOverlay(
+          card: card,
+          title: 'JOKER ADVERSE',
+          message: 'Piochez 9 cartes',
+        );
         _setForcedDraw(
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
@@ -2196,6 +2234,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _status = demander;
       });
 
+      await _showSpecialCardOverlay(
+        card: card,
+        suit: askedSuit,
+        title: '8 COMMANDÉ',
+        message: 'Couleur demandée : ${_suitName(askedSuit)}',
+      );
       return const _PlayResolution(
         extraTurn: false,
         skipTurnSwitch: false,
@@ -2277,30 +2321,30 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     final Suit bestSuit = _chooseRequestedSuitForBot(_botHand);
-    await _showEightDemandOverlay(
-      suit: bestSuit,
-      message: 'GINO demande ${_suitName(bestSuit)}',
-    );
     return bestSuit;
   }
 
-  Future<void> _showEightDemandOverlay({
-    required Suit suit,
+  Future<void> _showSpecialCardOverlay({
+    required PlayingCard card,
+    required String title,
     required String message,
+    Suit? suit,
   }) async {
     setState(() {
-      _eightDemandOverlaySuit = suit;
-      _eightDemandOverlayMessage = message;
-      _isEightDemandOverlayVisible = true;
+      _specialPopupCard = card;
+      _specialPopupTitle = title;
+      _specialPopupMessage = message;
+      _specialPopupSuit = suit;
+      _isSpecialPopupVisible = true;
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    await Future<void>.delayed(const Duration(milliseconds: 1300));
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _isEightDemandOverlayVisible = false;
+      _isSpecialPopupVisible = false;
     });
 
     await Future<void>.delayed(const Duration(milliseconds: 220));
@@ -2309,8 +2353,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     setState(() {
-      _eightDemandOverlaySuit = null;
-      _eightDemandOverlayMessage = '';
+      _specialPopupCard = null;
+      _specialPopupTitle = '';
+      _specialPopupMessage = '';
+      _specialPopupSuit = null;
     });
   }
 
@@ -2319,18 +2365,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFFF9FAF8),
-          surfaceTintColor: Colors.transparent,
-          title: const Text(
-            'Choisis une enseigne',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Color(0xFF1A3427),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          content: SizedBox(
+        return GamePopupDialog(
+          title: 'Choisis une enseigne',
+          subtitle: 'Carte 8 jouée',
+          child: SizedBox(
             width: 260,
             child: GridView.count(
               shrinkWrap: true,
@@ -2352,14 +2390,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       },
     );
 
-    final Suit chosenSuit = selected ?? Suit.spades;
-
-    await _showEightDemandOverlay(
-      suit: chosenSuit,
-      message: 'Vous demandez ${_suitName(chosenSuit)}',
-    );
-
-    return chosenSuit;
+    return selected ?? Suit.spades;
   }
 
   Suit _chooseRequestedSuitForBot(List<PlayingCard> hand) {
@@ -2854,10 +2885,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               child: GlobalMusicToggleButton(),
             ),
           ),
-          if (_isEightDemandOverlayVisible && _eightDemandOverlaySuit != null)
+          if (_isSpecialPopupVisible && _specialPopupCard != null)
             Positioned.fill(
               child: AnimatedOpacity(
-                opacity: _isEightDemandOverlayVisible ? 1 : 0,
+                opacity: _isSpecialPopupVisible ? 1 : 0,
                 duration: const Duration(milliseconds: 220),
                 child: Container(
                   color: Colors.black.withOpacity(0.55),
@@ -2874,7 +2905,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         );
                       },
                       child: Container(
-                        width: 240,
+                        width: 290,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -2886,17 +2917,24 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
-                            const Text(
-                              'Nouvelle carte',
+                            Text(
+                              _specialPopupTitle,
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
                               ),
                             ),
                             const SizedBox(height: 10),
-                            _EightSuitCard(suit: _eightDemandOverlaySuit!),
+                            if (_specialPopupCard!.rank == 2)
+                              const PremiumCardStack(count: 3, suit: '♠', rankLabel: '2')
+                            else
+                              CardView(card: _specialPopupCard!, enabled: false),
+                            if (_specialPopupSuit != null) ...<Widget>[
+                              const SizedBox(height: 8),
+                              _EightSuitCard(suit: _specialPopupSuit!),
+                            ],
                             const SizedBox(height: 10),
-                            Text(_eightDemandOverlayMessage),
+                            Text(_specialPopupMessage, textAlign: TextAlign.center),
                           ],
                         ),
                       ),
