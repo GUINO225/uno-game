@@ -13,7 +13,9 @@ import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'firebase_config.dart';
 import 'leaderboard_service.dart';
+import 'leaderboard_page.dart';
 import 'player_profile.dart';
+import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'stats_service.dart';
 import 'user_profile_service.dart';
@@ -1197,6 +1199,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     _localPlayerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
     _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 5);
     unawaited(_hydrateExistingAuthSession());
+    if (widget.mode == DuelRoomMode.credits) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_ensureParisAccess());
+      });
+    }
   }
 
   @override
@@ -1311,6 +1318,49 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     });
   }
 
+  Future<void> _ensureParisAccess() async {
+    if (!mounted || _authService.currentUser != null) {
+      return;
+    }
+    final bool shouldLogin = await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Mode Paris'),
+              content: const Text(
+                'Connectez-vous avec Google pour jouer en mode Paris.',
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Retour'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Connexion Google'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+    if (!mounted) {
+      return;
+    }
+    if (!shouldLogin) {
+      Navigator.of(context).pop();
+      return;
+    }
+    await _continueWithGoogle();
+    if (!mounted) {
+      return;
+    }
+    if (_authenticatedPlayerId == null) {
+      Navigator.of(context).pop();
+    }
+  }
+
   String? _validateCodePartie() {
     final String cleaned = _codeController.text.trim().toUpperCase();
     if (cleaned.isEmpty) {
@@ -1412,6 +1462,14 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         ? 'Même duel, avec pari défini avant le lancement.'
         : 'Crée un salon privé ou rejoins une partie existante.';
     return Scaffold(
+      endDrawer: PlayerSidePanel(
+        onOpenLeaderboard: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const LeaderboardPage()),
+          );
+        },
+      ),
       body: Stack(
         children: <Widget>[
           TableBackground(
@@ -1742,6 +1800,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
               child: GlobalMusicToggleButton(
                 margin: EdgeInsets.only(right: 10, bottom: 10),
               ),
+            ),
+          ),
+          SafeArea(
+            child: Builder(
+              builder: (BuildContext context) => const PlayerSidePanelButton(),
             ),
           ),
         ],
