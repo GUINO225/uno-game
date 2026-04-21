@@ -381,10 +381,6 @@ class _IntroLandingPageState extends State<IntroLandingPage>
     }
   }
 
-  Future<void> _toggleBackgroundMusic() async {
-    await AudioService.instance.toggleBackgroundMusicFromUserGesture();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -392,6 +388,12 @@ class _IntroLandingPageState extends State<IntroLandingPage>
       body: Stack(
         children: <Widget>[
           const BackgroundDecoration(),
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: GlobalMusicToggleButton(),
+            ),
+          ),
           SafeArea(
             child: Center(
               child: ConstrainedBox(
@@ -406,57 +408,6 @@ class _IntroLandingPageState extends State<IntroLandingPage>
                         child: AppLogo(size: 280),
                       ),
                       const SizedBox(height: 34),
-                      ListenableBuilder(
-                        listenable: AudioService.instance,
-                        builder: (BuildContext context, Widget? child) {
-                          final AudioService audio = AudioService.instance;
-                          final bool backgroundMusicEnabled = audio.isBackgroundMusicEnabled;
-                          final bool isTransitioning = audio.isTransitioningToNextTrack;
-                          final bool isWaitingUnlock =
-                              !audio.isBackgroundMusicUnlocked && backgroundMusicEnabled;
-                          return Column(
-                            children: <Widget>[
-                              OutlinedButton.icon(
-                                onPressed: _toggleBackgroundMusic,
-                                icon: Icon(
-                                  backgroundMusicEnabled
-                                      ? Icons.music_note_rounded
-                                      : Icons.music_off_rounded,
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  side: BorderSide(color: Colors.white.withOpacity(0.45)),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                                label: Text(
-                                  backgroundMusicEnabled
-                                      ? 'Musique activée'
-                                      : 'Musique désactivée / en attente',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                              ),
-                              if (isTransitioning || isWaitingUnlock) ...<Widget>[
-                                const SizedBox(height: 10),
-                                Text(
-                                  isWaitingUnlock
-                                      ? 'En attente d’un geste utilisateur'
-                                      : 'Changement de piste…',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                ),
-                              ],
-                            ],
-                          );
-                        },
-                      ),
                       const SizedBox(height: 16),
                       _IntroPlayButton(
                         onTap: () {
@@ -850,6 +801,12 @@ class _GameModePageState extends State<GameModePage>
               ),
             ),
           ),
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: GlobalMusicToggleButton(),
+            ),
+          ),
         ],
       ),
     );
@@ -954,13 +911,10 @@ class SelectionCardModel {
   const SelectionCardModel({
     required this.rank,
     required this.suit,
-    required this.isDark,
   });
 
   final String rank;
   final SelectionSuit suit;
-  final bool isDark;
-
   bool get isRedSuit => suit == SelectionSuit.heart || suit == SelectionSuit.diamond;
 
   String get suitSymbol => switch (suit) {
@@ -980,7 +934,6 @@ class SelectionCardGenerator {
     return SelectionCardModel(
       rank: _ranks[random.nextInt(_ranks.length)],
       suit: SelectionSuit.values[random.nextInt(SelectionSuit.values.length)],
-      isDark: random.nextBool(),
     );
   }
 }
@@ -1057,10 +1010,6 @@ class _GameModeCardFace extends StatelessWidget {
         model: primaryCard ?? fallback,
         width: width,
         height: height,
-        trailingBadge: const _ModeBadgeIcon(
-          icon: Icons.person_outline_rounded,
-          semanticLabel: 'Mode solo',
-        ),
       ),
       _ModeCardVariant.duel => DuelSelectionCard(
         width: width,
@@ -1072,7 +1021,6 @@ class _GameModeCardFace extends StatelessWidget {
         model: primaryCard ?? fallback,
         width: width,
         height: height,
-        trailingBadge: const _CoinBadge(),
       ),
     };
   }
@@ -1084,34 +1032,27 @@ class SelectionPlayingCard extends StatelessWidget {
     required this.model,
     required this.width,
     required this.height,
-    this.trailingBadge,
   });
 
   final SelectionCardModel model;
   final double width;
   final double height;
-  final Widget? trailingBadge;
-
   @override
   Widget build(BuildContext context) {
-    final bool isDark = model.isDark;
-    final Color background = isDark ? const Color(0xFF16191F) : const Color(0xFFFEFEFE);
-    final Color border = isDark ? const Color(0xFF313642) : const Color(0xFFDADDE1);
-    final Color defaultInk = isDark ? const Color(0xFFF3F4F6) : const Color(0xFF15171A);
-    final Color suitColor = model.isRedSuit ? const Color(0xFFCF2F38) : defaultInk;
+    const Color cardGreen = Color(0xFF138F4C);
     return RepaintBoundary(
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: background,
-          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFD8E7DC)),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: Colors.black.withOpacity(0.14),
-              blurRadius: 7,
-              offset: const Offset(0, 3),
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -1121,28 +1062,27 @@ class SelectionPlayingCard extends StatelessWidget {
             Positioned(
               top: 8,
               left: 8,
-              child: _CardCorner(rank: model.rank, suit: model.suitSymbol, color: suitColor),
+              child: _CardCorner(rank: model.rank, suit: model.suitSymbol, color: cardGreen),
             ),
             Positioned(
               bottom: 8,
               right: 8,
               child: Transform.rotate(
                 angle: pi,
-                child: _CardCorner(rank: model.rank, suit: model.suitSymbol, color: suitColor),
+                child: _CardCorner(rank: model.rank, suit: model.suitSymbol, color: cardGreen),
               ),
             ),
             Center(
               child: Text(
                 model.suitSymbol,
                 style: TextStyle(
-                  color: suitColor,
+                  color: cardGreen,
                   fontSize: height * 0.46,
                   height: 1,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-            if (trailingBadge != null)
-              Positioned(right: 8, bottom: 8, child: trailingBadge!),
           ],
         ),
       ),
@@ -1193,10 +1133,6 @@ class DuelSelectionCard extends StatelessWidget {
                 model: frontCard,
                 width: width * 0.74,
                 height: height * 0.74,
-                trailingBadge: const _ModeBadgeIcon(
-                  icon: Icons.bolt_rounded,
-                  semanticLabel: 'Mode duel',
-                ),
               ),
             ),
           ),
@@ -1241,53 +1177,6 @@ class _CardCorner extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ModeBadgeIcon extends StatelessWidget {
-  const _ModeBadgeIcon({required this.icon, required this.semanticLabel});
-
-  final IconData icon;
-  final String semanticLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: semanticLabel,
-      child: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: const Color(0xFFE8EBEF).withOpacity(0.92),
-        ),
-        child: Icon(icon, size: 14, color: const Color(0xFF2D333D)),
-      ),
-    );
-  }
-}
-
-class _CoinBadge extends StatelessWidget {
-  const _CoinBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 25,
-      height: 25,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[Color(0xFFE8D7A0), Color(0xFFCBAF61)],
-        ),
-        border: Border.all(color: const Color(0xFFA58A46), width: 0.9),
-      ),
-      child: Center(
-        child: Icon(Icons.circle, size: 7, color: const Color(0xFF8E7335).withOpacity(0.8)),
-      ),
     );
   }
 }
@@ -1402,9 +1291,9 @@ class _PressableModeCardState extends State<_PressableModeCard> {
                   Text(
                     widget.label,
                     style: GoogleFonts.poppins(
-                      color: GameModePalette.white,
+                      color: const Color(0xFF8AF5A3),
                       fontSize: widget.labelFontSize,
-                      fontWeight: FontWeight.w400,
+                      fontWeight: FontWeight.w500,
                       letterSpacing: 0.45,
                     ),
                   ),
@@ -1527,13 +1416,13 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
               ),
             ],
           ),
-          child: Text(
+              child: Text(
             'JOUER',
             style: GoogleFonts.poppins(
               color: GameModePalette.backgroundShade,
               fontSize: 24,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.1,
+              fontWeight: FontWeight.w400,
+              letterSpacing: 1.0,
             ),
           ),
         ),
@@ -1803,7 +1692,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _setForcedDraw(
         target: startingPlayer,
         source: dealer,
-        count: 2,
+        count: 3,
         announcement: '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un 2.',
       );
       return;
@@ -1871,15 +1760,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return false;
     }
 
-    if (!card.isJoker && card.rank == 1) {
-      return true;
-    }
-
-    if (card.isJoker) {
-      return card.isRed == _topDiscard.isRed;
-    }
-
-    return false;
+    return !card.isJoker && card.rank == 1;
   }
 
   void _setForcedDraw({
@@ -1927,6 +1808,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return;
     }
 
+    final bool wasAceResponse = _humanMustAnswerAce;
     if (_humanMustAnswerAce) {
       setState(() {
         _humanMustAnswerAce = false;
@@ -1936,7 +1818,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     _isResolvingTurn = true;
     try {
       unawaited(_sfx.playCard());
-      await _humanPlayCard(card);
+      await _humanPlayCard(card, wasAceResponse: wasAceResponse);
     } finally {
       _isResolvingTurn = false;
       // Important: _endHumanTurn() can be called while _isResolvingTurn is true,
@@ -1946,7 +1828,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
   }
 
-  Future<void> _humanPlayCard(PlayingCard card) async {
+  Future<void> _humanPlayCard(
+    PlayingCard card, {
+    required bool wasAceResponse,
+  }) async {
     setState(() {
       _humanDidVoluntaryDrawThisTurn = false;
     });
@@ -1960,6 +1845,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       card: card,
       currentTurn: PlayerTurn.human,
       sourceLabel: 'Vous',
+      wasAceResponse: wasAceResponse,
     );
 
     if (_checkVictory(
@@ -2119,13 +2005,22 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     required PlayingCard card,
     required PlayerTurn currentTurn,
     required String sourceLabel,
+    bool wasAceResponse = false,
   }) async {
     if (card.rank == 1) {
+      if (wasAceResponse) {
+        setState(() {
+          _status = currentTurn == PlayerTurn.human
+              ? 'Vous répondez avec un As. Contrainte levée.'
+              : 'GINO répond avec un As. Contrainte levée.';
+        });
+        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
+      }
       if (currentTurn == PlayerTurn.human) {
         setState(() {
           _botMustAnswerAce = true;
           _status =
-          'Vous jouez un As : GINO doit répondre avec un As, un joker de même couleur, ou piocher.';
+          'Vous jouez un As : GINO doit répondre avec un As, ou piocher.';
         });
         return const _PlayResolution(
           extraTurn: false,
@@ -2136,7 +2031,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       setState(() {
         _humanMustAnswerAce = true;
         _status =
-        'GINO joue un As : répondez avec un As, un joker de même couleur, ou piochez.';
+        'GINO joue un As : répondez avec un As, ou piochez.';
       });
 
       return const _PlayResolution(
@@ -2150,8 +2045,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _setForcedDraw(
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
-          count: 2,
-          announcement: 'Vous jouez un 2 : GINO doit piocher 2 cartes.',
+          count: 3,
+          announcement: 'Vous jouez un 2 : GINO doit piocher 3 cartes.',
         );
         await _runForcedDrawForBot();
         return const _PlayResolution(
@@ -2162,8 +2057,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _setForcedDraw(
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
-          count: 2,
-          announcement: 'GINO joue un 2 : vous devez piocher 2 cartes.',
+          count: 3,
+          announcement: 'GINO joue un 2 : vous devez piocher 3 cartes.',
         );
       }
 
@@ -2503,6 +2398,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           playerName: 'GINO',
         );
 
+        final bool wasAceResponse = _botMustAnswerAce;
         setState(() {
           _botMustAnswerAce = false;
         });
@@ -2519,6 +2415,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           card: botAce,
           currentTurn: PlayerTurn.bot,
           sourceLabel: 'GINO',
+          wasAceResponse: wasAceResponse,
         );
 
         if (outcome.extraTurn) {
@@ -2762,17 +2659,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                               color: GameModePalette.white,
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'SOLO',
-                            style: GoogleFonts.leagueSpartan(
-                              color: GameModePalette.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Center(
+                              child: AppLogo(size: 86),
                             ),
                           ),
-                          const Spacer(),
                           IconButton(
                             onPressed: () {
                               unawaited(_sfx.playClick());
@@ -2874,17 +2766,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               ),
             ),
           ),
-          Positioned(
-            top: topInset + 4,
-            left: 12,
-            child: IgnorePointer(
-              child: Opacity(
-                opacity: 0.84,
-                child: AppLogo(
-                  size: 42,
-                  padding: EdgeInsets.only(top: 2, left: 2),
-                ),
-              ),
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: GlobalMusicToggleButton(),
             ),
           ),
           if (_isEightDemandOverlayVisible && _eightDemandOverlaySuit != null)
