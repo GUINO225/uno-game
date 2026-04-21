@@ -614,6 +614,16 @@ class _PanelAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String? avatarUrl = profile.resolvedAvatarUrl?.trim();
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: Colors.white,
+        backgroundImage: NetworkImage(avatarUrl),
+        onBackgroundImageError: (_, __) {},
+        child: const SizedBox.shrink(),
+      );
+    }
     return _generatedAvatar();
   }
 
@@ -639,63 +649,90 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
 
-  Future<int?> _loadCredits() async {
-    final User? user = _authService.currentUser;
-    if (user == null) {
-      return null;
-    }
-    final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
-    return profile.credits;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.topRight,
       child: Padding(
         padding: const EdgeInsets.only(top: 6, right: 10),
-        child: FutureBuilder<int?>(
-          future: _loadCredits(),
-          builder: (BuildContext context, AsyncSnapshot<int?> snapshot) {
-            final String creditsLabel = snapshot.connectionState == ConnectionState.waiting
-                ? '...'
-                : '${snapshot.data ?? 0}';
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                _CreditBadge(value: creditsLabel),
-                const SizedBox(width: 6),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () {
-                      _panelRefreshBus.requestRefresh('drawer-opened');
-                      Scaffold.of(context).openEndDrawer();
-                    },
-                    child: Tooltip(
-                      message: 'Menu joueur',
-                      child: SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: Center(
-                          child: GameCardAvatar(
-                            size: 28,
-                            data: GameCardAvatarPalette.fromSeed(
-                              _authService.currentUser?.uid ?? 'menu_guest',
-                              salt: 5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+        child: StreamBuilder<User?>(
+          stream: _authService.authStateChanges,
+          initialData: _authService.currentUser,
+          builder: (BuildContext context, AsyncSnapshot<User?> authSnapshot) {
+            final User? user = authSnapshot.data;
+            if (user == null) {
+              return _PanelQuickActions(
+                creditsLabel: '0',
+                avatar: GameCardAvatar(
+                  size: 28,
+                  data: GameCardAvatarPalette.fromSeed('menu_guest', salt: 5),
                 ),
-              ],
+              );
+            }
+            return StreamBuilder<PlayerProfile?>(
+              stream: _profileService.watchProfile(user.uid),
+              builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> profileSnapshot) {
+                final PlayerProfile? profile = profileSnapshot.data;
+                final String creditsLabel = profile == null ? '...' : '${profile.credits}';
+                final Widget avatar = _PanelAvatar(
+                  profile: profile ??
+                      PlayerProfile(
+                        uid: user.uid,
+                        pseudo: user.displayName ?? 'Joueur',
+                        displayName: user.displayName ?? 'Joueur',
+                        photoUrl: user.photoURL,
+                        avatarUrl: user.photoURL,
+                      ),
+                  size: 28,
+                );
+                return _PanelQuickActions(
+                  creditsLabel: creditsLabel,
+                  avatar: avatar,
+                );
+              },
             );
           },
         ),
       ),
+    );
+  }
+}
+
+class _PanelQuickActions extends StatelessWidget {
+  const _PanelQuickActions({
+    required this.creditsLabel,
+    required this.avatar,
+  });
+
+  final String creditsLabel;
+  final Widget avatar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _CreditBadge(value: creditsLabel),
+        const SizedBox(width: 6),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              _panelRefreshBus.requestRefresh('drawer-opened');
+              Scaffold.of(context).openEndDrawer();
+            },
+            child: Tooltip(
+              message: 'Menu joueur',
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: Center(child: avatar),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

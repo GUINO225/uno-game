@@ -153,7 +153,7 @@ class UserProfileService {
       if (!doc.exists) {
         return null;
       }
-      return PlayerProfile.fromMap(doc.data() ?? <String, dynamic>{});
+      return PlayerProfile.fromFirestoreDoc(doc);
     });
   }
 
@@ -163,6 +163,6 @@ class UserProfileService {
     if (!doc.exists) {
       return null;
     }
-    return PlayerProfile.fromMap(doc.data() ?? <String, dynamic>{});
+    return PlayerProfile.fromFirestoreDoc(doc);
   }
 }

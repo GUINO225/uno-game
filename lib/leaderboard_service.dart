@@ -12,16 +12,19 @@ class LeaderboardService {
     debugPrint('[LeaderboardService] fetchTopPlayers started (limit=$limit)');
     final QuerySnapshot<Map<String, dynamic>> snapshot =
         await _fetchLeaderboardSnapshot(limit);
-    final List<PlayerProfile> players = <PlayerProfile>[];
+    final Map<String, PlayerProfile> playersByUid = <String, PlayerProfile>{};
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
       try {
         final Map<String, dynamic> data = doc.data();
         if (data['isRegistered'] == false) {
           continue;
         }
-        final PlayerProfile profile = PlayerProfile.fromMap(data);
+        final PlayerProfile profile = PlayerProfile.fromFirestoreDoc(doc);
         if (profile.uid.isNotEmpty) {
-          players.add(profile);
+          final PlayerProfile? existing = playersByUid[profile.uid];
+          if (existing == null || _isBetterCandidate(profile, existing)) {
+            playersByUid[profile.uid] = profile;
+          }
         }
       } catch (error, stackTrace) {
         debugPrint(
@@ -29,17 +32,39 @@ class LeaderboardService {
         );
       }
     }
+    final List<PlayerProfile> players = playersByUid.values.toList(growable: false);
     players.sort((PlayerProfile a, PlayerProfile b) {
       final int scoreOrder = b.score.compareTo(a.score);
       if (scoreOrder != 0) {
         return scoreOrder;
       }
-      return b.wins.compareTo(a.wins);
+      final int winsOrder = b.wins.compareTo(a.wins);
+      if (winsOrder != 0) {
+        return winsOrder;
+      }
+      final int totalGamesOrder = b.totalGames.compareTo(a.totalGames);
+      if (totalGamesOrder != 0) {
+        return totalGamesOrder;
+      }
+      return a.safeDisplayName.toLowerCase().compareTo(b.safeDisplayName.toLowerCase());
     });
     debugPrint('[LeaderboardService] leaderboard received (${players.length} players)');
     return players
         .take(limit)
         .toList(growable: false);
+  }
+
+  bool _isBetterCandidate(PlayerProfile candidate, PlayerProfile existing) {
+    if (candidate.lastLoginAt == null && existing.lastLoginAt == null) {
+      return candidate.score >= existing.score;
+    }
+    if (candidate.lastLoginAt == null) {
+      return false;
+    }
+    if (existing.lastLoginAt == null) {
+      return true;
+    }
+    return candidate.lastLoginAt!.isAfter(existing.lastLoginAt!);
   }
 
   Future<QuerySnapshot<Map<String, dynamic>>> _fetchLeaderboardSnapshot(
