@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'auth_service.dart';
+import 'game_card_avatar.dart';
 import 'leaderboard_service.dart';
 import 'player_profile.dart';
 import 'premium_ui.dart';
@@ -155,16 +156,12 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   padding: const EdgeInsets.all(14),
                   child: Row(
                     children: <Widget>[
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: PremiumColors.panelSoft,
-                        backgroundImage: (profile.resolvedAvatarUrl == null ||
-                                profile.resolvedAvatarUrl!.isEmpty)
-                            ? null
-                            : NetworkImage(profile.resolvedAvatarUrl!),
-                        child: (profile.resolvedAvatarUrl == null || profile.resolvedAvatarUrl!.isEmpty)
-                            ? const Icon(Icons.person_rounded, color: PremiumColors.textDark)
-                            : null,
+                      GameCardAvatar(
+                        size: 56,
+                        data: GameCardAvatarPalette.fromSeed(
+                          profile.id,
+                          salt: 2,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -324,19 +321,16 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(24),
                     onTap: () => Scaffold.of(context).openEndDrawer(),
-                    child: Ink(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(0.32)),
-                      ),
-                      padding: const EdgeInsets.all(10),
-                      child: const Icon(
-                        Icons.menu_rounded,
-                        color: Colors.white,
-                        size: 20,
+                    child: Tooltip(
+                      message: 'Menu joueur',
+                      child: GameCardAvatar(
+                        size: 40,
+                        data: GameCardAvatarPalette.fromSeed(
+                          _authService.currentUser?.uid ?? 'menu_guest',
+                          salt: 5,
+                        ),
                       ),
                     ),
                   ),
