@@ -58,6 +58,7 @@ class AdminDashboardService {
 
   static const Set<String> _fallbackAllowedAdminEmails = <String>{
     'admin@uno-game.local',
+    'akenoostudio@gmail.com',
   };
 
   CollectionReference<Map<String, dynamic>> get _profiles =>
