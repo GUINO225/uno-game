@@ -12,6 +12,7 @@ import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'firebase_config.dart';
+import 'game_popup_ui.dart';
 import 'leaderboard_page.dart';
 import 'player_profile.dart';
 import 'player_side_panel.dart';
@@ -1772,6 +1773,7 @@ class _DuelPageState extends State<DuelPage> {
   DuelBoardState? _board;
   String? _lastEightPopupKey;
   String? _lastForcedDrawPopupKey;
+  String? _lastAcePopupKey;
   String? _lastRematchRequestKey;
   bool _rematchDialogOpen = false;
   bool _rematchActionBusy = false;
@@ -1895,6 +1897,7 @@ class _DuelPageState extends State<DuelPage> {
     _bindChatRealtime(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
+    _maybeShowAceRequiredPopup(session);
     _maybePlayOpponentActionSfx(session);
     _maybeHandleStakeFlow(session);
     _maybeHandleStakeRejected(session);
@@ -2055,20 +2058,10 @@ class _DuelPageState extends State<DuelPage> {
           ('♠', 'Pique'),
           ('♥', 'Cœur'),
         ];
-        return AlertDialog(
-          backgroundColor: const Color(0xFFF8F6F0),
-          surfaceTintColor: Colors.transparent,
-          title: const Center(
-            child: Text(
-              'TU COMMANDES ?',
-              style: TextStyle(
-                color: Color(0xFF152B22),
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          content: SizedBox(
+        return GamePopupDialog(
+          title: 'TU COMMANDES ?',
+          subtitle: 'Choisis une couleur',
+          child: SizedBox(
             width: 280,
             child: GridView.count(
               crossAxisCount: 2,
@@ -2133,21 +2126,13 @@ class _DuelPageState extends State<DuelPage> {
             }
           }),
         );
-        return AlertDialog(
-          backgroundColor: const Color(0xFFF8F6F0),
-          surfaceTintColor: Colors.transparent,
-          content: Column(
+        return GamePopupDialog(
+          title: '8 SPÉCIAL',
+          subtitle: actorName,
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(
-                actorName,
-                style: const TextStyle(
-                  color: Color(0xFF152B22),
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                ),
-                textAlign: TextAlign.center,
-              ),
+              const PremiumCardStack(count: 2, rankLabel: '8'),
               const SizedBox(height: 8),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -2156,7 +2141,7 @@ class _DuelPageState extends State<DuelPage> {
                     'a commandé',
                     style: TextStyle(
                       color: Color(0xFF1A342A),
-                      fontSize: 18,
+                      fontSize: 17,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -2190,15 +2175,13 @@ class _DuelPageState extends State<DuelPage> {
             }
           }),
         );
-        return AlertDialog(
-          backgroundColor: const Color(0xFFF8F6F0),
-          surfaceTintColor: Colors.transparent,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          content: Column(
+        return GamePopupDialog(
+          title: 'CARTE SPÉCIALE',
+          subtitle: 'Effet immédiat',
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const _DuelCardBack(width: 52, height: 76),
+              const PremiumCardStack(count: 3, rankLabel: '2', suit: '♠'),
               const SizedBox(height: 12),
               Text(
                 'PIOCHEZ $amount CARTES',
@@ -2212,6 +2195,27 @@ class _DuelPageState extends State<DuelPage> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showAceRequiredPopup() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        unawaited(
+          Future<void>.delayed(const Duration(milliseconds: 1800), () {
+            if (Navigator.of(dialogContext).canPop()) {
+              Navigator.of(dialogContext).pop();
+            }
+          }),
+        );
+        return const GamePopupDialog(
+          title: 'AS EST CHAUD',
+          subtitle: 'Réponse obligatoire',
+          child: PremiumCardStack(count: 2, rankLabel: 'A', suit: '♠'),
         );
       },
     );
@@ -2271,6 +2275,31 @@ class _DuelPageState extends State<DuelPage> {
         return;
       }
       await _showForcedDrawPopup(amount);
+    });
+  }
+
+  void _maybeShowAceRequiredPopup(DuelSession session) {
+    final DuelAction? action = session.lastAction;
+    if (action == null ||
+        action.type != DuelActionType.playCard ||
+        action.actorId == _controller.localPlayerId ||
+        !_controller.isMyTurn) {
+      return;
+    }
+    final String? cardId = action.payload['cardId'] as String?;
+    if (cardId == null || !cardId.startsWith('A') || !(_board?.aceColorRequired ?? false)) {
+      return;
+    }
+    final String key = '${action.actorId}_${action.createdAt.toIso8601String()}_ace';
+    if (_lastAcePopupKey == key) {
+      return;
+    }
+    _lastAcePopupKey = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      await _showAceRequiredPopup();
     });
   }
 
@@ -2748,34 +2777,37 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Text(
-            isCounterProposal ? 'CONTRE-PROPOSITION' : 'PROPOSITION',
-            textAlign: TextAlign.center,
-          ),
-          content: Text(
-            isRematchOffer
-                ? '$proposer veut prendre sa revanche avec une mise de ${offer.amount}'
-                : (isCounterProposal
-                    ? '$proposer veut plutôt parier ${offer.amount}'
-                    : '$proposer propose une mise de ${offer.amount}'),
-            textAlign: TextAlign.center,
-          ),
+        return GamePopupDialog(
+          title: isCounterProposal ? 'CONTRE-PROPOSITION' : 'PROPOSITION',
+          subtitle: isRematchOffer
+              ? '$proposer veut prendre sa revanche avec une mise de ${offer.amount}'
+              : (isCounterProposal
+                  ? '$proposer veut plutôt parier ${offer.amount}'
+                  : '$proposer propose une mise de ${offer.amount}'),
+          child: const PremiumCardStack(count: 2, rankLabel: '8'),
           actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop('quit');
-              },
-              child: const Text('QUITTER LA PARTIE'),
+            GamePopupButton(
+              label: 'QUITTER',
+              onPressed: () => Navigator.of(dialogContext).pop('quit'),
+              expanded: true,
             ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop('refuse'),
-              child: const Text('REFUSER'),
-            ),
-            ElevatedButton(
-              onPressed: insufficient ? null : () => Navigator.of(dialogContext).pop('accept'),
-              child: const Text('ACCEPTER'),
+            const SizedBox(height: 8),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: GamePopupButton(
+                    label: 'REFUSER',
+                    onPressed: () => Navigator.of(dialogContext).pop('refuse'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GamePopupButton(
+                    label: 'ACCEPTER',
+                    onPressed: insufficient ? null : () => Navigator.of(dialogContext).pop('accept'),
+                  ),
+                ),
+              ],
             ),
           ],
         );
@@ -2862,29 +2894,24 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text(
-            'MISE REFUSÉE',
-            textAlign: TextAlign.center,
-          ),
-          content: Text(
-            '$rejecterName a refusé cette mise.',
-            textAlign: TextAlign.center,
-          ),
+        return GamePopupDialog(
+          title: 'MISE REFUSÉE',
+          subtitle: '$rejecterName a refusé cette mise.',
+          child: const PremiumCardStack(count: 2, rankLabel: '2'),
           actions: <Widget>[
-            TextButton(
+            GamePopupButton(
+              label: 'QUITTER',
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 unawaited(_exitPartyFlow());
               },
-              child: const Text('QUITTER LA PARTIE'),
+              expanded: true,
             ),
-            Center(
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('OK'),
-              ),
+            const SizedBox(height: 8),
+            GamePopupButton(
+              label: 'OK',
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              expanded: true,
             ),
           ],
         );
@@ -3026,52 +3053,25 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text(
-            'REJOUER ?',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-          content: Text(
-            '$requester veut prendre sa revanche',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+        return GamePopupDialog(
+          title: 'REJOUER ?',
+          subtitle: '$requester veut prendre sa revanche',
+          child: const PremiumCardStack(count: 2, rankLabel: '8'),
           actions: <Widget>[
-            Column(
-              mainAxisSize: MainAxisSize.min,
+            Row(
               children: <Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    SizedBox(
-                      width: 112,
-                      height: 44,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(false),
-                        child: const Text('NON'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 112,
-                      height: 44,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(true),
-                        child: const Text('OUI'),
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  child: GamePopupButton(
+                    label: 'NON',
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                  ),
                 ),
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
-                  },
-                  child: const Text('QUITTER'),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GamePopupButton(
+                    label: 'OUI',
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                  ),
                 ),
               ],
             ),
@@ -3165,30 +3165,17 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          titlePadding: const EdgeInsets.fromLTRB(16, 8, 6, 0),
-          title: Row(
-            children: <Widget>[
-              const Expanded(
-                child: Text(
-                  'VICTOIRE',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Fermer',
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                icon: const Icon(Icons.close_rounded),
-              ),
-            ],
-          ),
-          content: Text(
-            'Vous avez gagné $gainAmount',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
+        return GamePopupDialog(
+          title: 'VICTOIRE',
+          subtitle: 'Vous avez gagné $gainAmount',
+          child: const PremiumCardStack(count: 3, rankLabel: 'A', suit: '♠'),
+          actions: <Widget>[
+            GamePopupButton(
+              label: 'OK',
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              expanded: true,
+            ),
+          ],
         );
       },
     );
@@ -4289,7 +4276,7 @@ class DuelBoardState {
       return false;
     }
     if (aceColorRequired) {
-      return card.rank == 'A';
+      return card.rank == 'A' || (card.isJoker && card.isSameColor(discardTop));
     }
     if (card.rank == '8') {
       return true;
@@ -4302,7 +4289,7 @@ class DuelBoardState {
       return card.isSameColorAsSuit(colorRefSuit);
     }
     if (requiredSuit != null) {
-      return card.suit == requiredSuit || card.rank == discardTop.rank;
+      return card.suit == requiredSuit || (card.rank == discardTop.rank && card.rank != 'JK');
     }
     return card.matches(discardTop);
   }
@@ -4430,7 +4417,7 @@ class DuelBoardState {
         newOverlay = '+8';
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.rank == 'A') {
-        newAceRequired = !newAceRequired;
+        newAceRequired = !aceColorRequired;
         newOverlay = newAceRequired
             ? 'As joué: réponse As obligatoire'
             : 'Réponse As validée';
