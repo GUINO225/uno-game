@@ -317,19 +317,25 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 _CreditBadge(value: creditsLabel),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(18),
                     onTap: () => Scaffold.of(context).openEndDrawer(),
                     child: Tooltip(
                       message: 'Menu joueur',
-                      child: GameCardAvatar(
-                        size: 40,
-                        data: GameCardAvatarPalette.fromSeed(
-                          _authService.currentUser?.uid ?? 'menu_guest',
-                          salt: 5,
+                      child: SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: Center(
+                          child: GameCardAvatar(
+                            size: 32,
+                            data: GameCardAvatarPalette.fromSeed(
+                              _authService.currentUser?.uid ?? 'menu_guest',
+                              salt: 5,
+                            ),
+                          ),
                         ),
                       ),
                     ),
