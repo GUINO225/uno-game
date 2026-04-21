@@ -72,26 +72,31 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   }
 
   Future<PlayerProfile?> _loadProfile({required String reason}) async {
-    debugPrint('[PlayerSidePanel] chargement menu démarré (reason=$reason)');
+    debugPrint('[MENU] chargement démarré (reason=$reason)');
     final User? user = _authService.currentUser;
+    debugPrint('[AUTH] currentUser uid = ${user?.uid ?? 'null'}');
     if (user == null) {
-      debugPrint('[PlayerSidePanel] aucun utilisateur authentifié');
+      debugPrint('[MENU] aucun utilisateur authentifié');
       return null;
     }
     try {
       final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
       debugPrint(
-        '[PlayerSidePanel] données utilisateur reçues uid=${profile.uid} pseudo=${profile.effectivePseudo} credits=${profile.credits}',
+        '[MENU] document utilisateur reçu uid=${profile.uid} pseudo=${profile.effectivePseudo} credits=${profile.credits}',
       );
       return profile;
     } catch (error, stackTrace) {
       debugPrint(
-        '[PlayerSidePanel] erreur chargement menu: $error\n$stackTrace',
+        '[MENU] erreur $error\n$stackTrace',
       );
-      final PlayerProfile? existingProfile = await _profileService.getProfile(user.uid);
-      if (existingProfile != null) {
-        debugPrint('[PlayerSidePanel] fallback profil local Firestore utilisé');
-        return existingProfile;
+      try {
+        final PlayerProfile? existingProfile = await _profileService.getProfile(user.uid);
+        if (existingProfile != null) {
+          debugPrint('[MENU] fallback profil local Firestore utilisé');
+          return existingProfile;
+        }
+      } catch (fallbackError, fallbackStackTrace) {
+        debugPrint('[MENU] erreur fallback profil $fallbackError\n$fallbackStackTrace');
       }
       _profileLoadError = '$error';
       return PlayerProfile(

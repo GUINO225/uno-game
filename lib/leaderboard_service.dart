@@ -14,13 +14,19 @@ class LeaderboardService {
         await _fetchLeaderboardSnapshot(limit);
     final List<PlayerProfile> players = <PlayerProfile>[];
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
-      final Map<String, dynamic> data = doc.data();
-      if (data['isRegistered'] == false) {
-        continue;
-      }
-      final PlayerProfile profile = PlayerProfile.fromMap(data);
-      if (profile.uid.isNotEmpty) {
-        players.add(profile);
+      try {
+        final Map<String, dynamic> data = doc.data();
+        if (data['isRegistered'] == false) {
+          continue;
+        }
+        final PlayerProfile profile = PlayerProfile.fromMap(data);
+        if (profile.uid.isNotEmpty) {
+          players.add(profile);
+        }
+      } catch (error, stackTrace) {
+        debugPrint(
+          '[RANKING] erreur parsing doc ${doc.id}: $error\n$stackTrace',
+        );
       }
     }
     players.sort((PlayerProfile a, PlayerProfile b) {

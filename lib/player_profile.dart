@@ -58,24 +58,65 @@ class PlayerProfile {
   }
 
   factory PlayerProfile.fromMap(Map<String, dynamic> map) {
+    String _readString(String key, {String fallback = ''}) {
+      final Object? value = map[key];
+      if (value == null) {
+        return fallback;
+      }
+      if (value is String) {
+        return value;
+      }
+      return '$value';
+    }
+
+    int _readInt(String key, {int fallback = 0}) {
+      final Object? value = map[key];
+      if (value is num) {
+        return value.toInt();
+      }
+      if (value is String) {
+        return int.tryParse(value) ?? fallback;
+      }
+      return fallback;
+    }
+
+    DateTime? _readDateTime(String key) {
+      final Object? value = map[key];
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+      if (value is DateTime) {
+        return value;
+      }
+      if (value is String) {
+        return DateTime.tryParse(value);
+      }
+      return null;
+    }
+
+    final String displayName = _readString('displayName', fallback: 'Joueur');
+    final String pseudo = _readString('pseudo', fallback: displayName);
+    final int wins = _readInt('wins');
+    final int losses = _readInt('losses');
+
     return PlayerProfile(
-      uid: map['uid'] as String? ?? '',
-      pseudo: map['pseudo'] as String? ?? map['displayName'] as String? ?? 'Joueur',
-      displayName: map['displayName'] as String? ?? 'Joueur',
-      email: map['email'] as String?,
-      photoUrl: map['photoUrl'] as String?,
-      avatarUrl: map['avatarUrl'] as String? ?? map['photoUrl'] as String?,
-      credits: (map['credits'] as num?)?.toInt() ?? 0,
-      wins: (map['wins'] as num?)?.toInt() ?? 0,
-      losses: (map['losses'] as num?)?.toInt() ?? 0,
-      totalGamesValue: (map['totalGames'] as num?)?.toInt(),
-      rankScore:
-          (map['rankScore'] as num?)?.toInt() ??
-          (map['score'] as num?)?.toInt() ??
-          (((map['wins'] as num?)?.toInt() ?? 0) * 3) -
-              ((map['losses'] as num?)?.toInt() ?? 0),
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
-      lastLoginAt: (map['lastLoginAt'] as Timestamp?)?.toDate(),
+      uid: _readString('uid'),
+      pseudo: pseudo,
+      displayName: displayName,
+      email: _readString('email').isEmpty ? null : _readString('email'),
+      photoUrl: _readString('photoUrl').isEmpty ? null : _readString('photoUrl'),
+      avatarUrl: _readString('avatarUrl').isEmpty
+          ? (_readString('photoUrl').isEmpty ? null : _readString('photoUrl'))
+          : _readString('avatarUrl'),
+      credits: _readInt('credits'),
+      wins: wins,
+      losses: losses,
+      totalGamesValue: map['totalGames'] == null ? null : _readInt('totalGames'),
+      rankScore: map['rankScore'] != null
+          ? _readInt('rankScore')
+          : (map['score'] != null ? _readInt('score') : (wins * 3) - losses),
+      createdAt: _readDateTime('createdAt'),
+      lastLoginAt: _readDateTime('lastLoginAt'),
     );
   }
 }
