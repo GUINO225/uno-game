@@ -3726,27 +3726,7 @@ class _DuelPageState extends State<DuelPage> {
                         opponentScore: opponentScore,
                         round: session.round,
                       ),
-                      if (_isCreditsMode) ...<Widget>[
-                        const SizedBox(height: 6),
-                        _CreditsStakeBanner(
-                          activeStakeCredits: session.activeStakeCredits,
-                          playerStakeCredits: session.stakeOffer.amount,
-                          stakeText: _requiresStake(session)
-                              ? switch (stakeOffer.status) {
-                                  DuelStakeStatus.pending =>
-                                    'Proposition en attente : ${stakeOffer.amount}',
-                                  DuelStakeStatus.declined =>
-                                    'Proposition refusée. Faites un nouveau pari.',
-                                  DuelStakeStatus.insufficientFunds =>
-                                    'Solde insuffisant détecté. Proposez une autre mise.',
-                                  DuelStakeStatus.none ||
-                                  DuelStakeStatus.accepted ||
-                                  DuelStakeStatus.resolved =>
-                                    'Pari obligatoire avant de jouer.',
-                                }
-                              : null,
-                        ),
-                      ],
+                      const SizedBox(height: 6),
                       const SizedBox(height: 8),
                       _OpponentRow(
                         name: opponentName,

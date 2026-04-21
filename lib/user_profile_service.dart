@@ -77,6 +77,7 @@ class UserProfileService {
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
+          'role': 'player',
         });
         return;
       }
@@ -104,6 +105,7 @@ class UserProfileService {
         'updatedAt': FieldValue.serverTimestamp(),
         'lastLoginAt': FieldValue.serverTimestamp(),
         'isRegistered': true,
+        if ((data['role'] as String?) == null) 'role': 'player',
       }, SetOptions(merge: true));
     });
     return (await getUserProfile(uid)) ??
@@ -120,6 +122,7 @@ class UserProfileService {
           rankScore: 0,
           createdAt: now,
           lastLoginAt: now,
+          role: 'player',
         );
   }
 

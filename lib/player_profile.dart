@@ -14,6 +14,7 @@ class PlayerProfile {
     this.rankScore = 0,
     this.createdAt,
     this.lastLoginAt,
+    this.role = 'player',
   });
 
   final String uid;
@@ -28,6 +29,7 @@ class PlayerProfile {
   final int rankScore;
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
+  final String role;
 
   int get totalGames => totalGamesValue ?? (wins + losses);
   double get winRatio => totalGames == 0 ? 0 : wins / totalGames;
@@ -50,6 +52,7 @@ class PlayerProfile {
       'rankScore': rankScore,
       'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
       'lastLoginAt': lastLoginAt == null ? null : Timestamp.fromDate(lastLoginAt!.toUtc()),
+      'role': role,
     };
   }
 
@@ -75,6 +78,7 @@ class PlayerProfile {
               ((map['losses'] as num?)?.toInt() ?? 0),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       lastLoginAt: (map['lastLoginAt'] as Timestamp?)?.toDate(),
+      role: map['role'] as String? ?? 'player',
     );
   }
 }
