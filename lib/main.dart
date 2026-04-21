@@ -515,11 +515,20 @@ class _GameModePageState extends State<GameModePage>
   late final Animation<double> _creditsFade;
   late final Animation<Offset> _creditsSlideUp;
   late final Animation<double> _creditsScale;
+  late final SelectionCardModel _soloSelectionCard;
+  late final SelectionCardModel _duelFrontCard;
+  late final SelectionCardModel _duelBackCard;
+  late final SelectionCardModel _parisSelectionCard;
   GameMode? _selectedMode;
 
   @override
   void initState() {
     super.initState();
+    final Random random = Random();
+    _soloSelectionCard = SelectionCardGenerator.randomCard(random);
+    _duelFrontCard = SelectionCardGenerator.randomCard(random);
+    _duelBackCard = SelectionCardGenerator.randomCard(random);
+    _parisSelectionCard = SelectionCardGenerator.randomCard(random);
     _introController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -675,6 +684,8 @@ class _GameModePageState extends State<GameModePage>
                                                     mode: _ModeCardVariant.solo,
                                                     width: _modeCardWidth,
                                                     height: _modeCardHeight,
+                                                    primaryCard:
+                                                        _soloSelectionCard,
                                                     labelFontSize:
                                                         _modeLabelFontSize,
                                                     appearDelay:
@@ -703,6 +714,10 @@ class _GameModePageState extends State<GameModePage>
                                                     mode: _ModeCardVariant.duel,
                                                     width: _modeCardWidth,
                                                     height: _modeCardHeight,
+                                                    primaryCard:
+                                                        _duelFrontCard,
+                                                    secondaryCard:
+                                                        _duelBackCard,
                                                     labelFontSize:
                                                         _modeLabelFontSize,
                                                     appearDelay:
@@ -731,6 +746,8 @@ class _GameModePageState extends State<GameModePage>
                                                     mode: _ModeCardVariant.paris,
                                                     width: _modeCardWidth,
                                                     height: _modeCardHeight,
+                                                    primaryCard:
+                                                        _parisSelectionCard,
                                                     labelFontSize:
                                                         _modeLabelFontSize,
                                                     appearDelay:
@@ -931,6 +948,43 @@ class BackgroundDecoration extends StatelessWidget {
 
 enum _ModeCardVariant { solo, duel, paris }
 
+enum SelectionSuit { spade, heart, diamond, club }
+
+class SelectionCardModel {
+  const SelectionCardModel({
+    required this.rank,
+    required this.suit,
+    required this.isDark,
+  });
+
+  final String rank;
+  final SelectionSuit suit;
+  final bool isDark;
+
+  bool get isRedSuit => suit == SelectionSuit.heart || suit == SelectionSuit.diamond;
+
+  String get suitSymbol => switch (suit) {
+    SelectionSuit.spade => '♠',
+    SelectionSuit.heart => '♥',
+    SelectionSuit.diamond => '♦',
+    SelectionSuit.club => '♣',
+  };
+}
+
+class SelectionCardGenerator {
+  SelectionCardGenerator._();
+
+  static const List<String> _ranks = <String>['A', 'K', 'Q', 'J', '10', '9', '8'];
+
+  static SelectionCardModel randomCard(Random random) {
+    return SelectionCardModel(
+      rank: _ranks[random.nextInt(_ranks.length)],
+      suit: SelectionSuit.values[random.nextInt(SelectionSuit.values.length)],
+      isDark: random.nextBool(),
+    );
+  }
+}
+
 class GameModeCard extends StatelessWidget {
   const GameModeCard({
     super.key,
@@ -941,6 +995,8 @@ class GameModeCard extends StatelessWidget {
     required this.appearDelay,
     required this.isSelected,
     required this.onTap,
+    this.primaryCard,
+    this.secondaryCard,
   });
 
   final _ModeCardVariant mode;
@@ -950,6 +1006,8 @@ class GameModeCard extends StatelessWidget {
   final Duration appearDelay;
   final bool isSelected;
   final VoidCallback onTap;
+  final SelectionCardModel? primaryCard;
+  final SelectionCardModel? secondaryCard;
 
   @override
   Widget build(BuildContext context) {
@@ -959,11 +1017,12 @@ class GameModeCard extends StatelessWidget {
       label: _label,
       labelFontSize: labelFontSize,
       appearDelay: appearDelay,
-      glowColor: _palette.last,
       child: _GameModeCardFace(
         width: width,
         height: height,
         mode: mode,
+        primaryCard: primaryCard,
+        secondaryCard: secondaryCard,
       ),
     );
   }
@@ -973,12 +1032,6 @@ class GameModeCard extends StatelessWidget {
     _ModeCardVariant.duel => 'Duel',
     _ModeCardVariant.paris => 'Paris',
   };
-
-  List<Color> get _palette => switch (mode) {
-    _ModeCardVariant.solo => const <Color>[Color(0xFFDC6767), Color(0xFFE28888)],
-    _ModeCardVariant.duel => const <Color>[Color(0xFFD35B5B), Color(0xFFD97B7B)],
-    _ModeCardVariant.paris => const <Color>[Color(0xFFCD5050), Color(0xFFD97272)],
-  };
 }
 
 class _GameModeCardFace extends StatelessWidget {
@@ -986,155 +1039,183 @@ class _GameModeCardFace extends StatelessWidget {
     required this.width,
     required this.height,
     required this.mode,
+    this.primaryCard,
+    this.secondaryCard,
   });
 
   final double width;
   final double height;
   final _ModeCardVariant mode;
+  final SelectionCardModel? primaryCard;
+  final SelectionCardModel? secondaryCard;
 
   @override
   Widget build(BuildContext context) {
-    const BorderRadius radius = BorderRadius.all(Radius.circular(11));
-    const Color cardColor = Color(0xFFFDFDFD);
-    const Color spadeColor = Color(0xFFD54242);
-    final bool isParis = mode == _ModeCardVariant.paris;
+    final SelectionCardModel fallback = SelectionCardGenerator.randomCard(Random(99));
+    return switch (mode) {
+      _ModeCardVariant.solo => SelectionPlayingCard(
+        model: primaryCard ?? fallback,
+        width: width,
+        height: height,
+        trailingBadge: const _ModeBadgeIcon(
+          icon: Icons.person_outline_rounded,
+          semanticLabel: 'Mode solo',
+        ),
+      ),
+      _ModeCardVariant.duel => DuelSelectionCard(
+        width: width,
+        height: height,
+        backCard: secondaryCard ?? fallback,
+        frontCard: primaryCard ?? fallback,
+      ),
+      _ModeCardVariant.paris => SelectionPlayingCard(
+        model: primaryCard ?? fallback,
+        width: width,
+        height: height,
+        trailingBadge: const _CoinBadge(),
+      ),
+    };
+  }
+}
+
+class SelectionPlayingCard extends StatelessWidget {
+  const SelectionPlayingCard({
+    super.key,
+    required this.model,
+    required this.width,
+    required this.height,
+    this.trailingBadge,
+  });
+
+  final SelectionCardModel model;
+  final double width;
+  final double height;
+  final Widget? trailingBadge;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = model.isDark;
+    final Color background = isDark ? const Color(0xFF16191F) : const Color(0xFFFEFEFE);
+    final Color border = isDark ? const Color(0xFF313642) : const Color(0xFFDADDE1);
+    final Color defaultInk = isDark ? const Color(0xFFF3F4F6) : const Color(0xFF15171A);
+    final Color suitColor = model.isRedSuit ? const Color(0xFFCF2F38) : defaultInk;
     return RepaintBoundary(
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          borderRadius: radius,
-          color: cardColor,
-          border: Border.all(
-            color: const Color(0xFFE9E9E9),
-            width: 1.0,
-          ),
+          borderRadius: BorderRadius.circular(12),
+          color: background,
+          border: Border.all(color: border),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 8,
+              color: Colors.black.withOpacity(0.14),
+              blurRadius: 7,
               offset: const Offset(0, 3),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: <Color>[
-                      Colors.white.withOpacity(0.72),
-                      Colors.white.withOpacity(0.28),
-                      const Color(0xFFF6F6F6),
-                    ],
-                    stops: const <double>[0, 0.55, 1],
-                  ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Positioned(
+              top: 8,
+              left: 8,
+              child: _CardCorner(rank: model.rank, suit: model.suitSymbol, color: suitColor),
+            ),
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: Transform.rotate(
+                angle: pi,
+                child: _CardCorner(rank: model.rank, suit: model.suitSymbol, color: suitColor),
+              ),
+            ),
+            Center(
+              child: Text(
+                model.suitSymbol,
+                style: TextStyle(
+                  color: suitColor,
+                  fontSize: height * 0.46,
+                  height: 1,
                 ),
               ),
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: height * 0.18,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: <Color>[
-                        Colors.white.withOpacity(0.46),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                left: 10,
-                right: 10,
-                child: Container(
-                  height: 0.9,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    color: Colors.white.withOpacity(0.85),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 10,
-                bottom: 10,
-                child: Container(
-                  width: width * 0.42,
-                  height: 0.9,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    color: Colors.black.withOpacity(0.06),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 11,
-                right: 11,
-                child: isParis
-                    ? const _ModeCardRankCorner(rank: '8')
-                    : const _ModeCardMiniCorner(),
-              ),
-              Positioned(
-                bottom: 11,
-                left: 11,
-                child: Transform.rotate(
-                  angle: pi,
-                  child: isParis
-                      ? const _ModeCardRankCorner(rank: '8')
-                      : const _ModeCardMiniCorner(),
-                ),
-              ),
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: _SuitSymbol(
-                    suit: _SuitType.spade,
-                    color: spadeColor,
-                    size: isParis ? 82 : 86,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+            if (trailingBadge != null)
+              Positioned(right: 8, bottom: 8, child: trailingBadge!),
+          ],
         ),
       ),
     );
   }
 }
 
-class _ModeCardMiniCorner extends StatelessWidget {
-  const _ModeCardMiniCorner();
+class DuelSelectionCard extends StatelessWidget {
+  const DuelSelectionCard({
+    super.key,
+    required this.width,
+    required this.height,
+    required this.backCard,
+    required this.frontCard,
+  });
+
+  final double width;
+  final double height;
+  final SelectionCardModel backCard;
+  final SelectionCardModel frontCard;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        const _SuitSymbol(
-          suit: _SuitType.spade,
-          color: Color(0xFFD54242),
-          size: 20,
-        ),
-      ],
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Positioned(
+            top: 13,
+            left: 6,
+            child: Transform.rotate(
+              angle: -0.11,
+              child: SelectionPlayingCard(
+                model: backCard,
+                width: width * 0.74,
+                height: height * 0.74,
+              ),
+            ),
+          ),
+          Positioned(
+            right: 3,
+            bottom: 6,
+            child: Transform.rotate(
+              angle: 0.08,
+              child: SelectionPlayingCard(
+                model: frontCard,
+                width: width * 0.74,
+                height: height * 0.74,
+                trailingBadge: const _ModeBadgeIcon(
+                  icon: Icons.bolt_rounded,
+                  semanticLabel: 'Mode duel',
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _ModeCardRankCorner extends StatelessWidget {
-  const _ModeCardRankCorner({required this.rank});
+class _CardCorner extends StatelessWidget {
+  const _CardCorner({
+    required this.rank,
+    required this.suit,
+    required this.color,
+  });
 
   final String rank;
+  final String suit;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -1143,122 +1224,71 @@ class _ModeCardRankCorner extends StatelessWidget {
       children: <Widget>[
         Text(
           rank,
-          style: GoogleFonts.poppins(
-            color: const Color(0xFFD54242),
+          style: GoogleFonts.notoSerif(
+            color: color,
             fontSize: 14,
-            fontWeight: FontWeight.w600,
             height: 1,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 1),
-        const _SuitSymbol(
-          suit: _SuitType.spade,
-          color: Color(0xFFD54242),
-          size: 16,
+        Text(
+          suit,
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            height: 1,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );
   }
 }
 
-enum _SuitType { spade, heart, diamond, club }
+class _ModeBadgeIcon extends StatelessWidget {
+  const _ModeBadgeIcon({required this.icon, required this.semanticLabel});
 
-class _SuitSymbol extends StatelessWidget {
-  const _SuitSymbol({
-    required this.suit,
-    required this.color,
-    required this.size,
-  });
-
-  final _SuitType suit;
-  final Color color;
-  final double size;
+  final IconData icon;
+  final String semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _SuitPainter(suit: suit, color: color),
+    return Semantics(
+      label: semanticLabel,
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: const Color(0xFFE8EBEF).withOpacity(0.92),
+        ),
+        child: Icon(icon, size: 14, color: const Color(0xFF2D333D)),
       ),
     );
   }
 }
 
-class _SuitPainter extends CustomPainter {
-  const _SuitPainter({required this.suit, required this.color});
-
-  final _SuitType suit;
-  final Color color;
+class _CoinBadge extends StatelessWidget {
+  const _CoinBadge();
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()..color = color;
-    final Path path = switch (suit) {
-      _SuitType.spade => _spadePath(size),
-      _SuitType.heart => _heartPath(size),
-      _SuitType.diamond => _diamondPath(size),
-      _SuitType.club => _clubPath(size),
-    };
-    canvas.drawPath(path, paint);
-  }
-
-  Path _spadePath(Size size) {
-    final double w = size.width;
-    final double h = size.height;
-    return Path()
-      ..moveTo(w * 0.5, h * 0.08)
-      ..quadraticBezierTo(w * 0.86, h * 0.44, w * 0.76, h * 0.64)
-      ..quadraticBezierTo(w * 0.66, h * 0.82, w * 0.5, h * 0.72)
-      ..quadraticBezierTo(w * 0.34, h * 0.82, w * 0.24, h * 0.64)
-      ..quadraticBezierTo(w * 0.14, h * 0.44, w * 0.5, h * 0.08)
-      ..close()
-      ..moveTo(w * 0.5, h * 0.58)
-      ..lineTo(w * 0.36, h * 0.95)
-      ..lineTo(w * 0.64, h * 0.95)
-      ..close();
-  }
-
-  Path _heartPath(Size size) {
-    final double w = size.width;
-    final double h = size.height;
-    return Path()
-      ..moveTo(w * 0.5, h * 0.92)
-      ..cubicTo(w * 0.08, h * 0.55, w * 0.14, h * 0.18, w * 0.36, h * 0.18)
-      ..cubicTo(w * 0.44, h * 0.18, w * 0.49, h * 0.24, w * 0.5, h * 0.3)
-      ..cubicTo(w * 0.51, h * 0.24, w * 0.56, h * 0.18, w * 0.64, h * 0.18)
-      ..cubicTo(w * 0.86, h * 0.18, w * 0.92, h * 0.55, w * 0.5, h * 0.92)
-      ..close();
-  }
-
-  Path _diamondPath(Size size) {
-    final double w = size.width;
-    final double h = size.height;
-    return Path()
-      ..moveTo(w * 0.5, h * 0.06)
-      ..lineTo(w * 0.88, h * 0.5)
-      ..lineTo(w * 0.5, h * 0.94)
-      ..lineTo(w * 0.12, h * 0.5)
-      ..close();
-  }
-
-  Path _clubPath(Size size) {
-    final double w = size.width;
-    final double h = size.height;
-    return Path()
-      ..addOval(Rect.fromCircle(center: Offset(w * 0.35, h * 0.38), radius: w * 0.2))
-      ..addOval(Rect.fromCircle(center: Offset(w * 0.65, h * 0.38), radius: w * 0.2))
-      ..addOval(Rect.fromCircle(center: Offset(w * 0.5, h * 0.2), radius: w * 0.2))
-      ..moveTo(w * 0.5, h * 0.44)
-      ..lineTo(w * 0.35, h * 0.92)
-      ..lineTo(w * 0.65, h * 0.92)
-      ..close();
-  }
-
-  @override
-  bool shouldRepaint(covariant _SuitPainter oldDelegate) {
-    return oldDelegate.suit != suit || oldDelegate.color != color;
+  Widget build(BuildContext context) {
+    return Container(
+      width: 25,
+      height: 25,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFFE8D7A0), Color(0xFFCBAF61)],
+        ),
+        border: Border.all(color: const Color(0xFFA58A46), width: 0.9),
+      ),
+      child: Center(
+        child: Icon(Icons.circle, size: 7, color: const Color(0xFF8E7335).withOpacity(0.8)),
+      ),
+    );
   }
 }
 
@@ -1314,7 +1344,6 @@ class _PressableModeCard extends StatefulWidget {
     required this.labelFontSize,
     required this.appearDelay,
     required this.isSelected,
-    required this.glowColor,
     required this.onTap,
   });
 
@@ -1323,7 +1352,6 @@ class _PressableModeCard extends StatefulWidget {
   final double labelFontSize;
   final Duration appearDelay;
   final bool isSelected;
-  final Color glowColor;
   final VoidCallback onTap;
 
   @override
@@ -1365,16 +1393,6 @@ class _PressableModeCardState extends State<_PressableModeCard> {
                       ? Colors.white.withOpacity(0.45)
                       : Colors.transparent,
                 ),
-                boxShadow: emphasized
-                    ? <BoxShadow>[
-                        BoxShadow(
-                          color: widget.glowColor.withOpacity(0.24),
-                          blurRadius: 26,
-                          spreadRadius: 1,
-                          offset: const Offset(0, 10),
-                        ),
-                      ]
-                    : const <BoxShadow>[],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
