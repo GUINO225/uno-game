@@ -37,6 +37,10 @@ class PlayerProfile {
   int get score => rankScore;
   String? get resolvedAvatarUrl => avatarUrl ?? photoUrl;
   String get effectivePseudo => pseudo.trim().isEmpty ? displayName : pseudo;
+  String get safeDisplayName {
+    final String value = effectivePseudo.trim();
+    return value.isEmpty ? 'Joueur' : value;
+  }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -58,19 +62,30 @@ class PlayerProfile {
   }
 
   factory PlayerProfile.fromMap(Map<String, dynamic> map) {
-    String _readString(String key, {String fallback = ''}) {
-      final Object? value = map[key];
+    Object? _readRaw(List<String> keys) {
+      for (final String key in keys) {
+        final Object? value = map[key];
+        if (value != null) {
+          return value;
+        }
+      }
+      return null;
+    }
+
+    String _readString(List<String> keys, {String fallback = ''}) {
+      final Object? value = _readRaw(keys);
       if (value == null) {
         return fallback;
       }
       if (value is String) {
-        return value;
+        final String trimmed = value.trim();
+        return trimmed.isEmpty ? fallback : trimmed;
       }
       return '$value';
     }
 
-    int _readInt(String key, {int fallback = 0}) {
-      final Object? value = map[key];
+    int _readInt(List<String> keys, {int fallback = 0}) {
+      final Object? value = _readRaw(keys);
       if (value is num) {
         return value.toInt();
       }
@@ -80,8 +95,8 @@ class PlayerProfile {
       return fallback;
     }
 
-    DateTime? _readDateTime(String key) {
-      final Object? value = map[key];
+    DateTime? _readDateTime(List<String> keys) {
+      final Object? value = _readRaw(keys);
       if (value is Timestamp) {
         return value.toDate();
       }
@@ -94,29 +109,51 @@ class PlayerProfile {
       return null;
     }
 
-    final String displayName = _readString('displayName', fallback: 'Joueur');
-    final String pseudo = _readString('pseudo', fallback: displayName);
-    final int wins = _readInt('wins');
-    final int losses = _readInt('losses');
+    final String uid = _readString(<String>['uid', 'id', 'userId']);
+    final String displayName = _readString(
+      <String>['displayName', 'name', 'username'],
+      fallback: 'Joueur',
+    );
+    final String pseudo = _readString(<String>['pseudo', 'nickname'], fallback: displayName);
+    final int wins = _readInt(<String>['wins', 'victories']);
+    final int losses = _readInt(<String>['losses', 'defeats']);
+    final int gamesFromTotal = _readInt(<String>['totalGames', 'matchesPlayed'], fallback: -1);
+    final int gamesFromPlayed = _readInt(<String>['played'], fallback: -1);
+    final int totalGamesValue =
+        gamesFromTotal >= 0 ? gamesFromTotal : (gamesFromPlayed >= 0 ? gamesFromPlayed : wins + losses);
 
     return PlayerProfile(
-      uid: _readString('uid'),
+      uid: uid,
       pseudo: pseudo,
       displayName: displayName,
-      email: _readString('email').isEmpty ? null : _readString('email'),
-      photoUrl: _readString('photoUrl').isEmpty ? null : _readString('photoUrl'),
-      avatarUrl: _readString('avatarUrl').isEmpty
-          ? (_readString('photoUrl').isEmpty ? null : _readString('photoUrl'))
-          : _readString('avatarUrl'),
-      credits: _readInt('credits'),
+      email: _readString(<String>['email']).isEmpty ? null : _readString(<String>['email']),
+      photoUrl: _readString(<String>['photoUrl', 'photoURL']).isEmpty
+          ? null
+          : _readString(<String>['photoUrl', 'photoURL']),
+      avatarUrl: _readString(<String>['avatarUrl', 'avatar']).isEmpty
+          ? (_readString(<String>['photoUrl', 'photoURL']).isEmpty
+              ? null
+              : _readString(<String>['photoUrl', 'photoURL']))
+          : _readString(<String>['avatarUrl', 'avatar']),
+      credits: _readInt(<String>['credits', 'coins']),
       wins: wins,
       losses: losses,
-      totalGamesValue: map['totalGames'] == null ? null : _readInt('totalGames'),
-      rankScore: map['rankScore'] != null
-          ? _readInt('rankScore')
-          : (map['score'] != null ? _readInt('score') : (wins * 3) - losses),
-      createdAt: _readDateTime('createdAt'),
-      lastLoginAt: _readDateTime('lastLoginAt'),
+      totalGamesValue: totalGamesValue,
+      rankScore: _readRaw(<String>['rankScore']) != null
+          ? _readInt(<String>['rankScore'])
+          : (_readRaw(<String>['score', 'points']) != null
+              ? _readInt(<String>['score', 'points'])
+              : (wins * 3) - losses),
+      createdAt: _readDateTime(<String>['createdAt']),
+      lastLoginAt: _readDateTime(<String>['lastLoginAt', 'updatedAt']),
     );
+  }
+
+  factory PlayerProfile.fromFirestoreDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
+    if ((data['uid'] as String?)?.trim().isEmpty ?? true) {
+      data['uid'] = doc.id;
+    }
+    return PlayerProfile.fromMap(data);
   }
 }
