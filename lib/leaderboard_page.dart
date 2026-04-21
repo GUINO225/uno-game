@@ -59,7 +59,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> with RouteAware {
     required String reason,
     bool showLoader = true,
   }) async {
-    debugPrint('[LeaderboardPage] chargement classement démarré (reason=$reason)');
+    debugPrint('[RANKING] chargement démarré (reason=$reason)');
     if (showLoader && mounted) {
       setState(() {
         _isLoading = true;
@@ -77,9 +77,9 @@ class _LeaderboardPageState extends State<LeaderboardPage> with RouteAware {
         _isLoading = false;
         _errorMessage = null;
       });
-      debugPrint('[LeaderboardPage] classement reçu (${players.length} entrées)');
+      debugPrint('[RANKING] nombre d’utilisateurs récupérés = ${players.length}');
     } catch (error, stackTrace) {
-      debugPrint('[LeaderboardPage] erreur classement: $error\n$stackTrace');
+      debugPrint('[RANKING] erreur $error\n$stackTrace');
       if (!mounted) {
         return;
       }
