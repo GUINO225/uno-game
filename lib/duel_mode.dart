@@ -762,6 +762,16 @@ class GameService {
       if (amount > balance) {
         throw StateError('Solde insuffisant pour cette proposition.');
       }
+      final String opponentId = session.players.firstWhere(
+        (String id) => id != proposedBy,
+        orElse: () => '',
+      );
+      if (opponentId.isNotEmpty) {
+        final int opponentBalance = session.playerCredits[opponentId] ?? 0;
+        if (amount > opponentBalance) {
+          throw StateError('Mise refusée: crédit adverse insuffisant.');
+        }
+      }
       tx.update(ref, <String, dynamic>{
         'playerCredits.$proposedBy': balance - amount,
         'stakeOffer': DuelStakeOffer(
@@ -1294,9 +1304,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         ? 'Même duel, avec pari défini avant le lancement.'
         : 'Crée un salon privé ou rejoins une partie existante.';
     return Scaffold(
-      body: TableBackground(
-        child: SafeArea(
-          child: Center(
+      body: Stack(
+        children: <Widget>[
+          TableBackground(
+            child: SafeArea(
+              child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
               child: ConstrainedBox(
@@ -1304,43 +1316,41 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Row(
+                    Stack(
                       children: <Widget>[
-                        IconButton(
-                          onPressed: () {
-                            unawaited(_sfx.playClick());
-                            Navigator.of(context).popUntil(
-                              (Route<dynamic> route) => route.isFirst,
-                            );
-                          },
-                          tooltip: 'Retour aux modes',
-                          icon: const Icon(
-                            Icons.arrow_back_rounded,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            title,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
+                        Align(
+                          alignment: Alignment.topLeft,
+                          child: IconButton(
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              Navigator.of(context).popUntil(
+                                (Route<dynamic> route) => route.isFirst,
+                              );
+                            },
+                            tooltip: 'Retour aux modes',
+                            icon: const Icon(
+                              Icons.arrow_back_rounded,
                               color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 30,
-                              letterSpacing: 1.1,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 48),
+                        Column(
+                          children: <Widget>[
+                            const AppLogo(size: 88),
+                            const SizedBox(height: 4),
+                            Text(
+                              title,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.95),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 22,
+                                letterSpacing: 0.7,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 10),
-                    const Align(
-                      alignment: Alignment.topLeft,
-                      child: AppLogo(
-                        size: 56,
-                        padding: EdgeInsets.only(left: 6),
-                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -1537,8 +1547,18 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                 ),
               ),
             ),
+              ),
+            ),
           ),
-        ),
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: GlobalMusicToggleButton(
+                margin: EdgeInsets.only(top: 46, left: 6),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2061,7 +2081,7 @@ class _DuelPageState extends State<DuelPage> {
     }
     final int amount = (_board?.pendingDraw ?? 0) > 0
         ? _board!.pendingDraw
-        : (card.rank == '2' ? 2 : 8);
+        : (card.rank == '2' ? 3 : 8);
     final String key = '${action.actorId}_${action.createdAt.toIso8601String()}_$amount';
     if (_lastForcedDrawPopupKey == key) {
       return;
@@ -2194,7 +2214,17 @@ class _DuelPageState extends State<DuelPage> {
       return;
     }
     final int myCredits = _creditsOf(session, _controller.localPlayerId);
-    final int? selected = await _showStakeSelectionDialog(myCredits: myCredits);
+    final String opponentId = session.players.firstWhere(
+      (String id) => id != _controller.localPlayerId,
+      orElse: () => '',
+    );
+    final int? opponentCredits = opponentId.isEmpty
+        ? null
+        : _creditsOf(session, opponentId);
+    final int? selected = await _showStakeSelectionDialog(
+      myCredits: myCredits,
+      opponentCredits: opponentCredits,
+    );
     if (selected == null) {
       if (_requiresStake(session)) {
         _showStakeRequiredMessage();
@@ -2204,7 +2234,10 @@ class _DuelPageState extends State<DuelPage> {
     await _submitStakeProposal(session: session, amount: selected);
   }
 
-  Future<int?> _showStakeSelectionDialog({required int myCredits}) async {
+  Future<int?> _showStakeSelectionDialog({
+    required int myCredits,
+    required int? opponentCredits,
+  }) async {
     if (_stakeSelectionDialogOpen) {
       return null;
     }
@@ -2223,6 +2256,7 @@ class _DuelPageState extends State<DuelPage> {
             String? validate(int? amount) => _stakeValidationError(
               amount: amount,
               myCredits: myCredits,
+              opponentCredits: opponentCredits,
             );
 
             void selectAmount(int amount) {
@@ -2271,16 +2305,31 @@ class _DuelPageState extends State<DuelPage> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      if (opponentCredits != null) ...<Widget>[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Crédit adverse: $opponentCredits',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFFFFE9A8),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: options.map((int amount) {
                           final bool disabled = amount > myCredits;
+                          final bool exceedsOpponent = opponentCredits != null &&
+                              amount > opponentCredits;
                           return ChoiceChip(
                             label: Text('$amount'),
                             selected: selectedAmount == amount,
-                            onSelected: disabled ? null : (_) => selectAmount(amount),
+                            onSelected: (disabled || exceedsOpponent)
+                                ? null
+                                : (_) => selectAmount(amount),
                           );
                         }).toList(),
                       ),
@@ -2380,9 +2429,17 @@ class _DuelPageState extends State<DuelPage> {
     required int amount,
   }) async {
     final int myCredits = _creditsOf(session, _controller.localPlayerId);
+    final String opponentId = session.players.firstWhere(
+      (String id) => id != _controller.localPlayerId,
+      orElse: () => '',
+    );
+    final int? opponentCredits = opponentId.isEmpty
+        ? null
+        : _creditsOf(session, opponentId);
     final String? validationError = _stakeValidationError(
       amount: amount,
       myCredits: myCredits,
+      opponentCredits: opponentCredits,
     );
     if (validationError != null) {
       _showStakeRequiredMessage(
@@ -2427,6 +2484,7 @@ class _DuelPageState extends State<DuelPage> {
   String? _stakeValidationError({
     required int? amount,
     required int myCredits,
+    int? opponentCredits,
   }) {
     if (amount == null) {
       return 'Choisissez un pari valide.';
@@ -2436,6 +2494,9 @@ class _DuelPageState extends State<DuelPage> {
     }
     if (amount > myCredits) {
       return 'Solde insuffisant pour ce pari.';
+    }
+    if (opponentCredits != null && amount > opponentCredits) {
+      return 'Mise refusée: le crédit adverse est insuffisant.';
     }
     return null;
   }
@@ -3159,16 +3220,6 @@ class _DuelPageState extends State<DuelPage> {
                             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                           ),
                           const Spacer(),
-                          Text(
-                            _isCreditsMode ? 'DUEL PARI' : 'DUEL',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.95),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 20,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                          const Spacer(),
                           Stack(
                             clipBehavior: Clip.none,
                             children: <Widget>[
@@ -3190,6 +3241,57 @@ class _DuelPageState extends State<DuelPage> {
                           ),
                         ],
                       ),
+                      Column(
+                        children: <Widget>[
+                          const AppLogo(size: 92),
+                          const SizedBox(height: 2),
+                          Text(
+                            _isCreditsMode ? 'Duel Paris' : 'Duel',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_isCreditsMode) ...<Widget>[
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  const Icon(
+                                    Icons.monetization_on_rounded,
+                                    size: 16,
+                                    color: Color(0xFFFFD45F),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '$myCredits',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFFE8A0),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       _DuelStatusBanner(
                         opponentName: opponentName,
                         myScore: myScore,
@@ -3246,7 +3348,7 @@ class _DuelPageState extends State<DuelPage> {
                         profileName: localName,
                         wins: myScore,
                         losses: opponentScore,
-                        credits: _isCreditsMode ? myCredits : null,
+                        credits: null,
                         fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
                         avatarCard: localAvatarCard,
                       ),
@@ -3294,16 +3396,11 @@ class _DuelPageState extends State<DuelPage> {
                   ),
                 ),
               ),
-              Positioned(
-                top: topInset + 4,
-                left: 12,
-                child: IgnorePointer(
-                  child: Opacity(
-                    opacity: 0.82,
-                    child: AppLogo(
-                      size: 42,
-                      padding: EdgeInsets.only(top: 2, left: 2),
-                    ),
+              const SafeArea(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: GlobalMusicToggleButton(
+                    margin: EdgeInsets.only(top: 46, left: 6),
                   ),
                 ),
               ),
@@ -3948,23 +4045,17 @@ class DuelBoardState {
     if (pendingDraw > 0) {
       return false;
     }
-    if (aceColorRequired && discardTop.rank != 'A') {
-      return true;
-    }
-    if (discardTop.rank == 'A' && aceColorRequired) {
-      if (card.rank == 'A') {
-        return true;
-      }
-      if (card.isJoker && card.isRed == discardTop.isRed) {
-        return true;
-      }
-      return false;
+    if (aceColorRequired) {
+      return card.rank == 'A';
     }
     if (card.rank == '8') {
       return true;
     }
     if (card.isJoker) {
       final String colorRefSuit = requiredSuit ?? discardTop.suit;
+      if (requiredSuit != null) {
+        return false;
+      }
       return card.isSameColorAsSuit(colorRefSuit);
     }
     if (requiredSuit != null) {
@@ -4086,9 +4177,9 @@ class DuelBoardState {
         newOverlay = '${action.actorId} a commandé $newRequiredSuit';
         newStatus = 'Couleur demandée: $newRequiredSuit';
       } else if (card.rank == '2') {
-        newPendingDraw += 2;
+        newPendingDraw += 3;
         newForcedDrawInitial = newPendingDraw;
-        newOverlay = '+2';
+        newOverlay = '+3';
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.isJoker) {
         newPendingDraw += 8;
@@ -4096,10 +4187,16 @@ class DuelBoardState {
         newOverlay = '+8';
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.rank == 'A') {
-        newAceRequired = true;
-        newOverlay = 'As a été joué';
+        newAceRequired = !newAceRequired;
+        newOverlay = newAceRequired
+            ? 'As joué: réponse As obligatoire'
+            : 'Réponse As validée';
+        newStatus = newOverlay;
       } else if (card.rank == '10' || card.rank == 'J') {
+        newAceRequired = false;
         newOverlay = 'Tour sauté';
+      } else {
+        newAceRequired = false;
       }
     }
 
