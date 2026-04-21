@@ -860,23 +860,89 @@ class _GameModePageState extends State<GameModePage>
       final bool shouldLogin = await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
-              return GamePopupDialog(
-                title: 'Connexion requise',
-                subtitle: 'Connectez-vous avec votre Google pour jouer en mode Paris',
-                child: const _GoogleAuthMark(),
-                actions: <Widget>[
-                  GamePopupIconButton(
-                    icon: Icons.close_rounded,
-                    semanticLabel: 'Fermer',
-                    onPressed: () => Navigator.of(context).pop(false),
+              return Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.symmetric(horizontal: 44),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0x15000000)),
+                    boxShadow: const <BoxShadow>[
+                      BoxShadow(
+                        color: Color(0x22000000),
+                        blurRadius: 14,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  GamePopupButton(
-                    label: 'Connexion',
-                    onPressed: () => Navigator.of(context).pop(true),
-                    expanded: true,
+                  child: Stack(
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              'Connexion requise',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                color: Colors.black,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Connectez-vous avec Google pour jouer en mode Paris.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                color: Colors.black87,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(0, 42),
+                                  backgroundColor: const Color(0xFF21A75A),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  textStyle: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                child: const Text('Connexion'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Positioned(
+                        top: -4,
+                        right: -6,
+                        child: IconButton(
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Fermer',
+                          onPressed: () => Navigator.of(context).pop(false),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 20,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               );
             },
           ) ??
@@ -907,38 +973,6 @@ class _GameModePageState extends State<GameModePage>
       GameMode.duel => GameModeRoutes.duel,
       GameMode.credits => GameModeRoutes.credits,
     });
-  }
-}
-
-class _GoogleAuthMark extends StatelessWidget {
-  const _GoogleAuthMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 76,
-      height: 76,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFFDDE3EA)),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 3)),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: RichText(
-        text: const TextSpan(
-          style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700),
-          children: <InlineSpan>[
-            TextSpan(text: 'G', style: TextStyle(color: Color(0xFF4285F4))),
-            TextSpan(text: '•', style: TextStyle(color: Color(0xFFEA4335), fontSize: 16)),
-            TextSpan(text: '•', style: TextStyle(color: Color(0xFFFBBC05), fontSize: 16)),
-            TextSpan(text: '•', style: TextStyle(color: Color(0xFF34A853), fontSize: 16)),
-          ],
-        ),
-      ),
-    );
   }
 }
 
