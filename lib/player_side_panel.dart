@@ -26,14 +26,16 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   final UserProfileService _profileService = UserProfileService.instance;
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
 
-  Future<(PlayerProfile?, int?)> _loadPanelData() async {
+  Future<int?> _loadRank(String uid) async {
+    return _leaderboardService.fetchPlayerRank(uid);
+  }
+
+  Future<PlayerProfile?> _loadProfile() async {
     final User? user = _authService.currentUser;
     if (user == null) {
-      return (null, null);
+      return null;
     }
-    final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
-    final int? rank = await _leaderboardService.fetchPlayerRank(user.uid);
-    return (profile, rank);
+    return _profileService.createOrUpdateFromGoogleUser(user);
   }
 
   Future<void> _signIn() async {
@@ -58,15 +60,84 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     setState(() {});
   }
 
+  Future<void> _promptPseudoEdition(PlayerProfile profile) async {
+    final TextEditingController controller = TextEditingController(
+      text: profile.effectivePseudo,
+    );
+    String? error;
+    final bool? saved = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            return AlertDialog(
+              title: const Text('Modifier le pseudo'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  TextField(
+                    controller: controller,
+                    maxLength: UserProfileService.maxPseudoLength,
+                    decoration: InputDecoration(
+                      labelText: 'Pseudo',
+                      errorText: error,
+                    ),
+                    onChanged: (_) {
+                      if (error != null) {
+                        setDialogState(() => error = null);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final String? validation =
+                        _profileService.validatePseudo(controller.text);
+                    if (validation != null) {
+                      setDialogState(() => error = validation);
+                      return;
+                    }
+                    await _profileService.updatePseudo(
+                      uid: profile.uid,
+                      pseudo: controller.text,
+                    );
+                    if (!mounted) {
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(true);
+                  },
+                  child: const Text('Enregistrer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted || saved != true) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pseudo mis à jour.')),
+    );
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Drawer(
       child: SafeArea(
-        child: FutureBuilder<(PlayerProfile?, int?)>(
-          future: _loadPanelData(),
-          builder: (BuildContext context, AsyncSnapshot<(PlayerProfile?, int?)> snapshot) {
-            final PlayerProfile? profile = snapshot.data?.$1;
-            final int? rank = snapshot.data?.$2;
+        child: FutureBuilder<PlayerProfile?>(
+          future: _loadProfile(),
+          builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
+            final PlayerProfile? profile = snapshot.data;
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -105,66 +176,85 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                 ],
               );
             }
-            final List<_PlayerInfoTileData> accountTiles = <_PlayerInfoTileData>[
-              _PlayerInfoTileData(
-                icon: Icons.account_circle_outlined,
-                label: 'Pseudo',
-                value: _safeLabel(profile.displayName, fallback: 'Joueur'),
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.workspace_premium_rounded,
-                label: 'Crédit',
-                value: profile.credits.toString(),
-                accent: true,
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.emoji_events_outlined,
-                label: 'Victoires',
-                value: profile.wins.toString(),
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.cancel_outlined,
-                label: 'Défaites',
-                value: profile.losses.toString(),
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.sports_esports_outlined,
-                label: 'Parties',
-                value: profile.totalGames.toString(),
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.leaderboard_outlined,
-                label: 'Classement',
-                value: rank == null ? '-' : '#$rank',
-              ),
-            ];
-            if ((profile.email ?? '').isNotEmpty) {
-              accountTiles.add(
-                _PlayerInfoTileData(
-                  icon: Icons.mail_outline_rounded,
-                  label: 'Email',
-                  value: _safeLabel(profile.email, fallback: '-'),
-                ),
-              );
-            }
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
-              children: <Widget>[
-                _AccountDrawerHeader(profile: profile),
+            return StreamBuilder<PlayerProfile?>(
+              stream: _profileService.watchProfile(profile.uid),
+              initialData: profile,
+              builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> profileSnapshot) {
+                final PlayerProfile activeProfile = profileSnapshot.data ?? profile;
+                final List<_PlayerInfoTileData> accountTiles = <_PlayerInfoTileData>[
+                  _PlayerInfoTileData(
+                    icon: Icons.account_circle_outlined,
+                    label: 'Pseudo',
+                    value: _safeLabel(activeProfile.effectivePseudo, fallback: 'Joueur'),
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.workspace_premium_rounded,
+                    label: 'Crédit',
+                    value: activeProfile.credits.toString(),
+                    accent: true,
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.emoji_events_outlined,
+                    label: 'Victoires',
+                    value: activeProfile.wins.toString(),
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.cancel_outlined,
+                    label: 'Défaites',
+                    value: activeProfile.losses.toString(),
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.sports_esports_outlined,
+                    label: 'Parties',
+                    value: activeProfile.totalGames.toString(),
+                  ),
+                ];
+                if ((activeProfile.email ?? '').isNotEmpty) {
+                  accountTiles.add(
+                    _PlayerInfoTileData(
+                      icon: Icons.mail_outline_rounded,
+                      label: 'Email',
+                      value: _safeLabel(activeProfile.email, fallback: '-'),
+                    ),
+                  );
+                }
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
+                  children: <Widget>[
+                    _AccountDrawerHeader(
+                      profile: activeProfile,
+                      onEditPseudo: () => _promptPseudoEdition(activeProfile),
+                    ),
                 const SizedBox(height: 14),
                 PremiumPanel(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Column(
-                    children: List<Widget>.generate(accountTiles.length, (int index) {
-                      final _PlayerInfoTileData tile = accountTiles[index];
-                      return _PlayerInfoTile(
-                        icon: tile.icon,
-                        label: tile.label,
-                        value: tile.value,
-                        accent: tile.accent,
-                        isLast: index == accountTiles.length - 1,
-                      );
-                    }),
+                    children: <Widget>[
+                      ...List<Widget>.generate(accountTiles.length, (int index) {
+                        final _PlayerInfoTileData tile = accountTiles[index];
+                        return _PlayerInfoTile(
+                          icon: tile.icon,
+                          label: tile.label,
+                          value: tile.value,
+                          accent: tile.accent,
+                          isLast: false,
+                        );
+                      }),
+                      FutureBuilder<int?>(
+                        future: _loadRank(activeProfile.uid),
+                        builder: (BuildContext context, AsyncSnapshot<int?> rankSnapshot) {
+                          final String rankLabel = rankSnapshot.connectionState == ConnectionState.waiting
+                              ? '...'
+                              : (rankSnapshot.data == null ? '-' : '#${rankSnapshot.data}');
+                          return _PlayerInfoTile(
+                            icon: Icons.leaderboard_outlined,
+                            label: 'Classement',
+                            value: rankLabel,
+                            isLast: true,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -180,6 +270,8 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   label: const Text('Déconnexion'),
                 ),
               ],
+                );
+              },
             );
           },
         ),
@@ -194,13 +286,17 @@ String _safeLabel(String? value, {required String fallback}) {
 }
 
 class _AccountDrawerHeader extends StatelessWidget {
-  const _AccountDrawerHeader({required this.profile});
+  const _AccountDrawerHeader({
+    required this.profile,
+    required this.onEditPseudo,
+  });
 
   final PlayerProfile profile;
+  final VoidCallback onEditPseudo;
 
   @override
   Widget build(BuildContext context) {
-    final String safeName = _safeLabel(profile.displayName, fallback: 'Joueur');
+    final String safeName = _safeLabel(profile.effectivePseudo, fallback: 'Joueur');
     final String? safeEmail =
         (profile.email != null && profile.email!.trim().isNotEmpty)
             ? profile.email!.trim()
@@ -232,6 +328,20 @@ class _AccountDrawerHeader extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
                     color: PremiumColors.textDark.withOpacity(0.92),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 30),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: onEditPseudo,
+                    icon: const Icon(Icons.edit_rounded, size: 16),
+                    label: const Text('Modifier le pseudo'),
                   ),
                 ),
                 if (safeEmail != null) ...<Widget>[
@@ -380,19 +490,6 @@ class _PanelAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String? avatarUrl = profile.resolvedAvatarUrl;
-    if (avatarUrl != null && avatarUrl.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(size / 2),
-        child: Image.network(
-          avatarUrl,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _generatedAvatar(),
-        ),
-      );
-    }
     return _generatedAvatar();
   }
 
@@ -447,16 +544,16 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(16),
                     onTap: () => Scaffold.of(context).openEndDrawer(),
                     child: Tooltip(
                       message: 'Menu joueur',
                       child: SizedBox(
-                        width: 32,
-                        height: 32,
+                        width: 28,
+                        height: 28,
                         child: Center(
                           child: GameCardAvatar(
-                            size: 32,
+                            size: 28,
                             data: GameCardAvatarPalette.fromSeed(
                               _authService.currentUser?.uid ?? 'menu_guest',
                               salt: 5,

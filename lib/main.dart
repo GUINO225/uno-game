@@ -1809,7 +1809,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     if (_activeSuitConstraint != null) {
-      return !card.isJoker && card.suit == _activeSuitConstraint;
+      if (card.isJoker) {
+        final bool askedRed = _activeSuitConstraint == Suit.hearts ||
+            _activeSuitConstraint == Suit.diamonds;
+        return card.isRed == askedRed;
+      }
+      return card.suit == _activeSuitConstraint;
     }
 
     final PlayingCard top = _topDiscard;
@@ -1842,7 +1847,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return false;
     }
 
-    return !card.isJoker && card.rank == 1;
+    if (!card.isJoker && card.rank == 1) {
+      return true;
+    }
+    return card.isJoker && _sameColor(card, _topDiscard);
   }
 
   void _setForcedDraw({
@@ -2779,7 +2787,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         ),
                       ),
                       Expanded(
-                        flex: 3,
+                        flex: 4,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2788,41 +2796,32 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                             const SizedBox(height: 8),
                             Expanded(
                               child: LayoutBuilder(
-                                builder: (
-                                  BuildContext context,
-                                  BoxConstraints constraints,
-                                ) {
+                                builder: (BuildContext context, BoxConstraints constraints) {
+                                  const int cardsPerRow = 5;
+                                  const double spacing = 6;
+                                  final double targetWidth =
+                                      ((constraints.maxWidth - 8) - (spacing * (cardsPerRow - 1))) /
+                                          cardsPerRow;
+                                  final double cardWidth = targetWidth.clamp(52, 60);
+                                  final double cardHeight = cardWidth * 1.5;
                                   return SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        minWidth: constraints.maxWidth,
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: <Widget>[
-                                          for (
-                                            final PlayingCard card
-                                                in _humanHand
-                                          )
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                right: 8,
-                                              ),
-                                              child: CardView(
-                                                card: card,
-                                                enabled:
-                                                    canInteract &&
-                                                    _isCardPlayableForHuman(
-                                                      card,
-                                                    ),
-                                                onTap:
-                                                    () => _onHumanTapCard(card),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
+                                    scrollDirection: Axis.vertical,
+                                    child: Wrap(
+                                      spacing: spacing,
+                                      runSpacing: spacing,
+                                      children: _humanHand.map((PlayingCard card) {
+                                        return SizedBox(
+                                          width: cardWidth,
+                                          height: cardHeight,
+                                          child: CardView(
+                                            card: card,
+                                            width: cardWidth,
+                                            height: cardHeight,
+                                            enabled: canInteract && _isCardPlayableForHuman(card),
+                                            onTap: () => _onHumanTapCard(card),
+                                          ),
+                                        );
+                                      }).toList(growable: false),
                                     ),
                                   );
                                 },
@@ -3319,19 +3318,23 @@ class CardView extends StatelessWidget {
   const CardView({
     super.key,
     required this.card,
+    this.width = 64,
+    this.height = 96,
     this.enabled = false,
     this.onTap,
   });
 
   final PlayingCard card;
+  final double width;
+  final double height;
   final bool enabled;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final Widget cardWidget = Container(
-      width: 64,
-      height: 96,
+      width: width,
+      height: height,
       decoration: PremiumCardEffects.bevelFace(
         borderRadius: BorderRadius.circular(12),
         color: card.isJoker

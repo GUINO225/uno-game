@@ -11,6 +11,9 @@ class UserProfileService {
   CollectionReference<Map<String, dynamic>> get _profiles =>
       FirebaseFirestore.instance.collection('user_profiles');
 
+  static const int minPseudoLength = 2;
+  static const int maxPseudoLength = 20;
+
   String suggestedNameFromUser(User user) {
     final String displayName = user.displayName?.trim() ?? '';
     if (displayName.isNotEmpty) {
@@ -32,6 +35,7 @@ class UserProfileService {
       if (!snapshot.exists) {
         tx.set(ref, <String, dynamic>{
           'uid': user.uid,
+          'pseudo': suggestedDisplayName,
           'displayName': suggestedDisplayName,
           'email': user.email,
           'photoUrl': user.photoURL,
@@ -50,8 +54,11 @@ class UserProfileService {
       }
       final String existingDisplayName =
           (snapshot.data()?['displayName'] as String?)?.trim() ?? '';
+      final String existingPseudo =
+          (snapshot.data()?['pseudo'] as String?)?.trim() ?? '';
       tx.update(ref, <String, dynamic>{
         if (existingDisplayName.isEmpty) 'displayName': suggestedDisplayName,
+        if (existingPseudo.isEmpty) 'pseudo': suggestedDisplayName,
         'email': user.email,
         'photoUrl': user.photoURL,
         'avatarUrl': user.photoURL,
@@ -64,6 +71,7 @@ class UserProfileService {
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
     return PlayerProfile.fromMap(<String, dynamic>{
       'uid': user.uid,
+      'pseudo': data['pseudo'] ?? data['displayName'] ?? suggestedDisplayName,
       'displayName': data['displayName'] ?? suggestedDisplayName,
       'email': data['email'] ?? user.email,
       'photoUrl': data['photoUrl'] ?? user.photoURL,
@@ -85,11 +93,55 @@ class UserProfileService {
     await _profiles.doc(uid).set(
       <String, dynamic>{
         'uid': uid,
+        'pseudo': displayName,
         'displayName': displayName,
         'lastLoginAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),
     );
+  }
+
+  String? validatePseudo(String value) {
+    final String trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return 'Le pseudo ne peut pas être vide.';
+    }
+    if (trimmed.length < minPseudoLength) {
+      return 'Le pseudo doit contenir au moins $minPseudoLength caractères.';
+    }
+    if (trimmed.length > maxPseudoLength) {
+      return 'Le pseudo doit contenir au maximum $maxPseudoLength caractères.';
+    }
+    return null;
+  }
+
+  Future<void> updatePseudo({
+    required String uid,
+    required String pseudo,
+  }) async {
+    final String? validationError = validatePseudo(pseudo);
+    if (validationError != null) {
+      throw StateError(validationError);
+    }
+    final String cleaned = pseudo.trim();
+    await _profiles.doc(uid).set(
+      <String, dynamic>{
+        'uid': uid,
+        'pseudo': cleaned,
+        'displayName': cleaned,
+        'lastLoginAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Stream<PlayerProfile?> watchProfile(String uid) {
+    return _profiles.doc(uid).snapshots().map((DocumentSnapshot<Map<String, dynamic>> doc) {
+      if (!doc.exists) {
+        return null;
+      }
+      return PlayerProfile.fromMap(doc.data() ?? <String, dynamic>{});
+    });
   }
 
   Future<PlayerProfile?> getProfile(String uid) async {
