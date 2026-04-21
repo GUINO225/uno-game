@@ -8,9 +8,13 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
+import 'auth_service.dart';
 import 'firebase_config.dart';
 import 'duel_mode.dart';
+import 'leaderboard_page.dart';
+import 'player_side_panel.dart';
 import 'premium_ui.dart';
+import 'user_profile_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -111,6 +115,7 @@ class MyApp extends StatelessWidget {
           GameModeRoutes.duel: (_) => const DuelLobbyPage(),
           GameModeRoutes.credits: (_) =>
               const DuelLobbyPage(mode: DuelRoomMode.credits),
+          GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
         },
         home: const AppBootstrapPage(),
       ),
@@ -162,6 +167,12 @@ class _AudioWarmupErrorPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: GameModePalette.background,
+      endDrawer: PlayerSidePanel(
+        onOpenLeaderboard: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+        },
+      ),
       body: Stack(
         children: <Widget>[
           const BackgroundDecoration(),
@@ -341,6 +352,7 @@ class GameModeRoutes {
   static const String solo = '/solo';
   static const String duel = '/duel';
   static const String credits = '/credits';
+  static const String leaderboard = '/leaderboard';
 }
 
 class GameModePalette {
@@ -440,6 +452,8 @@ class GameModePage extends StatefulWidget {
 
 class _GameModePageState extends State<GameModePage>
     with SingleTickerProviderStateMixin {
+  final AuthService _authService = AuthService.instance;
+  final UserProfileService _profileService = UserProfileService.instance;
   static const double _designWidth = 393;
   static const double _designHeight = 852;
   static const double _frameHorizontalPadding = 18;
@@ -807,6 +821,24 @@ class _GameModePageState extends State<GameModePage>
               child: GlobalMusicToggleButton(),
             ),
           ),
+          SafeArea(
+            child: Builder(
+              builder: (BuildContext context) => const PlayerSidePanelButton(),
+            ),
+          ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: IconButton(
+                tooltip: 'Classement',
+                onPressed: () {
+                  unawaited(AppSfxService.instance.playClick());
+                  Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+                },
+                icon: const Icon(Icons.leaderboard_rounded, color: Colors.white),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -823,9 +855,56 @@ class _GameModePageState extends State<GameModePage>
   }
 
   void _startSelectedMode() {
+    unawaited(_startSelectedModeInternal());
+  }
+
+  Future<void> _startSelectedModeInternal() async {
     final GameMode? mode = _selectedMode;
     if (mode == null) {
       return;
+    }
+    if (mode == GameMode.credits && _authService.currentUser == null) {
+      final bool shouldLogin = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Connexion requise'),
+                content: const Text(
+                  'Connectez-vous avec Google pour jouer en mode Paris.',
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Annuler'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Connexion Google'),
+                  ),
+                ],
+              );
+            },
+          ) ??
+          false;
+      if (!shouldLogin) {
+        return;
+      }
+      final GoogleAuthResult result = await _authService.signInWithGoogle();
+      if (!mounted) {
+        return;
+      }
+      if (!result.isSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.errorMessage ??
+                  'Connectez-vous avec Google pour jouer en mode Paris.',
+            ),
+          ),
+        );
+        return;
+      }
+      await _profileService.createOrUpdateFromGoogleUser(result.user!);
     }
     unawaited(AppSfxService.instance.playClick());
     Navigator.of(context).pushNamed(switch (mode) {
