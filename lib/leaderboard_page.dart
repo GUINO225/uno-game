@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'game_card_avatar.dart';
 import 'leaderboard_service.dart';
 import 'player_profile.dart';
 import 'premium_ui.dart';
@@ -92,16 +93,12 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                                 ),
                               ),
                             ),
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundImage: (player.resolvedAvatarUrl == null ||
-                                      player.resolvedAvatarUrl!.isEmpty)
-                                  ? null
-                                  : NetworkImage(player.resolvedAvatarUrl!),
-                              child: (player.resolvedAvatarUrl == null ||
-                                      player.resolvedAvatarUrl!.isEmpty)
-                                  ? const Icon(Icons.person)
-                                  : null,
+                            GameCardAvatar(
+                              size: 44,
+                              data: GameCardAvatarPalette.fromSeed(
+                                player.id,
+                                salt: index,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(

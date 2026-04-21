@@ -1464,9 +1464,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
     final bool isAuthenticated = _authenticatedPlayerId != null;
     final String title = creditsMode ? 'DUEL PARI' : 'DUEL EN LIGNE';
-    final String subtitle = creditsMode
-        ? 'Même duel, avec pari défini avant le lancement.'
-        : 'Crée un salon privé ou rejoins une partie existante.';
     return Scaffold(
       endDrawer: PlayerSidePanel(
         onOpenLeaderboard: () {
@@ -1523,12 +1520,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                           ],
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      subtitle,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white.withOpacity(0.84)),
                     ),
                     const SizedBox(height: 20),
                     if (creditsMode) ...<Widget>[
