@@ -3204,10 +3204,11 @@ class _DuelPageState extends State<DuelPage> {
             children: <Widget>[
               TableBackground(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(12, topInset + 8, 12, 12),
+                  padding: EdgeInsets.fromLTRB(12, topInset + 2, 12, 10),
                   child: Column(
                     children: <Widget>[
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           IconButton(
                             onPressed: () {
@@ -3219,7 +3220,25 @@ class _DuelPageState extends State<DuelPage> {
                             tooltip: 'Retour aux modes',
                             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                           ),
-                          const Spacer(),
+                          const SizedBox(width: 2),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                const AppLogo(size: 74),
+                                const SizedBox(height: 1),
+                                Text(
+                                  _isCreditsMode ? 'Duel Paris' : 'Duel',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    height: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                           Stack(
                             clipBehavior: Clip.none,
                             children: <Widget>[
@@ -3241,22 +3260,8 @@ class _DuelPageState extends State<DuelPage> {
                           ),
                         ],
                       ),
-                      Column(
-                        children: <Widget>[
-                          const AppLogo(size: 92),
-                          const SizedBox(height: 2),
-                          Text(
-                            _isCreditsMode ? 'Duel Paris' : 'Duel',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
                       if (_isCreditsMode) ...<Widget>[
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 2),
                         Align(
                           alignment: Alignment.centerRight,
                           child: DecoratedBox(
@@ -3292,6 +3297,7 @@ class _DuelPageState extends State<DuelPage> {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 2),
                       _DuelStatusBanner(
                         opponentName: opponentName,
                         myScore: myScore,
@@ -3299,7 +3305,7 @@ class _DuelPageState extends State<DuelPage> {
                         round: session.round,
                       ),
                       if (_isCreditsMode) ...<Widget>[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         _CreditsStakeBanner(
                           activeStakeCredits: session.activeStakeCredits,
                           playerStakeCredits: session.stakeOffer.amount,
@@ -3319,7 +3325,7 @@ class _DuelPageState extends State<DuelPage> {
                               : null,
                         ),
                       ],
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       _OpponentRow(
                         name: opponentName,
                         count: board.handOf(opponentId).length,
@@ -3328,7 +3334,7 @@ class _DuelPageState extends State<DuelPage> {
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
                         avatarCard: opponentAvatarCard,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       _CenterArea(
                         discard: board.discardTop,
                         drawCount: board.drawPile.length,
@@ -3338,7 +3344,7 @@ class _DuelPageState extends State<DuelPage> {
                         requiredSuit: board.requiredSuit,
                         mustDraw: myTurn && board.pendingDraw > 0,
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       _MyHandRow(
                         cards: board.handOf(_controller.localPlayerId),
                         canInteract: myTurn,
@@ -3352,7 +3358,7 @@ class _DuelPageState extends State<DuelPage> {
                         fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
                         avatarCard: localAvatarCard,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       _ActionMessageCard(
                         session: session,
                         localPlayerId: _controller.localPlayerId,
@@ -3400,7 +3406,7 @@ class _DuelPageState extends State<DuelPage> {
                 child: Align(
                   alignment: Alignment.topLeft,
                   child: GlobalMusicToggleButton(
-                    margin: EdgeInsets.only(top: 46, left: 6),
+                    margin: EdgeInsets.only(top: 4, left: 6),
                   ),
                 ),
               ),
