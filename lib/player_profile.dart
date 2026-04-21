@@ -31,6 +31,7 @@ class PlayerProfile {
 
   int get totalGames => totalGamesValue ?? (wins + losses);
   double get winRatio => totalGames == 0 ? 0 : wins / totalGames;
+  String get id => uid;
   int get score => rankScore;
   String? get resolvedAvatarUrl => avatarUrl ?? photoUrl;
 
