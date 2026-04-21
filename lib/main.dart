@@ -1639,6 +1639,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   String _specialPopupTitle = '';
   String _specialPopupMessage = '';
   Suit? _specialPopupSuit;
+  int? _specialPopupDrawCount;
+  DrawPenaltyType _specialPopupPenaltyType = DrawPenaltyType.other;
+  bool? _specialPopupJokerIsRed;
   bool _humanDidVoluntaryDrawThisTurn = false;
 
   int _humanScore = 0;
@@ -1690,6 +1693,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _specialPopupTitle = '';
       _specialPopupMessage = '';
       _specialPopupSuit = null;
+      _specialPopupDrawCount = null;
+      _specialPopupPenaltyType = DrawPenaltyType.other;
+      _specialPopupJokerIsRed = null;
       _humanDidVoluntaryDrawThisTurn = false;
       _humanHand.addAll(humanInitialCards);
       _botHand.addAll(botInitialCards);
@@ -2146,6 +2152,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           card: card,
           title: 'CARTE SPÉCIALE',
           message: 'GINO doit piocher 3 cartes',
+          drawCount: 3,
+          penaltyType: DrawPenaltyType.two,
         );
         _setForcedDraw(
           target: PlayerTurn.bot,
@@ -2163,6 +2171,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           card: card,
           title: 'PIOCHE OBLIGATOIRE',
           message: 'Piochez 3 cartes',
+          drawCount: 3,
+          penaltyType: DrawPenaltyType.two,
         );
         _setForcedDraw(
           target: PlayerTurn.human,
@@ -2184,6 +2194,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           card: card,
           title: 'JOKER',
           message: 'GINO doit piocher 9 cartes',
+          drawCount: 9,
+          penaltyType: DrawPenaltyType.joker,
+          jokerIsRed: card.isRed,
         );
         _setForcedDraw(
           target: PlayerTurn.bot,
@@ -2201,6 +2214,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           card: card,
           title: 'JOKER ADVERSE',
           message: 'Piochez 9 cartes',
+          drawCount: 9,
+          penaltyType: DrawPenaltyType.joker,
+          jokerIsRed: card.isRed,
         );
         _setForcedDraw(
           target: PlayerTurn.human,
@@ -2329,12 +2345,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     required String title,
     required String message,
     Suit? suit,
+    int? drawCount,
+    DrawPenaltyType penaltyType = DrawPenaltyType.other,
+    bool? jokerIsRed,
   }) async {
     setState(() {
       _specialPopupCard = card;
       _specialPopupTitle = title;
       _specialPopupMessage = message;
       _specialPopupSuit = suit;
+      _specialPopupDrawCount = drawCount;
+      _specialPopupPenaltyType = penaltyType;
+      _specialPopupJokerIsRed = jokerIsRed;
       _isSpecialPopupVisible = true;
     });
 
@@ -2357,6 +2379,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _specialPopupTitle = '';
       _specialPopupMessage = '';
       _specialPopupSuit = null;
+      _specialPopupDrawCount = null;
+      _specialPopupPenaltyType = DrawPenaltyType.other;
+      _specialPopupJokerIsRed = null;
     });
   }
 
@@ -2905,38 +2930,44 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         );
                       },
                       child: Container(
-                        width: 290,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const <BoxShadow>[
-                            BoxShadow(color: Colors.black45, blurRadius: 18),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              _specialPopupTitle,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
+                        child: _specialPopupDrawCount != null
+                            ? DrawPenaltyPopupPanel(
+                                drawCount: _specialPopupDrawCount!,
+                                penaltyType: _specialPopupPenaltyType,
+                                jokerIsRed: _specialPopupJokerIsRed,
+                                suitSymbol: _specialPopupCard!.suitSymbol,
+                              )
+                            : Container(
+                                width: 290,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: const <BoxShadow>[
+                                    BoxShadow(color: Colors.black45, blurRadius: 18),
+                                  ],
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    Text(
+                                      _specialPopupTitle,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    CardView(card: _specialPopupCard!, enabled: false),
+                                    if (_specialPopupSuit != null) ...<Widget>[
+                                      const SizedBox(height: 8),
+                                      _EightSuitCard(suit: _specialPopupSuit!),
+                                    ],
+                                    const SizedBox(height: 10),
+                                    Text(_specialPopupMessage, textAlign: TextAlign.center),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 10),
-                            if (_specialPopupCard!.rank == 2)
-                              const PremiumCardStack(count: 3, suit: '♠', rankLabel: '2')
-                            else
-                              CardView(card: _specialPopupCard!, enabled: false),
-                            if (_specialPopupSuit != null) ...<Widget>[
-                              const SizedBox(height: 8),
-                              _EightSuitCard(suit: _specialPopupSuit!),
-                            ],
-                            const SizedBox(height: 10),
-                            Text(_specialPopupMessage, textAlign: TextAlign.center),
-                          ],
-                        ),
                       ),
                     ),
                   ),
