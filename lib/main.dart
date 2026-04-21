@@ -793,17 +793,6 @@ class _GameModePageState extends State<GameModePage>
                                     letterSpacing: 0.5,
                                   ),
                                 ),
-                                Text(
-                                  ' DESIGNED BY AKENOO',
-                                  style: GoogleFonts.poppins(
-                                    color: GameModePalette.white.withOpacity(
-                                      0.85,
-                                    ),
-                                    fontSize: _versionFontSize,
-                                    fontWeight: FontWeight.w400,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -872,23 +861,18 @@ class _GameModePageState extends State<GameModePage>
             context: context,
             builder: (BuildContext context) {
               return GamePopupDialog(
-                title: 'CONNEXION',
-                subtitle: 'Mode Paris',
-                child: const Icon(
-                  Icons.g_mobiledata_rounded,
-                  size: 68,
-                  color: Color(0xFF1A73E8),
-                ),
+                title: 'Connexion requise',
+                subtitle: 'Connectez-vous avec votre Google pour jouer en mode Paris',
+                child: const _GoogleAuthMark(),
                 actions: <Widget>[
                   GamePopupIconButton(
                     icon: Icons.close_rounded,
-                    semanticLabel: 'Annuler',
+                    semanticLabel: 'Fermer',
                     onPressed: () => Navigator.of(context).pop(false),
-                    expanded: true,
                   ),
                   const SizedBox(height: 8),
                   GamePopupButton(
-                    label: 'CONNEXION',
+                    label: 'Connexion',
                     onPressed: () => Navigator.of(context).pop(true),
                     expanded: true,
                   ),
@@ -923,6 +907,38 @@ class _GameModePageState extends State<GameModePage>
       GameMode.duel => GameModeRoutes.duel,
       GameMode.credits => GameModeRoutes.credits,
     });
+  }
+}
+
+class _GoogleAuthMark extends StatelessWidget {
+  const _GoogleAuthMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 76,
+      height: 76,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFFDDE3EA)),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, 3)),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: RichText(
+        text: const TextSpan(
+          style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700),
+          children: <InlineSpan>[
+            TextSpan(text: 'G', style: TextStyle(color: Color(0xFF4285F4))),
+            TextSpan(text: '•', style: TextStyle(color: Color(0xFFEA4335), fontSize: 16)),
+            TextSpan(text: '•', style: TextStyle(color: Color(0xFFFBBC05), fontSize: 16)),
+            TextSpan(text: '•', style: TextStyle(color: Color(0xFF34A853), fontSize: 16)),
+          ],
+        ),
+      ),
+    );
   }
 }
 

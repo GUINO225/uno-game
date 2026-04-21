@@ -756,6 +756,14 @@ class GameService {
       if (session.exitedBy != null && session.exitedBy!.isNotEmpty) {
         return;
       }
+      if (session.status == DuelGameStatus.finished) {
+        tx.update(ref, <String, dynamic>{
+          'exitedBy': playerId,
+          'forfeitHandled': session.forfeitHandled,
+          if (creditsMode) 'betFlowState': DuelBetFlowState.partyExited.name,
+        });
+        return;
+      }
       final bool duelStarted = session.status == DuelGameStatus.inProgress ||
           session.activeStakeCredits > 0 ||
           session.lastAction != null;
@@ -1003,6 +1011,8 @@ class GameService {
         final int nextRefusalCount = invitedDeclinedHostInitial
             ? session.invitedRefusalCount + 1
             : session.invitedRefusalCount;
+        final bool isRematchStakeFlow =
+            session.status == DuelGameStatus.finished && session.rematchRequestBy != null;
         tx.update(ref, <String, dynamic>{
           'playerCredits.${offer.proposedBy!}': proposerCredits + offer.amount,
           'activeStakeCredits': 0,
@@ -1016,12 +1026,20 @@ class GameService {
             createdAt: offer.createdAt,
           ).toMap(),
           'invitedRefusalCount': nextRefusalCount,
-          'betFlowState': insufficientFunds
-              ? DuelBetFlowState.awaitingFundsValidation.name
-              : (nextRefusalCount >= 2
-                  ? DuelBetFlowState.invitedPlayerCanCounterPropose.name
-                  : DuelBetFlowState.initialStakeRejected.name),
+          'betFlowState': isRematchStakeFlow
+              ? DuelBetFlowState.rematchRejected.name
+              : (insufficientFunds
+                  ? DuelBetFlowState.awaitingFundsValidation.name
+                  : (nextRefusalCount >= 2
+                      ? DuelBetFlowState.invitedPlayerCanCounterPropose.name
+                      : DuelBetFlowState.initialStakeRejected.name)),
           'lastInsufficientFundsPlayerId': insufficientFunds ? responderId : null,
+          if (isRematchStakeFlow) ...<String, dynamic>{
+            'rematchRequestBy': null,
+            'rematchRequestedAt': null,
+            'rematchDecision': DuelRematchDecision.declined.name,
+            'rematchDecisionBy': responderId,
+          },
         });
         return;
       }
@@ -2345,40 +2363,33 @@ class _DuelPageState extends State<DuelPage> {
           }),
         );
         return GamePopupDialog(
-          title: '8 SPÉCIAL',
-          subtitle: actorName,
+          title: 'Carte commandée',
+          subtitle: '$actorName a commandé un ${_suitNameLower(suit)}',
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const PremiumCardStack(count: 2, rankLabel: '8'),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Text(
-                    'a commandé',
-                    style: TextStyle(
-                      color: Color(0xFF1A342A),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    suit,
-                    style: TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.bold,
-                      color: _suitGlyphColor(suit),
-                    ),
-                  ),
-                ],
+              _PlayedCardMini(
+                card: DuelCard(
+                  id: '8$suit',
+                  rank: '8',
+                  suit: suit,
+                ),
               ),
             ],
           ),
         );
       },
     );
+  }
+
+  String _suitNameLower(String suit) {
+    return switch (suit) {
+      '♥' => 'cœur',
+      '♦' => 'carreau',
+      '♣' => 'trèfle',
+      '♠' => 'pique',
+      _ => 'couleur',
+    };
   }
 
   Future<void> _showForcedDrawPopup({
@@ -2972,6 +2983,7 @@ class _DuelPageState extends State<DuelPage> {
     final String? decision = await showDialog<String>(
       context: context,
       barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.42),
       builder: (BuildContext dialogContext) {
         return GamePopupDialog(
           title: isCounterProposal ? 'CONTRE-PROPOSITION' : 'PROPOSITION',
@@ -2982,31 +2994,31 @@ class _DuelPageState extends State<DuelPage> {
                   : '$proposer propose une mise de ${offer.amount}'),
           child: GameStakeBillsStack(amount: offer.amount),
           actions: <Widget>[
-            GamePopupIconButton(
-              icon: Icons.logout_rounded,
-              semanticLabel: 'Quitter',
-              onPressed: () => Navigator.of(dialogContext).pop('quit'),
-              expanded: true,
+            SizedBox(
+              width: 232,
+              child: GamePopupButton(
+                label: 'Quitter',
+                icon: Icons.logout_rounded,
+                onPressed: () => Navigator.of(dialogContext).pop('quit'),
+                expanded: true,
+              ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: GamePopupIconButton(
-                    icon: Icons.close_rounded,
-                    semanticLabel: 'Refuser',
-                    onPressed: () => Navigator.of(dialogContext).pop('refuse'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: GamePopupIconButton(
-                    icon: Icons.check_rounded,
-                    semanticLabel: 'Accepter',
-                    onPressed: insufficient ? null : () => Navigator.of(dialogContext).pop('accept'),
-                  ),
-                ),
-              ],
+            GamePopupIconButton(
+              icon: Icons.close_rounded,
+              semanticLabel: 'Refuser',
+              onPressed: () => Navigator.of(dialogContext).pop('refuse'),
+              expanded: true,
+              backgroundColor: const Color(0xFFD93A2F),
+            ),
+            const SizedBox(height: 8),
+            GamePopupButton(
+              label: 'Accepter',
+              icon: Icons.check_rounded,
+              onPressed: insufficient ? null : () => Navigator.of(dialogContext).pop('accept'),
+              expanded: true,
+              backgroundColor: const Color(0xFF1F9C4B),
+              foregroundColor: Colors.white,
             ),
           ],
         );
@@ -3382,7 +3394,7 @@ class _DuelPageState extends State<DuelPage> {
         return GamePopupDialog(
           title: 'VICTOIRE',
           subtitle: 'Vous avez gagné $gainAmount',
-          child: const PremiumCardStack(count: 3, rankLabel: 'A', suit: '♠'),
+          child: GameStakeBillsStack(amount: gainAmount),
           actions: <Widget>[
             GamePopupButton(
               label: 'OK',
@@ -3725,21 +3737,6 @@ class _DuelPageState extends State<DuelPage> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: <Widget>[
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    alignment: Alignment.center,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: _AvatarCardCircle(
-                                      card: localAvatarCard,
-                                      size: 38,
-                                      fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
                                   const CreditCoinsIcon(
                                     size: 16,
                                     color: Color(0xFFFFD45F),
@@ -3856,6 +3853,10 @@ class _DuelPageState extends State<DuelPage> {
                                           DuelRematchDecision.pending
                                   ? 'EN ATTENTE...'
                                   : 'PRENDRE SA REVANCHE',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1F9C4B),
+                              foregroundColor: Colors.white,
                             ),
                           ),
                         ),
@@ -5235,11 +5236,11 @@ class _CenterArea extends StatelessWidget {
                     clipBehavior: Clip.none,
                     children: <Widget>[
                       Transform.translate(
-                        offset: const Offset(-4, 3),
+                        offset: const Offset(-6, 5),
                         child: Transform.rotate(
-                          angle: -0.08,
+                          angle: -0.16,
                           child: Opacity(
-                            opacity: 0.9,
+                            opacity: 0.97,
                             child: const _DuelCardBack(width: 64, height: 92),
                           ),
                         ),
@@ -5261,7 +5262,18 @@ class _CenterArea extends StatelessWidget {
             const SizedBox(width: 20),
             Column(
               children: <Widget>[
-                _DiscardPileAnimated(card: discard),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    _DiscardPileAnimated(card: discard),
+                    if (requiredSuit != null && requiredSuit!.isNotEmpty)
+                      Positioned(
+                        top: -10,
+                        right: -14,
+                        child: _RequiredSuitBadge(suit: requiredSuit!),
+                      ),
+                  ],
+                ),
               ],
             ),
           ],
@@ -5367,7 +5379,7 @@ class _MyHandRow extends StatelessWidget {
   final int? credits;
   final String fallbackInitial;
   final DuelCard avatarCard;
-  static const int _maxCardsPerRow = 5;
+  static const int _maxCardsPerRow = 7;
   static const double _cardGap = 6;
 
   @override
@@ -5651,6 +5663,46 @@ class _DrawCountBadge extends StatelessWidget {
           fontWeight: FontWeight.w900,
           height: 1,
         ),
+      ),
+    );
+  }
+}
+
+class _RequiredSuitBadge extends StatelessWidget {
+  const _RequiredSuitBadge({required this.suit});
+
+  final String suit;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color ink = (suit == '♥' || suit == '♦')
+        ? const Color(0xFFC62828)
+        : const Color(0xFF1B1B1B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: const Color(0xFFDADADA)),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 3)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const Icon(Icons.flag_rounded, size: 12, color: Color(0xFF586A77)),
+          const SizedBox(width: 4),
+          Text(
+            suit,
+            style: TextStyle(
+              color: ink,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+        ],
       ),
     );
   }

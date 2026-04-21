@@ -10,12 +10,16 @@ class GamePopupButton extends StatelessWidget {
     this.onPressed,
     this.icon,
     this.expanded = false,
+    this.backgroundColor = const Color(0xFF111111),
+    this.foregroundColor = Colors.white,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
   final bool expanded;
+  final Color backgroundColor;
+  final Color foregroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -24,8 +28,8 @@ class GamePopupButton extends StatelessWidget {
       icon: icon == null ? const SizedBox.shrink() : Icon(icon, size: 18),
       label: Text(label),
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF111111),
-        foregroundColor: Colors.white,
+        backgroundColor: backgroundColor,
+        foregroundColor: foregroundColor,
         disabledBackgroundColor: const Color(0xFFBDBDBD),
         disabledForegroundColor: const Color(0xFF666666),
         minimumSize: const Size(0, 48),
@@ -43,8 +47,8 @@ class GamePopupButton extends StatelessWidget {
       return ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF111111),
-          foregroundColor: Colors.white,
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
           disabledBackgroundColor: const Color(0xFFBDBDBD),
           disabledForegroundColor: const Color(0xFF666666),
           minimumSize: const Size(0, 48),
@@ -71,12 +75,16 @@ class GamePopupIconButton extends StatelessWidget {
     required this.semanticLabel,
     this.onPressed,
     this.expanded = false,
+    this.backgroundColor = const Color(0xFF111111),
+    this.foregroundColor = Colors.white,
   });
 
   final IconData icon;
   final String semanticLabel;
   final VoidCallback? onPressed;
   final bool expanded;
+  final Color backgroundColor;
+  final Color foregroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -86,8 +94,8 @@ class GamePopupIconButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF111111),
-          foregroundColor: Colors.white,
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
           disabledBackgroundColor: const Color(0xFFBDBDBD),
           disabledForegroundColor: const Color(0xFF666666),
           minimumSize: const Size(56, 48),
