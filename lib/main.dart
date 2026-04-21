@@ -871,19 +871,21 @@ class _GameModePageState extends State<GameModePage>
       final bool shouldLogin = await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('Connexion requise'),
-                content: const Text(
-                  'Connectez-vous avec Google pour jouer en mode Paris.',
-                ),
+              return GamePopupDialog(
+                title: 'CONNEXION REQUISE',
+                subtitle: 'Connectez-vous avec Google pour jouer en mode Paris.',
+                child: const SizedBox.shrink(),
                 actions: <Widget>[
-                  TextButton(
+                  GamePopupButton(
+                    label: 'ANNULER',
                     onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Annuler'),
+                    expanded: true,
                   ),
-                  ElevatedButton(
+                  const SizedBox(height: 8),
+                  GamePopupButton(
+                    label: 'CONNEXION GOOGLE',
                     onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('Connexion Google'),
+                    expanded: true,
                   ),
                 ],
               );

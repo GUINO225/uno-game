@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'auth_service.dart';
+import 'credit_coins_icon.dart';
 import 'game_card_avatar.dart';
 import 'leaderboard_service.dart';
 import 'player_profile.dart';
@@ -452,11 +453,11 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                     child: Tooltip(
                       message: 'Menu joueur',
                       child: SizedBox(
-                        width: 32,
-                        height: 32,
+                        width: 35,
+                        height: 35,
                         child: Center(
                           child: GameCardAvatar(
-                            size: 32,
+                            size: 35,
                             data: GameCardAvatarPalette.fromSeed(
                               _authService.currentUser?.uid ?? 'menu_guest',
                               salt: 5,
@@ -493,14 +494,13 @@ class _CreditBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         child: Row(
           children: <Widget>[
-            Icon(
-              Icons.monetization_on_outlined,
-              size: 17,
+            CreditCoinsIcon(
+              size: 14,
               color: PremiumColors.accent.withOpacity(0.95),
             ),
             const SizedBox(width: 6),
             Text(
-              value,
+              'Compte $value',
               style: GoogleFonts.poppins(
                 color: Colors.white,
                 fontSize: 13,

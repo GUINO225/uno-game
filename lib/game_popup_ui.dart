@@ -24,13 +24,13 @@ class GamePopupButton extends StatelessWidget {
       icon: icon == null ? const SizedBox.shrink() : Icon(icon, size: 18),
       label: Text(label),
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF5DD978),
-        foregroundColor: const Color(0xFF013C25),
-        disabledBackgroundColor: const Color(0xFF6C8A74),
-        disabledForegroundColor: Colors.white70,
+        backgroundColor: const Color(0xFF111111),
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: const Color(0xFFBDBDBD),
+        disabledForegroundColor: const Color(0xFF666666),
         minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: GoogleFonts.poppins(
           fontSize: 20,
           fontWeight: FontWeight.w600,
@@ -43,13 +43,13 @@ class GamePopupButton extends StatelessWidget {
       return ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF5DD978),
-          foregroundColor: const Color(0xFF013C25),
-          disabledBackgroundColor: const Color(0xFF6C8A74),
-          disabledForegroundColor: Colors.white70,
+          backgroundColor: const Color(0xFF111111),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFBDBDBD),
+          disabledForegroundColor: const Color(0xFF666666),
           minimumSize: const Size(0, 48),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: GoogleFonts.poppins(
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -93,11 +93,11 @@ class GamePopupDialog extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8F6F0),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0x40FFFFFF)),
+            border: Border.all(color: const Color(0x14000000)),
             boxShadow: const <BoxShadow>[
-              BoxShadow(color: Colors.black45, blurRadius: 18, offset: Offset(0, 8)),
+              BoxShadow(color: Colors.black26, blurRadius: 16, offset: Offset(0, 8)),
             ],
           ),
           child: Column(
@@ -107,7 +107,7 @@ class GamePopupDialog extends StatelessWidget {
                 title,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                  color: const Color(0xFF13261D),
+                  color: Colors.black,
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
@@ -119,7 +119,7 @@ class GamePopupDialog extends StatelessWidget {
                   subtitle!,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
-                    color: const Color(0xFF2A463A),
+                    color: Colors.black87,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
