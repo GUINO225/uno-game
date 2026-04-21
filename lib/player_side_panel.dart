@@ -71,70 +71,68 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
               return const Center(child: CircularProgressIndicator());
             }
             if (profile == null) {
-              return Padding(
+              return ListView(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text(
-                      'Mon compte',
-                      style: GoogleFonts.poppins(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w700,
-                        color: PremiumColors.textDark,
-                      ),
+                children: <Widget>[
+                  Text(
+                    'Mon compte',
+                    style: GoogleFonts.poppins(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      color: PremiumColors.textDark,
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Connectez-vous avec Google pour voir vos statistiques.',
-                      style: GoogleFonts.poppins(
-                        color: PremiumColors.textDark.withOpacity(0.85),
-                        fontSize: 13,
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Connectez-vous avec Google pour voir vos statistiques.',
+                    style: GoogleFonts.poppins(
+                      color: PremiumColors.textDark.withOpacity(0.85),
+                      fontSize: 13,
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _signIn,
-                      icon: const Icon(Icons.g_mobiledata_rounded),
-                      label: const Text('Connexion Google'),
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: widget.onOpenLeaderboard,
-                      icon: const Icon(Icons.leaderboard_outlined),
-                      label: const Text('Voir le classement'),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _signIn,
+                    icon: const Icon(Icons.g_mobiledata_rounded),
+                    label: const Text('Connexion Google'),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: widget.onOpenLeaderboard,
+                    icon: const Icon(Icons.leaderboard_outlined),
+                    label: const Text('Voir le classement'),
+                  ),
+                ],
               );
             }
-            final List<_AccountInfoTile> accountTiles = <_AccountInfoTile>[
-              _AccountInfoTile(
+            final List<_PlayerInfoTileData> accountTiles = <_PlayerInfoTileData>[
+              _PlayerInfoTileData(
                 icon: Icons.account_circle_outlined,
                 label: 'Pseudo',
-                value: profile.displayName,
+                value: _safeLabel(profile.displayName, fallback: 'Joueur'),
               ),
-              _AccountInfoTile(
+              _PlayerInfoTileData(
                 icon: Icons.workspace_premium_rounded,
                 label: 'Crédit',
                 value: profile.credits.toString(),
+                accent: true,
               ),
-              _AccountInfoTile(
+              _PlayerInfoTileData(
                 icon: Icons.emoji_events_outlined,
                 label: 'Victoires',
                 value: profile.wins.toString(),
               ),
-              _AccountInfoTile(
+              _PlayerInfoTileData(
                 icon: Icons.cancel_outlined,
                 label: 'Défaites',
                 value: profile.losses.toString(),
               ),
-              _AccountInfoTile(
+              _PlayerInfoTileData(
                 icon: Icons.sports_esports_outlined,
                 label: 'Parties',
                 value: profile.totalGames.toString(),
               ),
-              _AccountInfoTile(
+              _PlayerInfoTileData(
                 icon: Icons.leaderboard_outlined,
                 label: 'Classement',
                 value: rank == null ? '-' : '#$rank',
@@ -142,63 +140,28 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
             ];
             if ((profile.email ?? '').isNotEmpty) {
               accountTiles.add(
-                _AccountInfoTile(
+                _PlayerInfoTileData(
                   icon: Icons.mail_outline_rounded,
                   label: 'Email',
-                  value: profile.email!,
+                  value: _safeLabel(profile.email, fallback: '-'),
                 ),
               );
             }
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
               children: <Widget>[
-                PremiumPanel(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: <Widget>[
-                      GameCardAvatar(
-                        size: 56,
-                        data: GameCardAvatarPalette.fromSeed(
-                          profile.id,
-                          salt: 2,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Mon compte',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: PremiumColors.textDark,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              profile.displayName,
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600,
-                                color: PremiumColors.textDark.withOpacity(0.9),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _AccountDrawerHeader(profile: profile),
                 const SizedBox(height: 14),
                 PremiumPanel(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Column(
                     children: List<Widget>.generate(accountTiles.length, (int index) {
-                      return _AccountInfoTile(
-                        icon: accountTiles[index].icon,
-                        label: accountTiles[index].label,
-                        value: accountTiles[index].value,
+                      final _PlayerInfoTileData tile = accountTiles[index];
+                      return _PlayerInfoTile(
+                        icon: tile.icon,
+                        label: tile.label,
+                        value: tile.value,
+                        accent: tile.accent,
                         isLast: index == accountTiles.length - 1,
                       );
                     }),
@@ -225,57 +188,220 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   }
 }
 
-class _AccountInfoTile extends StatelessWidget {
-  const _AccountInfoTile({
+String _safeLabel(String? value, {required String fallback}) {
+  final String cleaned = (value ?? '').trim();
+  return cleaned.isEmpty ? fallback : cleaned;
+}
+
+class _AccountDrawerHeader extends StatelessWidget {
+  const _AccountDrawerHeader({required this.profile});
+
+  final PlayerProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final String safeName = _safeLabel(profile.displayName, fallback: 'Joueur');
+    final String? safeEmail =
+        (profile.email != null && profile.email!.trim().isNotEmpty)
+            ? profile.email!.trim()
+            : null;
+
+    return PremiumPanel(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: <Widget>[
+          _PanelAvatar(profile: profile, size: 56),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Mon compte',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: PremiumColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  safeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    color: PremiumColors.textDark.withOpacity(0.92),
+                  ),
+                ),
+                if (safeEmail != null) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    safeEmail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: PremiumColors.textDark.withOpacity(0.72),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayerInfoTileData {
+  const _PlayerInfoTileData({
     required this.icon,
     required this.label,
     required this.value,
+    this.accent = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool accent;
+}
+
+class _PlayerInfoTile extends StatelessWidget {
+  const _PlayerInfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.accent = false,
     this.isLast = false,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final bool accent;
   final bool isLast;
 
   @override
   Widget build(BuildContext context) {
+    final Color tileColor = accent
+        ? PremiumColors.accent.withOpacity(0.2)
+        : Colors.white.withOpacity(0.7);
+
     return Container(
       margin: isLast ? EdgeInsets.zero : const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
+        color: tileColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: PremiumColors.textDark.withOpacity(0.08)),
       ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 18, color: PremiumColors.textDark.withOpacity(0.82)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: PremiumColors.textDark.withOpacity(0.75),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool compact = constraints.maxWidth < 220;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(icon, size: 18, color: PremiumColors.textDark.withOpacity(0.82)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            label,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: PremiumColors.textDark.withOpacity(0.75),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            value,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: PremiumColors.textDark,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              label,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: PremiumColors.textDark.withOpacity(0.75),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              value,
+                              maxLines: 1,
+                              textAlign: TextAlign.right,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: PremiumColors.textDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: PremiumColors.textDark,
-              ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PanelAvatar extends StatelessWidget {
+  const _PanelAvatar({
+    required this.profile,
+    required this.size,
+  });
+
+  final PlayerProfile profile;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? avatarUrl = profile.resolvedAvatarUrl;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size / 2),
+        child: Image.network(
+          avatarUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _generatedAvatar(),
+        ),
+      );
+    }
+    return _generatedAvatar();
+  }
+
+  Widget _generatedAvatar() {
+    return GameCardAvatar(
+      size: size,
+      data: GameCardAvatarPalette.fromSeed(
+        profile.id,
+        salt: 2,
       ),
     );
   }

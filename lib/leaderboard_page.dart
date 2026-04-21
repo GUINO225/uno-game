@@ -31,6 +31,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
     return Scaffold(
       backgroundColor: const Color(0xFF004F2C),
       appBar: AppBar(
@@ -50,13 +51,14 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                   PremiumPanel(
                     child: Text(
                       'Classement des joueurs connectés',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      style: textTheme.titleMedium?.copyWith(
                             color: PremiumColors.textDark,
                             fontWeight: FontWeight.w800,
                           ),
                     ),
                   ),
                   const SizedBox(height: 12),
+                  const _LeaderboardHeader(),
                   if (snapshot.connectionState == ConnectionState.waiting)
                     const LinearProgressIndicator(minHeight: 2),
                   if (snapshot.hasError)
@@ -79,57 +81,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                     final PlayerProfile player = players[index];
                     return Padding(
                       padding: const EdgeInsets.only(top: 10),
-                      child: PremiumPanel(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            SizedBox(
-                              width: 34,
-                              child: Text(
-                                '#${index + 1}',
-                                style: const TextStyle(
-                                  color: PremiumColors.textDark,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                            GameCardAvatar(
-                              size: 44,
-                              data: GameCardAvatarPalette.fromSeed(
-                                player.id,
-                                salt: index,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    player.displayName,
-                                    style: const TextStyle(
-                                      color: PremiumColors.textDark,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Score ${player.score} • V ${player.wins} • D ${player.losses}',
-                                    style: const TextStyle(color: PremiumColors.textDark),
-                                  ),
-                                  Text(
-                                    'Crédit ${player.credits} • Parties ${player.totalGames}',
-                                    style: TextStyle(
-                                      color: PremiumColors.textDark.withOpacity(0.85),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: _LeaderboardRow(player: player, rank: index + 1),
                     );
                   }),
                 ],
@@ -137,6 +89,193 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
             );
           },
         ),
+    );
+  }
+}
+
+class _LeaderboardHeader extends StatelessWidget {
+  const _LeaderboardHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: <Widget>[
+          const SizedBox(width: 34),
+          const SizedBox(width: 44),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Joueur',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Colors.white.withOpacity(0.88),
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          Text(
+            'V/D',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Colors.white.withOpacity(0.88),
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            'Score',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Colors.white.withOpacity(0.88),
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+    );
+  }
+}
+
+class _LeaderboardRow extends StatelessWidget {
+  const _LeaderboardRow({
+    required this.player,
+    required this.rank,
+  });
+
+  final PlayerProfile player;
+  final int rank;
+
+  @override
+  Widget build(BuildContext context) {
+    final String safeDisplayName = player.displayName.trim().isEmpty
+        ? 'Joueur inconnu'
+        : player.displayName.trim();
+
+    return PremiumPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool compact = constraints.maxWidth < 330;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              SizedBox(
+                width: 34,
+                child: Text(
+                  '#$rank',
+                  style: const TextStyle(
+                    color: PremiumColors.textDark,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              _ProfileAvatar(player: player, size: 40, seedSalt: rank),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      safeDisplayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: PremiumColors.textDark,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Parties ${player.totalGames} • Crédit ${player.credits}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: PremiumColors.textDark.withOpacity(0.78),
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (compact) ...<Widget>[
+                      const SizedBox(height: 6),
+                      Text(
+                        'V ${player.wins} • D ${player.losses} • Score ${player.score}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: PremiumColors.textDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (!compact) ...<Widget>[
+                const SizedBox(width: 8),
+                Text(
+                  '${player.wins}/${player.losses}',
+                  style: const TextStyle(
+                    color: PremiumColors.textDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 44,
+                  child: Text(
+                    '${player.score}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: PremiumColors.textDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({
+    required this.player,
+    required this.size,
+    required this.seedSalt,
+  });
+
+  final PlayerProfile player;
+  final double size;
+  final int seedSalt;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? avatarUrl = player.resolvedAvatarUrl;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size / 2),
+        child: Image.network(
+          avatarUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _generatedAvatar(),
+        ),
+      );
+    }
+    return _generatedAvatar();
+  }
+
+  Widget _generatedAvatar() {
+    return GameCardAvatar(
+      size: size,
+      data: GameCardAvatarPalette.fromSeed(
+        player.id,
+        salt: seedSalt,
+      ),
     );
   }
 }
