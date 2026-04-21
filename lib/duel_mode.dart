@@ -4276,7 +4276,7 @@ class DuelBoardState {
       return false;
     }
     if (aceColorRequired) {
-      return card.rank == 'A' || (card.isJoker && card.isSameColor(discardTop));
+      return card.rank == 'A' || (card.isJoker && card.isSameColorAsSuit(discardTop.suit));
     }
     if (card.rank == '8') {
       return true;
