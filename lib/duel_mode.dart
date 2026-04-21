@@ -1268,10 +1268,35 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     if (!result.isSuccess) {
       setState(() {
         _googleBusy = false;
-        if (result.failureReason == AuthFailureReason.cancelled) {
-          _profileError = 'Connexion Google annulée.';
-        } else {
-          _profileError = result.errorMessage ?? 'Connexion Google impossible.';
+        switch (result.failureReason) {
+          case AuthFailureReason.cancelled:
+            _profileError = 'Connexion Google annulée.';
+            break;
+          case AuthFailureReason.popupBlocked:
+            _profileError =
+                result.errorMessage ??
+                'Popup bloquée. Autorisez les popups puis réessayez.';
+            break;
+          case AuthFailureReason.network:
+            _profileError =
+                result.errorMessage ??
+                'Réseau indisponible. Vérifiez votre connexion.';
+            break;
+          case AuthFailureReason.providerNotEnabled:
+            _profileError =
+                result.errorMessage ??
+                'Google Sign-In doit être activé dans Firebase Authentication.';
+            break;
+          case AuthFailureReason.invalidConfiguration:
+            _profileError =
+                result.errorMessage ??
+                'Configuration Firebase/Google invalide.';
+            break;
+          case AuthFailureReason.unavailable:
+          case AuthFailureReason.unknown:
+          case null:
+            _profileError = result.errorMessage ?? 'Connexion Google impossible.';
+            break;
         }
       });
       return;
