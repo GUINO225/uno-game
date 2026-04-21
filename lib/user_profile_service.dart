@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import 'player_profile.dart';
 
@@ -27,49 +28,57 @@ class UserProfileService {
   }
 
   Future<PlayerProfile> createOrUpdateFromGoogleUser(User user) async {
+    debugPrint('[UserProfileService] profile load started for uid=${user.uid}');
     final String suggestedDisplayName = suggestedNameFromUser(user);
     final DateTime now = DateTime.now().toUtc();
     final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.uid);
-    await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
-      final DocumentSnapshot<Map<String, dynamic>> snapshot = await tx.get(ref);
-      if (!snapshot.exists) {
-        tx.set(ref, <String, dynamic>{
-          'uid': user.uid,
-          'pseudo': suggestedDisplayName,
-          'displayName': suggestedDisplayName,
+    try {
+      await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
+        final DocumentSnapshot<Map<String, dynamic>> snapshot = await tx.get(ref);
+        if (!snapshot.exists) {
+          tx.set(ref, <String, dynamic>{
+            'uid': user.uid,
+            'pseudo': suggestedDisplayName,
+            'displayName': suggestedDisplayName,
+            'email': user.email,
+            'photoUrl': user.photoURL,
+            'avatarUrl': user.photoURL,
+            'credits': 1000,
+            'wins': 0,
+            'losses': 0,
+            'totalGames': 0,
+            'score': 0,
+            'rankScore': 0,
+            'isRegistered': true,
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          });
+          return;
+        }
+        final String existingDisplayName =
+            (snapshot.data()?['displayName'] as String?)?.trim() ?? '';
+        final String existingPseudo =
+            (snapshot.data()?['pseudo'] as String?)?.trim() ?? '';
+        tx.update(ref, <String, dynamic>{
+          if (existingDisplayName.isEmpty) 'displayName': suggestedDisplayName,
+          if (existingPseudo.isEmpty) 'pseudo': suggestedDisplayName,
           'email': user.email,
           'photoUrl': user.photoURL,
           'avatarUrl': user.photoURL,
-          'credits': 1000,
-          'wins': 0,
-          'losses': 0,
-          'totalGames': 0,
-          'score': 0,
-          'rankScore': 0,
           'isRegistered': true,
-          'createdAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
         });
-        return;
-      }
-      final String existingDisplayName =
-          (snapshot.data()?['displayName'] as String?)?.trim() ?? '';
-      final String existingPseudo =
-          (snapshot.data()?['pseudo'] as String?)?.trim() ?? '';
-      tx.update(ref, <String, dynamic>{
-        if (existingDisplayName.isEmpty) 'displayName': suggestedDisplayName,
-        if (existingPseudo.isEmpty) 'pseudo': suggestedDisplayName,
-        'email': user.email,
-        'photoUrl': user.photoURL,
-        'avatarUrl': user.photoURL,
-        'isRegistered': true,
-        'lastLoginAt': FieldValue.serverTimestamp(),
       });
-    });
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint(
+        '[UserProfileService] Firestore transaction failed for uid=${user.uid}: ${error.code} - ${error.message}\n$stackTrace',
+      );
+      rethrow;
+    }
 
     final DocumentSnapshot<Map<String, dynamic>> doc = await ref.get();
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
-    return PlayerProfile.fromMap(<String, dynamic>{
+    final PlayerProfile profile = PlayerProfile.fromMap(<String, dynamic>{
       'uid': user.uid,
       'pseudo': data['pseudo'] ?? data['displayName'] ?? suggestedDisplayName,
       'displayName': data['displayName'] ?? suggestedDisplayName,
@@ -84,6 +93,10 @@ class UserProfileService {
       'createdAt': data['createdAt'] ?? Timestamp.fromDate(now),
       'lastLoginAt': data['lastLoginAt'] ?? Timestamp.fromDate(now),
     });
+    debugPrint(
+      '[UserProfileService] profile loaded for uid=${user.uid} pseudo=${profile.effectivePseudo}',
+    );
+    return profile;
   }
 
   Future<void> updateDisplayName({

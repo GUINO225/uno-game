@@ -9,6 +9,18 @@ import 'player_profile.dart';
 import 'premium_ui.dart';
 import 'user_profile_service.dart';
 
+class _PanelRefreshBus extends ChangeNotifier {
+  void requestRefresh(String reason) {
+    _lastReason = reason;
+    notifyListeners();
+  }
+
+  String _lastReason = 'unknown';
+  String get lastReason => _lastReason;
+}
+
+final _PanelRefreshBus _panelRefreshBus = _PanelRefreshBus();
+
 class PlayerSidePanel extends StatefulWidget {
   const PlayerSidePanel({
     super.key,
@@ -26,29 +38,62 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   final UserProfileService _profileService = UserProfileService.instance;
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
   late Future<PlayerProfile?> _profileFuture;
+  String? _profileLoadError;
 
   @override
   void initState() {
     super.initState();
-    _profileFuture = _loadProfile();
+    _panelRefreshBus.addListener(_onRefreshRequested);
+    _profileFuture = _loadProfile(reason: 'initState');
+  }
+
+  @override
+  void dispose() {
+    _panelRefreshBus.removeListener(_onRefreshRequested);
+    super.dispose();
+  }
+
+  void _onRefreshRequested() {
+    _refreshProfile(reason: _panelRefreshBus.lastReason);
   }
 
   Future<int?> _loadRank(String uid) async {
     return _leaderboardService.fetchPlayerRank(uid);
   }
 
-  Future<PlayerProfile?> _loadProfile() async {
+  void _refreshProfile({required String reason}) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _profileLoadError = null;
+      _profileFuture = _loadProfile(reason: reason);
+    });
+  }
+
+  Future<PlayerProfile?> _loadProfile({required String reason}) async {
+    debugPrint('[PlayerSidePanel] chargement menu démarré (reason=$reason)');
     final User? user = _authService.currentUser;
     if (user == null) {
+      debugPrint('[PlayerSidePanel] aucun utilisateur authentifié');
       return null;
     }
     try {
-      return await _profileService.createOrUpdateFromGoogleUser(user);
-    } catch (_) {
+      final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
+      debugPrint(
+        '[PlayerSidePanel] données utilisateur reçues uid=${profile.uid} pseudo=${profile.effectivePseudo} credits=${profile.credits}',
+      );
+      return profile;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[PlayerSidePanel] erreur chargement menu: $error\n$stackTrace',
+      );
       final PlayerProfile? existingProfile = await _profileService.getProfile(user.uid);
       if (existingProfile != null) {
+        debugPrint('[PlayerSidePanel] fallback profil local Firestore utilisé');
         return existingProfile;
       }
+      _profileLoadError = '$error';
       return PlayerProfile(
         uid: user.uid,
         pseudo: _profileService.suggestedNameFromUser(user),
@@ -72,7 +117,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       return;
     }
     setState(() {
-      _profileFuture = _loadProfile();
+      _profileFuture = _loadProfile(reason: 'post-sign-in');
     });
   }
 
@@ -82,7 +127,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       return;
     }
     setState(() {
-      _profileFuture = _loadProfile();
+      _profileFuture = _loadProfile(reason: 'post-sign-out');
     });
   }
 
@@ -154,7 +199,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       const SnackBar(content: Text('Pseudo mis à jour.')),
     );
     setState(() {
-      _profileFuture = _loadProfile();
+      _profileFuture = _loadProfile(reason: 'pseudo-updated');
     });
   }
 
@@ -168,6 +213,35 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
             final PlayerProfile? profile = snapshot.data;
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError && profile == null) {
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: <Widget>[
+                  Text(
+                    'Mon compte',
+                    style: GoogleFonts.poppins(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      color: PremiumColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Erreur de chargement du menu: ${snapshot.error}',
+                    style: GoogleFonts.poppins(
+                      color: PremiumColors.textDark.withOpacity(0.85),
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => _refreshProfile(reason: 'retry-error-state'),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Réessayer'),
+                  ),
+                ],
+              );
             }
             if (profile == null) {
               return ListView(
@@ -196,6 +270,17 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                     label: const Text('Connexion Google'),
                   ),
                   const SizedBox(height: 10),
+                  if (_profileLoadError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        'Erreur: $_profileLoadError',
+                        style: GoogleFonts.poppins(
+                          color: Colors.red.shade700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                   OutlinedButton.icon(
                     onPressed: widget.onOpenLeaderboard,
                     icon: const Icon(Icons.leaderboard_outlined),
@@ -286,6 +371,12 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => _refreshProfile(reason: 'manual-reload-tap'),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Recharger le profil'),
+                ),
+                const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: widget.onOpenLeaderboard,
                   icon: const Icon(Icons.leaderboard_outlined),
@@ -573,7 +664,10 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    onTap: () => Scaffold.of(context).openEndDrawer(),
+                    onTap: () {
+                      _panelRefreshBus.requestRefresh('drawer-opened');
+                      Scaffold.of(context).openEndDrawer();
+                    },
                     child: Tooltip(
                       message: 'Menu joueur',
                       child: SizedBox(
