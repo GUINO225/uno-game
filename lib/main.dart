@@ -963,7 +963,6 @@ class GameModeCard extends StatelessWidget {
       child: _GameModeCardFace(
         width: width,
         height: height,
-        palette: _palette,
         mode: mode,
       ),
     );
@@ -976,21 +975,9 @@ class GameModeCard extends StatelessWidget {
   };
 
   List<Color> get _palette => switch (mode) {
-    _ModeCardVariant.solo => const <Color>[
-      Color(0xFF0F5B5B),
-      Color(0xFF1E8B78),
-      Color(0xFF72DFC4),
-    ],
-    _ModeCardVariant.duel => const <Color>[
-      Color(0xFF7A1C1C),
-      Color(0xFFB34A2E),
-      Color(0xFFFFB16A),
-    ],
-    _ModeCardVariant.paris => const <Color>[
-      Color(0xFF4E2A77),
-      Color(0xFF7354B2),
-      Color(0xFFD9B35A),
-    ],
+    _ModeCardVariant.solo => const <Color>[Color(0xFF2BC06E), Color(0xFF69E89B)],
+    _ModeCardVariant.duel => const <Color>[Color(0xFFEEEEEE), Color(0xFF9F9F9F)],
+    _ModeCardVariant.paris => const <Color>[Color(0xFFFFD87A), Color(0xFFCA8E2F)],
   };
 }
 
@@ -998,17 +985,16 @@ class _GameModeCardFace extends StatelessWidget {
   const _GameModeCardFace({
     required this.width,
     required this.height,
-    required this.palette,
     required this.mode,
   });
 
   final double width;
   final double height;
-  final List<Color> palette;
   final _ModeCardVariant mode;
 
   @override
   Widget build(BuildContext context) {
+    final _ModeCardTheme theme = _ModeCardTheme.fromMode(mode);
     const BorderRadius radius = BorderRadius.all(Radius.circular(24));
     return RepaintBoundary(
       child: Container(
@@ -1016,27 +1002,21 @@ class _GameModeCardFace extends StatelessWidget {
         height: height,
         decoration: BoxDecoration(
           borderRadius: radius,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: palette,
-            stops: const <double>[0.0, 0.62, 1.0],
-          ),
+          color: theme.cardColor,
           border: Border.all(
-            color: Colors.white.withOpacity(0.24),
-            width: 0.9,
+            color: theme.borderColor,
+            width: 1.15,
           ),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: Colors.black.withOpacity(0.28),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
+              color: Colors.black.withOpacity(0.32),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
             ),
             BoxShadow(
-              color: palette.last.withOpacity(0.18),
-              blurRadius: 20,
-              spreadRadius: 1.5,
-              offset: const Offset(0, 8),
+              color: theme.edgeGlow.withOpacity(0.2),
+              blurRadius: 12,
+              spreadRadius: 0.6,
             ),
           ],
         ),
@@ -1051,11 +1031,29 @@ class _GameModeCardFace extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: <Color>[
-                      Colors.white.withOpacity(0.18),
+                      Colors.white.withOpacity(0.2),
                       Colors.transparent,
-                      Colors.black.withOpacity(0.22),
+                      Colors.black.withOpacity(0.17),
                     ],
                     stops: const <double>[0, 0.48, 1],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  height: height * 0.16,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.14),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1067,7 +1065,7 @@ class _GameModeCardFace extends StatelessWidget {
                   height: 1.2,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(9),
-                    color: Colors.white.withOpacity(0.35),
+                    color: Colors.white.withOpacity(0.3),
                   ),
                 ),
               ),
@@ -1079,16 +1077,67 @@ class _GameModeCardFace extends StatelessWidget {
                   height: 1.2,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(9),
-                    color: Colors.black.withOpacity(0.34),
+                    color: Colors.black.withOpacity(0.28),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: _ModeCardCorner(
+                  color: theme.symbolColor,
+                  showRank: theme.showRank,
+                ),
+              ),
+              Positioned(
+                bottom: 12,
+                left: 12,
+                child: Transform.rotate(
+                  angle: pi,
+                  child: _ModeCardCorner(
+                    color: theme.symbolColor,
+                    showRank: theme.showRank,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 14,
+                left: 16,
+                child: Opacity(
+                  opacity: 0.08,
+                  child: _SuitSymbol(
+                    suit: _SuitType.heart,
+                    color: theme.symbolColor,
+                    size: 17,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 16,
+                bottom: 46,
+                child: Opacity(
+                  opacity: 0.08,
+                  child: _SuitSymbol(
+                    suit: _SuitType.diamond,
+                    color: theme.symbolColor,
+                    size: 16,
                   ),
                 ),
               ),
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: _ModeIllustration(mode: mode),
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _SuitSymbol(
+                    suit: _SuitType.spade,
+                    color: theme.symbolColor,
+                    size: theme.centerSymbolSize,
+                  ),
                 ),
               ),
+              if (mode == _ModeCardVariant.paris) ...const <Widget>[
+                Positioned(right: 10, top: 54, child: _BetToken(size: 22)),
+                Positioned(right: 10, bottom: 18, child: _BetToken(size: 28)),
+              ],
             ],
           ),
         ),
@@ -1097,195 +1146,178 @@ class _GameModeCardFace extends StatelessWidget {
   }
 }
 
-class _ModeIllustration extends StatelessWidget {
-  const _ModeIllustration({required this.mode});
+class _ModeCardTheme {
+  const _ModeCardTheme({
+    required this.cardColor,
+    required this.symbolColor,
+    required this.borderColor,
+    required this.edgeGlow,
+    required this.centerSymbolSize,
+    required this.showRank,
+  });
 
-  final _ModeCardVariant mode;
+  final Color cardColor;
+  final Color symbolColor;
+  final Color borderColor;
+  final Color edgeGlow;
+  final double centerSymbolSize;
+  final bool showRank;
 
-  @override
-  Widget build(BuildContext context) {
+  factory _ModeCardTheme.fromMode(_ModeCardVariant mode) {
     return switch (mode) {
-      _ModeCardVariant.solo => const _SoloCardArt(),
-      _ModeCardVariant.duel => const _DuelCardArt(),
-      _ModeCardVariant.paris => const _ParisCardArt(),
+      _ModeCardVariant.solo => const _ModeCardTheme(
+        cardColor: Color(0xFF0D9B53),
+        symbolColor: Color(0xFFF1F1F1),
+        borderColor: Color(0xFFD6F6E3),
+        edgeGlow: Color(0xFF50D98B),
+        centerSymbolSize: 88,
+        showRank: false,
+      ),
+      _ModeCardVariant.duel => const _ModeCardTheme(
+        cardColor: Color(0xFF0A0A0A),
+        symbolColor: Color(0xFFF1F1F1),
+        borderColor: Color(0xFFDADADA),
+        edgeGlow: Color(0xFFFFFFFF),
+        centerSymbolSize: 84,
+        showRank: true,
+      ),
+      _ModeCardVariant.paris => const _ModeCardTheme(
+        cardColor: Color(0xFF11A85E),
+        symbolColor: Color(0xFFF7F7F7),
+        borderColor: Color(0xFFD6F7E8),
+        edgeGlow: Color(0xFFFFD67A),
+        centerSymbolSize: 84,
+        showRank: false,
+      ),
     };
   }
 }
 
-class _SoloCardArt extends StatelessWidget {
-  const _SoloCardArt();
+class _ModeCardCorner extends StatelessWidget {
+  const _ModeCardCorner({required this.color, required this.showRank});
+
+  final Color color;
+  final bool showRank;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 90,
-      height: 104,
-      child: Stack(
-        alignment: Alignment.center,
-        children: const <Widget>[
-          Positioned(
-            left: 16,
-            top: 8,
-            child: _MiniUnoCard(
-              width: 56,
-              height: 84,
-              angle: -0.08,
-              color: Color(0xFFE8FFF6),
-              borderColor: Color(0x7AFFFFFF),
-              centerGlyph: _SinglePlayerGlyph(),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        if (showRank)
+          Text(
+            '2',
+            style: GoogleFonts.poppins(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              height: 1,
             ),
           ),
-          Positioned(
-            right: 5,
-            top: 4,
-            child: _LightPill(width: 22, height: 58),
-          ),
-        ],
-      ),
+        _SuitSymbol(suit: _SuitType.spade, color: color, size: 20),
+      ],
     );
   }
 }
 
-class _DuelCardArt extends StatelessWidget {
-  const _DuelCardArt();
+enum _SuitType { spade, heart, diamond, club }
 
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 90,
-      height: 102,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: <Widget>[
-          Positioned(
-            left: 0,
-            top: 20,
-            child: _MiniUnoCard(
-              width: 48,
-              height: 72,
-              angle: -0.17,
-              color: Color(0xFFFFF1E8),
-              borderColor: Color(0x70FFFFFF),
-              centerGlyph: _SinglePlayerGlyph(mirror: true),
-            ),
-          ),
-          Positioned(
-            right: 0,
-            top: 10,
-            child: _MiniUnoCard(
-              width: 48,
-              height: 72,
-              angle: 0.17,
-              color: Color(0xFFFFEBDD),
-              borderColor: Color(0x70FFFFFF),
-              centerGlyph: _SinglePlayerGlyph(),
-            ),
-          ),
-          Positioned(
-            left: 34,
-            top: 42,
-            child: _VersusSpark(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ParisCardArt extends StatelessWidget {
-  const _ParisCardArt();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 94,
-      height: 104,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: const <Widget>[
-          Positioned(
-            left: 8,
-            top: 14,
-            child: _MiniUnoCard(
-              width: 50,
-              height: 74,
-              angle: -0.18,
-              color: Color(0xFFF4E9FF),
-              borderColor: Color(0x75FFFFFF),
-              centerGlyph: _WagerGlyph(),
-            ),
-          ),
-          Positioned(
-            right: 12,
-            top: 10,
-            child: _BetToken(size: 28),
-          ),
-          Positioned(
-            right: 2,
-            bottom: 8,
-            child: _BetToken(size: 34),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniUnoCard extends StatelessWidget {
-  const _MiniUnoCard({
-    required this.width,
-    required this.height,
-    required this.angle,
+class _SuitSymbol extends StatelessWidget {
+  const _SuitSymbol({
+    required this.suit,
     required this.color,
-    required this.borderColor,
-    this.centerGlyph,
+    required this.size,
   });
 
-  final double width;
-  final double height;
-  final double angle;
+  final _SuitType suit;
   final Color color;
-  final Color borderColor;
-  final Widget? centerGlyph;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: angle,
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor, width: 1),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Center(
-          child: SizedBox(
-            width: width * 0.58,
-            height: height * 0.42,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                color: const Color(0x2BFFFFFF),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.64),
-                  width: 0.9,
-                ),
-              ),
-              child: Center(child: centerGlyph),
-            ),
-          ),
-        ),
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _SuitPainter(suit: suit, color: color),
       ),
     );
+  }
+}
+
+class _SuitPainter extends CustomPainter {
+  const _SuitPainter({required this.suit, required this.color});
+
+  final _SuitType suit;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()..color = color;
+    final Path path = switch (suit) {
+      _SuitType.spade => _spadePath(size),
+      _SuitType.heart => _heartPath(size),
+      _SuitType.diamond => _diamondPath(size),
+      _SuitType.club => _clubPath(size),
+    };
+    canvas.drawPath(path, paint);
+  }
+
+  Path _spadePath(Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    return Path()
+      ..moveTo(w * 0.5, h * 0.08)
+      ..quadraticBezierTo(w * 0.86, h * 0.44, w * 0.76, h * 0.64)
+      ..quadraticBezierTo(w * 0.66, h * 0.82, w * 0.5, h * 0.72)
+      ..quadraticBezierTo(w * 0.34, h * 0.82, w * 0.24, h * 0.64)
+      ..quadraticBezierTo(w * 0.14, h * 0.44, w * 0.5, h * 0.08)
+      ..close()
+      ..moveTo(w * 0.5, h * 0.58)
+      ..lineTo(w * 0.36, h * 0.95)
+      ..lineTo(w * 0.64, h * 0.95)
+      ..close();
+  }
+
+  Path _heartPath(Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    return Path()
+      ..moveTo(w * 0.5, h * 0.92)
+      ..cubicTo(w * 0.08, h * 0.55, w * 0.14, h * 0.18, w * 0.36, h * 0.18)
+      ..cubicTo(w * 0.44, h * 0.18, w * 0.49, h * 0.24, w * 0.5, h * 0.3)
+      ..cubicTo(w * 0.51, h * 0.24, w * 0.56, h * 0.18, w * 0.64, h * 0.18)
+      ..cubicTo(w * 0.86, h * 0.18, w * 0.92, h * 0.55, w * 0.5, h * 0.92)
+      ..close();
+  }
+
+  Path _diamondPath(Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    return Path()
+      ..moveTo(w * 0.5, h * 0.06)
+      ..lineTo(w * 0.88, h * 0.5)
+      ..lineTo(w * 0.5, h * 0.94)
+      ..lineTo(w * 0.12, h * 0.5)
+      ..close();
+  }
+
+  Path _clubPath(Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    return Path()
+      ..addOval(Rect.fromCircle(center: Offset(w * 0.35, h * 0.38), radius: w * 0.2))
+      ..addOval(Rect.fromCircle(center: Offset(w * 0.65, h * 0.38), radius: w * 0.2))
+      ..addOval(Rect.fromCircle(center: Offset(w * 0.5, h * 0.2), radius: w * 0.2))
+      ..moveTo(w * 0.5, h * 0.44)
+      ..lineTo(w * 0.35, h * 0.92)
+      ..lineTo(w * 0.65, h * 0.92)
+      ..close();
+  }
+
+  @override
+  bool shouldRepaint(covariant _SuitPainter oldDelegate) {
+    return oldDelegate.suit != suit || oldDelegate.color != color;
   }
 }
 
@@ -1348,141 +1380,6 @@ class _BetToken extends StatelessWidget {
   }
 }
 
-class _SinglePlayerGlyph extends StatelessWidget {
-  const _SinglePlayerGlyph({this.mirror = false});
-
-  final bool mirror;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget glyph = SizedBox(
-      width: 18,
-      height: 18,
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          Positioned(
-            top: 1,
-            child: Container(
-              width: 7,
-              height: 7,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xD6FFFFFF),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 1,
-            child: Container(
-              width: 12,
-              height: 8,
-              decoration: const BoxDecoration(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-                color: Color(0xD6FFFFFF),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (mirror) {
-      glyph = Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
-        child: glyph,
-      );
-    }
-    return glyph;
-  }
-}
-
-class _WagerGlyph extends StatelessWidget {
-  const _WagerGlyph();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 18,
-      height: 18,
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          const Positioned(
-            top: 2,
-            child: Icon(Icons.circle, size: 6, color: Color(0xDDFFFFFF)),
-          ),
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: const Color(0xD7FFFFFF), width: 1.2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _VersusSpark extends StatelessWidget {
-  const _VersusSpark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const RadialGradient(
-          colors: <Color>[Color(0xFFFFD6A4), Color(0xFFE68043)],
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: const Color(0xFFFFB16A).withOpacity(0.42),
-            blurRadius: 10,
-            spreadRadius: 0.2,
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.bolt_rounded,
-          size: 14,
-          color: Color(0xFFFDF4E8),
-        ),
-      ),
-    );
-  }
-}
-
-class _LightPill extends StatelessWidget {
-  const _LightPill({required this.width, required this.height});
-
-  final double width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            Colors.white.withOpacity(0.35),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _CardAppearWrapper extends StatefulWidget {
   const _CardAppearWrapper({required this.delay, required this.child});
