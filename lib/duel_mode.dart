@@ -401,8 +401,18 @@ class GameService {
   Future<String> createGame({
     required String playerId,
     required String playerName,
+    String? playerEmail,
     DuelRoomMode mode = DuelRoomMode.duel,
   }) async {
+    int initialCredits = UserProfileService.defaultCredits;
+    if (mode == DuelRoomMode.credits) {
+      final PlayerProfile profile = await UserProfileService.instance.createUserProfileIfNeeded(
+        uid: playerId,
+        email: playerEmail,
+        pseudo: playerName,
+      );
+      initialCredits = profile.credits;
+    }
     final String code = _generateCode();
     final CollectionReference<Map<String, dynamic>> games = await _games();
     await games.doc(code).set(
@@ -417,7 +427,7 @@ class GameService {
         round: 1,
         mode: mode,
         playerCredits: mode == DuelRoomMode.credits
-            ? <String, int>{playerId: 1000}
+            ? <String, int>{playerId: initialCredits}
             : const <String, int>{},
         betFlowState: mode == DuelRoomMode.credits
             ? DuelBetFlowState.initialStakeProposed
@@ -431,8 +441,18 @@ class GameService {
     required String gameId,
     required String playerId,
     required String playerName,
+    String? playerEmail,
     DuelRoomMode? expectedMode,
   }) async {
+    int joiningPlayerCredits = UserProfileService.defaultCredits;
+    if (expectedMode == DuelRoomMode.credits) {
+      final PlayerProfile profile = await UserProfileService.instance.createUserProfileIfNeeded(
+        uid: playerId,
+        email: playerEmail,
+        pseudo: playerName,
+      );
+      joiningPlayerCredits = profile.credits;
+    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
@@ -454,7 +474,8 @@ class GameService {
         'playerNames.$playerId': playerName,
         'scores.$playerId': session.scores[playerId] ?? 0,
         if (session.isCreditsMode)
-          'playerCredits.$playerId': session.playerCredits[playerId] ?? 1000,
+          'playerCredits.$playerId':
+              session.playerCredits[playerId] ?? joiningPlayerCredits,
         'status': players.length == 2
             ? (session.isCreditsMode
                 ? DuelGameStatus.waiting.name
@@ -980,12 +1001,14 @@ class DuelController extends ChangeNotifier {
     required this.service,
     required this.localPlayerId,
     required this.localPlayerName,
+    this.localPlayerEmail,
     this.roomMode = DuelRoomMode.duel,
   });
 
   final GameService service;
   final String localPlayerId;
   final String localPlayerName;
+  final String? localPlayerEmail;
   final DuelRoomMode roomMode;
 
   DuelSession? session;
@@ -1001,6 +1024,7 @@ class DuelController extends ChangeNotifier {
       final String id = await service.createGame(
         playerId: localPlayerId,
         playerName: localPlayerName,
+        playerEmail: localPlayerEmail,
         mode: roomMode,
       );
       await attach(id);
@@ -1020,6 +1044,7 @@ class DuelController extends ChangeNotifier {
         gameId: gameId,
         playerId: localPlayerId,
         playerName: localPlayerName,
+        playerEmail: localPlayerEmail,
         expectedMode: roomMode,
       );
       await attach(gameId);
@@ -1383,6 +1408,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       service: GameService(),
       localPlayerId: _authenticatedPlayerId ?? _localPlayerId,
       localPlayerName: pseudo,
+      localPlayerEmail: _authService.currentUser?.email,
       roomMode: widget.mode,
     )..addListener(_onControllerChange);
     _controller = created;
@@ -2354,11 +2380,18 @@ class _DuelPageState extends State<DuelPage> {
     }
     _lastStatsSyncKey = key;
     try {
+      final int stakeAmount =
+          session.isCreditsMode && session.stakeOffer.isAccepted
+              ? session.stakeOffer.amount
+              : 0;
       await _statsService.recordDuelResult(
         gameId: session.gameId,
         round: session.round,
         winnerId: winnerId,
         loserId: loserId,
+        winnerCreditsDelta: stakeAmount,
+        loserCreditsDelta: -stakeAmount,
+        preventNegativeCredits: true,
       );
     } catch (error) {
       debugPrint('Stats sync failed: $error');
