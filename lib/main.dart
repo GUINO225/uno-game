@@ -1344,45 +1344,50 @@ class _PressableModeCardState extends State<_PressableModeCard> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onTapDown: (_) => setState(() => _isPressed = true),
-          onTapUp: (_) => setState(() => _isPressed = false),
-          onTapCancel: () => setState(() => _isPressed = false),
-          onTap: widget.onTap,
-          child: AnimatedScale(
-            scale: _isPressed ? 0.962 : emphasized ? 1.02 : 1,
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOut,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: emphasized
-                    ? Colors.white.withOpacity(0.07)
-                    : Colors.transparent,
-                border: Border.all(
+        child: ConstrainedBox(
+          // Stabilisation: force une zone tactile minimale explicite.
+          constraints: const BoxConstraints(minWidth: 120, minHeight: 210),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (_) => setState(() => _isPressed = true),
+            onTapUp: (_) => setState(() => _isPressed = false),
+            onTapCancel: () => setState(() => _isPressed = false),
+            onTap: widget.onTap,
+            child: AnimatedScale(
+              scale: _isPressed ? 0.962 : emphasized ? 1.02 : 1,
+              duration: const Duration(milliseconds: 140),
+              curve: Curves.easeOut,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
                   color: emphasized
-                      ? Colors.white.withOpacity(0.45)
+                      ? Colors.white.withOpacity(0.07)
                       : Colors.transparent,
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  widget.child,
-                  const SizedBox(height: 11),
-                  Text(
-                    widget.label,
-                    style: GoogleFonts.poppins(
-                      color: const Color(0xFF8AF5A3),
-                      fontSize: widget.labelFontSize,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.45,
-                    ),
+                  border: Border.all(
+                    color: emphasized
+                        ? Colors.white.withOpacity(0.45)
+                        : Colors.transparent,
                   ),
-                ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    widget.child,
+                    const SizedBox(height: 11),
+                    Text(
+                      widget.label,
+                      style: GoogleFonts.poppins(
+                        color: const Color(0xFF8AF5A3),
+                        fontSize: widget.labelFontSize,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.45,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1412,44 +1417,49 @@ class _PlayModeButtonState extends State<_PlayModeButton> {
   @override
   Widget build(BuildContext context) {
     return Align(
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _isPressed = true),
-        onTapUp: (_) => setState(() => _isPressed = false),
-        onTapCancel: () => setState(() => _isPressed = false),
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-          scale: _isPressed ? 0.97 : 1,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Color(0xFF96F8A6),
-                  Color(0xFF5DD978),
+      child: SizedBox(
+        width: 220,
+        height: 64,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _isPressed = true),
+          onTapUp: (_) => setState(() => _isPressed = false),
+          onTapCancel: () => setState(() => _isPressed = false),
+          onTap: widget.onTap,
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            scale: _isPressed ? 0.97 : 1,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color(0xFF96F8A6),
+                    Color(0xFF5DD978),
+                  ],
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: const Color(0xFF8BFFAA).withOpacity(0.28),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
                 ],
               ),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: const Color(0xFF8BFFAA).withOpacity(0.28),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+              child: Text(
+                "LET'S GO",
+                style: GoogleFonts.poppins(
+                  color: GameModePalette.backgroundShade,
+                  fontSize: widget.fontSize,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 1.0,
                 ),
-              ],
-            ),
-            child: Text(
-              "LET'S GO",
-              style: GoogleFonts.poppins(
-                color: GameModePalette.backgroundShade,
-                fontSize: widget.fontSize,
-                fontWeight: FontWeight.w400,
-                letterSpacing: 1.0,
               ),
             ),
           ),
@@ -1473,41 +1483,46 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        scale: _isPressed ? 0.97 : 1,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 54, vertical: 15),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[Color(0xFF96F8A6), Color(0xFF5DD978)],
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: const Color(0xFF8BFFAA).withOpacity(0.28),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+    return SizedBox(
+      width: 240,
+      height: 68,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _isPressed = true),
+        onTapUp: (_) => setState(() => _isPressed = false),
+        onTapCancel: () => setState(() => _isPressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          scale: _isPressed ? 0.97 : 1,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 54, vertical: 15),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[Color(0xFF96F8A6), Color(0xFF5DD978)],
               ),
-            ],
-          ),
-              child: Text(
-            'JOUER',
-            style: GoogleFonts.poppins(
-              color: GameModePalette.backgroundShade,
-              fontSize: 24,
-              fontWeight: FontWeight.w400,
-              letterSpacing: 1.0,
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF8BFFAA).withOpacity(0.28),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Text(
+              'JOUER',
+              style: GoogleFonts.poppins(
+                color: GameModePalette.backgroundShade,
+                fontSize: 24,
+                fontWeight: FontWeight.w400,
+                letterSpacing: 1.0,
+              ),
             ),
           ),
         ),
@@ -3019,19 +3034,24 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                   children: <Widget>[
                     const SizedBox(height: 20),
                     GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: canDraw ? _onHumanDraw : null,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: <Widget>[
-                          _drawPile.isNotEmpty
-                              ? _DrawPileView(highlight: shouldHighlightDraw)
-                              : const _EmptyCardSlot(label: '0'),
-                          Positioned(
-                            right: -8,
-                            top: -10,
-                            child: _CountBadge(count: _drawPile.length),
-                          ),
-                        ],
+                      child: SizedBox(
+                        width: 72,
+                        height: 104,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: <Widget>[
+                            _drawPile.isNotEmpty
+                                ? _DrawPileView(highlight: shouldHighlightDraw)
+                                : const _EmptyCardSlot(label: '0'),
+                            Positioned(
+                              right: -8,
+                              top: -10,
+                              child: _CountBadge(count: _drawPile.length),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -3335,6 +3355,7 @@ class CardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    assert(width > 0 && height > 0, 'CardView must have a non-zero size for hit testing.');
     final Widget cardWidget = Container(
       width: width,
       height: height,
@@ -3389,9 +3410,14 @@ class CardView extends StatelessWidget {
       ),
     );
 
-    return GestureDetector(
-      onTap: onTap,
-      child: cardWidget,
+    return SizedBox(
+      width: width,
+      height: height,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: cardWidget,
+      ),
     );
   }
 }

@@ -4987,34 +4987,39 @@ class _CenterArea extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: canDraw ? onDrawTap : null,
-              child: _BlinkingDrawCard(
-                enabled: mustDraw,
-                child: Opacity(
-                  opacity: canDraw ? 1 : 0.45,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: <Widget>[
-                      Transform.translate(
-                        offset: const Offset(-4, 3),
-                        child: Transform.rotate(
-                          angle: -0.08,
-                          child: Opacity(
-                            opacity: 0.9,
-                            child: const _DuelCardBack(width: 64, height: 92),
+              child: SizedBox(
+                width: 72,
+                height: 104,
+                child: _BlinkingDrawCard(
+                  enabled: mustDraw,
+                  child: Opacity(
+                    opacity: canDraw ? 1 : 0.45,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: <Widget>[
+                        Transform.translate(
+                          offset: const Offset(-4, 3),
+                          child: Transform.rotate(
+                            angle: -0.08,
+                            child: Opacity(
+                              opacity: 0.9,
+                              child: const _DuelCardBack(width: 64, height: 92),
+                            ),
                           ),
                         ),
-                      ),
-                      Transform.rotate(
-                        angle: 0.05,
-                        child: const _DuelCardBack(width: 64, height: 92),
-                      ),
-                      Positioned(
-                        top: -8,
-                        right: -8,
-                        child: _DrawCountBadge(count: drawCount),
-                      ),
-                    ],
+                        Transform.rotate(
+                          angle: 0.05,
+                          child: const _DuelCardBack(width: 64, height: 92),
+                        ),
+                        Positioned(
+                          top: -8,
+                          right: -8,
+                          child: _DrawCountBadge(count: drawCount),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -5115,8 +5120,11 @@ class _MyHandRow extends StatelessWidget {
                         final double maxRowWidth =
                             (_FaceCard.width * _maxCardsPerRow) +
                             (_cardGap * (_maxCardsPerRow - 1));
+                        // Stabilisation: évite une largeur négative/non bornée
+                        // qui peut créer un render object non layouté.
+                        final double safeAvailableWidth = max(0, constraints.maxWidth - 8);
                         final double wrapWidth = min(
-                          constraints.maxWidth - 8,
+                          safeAvailableWidth,
                           maxRowWidth,
                         );
 
@@ -5135,6 +5143,7 @@ class _MyHandRow extends StatelessWidget {
                                   final bool isPlayable = playable(card);
                                   return SizedBox(
                                     width: _FaceCard.width,
+                                    height: _FaceCard.height,
                                     child: GestureDetector(
                                       behavior: HitTestBehavior.opaque,
                                       onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
