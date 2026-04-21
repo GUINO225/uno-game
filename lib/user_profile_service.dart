@@ -24,7 +24,7 @@ class UserProfileService {
   }
 
   Future<PlayerProfile> createOrUpdateFromGoogleUser(User user) async {
-    final String displayName = suggestedNameFromUser(user);
+    final String suggestedDisplayName = suggestedNameFromUser(user);
     final DateTime now = DateTime.now().toUtc();
     final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.uid);
     await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
@@ -32,7 +32,7 @@ class UserProfileService {
       if (!snapshot.exists) {
         tx.set(ref, <String, dynamic>{
           'uid': user.uid,
-          'displayName': displayName,
+          'displayName': suggestedDisplayName,
           'avatarUrl': user.photoURL,
           'wins': 0,
           'losses': 0,
@@ -43,8 +43,10 @@ class UserProfileService {
         });
         return;
       }
+      final String existingDisplayName =
+          (snapshot.data()?['displayName'] as String?)?.trim() ?? '';
       tx.update(ref, <String, dynamic>{
-        'displayName': displayName,
+        if (existingDisplayName.isEmpty) 'displayName': suggestedDisplayName,
         'avatarUrl': user.photoURL,
         'lastLoginAt': FieldValue.serverTimestamp(),
       });
@@ -54,7 +56,7 @@ class UserProfileService {
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
     return PlayerProfile.fromMap(<String, dynamic>{
       'uid': user.uid,
-      'displayName': data['displayName'] ?? displayName,
+      'displayName': data['displayName'] ?? suggestedDisplayName,
       'avatarUrl': data['avatarUrl'] ?? user.photoURL,
       'wins': data['wins'] ?? 0,
       'losses': data['losses'] ?? 0,

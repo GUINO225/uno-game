@@ -1272,9 +1272,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           case AuthFailureReason.cancelled:
             _profileError = 'Connexion Google annulée.';
             break;
-          case AuthFailureReason.redirecting:
-            _profileError = null;
-            break;
           case AuthFailureReason.popupBlocked:
             _profileError =
                 result.errorMessage ??
