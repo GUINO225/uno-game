@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'app_logo.dart';
+import 'admin_dashboard_page.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'firebase_config.dart';
@@ -117,6 +118,7 @@ class MyApp extends StatelessWidget {
           GameModeRoutes.credits: (_) =>
               const DuelLobbyPage(mode: DuelRoomMode.credits),
           GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
+          GameModeRoutes.admin: (_) => const AdminDashboardGatePage(),
         },
         home: const AppBootstrapPage(),
       ),
@@ -354,6 +356,7 @@ class GameModeRoutes {
   static const String duel = '/duel';
   static const String credits = '/credits';
   static const String leaderboard = '/leaderboard';
+  static const String admin = '/admin';
 }
 
 class GameModePalette {
@@ -1499,7 +1502,7 @@ class _PlayModeButtonState extends State<_PlayModeButton> {
               ],
             ),
             child: Text(
-              "LET'S GO",
+              "Let's go",
               style: GoogleFonts.poppins(
                 color: GameModePalette.backgroundShade,
                 fontSize: widget.fontSize,
@@ -1556,8 +1559,8 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
               ),
             ],
           ),
-              child: Text(
-            'JOUER',
+          child: Text(
+            'Jouer',
             style: GoogleFonts.poppins(
               color: GameModePalette.backgroundShade,
               fontSize: 20,
