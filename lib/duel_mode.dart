@@ -12,7 +12,6 @@ import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'firebase_config.dart';
-import 'leaderboard_service.dart';
 import 'leaderboard_page.dart';
 import 'player_profile.dart';
 import 'player_side_panel.dart';
@@ -1182,7 +1181,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   final AppSfxService _sfx = AppSfxService.instance;
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
-  final LeaderboardService _leaderboardService = LeaderboardService.instance;
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   bool _openedDuel = false;
@@ -1191,13 +1189,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   late final String _localPlayerId;
   String? _authenticatedPlayerId;
   PlayerProfile? _playerProfile;
-  late Future<List<PlayerProfile>> _leaderboardFuture;
 
   @override
   void initState() {
     super.initState();
     _localPlayerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
-    _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 5);
     unawaited(_hydrateExistingAuthSession());
     if (widget.mode == DuelRoomMode.credits) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1230,6 +1226,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   String? _validatePseudo() {
+    if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId == null) {
+      return 'Connectez-vous avec Google pour jouer en mode Paris.';
+    }
+    if (_authenticatedPlayerId != null) {
+      return null;
+    }
     final String cleaned = _nameController.text.trim();
     if (cleaned.isEmpty) {
       return 'Veuillez entrer un pseudonyme';
@@ -1314,7 +1316,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     }
     setState(() {
       _googleBusy = false;
-      _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 5);
     });
   }
 
@@ -1388,6 +1389,22 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     return created;
   }
 
+  String? _resolvePlayerName() {
+    if (_authenticatedPlayerId != null) {
+      final String profileName = _playerProfile?.displayName.trim() ?? '';
+      if (profileName.isNotEmpty) {
+        return profileName;
+      }
+      final String authDisplayName =
+          _authService.currentUser?.displayName?.trim() ?? '';
+      if (authDisplayName.isNotEmpty) {
+        return authDisplayName;
+      }
+      return 'Joueur';
+    }
+    return _nameController.text.trim();
+  }
+
   Future<void> _createGame() async {
     unawaited(_sfx.playClick());
     final String? pseudoError = _validatePseudo();
@@ -1398,13 +1415,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
-    final String pseudo = _nameController.text.trim();
-    if (_authenticatedPlayerId != null) {
-      await _profileService.updateDisplayName(
-        uid: _authenticatedPlayerId!,
-        displayName: pseudo,
-      );
-    }
+    final String pseudo = _resolvePlayerName()!;
     setState(() {
       _profileError = null;
     });
@@ -1433,13 +1444,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
-    final String pseudo = _nameController.text.trim();
-    if (_authenticatedPlayerId != null) {
-      await _profileService.updateDisplayName(
-        uid: _authenticatedPlayerId!,
-        displayName: pseudo,
-      );
-    }
+    final String pseudo = _resolvePlayerName()!;
     final String code = _codeController.text.trim().toUpperCase();
     setState(() {
       _profileError = null;
@@ -1457,6 +1462,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final DuelSession? session = _controller?.session;
     final bool busy = _controller?.busy ?? false;
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
+    final bool isAuthenticated = _authenticatedPlayerId != null;
     final String title = creditsMode ? 'DUEL PARI' : 'DUEL EN LIGNE';
     final String subtitle = creditsMode
         ? 'Même duel, avec pari défini avant le lancement.'
@@ -1525,135 +1531,93 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       style: TextStyle(color: Colors.white.withOpacity(0.84)),
                     ),
                     const SizedBox(height: 20),
-                    PremiumPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Text(
-                            'Ton profil',
-                            style: TextStyle(
-                              color: PremiumColors.textDark,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: (busy || _googleBusy) ? null : _continueWithGoogle,
-                            icon: _googleBusy
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.g_mobiledata_rounded),
-                            label: const Text('Continuer avec Google'),
-                          ),
-                          const SizedBox(height: 10),
-                          TextField(
-                            controller: _nameController,
-                            onChanged: (_) {
-                              if (_profileError != null) {
-                                setState(() {
-                                  _profileError = null;
-                                });
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              labelText: 'Pseudo',
-                              hintText: 'Ton pseudonyme',
-                              prefixIcon: Icon(Icons.badge_outlined),
-                            ),
-                          ),
-                          if (_profileError != null) ...<Widget>[
-                            const SizedBox(height: 8),
-                            Text(
-                              _profileError!,
-                              style: const TextStyle(
-                                color: Color(0xFFB71C1C),
+                    if (creditsMode) ...<Widget>[
+                      PremiumPanel(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text(
+                              'Ton profil',
+                              style: TextStyle(
+                                color: PremiumColors.textDark,
                                 fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            if (_playerProfile != null)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: PremiumColors.panelSoft,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      'Profil connecté: ${_playerProfile!.displayName}',
+                                      style: const TextStyle(
+                                        color: PremiumColors.textDark,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Victoires ${_playerProfile!.wins} • Défaites ${_playerProfile!.losses} • Score ${_playerProfile!.score}',
+                                      style: const TextStyle(color: PremiumColors.textDark),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (_playerProfile != null) const SizedBox(height: 10),
+                            SelectableText(
+                              'ID joueur: ${_authenticatedPlayerId ?? _localPlayerId}',
+                              style: TextStyle(
+                                color: PremiumColors.textDark.withOpacity(0.72),
+                                fontSize: 12.5,
                               ),
                             ),
                           ],
-                          const SizedBox(height: 10),
-                          if (_playerProfile != null)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: PremiumColors.panelSoft,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    'Profil connecté: ${_playerProfile!.displayName}',
-                                    style: const TextStyle(
-                                      color: PremiumColors.textDark,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Victoires ${_playerProfile!.wins} • Défaites ${_playerProfile!.losses} • Score ${_playerProfile!.score}',
-                                    style: const TextStyle(color: PremiumColors.textDark),
-                                  ),
-                                ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    if (!creditsMode && !isAuthenticated) ...<Widget>[
+                      PremiumPanel(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            const Text(
+                              'Ton pseudonyme Duel',
+                              style: TextStyle(
+                                color: PremiumColors.textDark,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
                               ),
                             ),
-                          if (_playerProfile != null) const SizedBox(height: 10),
-                          SelectableText(
-                            'ID joueur: ${_authenticatedPlayerId ?? _localPlayerId}',
-                            style: TextStyle(
-                              color: PremiumColors.textDark.withOpacity(0.72),
-                              fontSize: 12.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    PremiumPanel(
-                      child: FutureBuilder<List<PlayerProfile>>(
-                        future: _leaderboardFuture,
-                        builder: (
-                          BuildContext context,
-                          AsyncSnapshot<List<PlayerProfile>> snapshot,
-                        ) {
-                          final List<PlayerProfile> topPlayers =
-                              snapshot.data ?? const <PlayerProfile>[];
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              const Text(
-                                'Top joueurs',
-                                style: TextStyle(
-                                  color: PremiumColors.textDark,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: _nameController,
+                              onChanged: (_) {
+                                if (_profileError != null) {
+                                  setState(() {
+                                    _profileError = null;
+                                  });
+                                }
+                              },
+                              decoration: const InputDecoration(
+                                labelText: 'Pseudonyme',
+                                hintText: 'Ton pseudonyme',
+                                prefixIcon: Icon(Icons.badge_outlined),
                               ),
-                              const SizedBox(height: 8),
-                              if (snapshot.connectionState == ConnectionState.waiting)
-                                const LinearProgressIndicator(minHeight: 2),
-                              if (topPlayers.isEmpty && snapshot.connectionState == ConnectionState.done)
-                                const Text('Pas encore de classement disponible.'),
-                              for (int i = 0; i < topPlayers.length; i++)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: Text(
-                                    '${i + 1}. ${topPlayers[i].displayName} — Score ${topPlayers[i].score} (V ${topPlayers[i].wins} / D ${topPlayers[i].losses})',
-                                    style: const TextStyle(color: PremiumColors.textDark),
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
+                      const SizedBox(height: 14),
+                    ],
                     PremiumPanel(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1776,6 +1740,17 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                         ],
                       ),
                     ),
+                    if (_profileError != null) ...<Widget>[
+                      const SizedBox(height: 10),
+                      Text(
+                        _profileError!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFFFFD4D4),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                     if ((_controller?.error) != null) ...<Widget>[
                       const SizedBox(height: 10),
                       Text(
