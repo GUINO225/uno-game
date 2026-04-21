@@ -381,28 +381,11 @@ class _PanelAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.92), width: 1.1),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x2A000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: GameCardAvatar(
-        size: size - 6,
-        data: GameCardAvatarPalette.fromSeed(
-          profile.id,
-          salt: 2,
-        ),
+    return GameCardAvatar(
+      size: size,
+      data: GameCardAvatarPalette.fromSeed(
+        profile.id,
+        salt: 2,
       ),
     );
   }
@@ -452,23 +435,11 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                     onTap: () => Scaffold.of(context).openEndDrawer(),
                     child: Tooltip(
                       message: 'Menu joueur',
-                      child: SizedBox(
-                        width: 52,
-                        height: 52,
-                        child: DecoratedBox(
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: GameCardAvatar(
-                              size: 46,
-                              data: GameCardAvatarPalette.fromSeed(
-                                profile?.id ?? _authService.currentUser?.uid ?? 'menu_guest',
-                                salt: 5,
-                              ),
-                            ),
-                          ),
+                      child: GameCardAvatar(
+                        size: 52,
+                        data: GameCardAvatarPalette.fromSeed(
+                          profile?.id ?? _authService.currentUser?.uid ?? 'menu_guest',
+                          salt: 5,
                         ),
                       ),
                     ),

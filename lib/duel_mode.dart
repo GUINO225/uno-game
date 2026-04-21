@@ -3683,14 +3683,15 @@ class _DuelPageState extends State<DuelPage> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                const AppLogo(size: 74),
-                                const SizedBox(height: 1),
+                                const SizedBox(height: 6),
+                                const AppLogo(size: 86),
+                                const SizedBox(height: 3),
                                 Text(
                                   _isCreditsMode ? 'Duel Paris' : 'Duel',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 12,
                                     height: 1,
                                   ),
                                 ),
@@ -3718,43 +3719,7 @@ class _DuelPageState extends State<DuelPage> {
                           ),
                         ],
                       ),
-                      if (_isCreditsMode) ...<Widget>[
-                        const SizedBox(height: 2),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white24),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  const CreditCoinsIcon(
-                                    size: 16,
-                                    color: Color(0xFFFFD45F),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Crédit $myCredits',
-                                    style: const TextStyle(
-                                      color: Color(0xFFFFE8A0),
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       _DuelStatusBanner(
                         opponentName: opponentName,
                         myScore: myScore,
