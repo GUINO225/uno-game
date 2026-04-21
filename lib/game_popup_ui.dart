@@ -64,6 +64,43 @@ class GamePopupButton extends StatelessWidget {
   }
 }
 
+class GamePopupIconButton extends StatelessWidget {
+  const GamePopupIconButton({
+    super.key,
+    required this.icon,
+    required this.semanticLabel,
+    this.onPressed,
+    this.expanded = false,
+  });
+
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback? onPressed;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget button = Semantics(
+      button: true,
+      label: semanticLabel,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF111111),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFBDBDBD),
+          disabledForegroundColor: const Color(0xFF666666),
+          minimumSize: const Size(56, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Icon(icon, size: 22),
+      ),
+    );
+    return expanded ? SizedBox(width: double.infinity, child: button) : button;
+  }
+}
+
 class GamePopupDialog extends StatelessWidget {
   const GamePopupDialog({
     super.key,
@@ -133,6 +170,98 @@ class GamePopupDialog extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class GameStakeBillsStack extends StatelessWidget {
+  const GameStakeBillsStack({
+    super.key,
+    required this.amount,
+  });
+
+  final int amount;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<double> rotations = <double>[-0.16, -0.06, 0.08];
+    final List<Offset> offsets = <Offset>[
+      const Offset(-16, 8),
+      const Offset(0, 2),
+      const Offset(14, -2),
+    ];
+    return SizedBox(
+      width: 190,
+      height: 108,
+      child: Stack(
+        alignment: Alignment.center,
+        children: List<Widget>.generate(rotations.length, (int index) {
+          return Transform.translate(
+            offset: offsets[index],
+            child: Transform.rotate(
+              angle: rotations[index],
+              child: _StakeBillCard(
+                amount: amount,
+                elevation: 0.24 + (index * 0.06),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _StakeBillCard extends StatelessWidget {
+  const _StakeBillCard({required this.amount, required this.elevation});
+
+  final int amount;
+  final double elevation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 126,
+      height: 78,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F7EB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFB8DEBF), width: 1.1),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(elevation),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'MISE',
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.3,
+              color: const Color(0xFF2D5938),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '$amount',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF183D24),
+              height: 1,
+            ),
+          ),
+          const Spacer(),
+        ],
       ),
     );
   }

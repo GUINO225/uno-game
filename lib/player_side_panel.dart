@@ -419,13 +419,12 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
 
-  Future<int?> _loadCredits() async {
+  Future<PlayerProfile?> _loadProfile() async {
     final User? user = _authService.currentUser;
     if (user == null) {
       return null;
     }
-    final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
-    return profile.credits;
+    return _profileService.createOrUpdateFromGoogleUser(user);
   }
 
   @override
@@ -434,12 +433,13 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
       alignment: Alignment.topRight,
       child: Padding(
         padding: const EdgeInsets.only(top: 6, right: 10),
-        child: FutureBuilder<int?>(
-          future: _loadCredits(),
-          builder: (BuildContext context, AsyncSnapshot<int?> snapshot) {
+        child: FutureBuilder<PlayerProfile?>(
+          future: _loadProfile(),
+          builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
+            final PlayerProfile? profile = snapshot.data;
             final String creditsLabel = snapshot.connectionState == ConnectionState.waiting
                 ? '...'
-                : '${snapshot.data ?? 0}';
+                : '${profile?.credits ?? 0}';
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -453,14 +453,20 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                     child: Tooltip(
                       message: 'Menu joueur',
                       child: SizedBox(
-                        width: 35,
-                        height: 35,
-                        child: Center(
-                          child: GameCardAvatar(
-                            size: 35,
-                            data: GameCardAvatarPalette.fromSeed(
-                              _authService.currentUser?.uid ?? 'menu_guest',
-                              salt: 5,
+                        width: 52,
+                        height: 52,
+                        child: DecoratedBox(
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: GameCardAvatar(
+                              size: 46,
+                              data: GameCardAvatarPalette.fromSeed(
+                                profile?.id ?? _authService.currentUser?.uid ?? 'menu_guest',
+                                salt: 5,
+                              ),
                             ),
                           ),
                         ),
@@ -500,7 +506,7 @@ class _CreditBadge extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              'Compte $value',
+              'Crédit $value',
               style: GoogleFonts.poppins(
                 color: Colors.white,
                 fontSize: 13,
