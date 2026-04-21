@@ -2370,7 +2370,6 @@ class _DuelPageState extends State<DuelPage> {
             children: <Widget>[
               _PlayedCardMini(
                 card: DuelCard(
-                  id: '8$suit',
                   rank: '8',
                   suit: suit,
                 ),
