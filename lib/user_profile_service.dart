@@ -33,11 +33,16 @@ class UserProfileService {
         tx.set(ref, <String, dynamic>{
           'uid': user.uid,
           'displayName': suggestedDisplayName,
+          'email': user.email,
+          'photoUrl': user.photoURL,
           'avatarUrl': user.photoURL,
+          'credits': 1000,
           'wins': 0,
           'losses': 0,
           'totalGames': 0,
           'score': 0,
+          'rankScore': 0,
+          'isRegistered': true,
           'createdAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
         });
@@ -47,7 +52,10 @@ class UserProfileService {
           (snapshot.data()?['displayName'] as String?)?.trim() ?? '';
       tx.update(ref, <String, dynamic>{
         if (existingDisplayName.isEmpty) 'displayName': suggestedDisplayName,
+        'email': user.email,
+        'photoUrl': user.photoURL,
         'avatarUrl': user.photoURL,
+        'isRegistered': true,
         'lastLoginAt': FieldValue.serverTimestamp(),
       });
     });
@@ -57,9 +65,14 @@ class UserProfileService {
     return PlayerProfile.fromMap(<String, dynamic>{
       'uid': user.uid,
       'displayName': data['displayName'] ?? suggestedDisplayName,
+      'email': data['email'] ?? user.email,
+      'photoUrl': data['photoUrl'] ?? user.photoURL,
       'avatarUrl': data['avatarUrl'] ?? user.photoURL,
+      'credits': data['credits'] ?? 1000,
       'wins': data['wins'] ?? 0,
       'losses': data['losses'] ?? 0,
+      'totalGames': data['totalGames'] ?? 0,
+      'rankScore': data['rankScore'] ?? data['score'] ?? 0,
       'createdAt': data['createdAt'] ?? Timestamp.fromDate(now),
       'lastLoginAt': data['lastLoginAt'] ?? Timestamp.fromDate(now),
     });

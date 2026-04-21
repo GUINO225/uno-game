@@ -41,6 +41,7 @@ class StatsService {
         'wins': FieldValue.increment(1),
         'totalGames': FieldValue.increment(1),
         'score': FieldValue.increment(3),
+        'rankScore': FieldValue.increment(3),
         'lastLoginAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -49,6 +50,7 @@ class StatsService {
         'losses': FieldValue.increment(1),
         'totalGames': FieldValue.increment(1),
         'score': FieldValue.increment(-1),
+        'rankScore': FieldValue.increment(-1),
         'lastLoginAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     });

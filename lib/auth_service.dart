@@ -56,6 +56,8 @@ class AuthService {
   }
 
   User? get currentUser => _authOrNull?.currentUser;
+  Stream<User?> get authStateChanges =>
+      _authOrNull?.authStateChanges() ?? const Stream<User?>.empty();
 
   Future<GoogleAuthResult> signInWithGoogle() async {
     final FirebaseAuth? auth = _authOrNull;
@@ -130,6 +132,17 @@ class AuthService {
 
     await _googleSignIn.initialize();
     _isGoogleSignInInitialized = true;
+  }
+
+  Future<void> signOut() async {
+    await _authOrNull?.signOut();
+    if (!kIsWeb) {
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {
+        // Ignore local provider sign-out failures.
+      }
+    }
   }
 
   GoogleAuthResult _mapFirebaseAuthException(FirebaseAuthException e) {
