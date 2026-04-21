@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 enum AuthFailureReason {
   cancelled,
+  redirecting,
   unavailable,
   popupBlocked,
   network,
@@ -69,7 +70,20 @@ class AuthService {
     try {
       if (kIsWeb) {
         final GoogleAuthProvider provider = GoogleAuthProvider();
-        final UserCredential result = await auth.signInWithPopup(provider);
+        provider.setCustomParameters(<String, String>{'prompt': 'select_account'});
+        UserCredential result;
+        try {
+          result = await auth.signInWithPopup(provider);
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'popup-blocked') {
+            await auth.signInWithRedirect(provider);
+            return GoogleAuthResult.failure(
+              reason: AuthFailureReason.redirecting,
+              message: 'Redirection Google en cours…',
+            );
+          }
+          rethrow;
+        }
         final User? user = result.user;
         if (user == null) {
           return GoogleAuthResult.failure(
