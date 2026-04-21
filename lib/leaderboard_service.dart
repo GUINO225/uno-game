@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import 'player_profile.dart';
 
@@ -8,6 +9,7 @@ class LeaderboardService {
   static final LeaderboardService instance = LeaderboardService._();
 
   Future<List<PlayerProfile>> fetchTopPlayers({int limit = 20}) async {
+    debugPrint('[LeaderboardService] fetchTopPlayers started (limit=$limit)');
     final QuerySnapshot<Map<String, dynamic>> snapshot =
         await _fetchLeaderboardSnapshot(limit);
     final List<PlayerProfile> players = <PlayerProfile>[];
@@ -28,6 +30,7 @@ class LeaderboardService {
       }
       return b.wins.compareTo(a.wins);
     });
+    debugPrint('[LeaderboardService] leaderboard received (${players.length} players)');
     return players
         .take(limit)
         .toList(growable: false);
@@ -45,13 +48,19 @@ class LeaderboardService {
           .orderBy('rankScore', descending: true)
           .limit(queryLimit)
           .get();
-    } on FirebaseException {
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint(
+        '[LeaderboardService] rankScore query failed: ${error.code} - ${error.message}\n$stackTrace',
+      );
       try {
         return await profiles
             .orderBy('score', descending: true)
             .limit(queryLimit)
             .get();
-      } on FirebaseException {
+      } on FirebaseException catch (fallbackError, fallbackStackTrace) {
+        debugPrint(
+          '[LeaderboardService] score query failed: ${fallbackError.code} - ${fallbackError.message}\n$fallbackStackTrace',
+        );
         return profiles.limit(queryLimit).get();
       }
     }

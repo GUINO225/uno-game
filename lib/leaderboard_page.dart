@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import 'game_card_avatar.dart';
 import 'leaderboard_service.dart';
 import 'player_profile.dart';
 import 'premium_ui.dart';
+
+final RouteObserver<ModalRoute<dynamic>> leaderboardRouteObserver =
+    RouteObserver<ModalRoute<dynamic>>();
 
 class LeaderboardPage extends StatefulWidget {
   const LeaderboardPage({super.key});
@@ -12,21 +16,82 @@ class LeaderboardPage extends StatefulWidget {
   State<LeaderboardPage> createState() => _LeaderboardPageState();
 }
 
-class _LeaderboardPageState extends State<LeaderboardPage> {
+class _LeaderboardPageState extends State<LeaderboardPage> with RouteAware {
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
-  late Future<List<PlayerProfile>> _leaderboardFuture;
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<PlayerProfile> _players = const <PlayerProfile>[];
+  bool _didSubscribeRoute = false;
 
   @override
   void initState() {
     super.initState();
-    _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 100);
+    _loadLeaderboard(reason: 'initState');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didSubscribeRoute) {
+      return;
+    }
+    final ModalRoute<dynamic>? route = ModalRoute.of(context);
+    if (route != null) {
+      leaderboardRouteObserver.subscribe(this, route);
+      _didSubscribeRoute = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_didSubscribeRoute) {
+      leaderboardRouteObserver.unsubscribe(this);
+    }
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    _loadLeaderboard(reason: 'didPopNext');
+  }
+
+  Future<void> _loadLeaderboard({
+    required String reason,
+    bool showLoader = true,
+  }) async {
+    debugPrint('[LeaderboardPage] chargement classement démarré (reason=$reason)');
+    if (showLoader && mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+    try {
+      final List<PlayerProfile> players =
+          await _leaderboardService.fetchTopPlayers(limit: 100);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _players = players;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+      debugPrint('[LeaderboardPage] classement reçu (${players.length} entrées)');
+    } catch (error, stackTrace) {
+      debugPrint('[LeaderboardPage] erreur classement: $error\n$stackTrace');
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '$error';
+      });
+    }
   }
 
   Future<void> _refresh() async {
-    setState(() {
-      _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 100);
-    });
-    await _leaderboardFuture;
+    await _loadLeaderboard(reason: 'pull-to-refresh', showLoader: false);
   }
 
   @override
@@ -38,57 +103,74 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         title: const Text('Classement'),
         backgroundColor: Colors.transparent,
       ),
-      body: FutureBuilder<List<PlayerProfile>>(
-          future: _leaderboardFuture,
-          builder: (BuildContext context, AsyncSnapshot<List<PlayerProfile>> snapshot) {
-            final List<PlayerProfile> players = snapshot.data ?? const <PlayerProfile>[];
-            return RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                children: <Widget>[
-                  PremiumPanel(
-                    child: Text(
-                      'Classement des joueurs connectés',
-                      style: textTheme.titleMedium?.copyWith(
-                            color: PremiumColors.textDark,
-                            fontWeight: FontWeight.w800,
-                          ),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          children: <Widget>[
+            PremiumPanel(
+              child: Text(
+                'Classement des joueurs connectés',
+                style: textTheme.titleMedium?.copyWith(
+                      color: PremiumColors.textDark,
+                      fontWeight: FontWeight.w800,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  const _LeaderboardHeader(),
-                  if (snapshot.connectionState == ConnectionState.waiting)
-                    const LinearProgressIndicator(minHeight: 2),
-                  if (snapshot.hasError)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 12),
-                      child: Text(
-                        'Impossible de charger le classement pour le moment.',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  if (players.isEmpty && snapshot.connectionState == ConnectionState.done)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 12),
-                      child: Text(
-                        'Aucun joueur classé pour le moment.',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ...List<Widget>.generate(players.length, (int index) {
-                    final PlayerProfile player = players[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: _LeaderboardRow(player: player, rank: index + 1),
-                    );
-                  }),
-                ],
               ),
-            );
-          },
+            ),
+            const SizedBox(height: 12),
+            const _LeaderboardHeader(),
+            if (_isLoading) const LinearProgressIndicator(minHeight: 2),
+            if (_errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: PremiumPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        'Impossible de charger le classement pour le moment.',
+                        style: TextStyle(
+                          color: PremiumColors.textDark,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          color: PremiumColors.textDark.withOpacity(0.78),
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: () => _loadLeaderboard(reason: 'retry-button'),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (!_isLoading && _errorMessage == null && _players.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text(
+                  'Aucun joueur classé pour le moment.',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ...List<Widget>.generate(_players.length, (int index) {
+              final PlayerProfile player = _players[index];
+              return Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: _LeaderboardRow(player: player, rank: index + 1),
+              );
+            }),
+          ],
         ),
+      ),
     );
   }
 }

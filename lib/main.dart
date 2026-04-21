@@ -110,6 +110,9 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
+        navigatorObservers: <NavigatorObserver>[
+          leaderboardRouteObserver,
+        ],
         routes: <String, WidgetBuilder>{
           GameModeRoutes.solo: (_) => const CrazyEightsPage(),
           GameModeRoutes.duel: (_) => const DuelLobbyPage(),
