@@ -1463,7 +1463,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final bool busy = _controller?.busy ?? false;
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
     final bool isAuthenticated = _authenticatedPlayerId != null;
-    final String title = creditsMode ? 'DUEL PARI' : 'DUEL EN LIGNE';
+    final String title = creditsMode ? 'DUEL PARIS' : 'DUEL SIMPLE';
     return Scaffold(
       endDrawer: PlayerSidePanel(
         onOpenLeaderboard: () {
@@ -1522,73 +1522,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    if (creditsMode) ...<Widget>[
-                      PremiumPanel(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Text(
-                              'Ton profil',
-                              style: TextStyle(
-                                color: PremiumColors.textDark,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            if (_playerProfile != null)
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: PremiumColors.panelSoft,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      'Profil connecté: ${_playerProfile!.displayName}',
-                                      style: const TextStyle(
-                                        color: PremiumColors.textDark,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Victoires ${_playerProfile!.wins} • Défaites ${_playerProfile!.losses} • Score ${_playerProfile!.score}',
-                                      style: const TextStyle(color: PremiumColors.textDark),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            if (_playerProfile != null) const SizedBox(height: 10),
-                            SelectableText(
-                              'ID joueur: ${_authenticatedPlayerId ?? _localPlayerId}',
-                              style: TextStyle(
-                                color: PremiumColors.textDark.withOpacity(0.72),
-                                fontSize: 12.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
                     if (!creditsMode && !isAuthenticated) ...<Widget>[
                       PremiumPanel(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
-                            const Text(
-                              'Ton pseudonyme Duel',
-                              style: TextStyle(
-                                color: PremiumColors.textDark,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
                             TextField(
                               controller: _nameController,
                               onChanged: (_) {
@@ -1599,8 +1537,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                                 }
                               },
                               decoration: const InputDecoration(
-                                labelText: 'Pseudonyme',
-                                hintText: 'Ton pseudonyme',
+                                hintText: 'Ton pseudo',
                                 prefixIcon: Icon(Icons.badge_outlined),
                               ),
                             ),
@@ -1678,7 +1615,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Joueurs connectés: ${session.players.length}/2',
+                                    'Joueurs: ${session.players.length}/2',
                                     style: const TextStyle(color: PremiumColors.textDark),
                                   ),
                                 ],
@@ -1713,7 +1650,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                               }
                             },
                             decoration: const InputDecoration(
-                              labelText: 'Code de partie',
                               hintText: 'AB12CD',
                               prefixIcon: Icon(Icons.vpn_key_outlined),
                             ),
@@ -2451,6 +2387,25 @@ class _DuelPageState extends State<DuelPage> {
         ) %
         _avatarCardPool.length;
     return _avatarCardPool[index];
+  }
+
+  DuelCard _avatarCardForOpponent({
+    required String localPlayerId,
+    required String opponentId,
+  }) {
+    final DuelCard localCard = _avatarCardForPlayer(localPlayerId);
+    DuelCard opponentCard = _avatarCardForPlayer(opponentId);
+    final bool sameCard = opponentCard.rank == localCard.rank &&
+        opponentCard.suit == localCard.suit;
+    if (sameCard) {
+      final int index = _avatarCardPool.indexWhere(
+        (DuelCard card) =>
+            card.rank == opponentCard.rank && card.suit == opponentCard.suit,
+      );
+      final int nextIndex = index < 0 ? 1 : (index + 1) % _avatarCardPool.length;
+      opponentCard = _avatarCardPool[nextIndex];
+    }
+    return opponentCard;
   }
 
   Future<void> _openStakeProposal(DuelSession session) async {
@@ -3435,7 +3390,12 @@ class _DuelPageState extends State<DuelPage> {
         final DuelCard localAvatarCard = _avatarCardForPlayer(
           _controller.localPlayerId,
         );
-        final DuelCard opponentAvatarCard = _avatarCardForPlayer(opponentId);
+        final DuelCard opponentAvatarCard = opponentId.isEmpty
+            ? _avatarCardForPlayer(opponentId)
+            : _avatarCardForOpponent(
+                localPlayerId: _controller.localPlayerId,
+                opponentId: opponentId,
+              );
         final DuelStakeOffer stakeOffer = session.stakeOffer;
         final bool myTurn = _controller.isMyTurn &&
             session.status == DuelGameStatus.inProgress &&
