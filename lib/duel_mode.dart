@@ -2163,7 +2163,10 @@ class _DuelPageState extends State<DuelPage> {
     );
   }
 
-  Future<void> _showForcedDrawPopup(int amount) async {
+  Future<void> _showForcedDrawPopup({
+    required int amount,
+    required DuelCard sourceCard,
+  }) async {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -2175,25 +2178,14 @@ class _DuelPageState extends State<DuelPage> {
             }
           }),
         );
-        return GamePopupDialog(
-          title: 'CARTE SPÉCIALE',
-          subtitle: 'Effet immédiat',
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const PremiumCardStack(count: 3, rankLabel: '2', suit: '♠'),
-              const SizedBox(height: 12),
-              Text(
-                'PIOCHEZ $amount CARTES',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF13261D),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ],
+        return Center(
+          child: DrawPenaltyPopupPanel(
+            drawCount: amount,
+            penaltyType: sourceCard.rank == '2'
+                ? DrawPenaltyType.two
+                : DrawPenaltyType.joker,
+            jokerIsRed: sourceCard.isJoker ? sourceCard.isRed : null,
+            suitSymbol: sourceCard.suit,
           ),
         );
       },
@@ -2274,7 +2266,7 @@ class _DuelPageState extends State<DuelPage> {
       if (!mounted) {
         return;
       }
-      await _showForcedDrawPopup(amount);
+      await _showForcedDrawPopup(amount: amount, sourceCard: card);
     });
   }
 

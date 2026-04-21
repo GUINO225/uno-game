@@ -138,6 +138,188 @@ class GamePopupDialog extends StatelessWidget {
   }
 }
 
+enum DrawPenaltyType { two, joker, other }
+
+class DrawPenaltyPopupPanel extends StatelessWidget {
+  const DrawPenaltyPopupPanel({
+    super.key,
+    required this.drawCount,
+    required this.penaltyType,
+    this.jokerIsRed,
+    this.suitSymbol = '♠',
+  });
+
+  final int drawCount;
+  final DrawPenaltyType penaltyType;
+  final bool? jokerIsRed;
+  final String suitSymbol;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: min(MediaQuery.of(context).size.width * 0.8, 300),
+      constraints: const BoxConstraints(maxWidth: 300),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(color: Colors.black26, blurRadius: 16, offset: Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            'TU PIOCHES',
+            style: GoogleFonts.poppins(
+              color: Colors.black87,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '$drawCount',
+              style: GoogleFonts.poppins(
+                color: Colors.black,
+                fontSize: 76,
+                fontWeight: FontWeight.w800,
+                height: 1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _PenaltyCardsStack(
+            penaltyType: penaltyType,
+            jokerIsRed: jokerIsRed,
+            suitSymbol: suitSymbol,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'CARTES',
+            style: GoogleFonts.poppins(
+              color: Colors.black87,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PenaltyCardsStack extends StatelessWidget {
+  const _PenaltyCardsStack({
+    required this.penaltyType,
+    required this.jokerIsRed,
+    required this.suitSymbol,
+  });
+
+  final DrawPenaltyType penaltyType;
+  final bool? jokerIsRed;
+  final String suitSymbol;
+
+  @override
+  Widget build(BuildContext context) {
+    if (penaltyType == DrawPenaltyType.other) {
+      return const SizedBox.shrink();
+    }
+    final bool isJoker = penaltyType == DrawPenaltyType.joker;
+    final Color ink = isJoker
+        ? ((jokerIsRed ?? false) ? const Color(0xFFC52626) : Colors.black87)
+        : ((suitSymbol == '♥' || suitSymbol == '♦') ? const Color(0xFFC52626) : Colors.black87);
+
+    return SizedBox(
+      width: 132,
+      height: 92,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Transform.translate(
+            offset: const Offset(-14, 3),
+            child: Transform.rotate(
+              angle: -0.12,
+              child: _OverlayCardFace(
+                rank: isJoker ? 'JK' : '2',
+                symbol: isJoker ? ((jokerIsRed ?? false) ? '🃏' : '♛') : suitSymbol,
+                inkColor: ink,
+              ),
+            ),
+          ),
+          Transform.translate(
+            offset: const Offset(14, -3),
+            child: Transform.rotate(
+              angle: 0.12,
+              child: _OverlayCardFace(
+                rank: isJoker ? 'JK' : '2',
+                symbol: isJoker ? ((jokerIsRed ?? false) ? '♛' : '🃏') : suitSymbol,
+                inkColor: ink,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OverlayCardFace extends StatelessWidget {
+  const _OverlayCardFace({
+    required this.rank,
+    required this.symbol,
+    required this.inkColor,
+  });
+
+  final String rank;
+  final String symbol;
+  final Color inkColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 58,
+      height: 82,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFDDDDDD)),
+      ),
+      padding: const EdgeInsets.all(6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            rank,
+            style: TextStyle(
+              color: inkColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const Spacer(),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Text(
+              symbol,
+              style: TextStyle(
+                color: inkColor,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class PremiumCardStack extends StatelessWidget {
   const PremiumCardStack({
     super.key,
