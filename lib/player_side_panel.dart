@@ -25,6 +25,13 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
+  late Future<PlayerProfile?> _profileFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = _loadProfile();
+  }
 
   Future<int?> _loadRank(String uid) async {
     return _leaderboardService.fetchPlayerRank(uid);
@@ -35,7 +42,22 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     if (user == null) {
       return null;
     }
-    return _profileService.createOrUpdateFromGoogleUser(user);
+    try {
+      return await _profileService.createOrUpdateFromGoogleUser(user);
+    } catch (_) {
+      final PlayerProfile? existingProfile = await _profileService.getProfile(user.uid);
+      if (existingProfile != null) {
+        return existingProfile;
+      }
+      return PlayerProfile(
+        uid: user.uid,
+        pseudo: _profileService.suggestedNameFromUser(user),
+        displayName: _profileService.suggestedNameFromUser(user),
+        email: user.email,
+        photoUrl: user.photoURL,
+        avatarUrl: user.photoURL,
+      );
+    }
   }
 
   Future<void> _signIn() async {
@@ -49,7 +71,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       );
       return;
     }
-    setState(() {});
+    setState(() {
+      _profileFuture = _loadProfile();
+    });
   }
 
   Future<void> _signOut() async {
@@ -57,7 +81,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     if (!mounted) {
       return;
     }
-    setState(() {});
+    setState(() {
+      _profileFuture = _loadProfile();
+    });
   }
 
   Future<void> _promptPseudoEdition(PlayerProfile profile) async {
@@ -127,7 +153,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Pseudo mis à jour.')),
     );
-    setState(() {});
+    setState(() {
+      _profileFuture = _loadProfile();
+    });
   }
 
   @override
@@ -135,7 +163,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     return Drawer(
       child: SafeArea(
         child: FutureBuilder<PlayerProfile?>(
-          future: _loadProfile(),
+          future: _profileFuture,
           builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
             final PlayerProfile? profile = snapshot.data;
             if (snapshot.connectionState == ConnectionState.waiting) {

@@ -9,15 +9,11 @@ class LeaderboardService {
 
   Future<List<PlayerProfile>> fetchTopPlayers({int limit = 20}) async {
     final QuerySnapshot<Map<String, dynamic>> snapshot =
-        await FirebaseFirestore.instance
-            .collection('user_profiles')
-            .orderBy('score', descending: true)
-            .limit(limit * 3)
-            .get();
+        await _fetchLeaderboardSnapshot(limit);
     final List<PlayerProfile> players = <PlayerProfile>[];
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
       final Map<String, dynamic> data = doc.data();
-      if (data['isRegistered'] != true) {
+      if (data['isRegistered'] == false) {
         continue;
       }
       final PlayerProfile profile = PlayerProfile.fromMap(data);
@@ -35,6 +31,30 @@ class LeaderboardService {
     return players
         .take(limit)
         .toList(growable: false);
+  }
+
+  Future<QuerySnapshot<Map<String, dynamic>>> _fetchLeaderboardSnapshot(
+    int limit,
+  ) async {
+    final CollectionReference<Map<String, dynamic>> profiles =
+        FirebaseFirestore.instance.collection('user_profiles');
+    final int queryLimit = limit * 4;
+
+    try {
+      return await profiles
+          .orderBy('rankScore', descending: true)
+          .limit(queryLimit)
+          .get();
+    } on FirebaseException {
+      try {
+        return await profiles
+            .orderBy('score', descending: true)
+            .limit(queryLimit)
+            .get();
+      } on FirebaseException {
+        return profiles.limit(queryLimit).get();
+      }
+    }
   }
 
   Future<int?> fetchPlayerRank(String uid, {int scanLimit = 250}) async {
