@@ -3,14 +3,20 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
+import 'auth_service.dart';
 import 'firebase_config.dart';
+import 'leaderboard_service.dart';
+import 'player_profile.dart';
 import 'premium_ui.dart';
+import 'stats_service.dart';
+import 'user_profile_service.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
@@ -1172,16 +1178,25 @@ class DuelLobbyPage extends StatefulWidget {
 class _DuelLobbyPageState extends State<DuelLobbyPage> {
   DuelController? _controller;
   final AppSfxService _sfx = AppSfxService.instance;
+  final AuthService _authService = AuthService.instance;
+  final UserProfileService _profileService = UserProfileService.instance;
+  final LeaderboardService _leaderboardService = LeaderboardService.instance;
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   bool _openedDuel = false;
+  bool _googleBusy = false;
   String? _profileError;
   late final String _localPlayerId;
+  String? _authenticatedPlayerId;
+  PlayerProfile? _playerProfile;
+  late Future<List<PlayerProfile>> _leaderboardFuture;
 
   @override
   void initState() {
     super.initState();
     _localPlayerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
+    _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 5);
+    unawaited(_hydrateExistingAuthSession());
   }
 
   @override
@@ -1215,6 +1230,62 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     return null;
   }
 
+  Future<void> _hydrateExistingAuthSession() async {
+    final User? user = _authService.currentUser;
+    if (user == null) {
+      return;
+    }
+    await _upsertProfileFromGoogle(user);
+  }
+
+  Future<void> _upsertProfileFromGoogle(User user) async {
+    final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _authenticatedPlayerId = user.uid;
+      _playerProfile = profile;
+      if (_nameController.text.trim().isEmpty) {
+        _nameController.text = profile.displayName;
+      }
+    });
+  }
+
+  Future<void> _continueWithGoogle() async {
+    unawaited(_sfx.playClick());
+    if (_googleBusy) {
+      return;
+    }
+    setState(() {
+      _googleBusy = true;
+      _profileError = null;
+    });
+    final GoogleAuthResult result = await _authService.signInWithGoogle();
+    if (!mounted) {
+      return;
+    }
+    if (!result.isSuccess) {
+      setState(() {
+        _googleBusy = false;
+        if (result.failureReason == AuthFailureReason.cancelled) {
+          _profileError = 'Connexion Google annulée.';
+        } else {
+          _profileError = result.errorMessage ?? 'Connexion Google impossible.';
+        }
+      });
+      return;
+    }
+    await _upsertProfileFromGoogle(result.user!);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _googleBusy = false;
+      _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 5);
+    });
+  }
+
   String? _validateCodePartie() {
     final String cleaned = _codeController.text.trim().toUpperCase();
     if (cleaned.isEmpty) {
@@ -1234,7 +1305,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     }
     final DuelController created = DuelController(
       service: GameService(),
-      localPlayerId: _localPlayerId,
+      localPlayerId: _authenticatedPlayerId ?? _localPlayerId,
       localPlayerName: pseudo,
       roomMode: widget.mode,
     )..addListener(_onControllerChange);
@@ -1253,6 +1324,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     final String pseudo = _nameController.text.trim();
+    if (_authenticatedPlayerId != null) {
+      await _profileService.updateDisplayName(
+        uid: _authenticatedPlayerId!,
+        displayName: pseudo,
+      );
+    }
     setState(() {
       _profileError = null;
     });
@@ -1282,6 +1359,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     final String pseudo = _nameController.text.trim();
+    if (_authenticatedPlayerId != null) {
+      await _profileService.updateDisplayName(
+        uid: _authenticatedPlayerId!,
+        displayName: pseudo,
+      );
+    }
     final String code = _codeController.text.trim().toUpperCase();
     setState(() {
       _profileError = null;
@@ -1372,6 +1455,18 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: (busy || _googleBusy) ? null : _continueWithGoogle,
+                            icon: _googleBusy
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.g_mobiledata_rounded),
+                            label: const Text('Continuer avec Google'),
+                          ),
+                          const SizedBox(height: 10),
                           TextField(
                             controller: _nameController,
                             onChanged: (_) {
@@ -1399,14 +1494,80 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                             ),
                           ],
                           const SizedBox(height: 10),
+                          if (_playerProfile != null)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: PremiumColors.panelSoft,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'Profil connecté: ${_playerProfile!.displayName}',
+                                    style: const TextStyle(
+                                      color: PremiumColors.textDark,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Victoires ${_playerProfile!.wins} • Défaites ${_playerProfile!.losses} • Score ${_playerProfile!.score}',
+                                    style: const TextStyle(color: PremiumColors.textDark),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (_playerProfile != null) const SizedBox(height: 10),
                           SelectableText(
-                            'ID local: $_localPlayerId',
+                            'ID joueur: ${_authenticatedPlayerId ?? _localPlayerId}',
                             style: TextStyle(
                               color: PremiumColors.textDark.withOpacity(0.72),
                               fontSize: 12.5,
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    PremiumPanel(
+                      child: FutureBuilder<List<PlayerProfile>>(
+                        future: _leaderboardFuture,
+                        builder: (
+                          BuildContext context,
+                          AsyncSnapshot<List<PlayerProfile>> snapshot,
+                        ) {
+                          final List<PlayerProfile> topPlayers =
+                              snapshot.data ?? const <PlayerProfile>[];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text(
+                                'Top joueurs',
+                                style: TextStyle(
+                                  color: PremiumColors.textDark,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              if (snapshot.connectionState == ConnectionState.waiting)
+                                const LinearProgressIndicator(minHeight: 2),
+                              if (topPlayers.isEmpty && snapshot.connectionState == ConnectionState.done)
+                                const Text('Pas encore de classement disponible.'),
+                              for (int i = 0; i < topPlayers.length; i++)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Text(
+                                    '${i + 1}. ${topPlayers[i].displayName} — Score ${topPlayers[i].score} (V ${topPlayers[i].wins} / D ${topPlayers[i].losses})',
+                                    style: const TextStyle(color: PremiumColors.textDark),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1552,9 +1713,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           ),
           const SafeArea(
             child: Align(
-              alignment: Alignment.topLeft,
+              alignment: Alignment.bottomRight,
               child: GlobalMusicToggleButton(
-                margin: EdgeInsets.only(top: 46, left: 6),
+                margin: EdgeInsets.only(right: 10, bottom: 10),
               ),
             ),
           ),
@@ -1621,9 +1782,11 @@ class _DuelPageState extends State<DuelPage> {
   String? _pendingStakeOfferAfterVictoryKey;
   String? _pendingRematchAfterVictoryKey;
   final Queue<String> _chatPreviewQueue = Queue<String>();
+  final StatsService _statsService = StatsService.instance;
   String? _activeChatPreview;
   Timer? _chatPreviewTimer;
   String? _lastOutcomeSfxKey;
+  String? _lastStatsSyncKey;
   String? _lastOpponentActionSfxKey;
   final AppSfxService _sfx = AppSfxService.instance;
 
@@ -2183,6 +2346,33 @@ class _DuelPageState extends State<DuelPage> {
       unawaited(_sfx.playWin());
     } else {
       unawaited(_sfx.playLose());
+    }
+    unawaited(_syncPersistentStats(session: session, winnerId: winnerId, key: key));
+  }
+
+  Future<void> _syncPersistentStats({
+    required DuelSession session,
+    required String winnerId,
+    required String key,
+  }) async {
+    if (_lastStatsSyncKey == key) {
+      return;
+    }
+    final String? loserId = _loserId(session);
+    if (loserId == null || loserId.isEmpty) {
+      return;
+    }
+    _lastStatsSyncKey = key;
+    try {
+      await _statsService.recordDuelResult(
+        gameId: session.gameId,
+        round: session.round,
+        winnerId: winnerId,
+        loserId: loserId,
+      );
+    } catch (error) {
+      debugPrint('Stats sync failed: $error');
+      _lastStatsSyncKey = null;
     }
   }
 
@@ -3404,9 +3594,9 @@ class _DuelPageState extends State<DuelPage> {
               ),
               const SafeArea(
                 child: Align(
-                  alignment: Alignment.topLeft,
+                  alignment: Alignment.bottomRight,
                   child: GlobalMusicToggleButton(
-                    margin: EdgeInsets.only(top: 4, left: 6),
+                    margin: EdgeInsets.only(right: 10, bottom: 10),
                   ),
                 ),
               ),
@@ -4759,7 +4949,20 @@ class _CenterArea extends StatelessWidget {
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: <Widget>[
-                      const _DuelCardBack(width: 64, height: 92),
+                      Transform.translate(
+                        offset: const Offset(-4, 3),
+                        child: Transform.rotate(
+                          angle: -0.08,
+                          child: Opacity(
+                            opacity: 0.9,
+                            child: const _DuelCardBack(width: 64, height: 92),
+                          ),
+                        ),
+                      ),
+                      Transform.rotate(
+                        angle: 0.05,
+                        child: const _DuelCardBack(width: 64, height: 92),
+                      ),
                       Positioned(
                         top: -8,
                         right: -8,
@@ -4816,14 +5019,14 @@ class _MyHandRow extends StatelessWidget {
   final String fallbackInitial;
   final DuelCard avatarCard;
   static const int _maxCardsPerRow = 5;
-  static const double _cardGap = 8;
+  static const double _cardGap = 6;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(color: Colors.black.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
         child: Stack(
           children: <Widget>[
@@ -5164,8 +5367,8 @@ class _FaceCard extends StatelessWidget {
   const _FaceCard({required this.card});
 
   final DuelCard card;
-  static const double width = 72;
-  static const double height = 102;
+  static const double width = 64;
+  static const double height = 92;
 
   @override
   Widget build(BuildContext context) {

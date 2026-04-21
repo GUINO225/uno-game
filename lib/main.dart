@@ -390,7 +390,7 @@ class _IntroLandingPageState extends State<IntroLandingPage>
           const BackgroundDecoration(),
           const SafeArea(
             child: Align(
-              alignment: Alignment.topLeft,
+              alignment: Alignment.bottomRight,
               child: GlobalMusicToggleButton(),
             ),
           ),
@@ -803,7 +803,7 @@ class _GameModePageState extends State<GameModePage>
           ),
           const SafeArea(
             child: Align(
-              alignment: Alignment.topLeft,
+              alignment: Alignment.bottomRight,
               child: GlobalMusicToggleButton(),
             ),
           ),
@@ -2768,7 +2768,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           ),
           const SafeArea(
             child: Align(
-              alignment: Alignment.topLeft,
+              alignment: Alignment.bottomRight,
               child: GlobalMusicToggleButton(),
             ),
           ),
@@ -3182,7 +3182,25 @@ class _DrawPileViewState extends State<_DrawPileView>
           child: child,
         );
       },
-      child: const CardBackView(width: 70, height: 100),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Transform.translate(
+            offset: const Offset(-4, 4),
+            child: Transform.rotate(
+              angle: -0.08,
+              child: Opacity(
+                opacity: 0.88,
+                child: const CardBackView(width: 70, height: 100),
+              ),
+            ),
+          ),
+          Transform.rotate(
+            angle: 0.05,
+            child: const CardBackView(width: 70, height: 100),
+          ),
+        ],
+      ),
     );
   }
 }

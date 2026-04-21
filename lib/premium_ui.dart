@@ -192,7 +192,7 @@ class _GlowCircle extends StatelessWidget {
 class GlobalMusicToggleButton extends StatelessWidget {
   const GlobalMusicToggleButton({
     super.key,
-    this.margin = const EdgeInsets.only(top: 6, left: 6),
+    this.margin = const EdgeInsets.only(right: 12, bottom: 12),
   });
 
   final EdgeInsets margin;
@@ -207,18 +207,18 @@ class GlobalMusicToggleButton extends StatelessWidget {
         return Padding(
           padding: margin,
           child: Material(
-            color: Colors.black.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(14),
+            color: Colors.black.withOpacity(0.28),
+            borderRadius: BorderRadius.circular(16),
             child: InkWell(
               onTap: () async {
                 await audio.toggleBackgroundMusicFromUserGesture();
               },
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               child: Padding(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(7),
                 child: Icon(
                   enabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-                  size: 18,
+                  size: 19,
                   color: Colors.white.withOpacity(enabled ? 0.95 : 0.72),
                 ),
               ),
