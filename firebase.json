@@ -3,7 +3,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
-    "site" : "gino",
+    "site" : "gino-923bb",
     "public": "build/web",
     "ignore": [
       "firebase.json",

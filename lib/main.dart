@@ -35,6 +35,10 @@ Future<void> main() async {
 
 Future<void> _initializeFirebaseIfConfigured() async {
   if (Firebase.apps.isNotEmpty) {
+    final FirebaseApp app = Firebase.app();
+    debugPrint(
+      '[Firebase] already initialized: app=${app.name}, projectId=${app.options.projectId}, appId=${app.options.appId}',
+    );
     return;
   }
 
@@ -42,9 +46,16 @@ Future<void> _initializeFirebaseIfConfigured() async {
     final FirebaseOptions? options = FirebaseConfig.optionsForCurrentPlatform();
     if (options != null) {
       await Firebase.initializeApp(options: options);
+      final FirebaseApp app = Firebase.app();
+      debugPrint(
+        '[Firebase] initialized: app=${app.name}, projectId=${app.options.projectId}, appId=${app.options.appId}',
+      );
+    } else {
+      debugPrint('[Firebase] skipped initialization: missing options for platform.');
     }
-  } catch (_) {
-    // Firebase remains optional in solo mode if configuration is absent.
+  } catch (e, stackTrace) {
+    debugPrint('[Firebase] initialization failed: $e');
+    debugPrintStack(stackTrace: stackTrace);
   }
 }
 

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import 'player_profile.dart';
 
@@ -11,6 +12,7 @@ class LeaderboardService {
     final QuerySnapshot<Map<String, dynamic>> snapshot =
         await FirebaseFirestore.instance
             .collection('user_profiles')
+            .where('isRegistered', isEqualTo: true)
             .orderBy('score', descending: true)
             .limit(limit * 3)
             .get();
@@ -44,5 +46,20 @@ class LeaderboardService {
       return null;
     }
     return index + 1;
+  }
+
+  Future<int?> fetchRegisteredUsersCount() async {
+    try {
+      final AggregateQuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .where('isRegistered', isEqualTo: true)
+          .count()
+          .get();
+      return snapshot.count;
+    } catch (e, stackTrace) {
+      debugPrint('[LeaderboardService] fetchRegisteredUsersCount failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    }
   }
 }

@@ -41,20 +41,20 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAsgBrxqgSCt83BxDHQyeScSAVRj7pwK7s',
-    appId: '1:894004314968:web:27109f9dc09e72758ddb2d',
-    messagingSenderId: '894004314968',
-    projectId: 'gino',
-    authDomain: 'gino.firebaseapp.com',
-    storageBucket: 'gino.firebasestorage.app',
+    apiKey: 'AIzaSyCTSnEvXAUU8vkt2dk2XZlIrhZx2-QtpwA',
+    appId: '1:1049226047630:web:99899c50d626b2b03b59df',
+    messagingSenderId: '1049226047630',
+    projectId: 'gino-923bb',
+    authDomain: 'gino-923bb.firebaseapp.com',
+    storageBucket: 'gino-923bb.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCxybey_rOE3REyIJxZFbDmxoKvSLG2OAQ',
-    appId: '1:894004314968:android:ac177d33d22c02688ddb2d',
-    messagingSenderId: '894004314968',
-    projectId: 'gino',
-    storageBucket: 'gino.firebasestorage.app',
+    apiKey: 'AIzaSyCs-_RQOqJiBY45DleGGqNSloIOVHDQOrc',
+    appId: '1:1049226047630:android:1013fe66571cd26f3b59df',
+    messagingSenderId: '1049226047630',
+    projectId: 'gino-923bb',
+    storageBucket: 'gino-923bb.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -76,12 +76,12 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAsgBrxqgSCt83BxDHQyeScSAVRj7pwK7s',
-    appId: '1:894004314968:web:3245dbb11a79f3388ddb2d',
-    messagingSenderId: '894004314968',
-    projectId: 'gino',
-    authDomain: 'gino.firebaseapp.com',
-    storageBucket: 'gino.firebasestorage.app',
+    apiKey: 'AIzaSyCTSnEvXAUU8vkt2dk2XZlIrhZx2-QtpwA',
+    appId: '1:1049226047630:web:99899c50d626b2b03b59df',
+    messagingSenderId: '1049226047630',
+    projectId: 'gino-923bb',
+    authDomain: 'gino-923bb.firebaseapp.com',
+    storageBucket: 'gino-923bb.firebasestorage.app',
   );
 
 }

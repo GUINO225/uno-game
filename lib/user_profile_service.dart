@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import 'player_profile.dart';
 
@@ -27,38 +28,46 @@ class UserProfileService {
     final String suggestedDisplayName = suggestedNameFromUser(user);
     final DateTime now = DateTime.now().toUtc();
     final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.uid);
-    await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
-      final DocumentSnapshot<Map<String, dynamic>> snapshot = await tx.get(ref);
-      if (!snapshot.exists) {
-        tx.set(ref, <String, dynamic>{
-          'uid': user.uid,
-          'displayName': suggestedDisplayName,
+    try {
+      await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
+        final DocumentSnapshot<Map<String, dynamic>> snapshot = await tx.get(ref);
+        if (!snapshot.exists) {
+          tx.set(ref, <String, dynamic>{
+            'uid': user.uid,
+            'displayName': suggestedDisplayName,
+            'email': user.email,
+            'photoUrl': user.photoURL,
+            'avatarUrl': user.photoURL,
+            'credits': 1000,
+            'wins': 0,
+            'losses': 0,
+            'totalGames': 0,
+            'score': 0,
+            'rankScore': 0,
+            'isRegistered': true,
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          });
+          return;
+        }
+        final String existingDisplayName =
+            (snapshot.data()?['displayName'] as String?)?.trim() ?? '';
+        tx.update(ref, <String, dynamic>{
+          if (existingDisplayName.isEmpty) 'displayName': suggestedDisplayName,
           'email': user.email,
           'photoUrl': user.photoURL,
           'avatarUrl': user.photoURL,
-          'credits': 1000,
-          'wins': 0,
-          'losses': 0,
-          'totalGames': 0,
-          'score': 0,
-          'rankScore': 0,
           'isRegistered': true,
-          'createdAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
         });
-        return;
-      }
-      final String existingDisplayName =
-          (snapshot.data()?['displayName'] as String?)?.trim() ?? '';
-      tx.update(ref, <String, dynamic>{
-        if (existingDisplayName.isEmpty) 'displayName': suggestedDisplayName,
-        'email': user.email,
-        'photoUrl': user.photoURL,
-        'avatarUrl': user.photoURL,
-        'isRegistered': true,
-        'lastLoginAt': FieldValue.serverTimestamp(),
       });
-    });
+    } catch (e, stackTrace) {
+      debugPrint(
+        '[UserProfileService] createOrUpdateFromGoogleUser failed for uid=${user.uid}: $e',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow;
+    }
 
     final DocumentSnapshot<Map<String, dynamic>> doc = await ref.get();
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};

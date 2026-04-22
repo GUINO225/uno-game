@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'firebase_options.dart';
 import 'firebase_web_config_source_stub.dart'
     if (dart.library.html) 'firebase_web_config_source_web.dart'
     as web_config;
@@ -16,16 +17,25 @@ import 'firebase_web_config_source_stub.dart'
 /// - FIREBASE_ANDROID_STORAGE_BUCKET
 class FirebaseConfig {
   static FirebaseOptions? optionsForCurrentPlatform() {
+    final FirebaseOptions? override = _overrideOptionsForCurrentPlatform();
+    if (override != null) {
+      return override;
+    }
+    try {
+      return DefaultFirebaseOptions.currentPlatform;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static FirebaseOptions? _overrideOptionsForCurrentPlatform() {
     if (kIsWeb) {
       return webOptions;
     }
-
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return androidOptions;
-      default:
-        return null;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return androidOptions;
     }
+    return null;
   }
 
   static FirebaseOptions? get androidOptions {

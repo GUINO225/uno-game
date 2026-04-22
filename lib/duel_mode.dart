@@ -369,6 +369,7 @@ class GameService {
     }
     try {
       await FirebaseAuth.instance.signInAnonymously();
+      debugPrint('[GameService] Anonymous sign-in created for Firestore.');
     } catch (e) {
       throw StateError(
         'Authentification Firebase requise pour le mode duel. Détail: $e',
@@ -387,6 +388,9 @@ class GameService {
             FirebaseConfig.optionsForCurrentPlatform();
         if (options != null) {
           await Firebase.initializeApp(options: options);
+          debugPrint(
+            '[GameService] Firebase initialized in duel mode: projectId=${options.projectId}, appId=${options.appId}',
+          );
         } else {
           throw StateError(
             'FirebaseOptions manquantes pour cette plateforme.',
@@ -419,6 +423,7 @@ class GameService {
   }) async {
     final String code = _generateCode();
     final CollectionReference<Map<String, dynamic>> games = await _games();
+    debugPrint('[GameService] createGame requested by $playerId in mode=${mode.name}.');
     await games.doc(code).set(
       DuelSession(
         gameId: code,
@@ -448,6 +453,7 @@ class GameService {
     DuelRoomMode? expectedMode,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
+    debugPrint('[GameService] joinGame requested by $playerId for game=$gameId.');
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
     await db.runTransaction((Transaction tx) async {
