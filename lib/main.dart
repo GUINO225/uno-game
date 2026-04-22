@@ -59,7 +59,7 @@ class MyApp extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => AudioService.instance.registerUserGesture(),
       child: MaterialApp(
-        title: 'UNO GAME',
+        title: 'GINO',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
