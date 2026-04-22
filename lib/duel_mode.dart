@@ -363,6 +363,19 @@ class GameService {
 
   final FirebaseFirestore? _firestore;
 
+  Future<void> _ensureSignedInForFirestore() async {
+    if (FirebaseAuth.instance.currentUser != null) {
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+    } catch (e) {
+      throw StateError(
+        'Authentification Firebase requise pour le mode duel. Détail: $e',
+      );
+    }
+  }
+
   Future<FirebaseFirestore> _resolveDb() async {
     if (_firestore != null) {
       return _firestore!;
@@ -386,6 +399,7 @@ class GameService {
       }
     }
 
+    await _ensureSignedInForFirestore();
     return FirebaseFirestore.instance;
   }
 
