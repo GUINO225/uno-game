@@ -11,10 +11,7 @@ import 'package:flutter/services.dart';
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
-import 'credit_coins_icon.dart';
 import 'firebase_config.dart';
-import 'game_card_avatar.dart';
-import 'game_popup_ui.dart';
 import 'leaderboard_page.dart';
 import 'player_profile.dart';
 import 'player_side_panel.dart';
@@ -242,9 +239,7 @@ class DuelSession {
     this.betFlowState = DuelBetFlowState.idle,
     this.invitedRefusalCount = 0,
     this.exitedBy,
-    this.forfeitHandled = false,
     this.lastInsufficientFundsPlayerId,
-    this.playerCardCounts = const <String, int>{},
   });
 
   final String gameId;
@@ -267,9 +262,7 @@ class DuelSession {
   final DuelBetFlowState betFlowState;
   final int invitedRefusalCount;
   final String? exitedBy;
-  final bool forfeitHandled;
   final String? lastInsufficientFundsPlayerId;
-  final Map<String, int> playerCardCounts;
 
   bool get canStart => players.length == 2;
   bool get isCreditsMode => mode == DuelRoomMode.credits;
@@ -297,9 +290,7 @@ class DuelSession {
       'betFlowState': betFlowState.name,
       'invitedRefusalCount': invitedRefusalCount,
       'exitedBy': exitedBy,
-      'forfeitHandled': forfeitHandled,
       'lastInsufficientFundsPlayerId': lastInsufficientFundsPlayerId,
-      'playerCardCounts': playerCardCounts,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -361,16 +352,7 @@ class DuelSession {
       ),
       invitedRefusalCount: (json['invitedRefusalCount'] as num?)?.toInt() ?? 0,
       exitedBy: json['exitedBy'] as String?,
-      forfeitHandled: json['forfeitHandled'] == true,
       lastInsufficientFundsPlayerId: json['lastInsufficientFundsPlayerId'] as String?,
-      playerCardCounts: Map<String, int>.from(
-        (json['playerCardCounts'] as Map? ?? const <String, int>{}).map(
-          (Object? key, Object? value) => MapEntry(
-            key.toString(),
-            (value as num?)?.toInt() ?? 0,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -419,18 +401,8 @@ class GameService {
   Future<String> createGame({
     required String playerId,
     required String playerName,
-    String? playerEmail,
     DuelRoomMode mode = DuelRoomMode.duel,
   }) async {
-    int initialCredits = UserProfileService.defaultCredits;
-    if (mode == DuelRoomMode.credits) {
-      final PlayerProfile profile = await UserProfileService.instance.createUserProfileIfNeeded(
-        uid: playerId,
-        email: playerEmail,
-        pseudo: playerName,
-      );
-      initialCredits = profile.credits;
-    }
     final String code = _generateCode();
     final CollectionReference<Map<String, dynamic>> games = await _games();
     await games.doc(code).set(
@@ -445,9 +417,8 @@ class GameService {
         round: 1,
         mode: mode,
         playerCredits: mode == DuelRoomMode.credits
-            ? <String, int>{playerId: initialCredits}
+            ? <String, int>{playerId: 1000}
             : const <String, int>{},
-        playerCardCounts: <String, int>{playerId: 7},
         betFlowState: mode == DuelRoomMode.credits
             ? DuelBetFlowState.initialStakeProposed
             : DuelBetFlowState.idle,
@@ -460,18 +431,8 @@ class GameService {
     required String gameId,
     required String playerId,
     required String playerName,
-    String? playerEmail,
     DuelRoomMode? expectedMode,
   }) async {
-    int joiningPlayerCredits = UserProfileService.defaultCredits;
-    if (expectedMode == DuelRoomMode.credits) {
-      final PlayerProfile profile = await UserProfileService.instance.createUserProfileIfNeeded(
-        uid: playerId,
-        email: playerEmail,
-        pseudo: playerName,
-      );
-      joiningPlayerCredits = profile.credits;
-    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
@@ -492,10 +453,8 @@ class GameService {
         'players': players,
         'playerNames.$playerId': playerName,
         'scores.$playerId': session.scores[playerId] ?? 0,
-        'playerCardCounts.$playerId': session.playerCardCounts[playerId] ?? 7,
         if (session.isCreditsMode)
-          'playerCredits.$playerId':
-              session.playerCredits[playerId] ?? joiningPlayerCredits,
+          'playerCredits.$playerId': session.playerCredits[playerId] ?? 1000,
         'status': players.length == 2
             ? (session.isCreditsMode
                 ? DuelGameStatus.waiting.name
@@ -576,64 +535,15 @@ class GameService {
     DuelGameStatus status = DuelGameStatus.inProgress,
     Map<String, dynamic> sessionPatch = const <String, dynamic>{},
   }) async {
-    final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> gameRef =
-        db.collection('duel_games').doc(gameId);
-    await db.runTransaction((Transaction tx) async {
-      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(gameRef);
-      if (!snap.exists) {
-        throw StateError('Partie introuvable');
-      }
-      final DuelSession session = DuelSession.fromDoc(snap);
-      final Map<String, int> cardCounts = <String, int>{...session.playerCardCounts};
-      final String actor = action.actorId;
-      final int currentCount = cardCounts[actor] ?? 7;
-      final Map<String, dynamic> normalizedPayload =
-          Map<String, dynamic>.from(action.payload);
-
-      if (action.type == DuelActionType.playCard) {
-        final int? payloadCount = (action.payload['handCountAfter'] as num?)?.toInt();
-        final int nextCount = payloadCount ?? max(0, currentCount - 1);
-        cardCounts[actor] = max(0, nextCount);
-        if (cardCounts[actor] == 0) {
-          normalizedPayload['winnerId'] = actor;
-        } else {
-          normalizedPayload.remove('winnerId');
-        }
-      } else if (action.type == DuelActionType.drawCard) {
-        final int? payloadCount = (action.payload['handCountAfter'] as num?)?.toInt();
-        if (payloadCount != null) {
-          cardCounts[actor] = max(0, payloadCount);
-        } else {
-          final int drawCount = (action.payload['count'] as int?) ?? 1;
-          cardCounts[actor] = currentCount + drawCount.clamp(1, 9);
-        }
-      } else if (action.type == DuelActionType.resetRound) {
-        for (final String playerId in session.players) {
-          cardCounts[playerId] = 7;
-        }
-      }
-
-      final DuelAction sanitizedAction = DuelAction(
-        type: action.type,
-        actorId: action.actorId,
-        createdAt: action.createdAt,
-        payload: normalizedPayload,
-      );
-      final bool hasWinner = (normalizedPayload['winnerId'] as String?)?.isNotEmpty ?? false;
-      final DuelGameStatus resolvedStatus =
-          action.type == DuelActionType.playCard && !hasWinner
-              ? DuelGameStatus.inProgress
-              : (hasWinner ? DuelGameStatus.finished : status);
-      tx.update(gameRef, <String, dynamic>{
-        'currentTurn': nextTurn,
-        'lastAction': sanitizedAction.toMap(),
-        'status': resolvedStatus.name,
-        'playerCardCounts': cardCounts,
-        ...sessionPatch,
-      });
-      tx.set(gameRef.collection('actions').doc(), sanitizedAction.toMap());
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    final DocumentReference<Map<String, dynamic>> gameRef = games.doc(gameId);
+    await gameRef.update(<String, dynamic>{
+      'currentTurn': nextTurn,
+      'lastAction': action.toMap(),
+      'status': status.name,
+      ...sessionPatch,
     });
+    await gameRef.collection('actions').add(action.toMap());
   }
 
   Future<void> startNewRound({
@@ -678,11 +588,7 @@ class GameService {
             : DuelBetFlowState.idle.name,
         'invitedRefusalCount': 0,
         'exitedBy': null,
-        'forfeitHandled': false,
         'lastInsufficientFundsPlayerId': null,
-        'playerCardCounts': <String, int>{
-          for (final String playerId in session.players) playerId: 7,
-        },
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -714,7 +620,6 @@ class GameService {
         'rematchRequestedAt': FieldValue.serverTimestamp(),
         'rematchDecision': DuelRematchDecision.pending.name,
         'rematchDecisionBy': null,
-        'forfeitHandled': false,
         if (session.isCreditsMode) ...<String, dynamic>{
           'betFlowState': DuelBetFlowState.rematchPendingFromLoser.name,
           'stakeOffer': const DuelStakeOffer().toMap(),
@@ -736,82 +641,6 @@ class GameService {
       'exitedBy': playerId,
       'stakeOffer': const DuelStakeOffer().toMap(),
       'activeStakeCredits': 0,
-    });
-  }
-
-  Future<void> exitGame({
-    required String gameId,
-    required String playerId,
-    required bool creditsMode,
-  }) async {
-    final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
-    await db.runTransaction((Transaction tx) async {
-      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
-      if (!snap.exists) {
-        return;
-      }
-      final DuelSession session = DuelSession.fromDoc(snap);
-      if (session.exitedBy != null && session.exitedBy!.isNotEmpty) {
-        return;
-      }
-      if (session.status == DuelGameStatus.finished) {
-        tx.update(ref, <String, dynamic>{
-          'exitedBy': playerId,
-          'forfeitHandled': session.forfeitHandled,
-          if (creditsMode) 'betFlowState': DuelBetFlowState.partyExited.name,
-        });
-        return;
-      }
-      final bool duelStarted = session.status == DuelGameStatus.inProgress ||
-          session.activeStakeCredits > 0 ||
-          session.lastAction != null;
-      final String winnerId = session.players.firstWhere(
-        (String id) => id != playerId,
-        orElse: () => '',
-      );
-      if (!duelStarted || winnerId.isEmpty || session.players.length < 2) {
-        tx.update(ref, <String, dynamic>{
-          'exitedBy': playerId,
-          'status': DuelGameStatus.finished.name,
-          'forfeitHandled': false,
-          if (creditsMode) 'betFlowState': DuelBetFlowState.partyExited.name,
-        });
-        return;
-      }
-      final int stakeAmount = session.activeStakeCredits;
-      final int winnerCredits = session.playerCredits[winnerId] ?? 0;
-      final DuelStakeOffer offer = session.stakeOffer;
-      tx.update(ref, <String, dynamic>{
-        'exitedBy': playerId,
-        'forfeitHandled': true,
-        'status': DuelGameStatus.finished.name,
-        'scores.$winnerId': FieldValue.increment(1),
-        'lastAction': DuelAction(
-          type: DuelActionType.resetRound,
-          actorId: playerId,
-          createdAt: DateTime.now(),
-          payload: <String, dynamic>{
-            'winnerId': winnerId,
-            'forfeitBy': playerId,
-            'forfeit': true,
-            'round': session.round,
-          },
-        ).toMap(),
-        if (creditsMode) ...<String, dynamic>{
-          'betFlowState': DuelBetFlowState.partyExited.name,
-          'activeStakeCredits': 0,
-          if (stakeAmount > 0) 'playerCredits.$winnerId': winnerCredits + stakeAmount,
-          'stakeOffer': DuelStakeOffer(
-            proposedBy: offer.proposedBy,
-            acceptedBy: offer.acceptedBy,
-            amount: offer.amount,
-            status: DuelStakeStatus.resolved,
-            createdAt: offer.createdAt,
-          ).toMap(),
-        },
-      });
     });
   }
 
@@ -837,11 +666,8 @@ class GameService {
       }
       if (!accept) {
         tx.update(ref, <String, dynamic>{
-          'rematchRequestBy': null,
-          'rematchRequestedAt': null,
           'rematchDecision': DuelRematchDecision.declined.name,
           'rematchDecisionBy': responderId,
-          if (session.isCreditsMode) 'betFlowState': DuelBetFlowState.rematchRejected.name,
         });
         return;
       }
@@ -881,9 +707,6 @@ class GameService {
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.accepted.name,
         'rematchDecisionBy': responderId,
-        'playerCardCounts': <String, int>{
-          for (final String playerId in session.players) playerId: 7,
-        },
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -1011,8 +834,6 @@ class GameService {
         final int nextRefusalCount = invitedDeclinedHostInitial
             ? session.invitedRefusalCount + 1
             : session.invitedRefusalCount;
-        final bool isRematchStakeFlow =
-            session.status == DuelGameStatus.finished && session.rematchRequestBy != null;
         tx.update(ref, <String, dynamic>{
           'playerCredits.${offer.proposedBy!}': proposerCredits + offer.amount,
           'activeStakeCredits': 0,
@@ -1026,20 +847,12 @@ class GameService {
             createdAt: offer.createdAt,
           ).toMap(),
           'invitedRefusalCount': nextRefusalCount,
-          'betFlowState': isRematchStakeFlow
-              ? DuelBetFlowState.rematchRejected.name
-              : (insufficientFunds
-                  ? DuelBetFlowState.awaitingFundsValidation.name
-                  : (nextRefusalCount >= 2
-                      ? DuelBetFlowState.invitedPlayerCanCounterPropose.name
-                      : DuelBetFlowState.initialStakeRejected.name)),
+          'betFlowState': insufficientFunds
+              ? DuelBetFlowState.awaitingFundsValidation.name
+              : (nextRefusalCount >= 2
+                  ? DuelBetFlowState.invitedPlayerCanCounterPropose.name
+                  : DuelBetFlowState.initialStakeRejected.name),
           'lastInsufficientFundsPlayerId': insufficientFunds ? responderId : null,
-          if (isRematchStakeFlow) ...<String, dynamic>{
-            'rematchRequestBy': null,
-            'rematchRequestedAt': null,
-            'rematchDecision': DuelRematchDecision.declined.name,
-            'rematchDecisionBy': responderId,
-          },
         });
         return;
       }
@@ -1099,11 +912,7 @@ class GameService {
           'betFlowState': DuelBetFlowState.rematchAccepted.name,
           'invitedRefusalCount': 0,
           'exitedBy': null,
-          'forfeitHandled': false,
           'lastInsufficientFundsPlayerId': null,
-          'playerCardCounts': <String, int>{
-            for (final String playerId in session.players) playerId: 7,
-          },
         });
         tx.set(ref.collection('actions').doc(), action.toMap());
         return;
@@ -1171,14 +980,12 @@ class DuelController extends ChangeNotifier {
     required this.service,
     required this.localPlayerId,
     required this.localPlayerName,
-    this.localPlayerEmail,
     this.roomMode = DuelRoomMode.duel,
   });
 
   final GameService service;
   final String localPlayerId;
   final String localPlayerName;
-  final String? localPlayerEmail;
   final DuelRoomMode roomMode;
 
   DuelSession? session;
@@ -1194,7 +1001,6 @@ class DuelController extends ChangeNotifier {
       final String id = await service.createGame(
         playerId: localPlayerId,
         playerName: localPlayerName,
-        playerEmail: localPlayerEmail,
         mode: roomMode,
       );
       await attach(id);
@@ -1214,7 +1020,6 @@ class DuelController extends ChangeNotifier {
         gameId: gameId,
         playerId: localPlayerId,
         playerName: localPlayerName,
-        playerEmail: localPlayerEmail,
         expectedMode: roomMode,
       );
       await attach(gameId);
@@ -1345,18 +1150,6 @@ class DuelController extends ChangeNotifier {
       return;
     }
     await service.exitBetParty(gameId: current.gameId, playerId: localPlayerId);
-  }
-
-  Future<void> exitGame() async {
-    final DuelSession? current = session;
-    if (current == null) {
-      return;
-    }
-    await service.exitGame(
-      gameId: current.gameId,
-      playerId: localPlayerId,
-      creditsMode: current.isCreditsMode,
-    );
   }
 
   Future<void> resolveStakeAfterRound(String winnerId) async {
@@ -1534,26 +1327,19 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           context: context,
           barrierDismissible: true,
           builder: (BuildContext context) {
-            return GamePopupDialog(
-              title: 'CONNEXION',
-              subtitle: 'Mode Paris',
-              child: const Icon(
-                Icons.g_mobiledata_rounded,
-                size: 68,
-                color: Color(0xFF1A73E8),
+            return AlertDialog(
+              title: const Text('Mode Paris'),
+              content: const Text(
+                'Connectez-vous avec Google pour jouer en mode Paris.',
               ),
               actions: <Widget>[
-                GamePopupIconButton(
-                  icon: Icons.close_rounded,
-                  semanticLabel: 'Annuler',
+                TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
-                  expanded: true,
+                  child: const Text('Retour'),
                 ),
-                const SizedBox(height: 8),
-                GamePopupButton(
-                  label: 'CONNEXION',
+                ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(true),
-                  expanded: true,
+                  child: const Text('Connexion Google'),
                 ),
               ],
             );
@@ -1597,7 +1383,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       service: GameService(),
       localPlayerId: _authenticatedPlayerId ?? _localPlayerId,
       localPlayerName: pseudo,
-      localPlayerEmail: _authService.currentUser?.email,
       roomMode: widget.mode,
     )..addListener(_onControllerChange);
     _controller = created;
@@ -1737,47 +1522,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    if (creditsMode && isAuthenticated && _playerProfile != null) ...<Widget>[
-                      PremiumPanel(
-                        child: Row(
-                          children: <Widget>[
-                            Container(
-                              width: 62,
-                              height: 62,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: GameCardAvatar(
-                                  size: 56,
-                                  data: GameCardAvatarPalette.fromSeed(
-                                    _playerProfile!.id,
-                                    salt: 3,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Row(
-                              children: <Widget>[
-                                const CreditCoinsIcon(size: 17),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Crédit ${_playerProfile!.credits}',
-                                  style: const TextStyle(
-                                    color: PremiumColors.textDark,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 17,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
                     if (!creditsMode && !isAuthenticated) ...<Widget>[
                       PremiumPanel(
                         child: Column(
@@ -2002,7 +1746,6 @@ class _DuelPageState extends State<DuelPage> {
   DuelBoardState? _board;
   String? _lastEightPopupKey;
   String? _lastForcedDrawPopupKey;
-  String? _lastAcePopupKey;
   String? _lastRematchRequestKey;
   bool _rematchDialogOpen = false;
   bool _rematchActionBusy = false;
@@ -2035,7 +1778,6 @@ class _DuelPageState extends State<DuelPage> {
   String? _lastOutcomeSfxKey;
   String? _lastStatsSyncKey;
   String? _lastOpponentActionSfxKey;
-  bool _exitNotified = false;
   final AppSfxService _sfx = AppSfxService.instance;
 
   static const List<String> _quickMessages = <String>[
@@ -2127,7 +1869,6 @@ class _DuelPageState extends State<DuelPage> {
     _bindChatRealtime(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
-    _maybeShowAceRequiredPopup(session);
     _maybePlayOpponentActionSfx(session);
     _maybeHandleStakeFlow(session);
     _maybeHandleStakeRejected(session);
@@ -2261,13 +2002,7 @@ class _DuelPageState extends State<DuelPage> {
     unawaited(_sfx.playCard());
     await _controller.sendAction(
       DuelActionType.playCard,
-      payload: <String, dynamic>{
-        ...move.payload,
-        'handCountAfter': max(
-          0,
-          board.handOf(_controller.localPlayerId).length - 1,
-        ),
-      },
+      payload: move.payload,
       nextTurnOverride: move.nextTurn,
       statusOverride: move.payload.containsKey('winnerId')
           ? DuelGameStatus.finished
@@ -2294,10 +2029,20 @@ class _DuelPageState extends State<DuelPage> {
           ('♠', 'Pique'),
           ('♥', 'Cœur'),
         ];
-        return GamePopupDialog(
-          title: 'TU COMMANDES ?',
-          subtitle: 'Choisis une couleur',
-          child: SizedBox(
+        return AlertDialog(
+          backgroundColor: const Color(0xFFF8F6F0),
+          surfaceTintColor: Colors.transparent,
+          title: const Center(
+            child: Text(
+              'TU COMMANDES ?',
+              style: TextStyle(
+                color: Color(0xFF152B22),
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          content: SizedBox(
             width: 280,
             child: GridView.count(
               crossAxisCount: 2,
@@ -2362,17 +2107,43 @@ class _DuelPageState extends State<DuelPage> {
             }
           }),
         );
-        return GamePopupDialog(
-          title: 'Carte commandée',
-          subtitle: '$actorName a commandé un ${_suitNameLower(suit)}',
-          child: Column(
+        return AlertDialog(
+          backgroundColor: const Color(0xFFF8F6F0),
+          surfaceTintColor: Colors.transparent,
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              _PlayedCardMini(
-                card: DuelCard(
-                  rank: '8',
-                  suit: suit,
+              Text(
+                actorName,
+                style: const TextStyle(
+                  color: Color(0xFF152B22),
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
                 ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Text(
+                    'a commandé',
+                    style: TextStyle(
+                      color: Color(0xFF1A342A),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    suit,
+                    style: TextStyle(
+                      fontSize: 44,
+                      fontWeight: FontWeight.bold,
+                      color: _suitGlyphColor(suit),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -2381,20 +2152,7 @@ class _DuelPageState extends State<DuelPage> {
     );
   }
 
-  String _suitNameLower(String suit) {
-    return switch (suit) {
-      '♥' => 'cœur',
-      '♦' => 'carreau',
-      '♣' => 'trèfle',
-      '♠' => 'pique',
-      _ => 'couleur',
-    };
-  }
-
-  Future<void> _showForcedDrawPopup({
-    required int amount,
-    required DuelCard sourceCard,
-  }) async {
+  Future<void> _showForcedDrawPopup(int amount) async {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -2406,36 +2164,28 @@ class _DuelPageState extends State<DuelPage> {
             }
           }),
         );
-        return Center(
-          child: DrawPenaltyPopupPanel(
-            drawCount: amount,
-            penaltyType: sourceCard.rank == '2'
-                ? DrawPenaltyType.two
-                : DrawPenaltyType.joker,
-            jokerIsRed: sourceCard.isJoker ? sourceCard.isRed : null,
-            suitSymbol: sourceCard.suit,
+        return AlertDialog(
+          backgroundColor: const Color(0xFFF8F6F0),
+          surfaceTintColor: Colors.transparent,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const _DuelCardBack(width: 52, height: 76),
+              const SizedBox(height: 12),
+              Text(
+                'PIOCHEZ $amount CARTES',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF13261D),
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
           ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showAceRequiredPopup() async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        unawaited(
-          Future<void>.delayed(const Duration(milliseconds: 1800), () {
-            if (Navigator.of(dialogContext).canPop()) {
-              Navigator.of(dialogContext).pop();
-            }
-          }),
-        );
-        return const GamePopupDialog(
-          title: 'AS EST CHAUD',
-          subtitle: 'Réponse obligatoire',
-          child: PremiumCardStack(count: 2, rankLabel: 'A', suit: '♠'),
         );
       },
     );
@@ -2494,32 +2244,7 @@ class _DuelPageState extends State<DuelPage> {
       if (!mounted) {
         return;
       }
-      await _showForcedDrawPopup(amount: amount, sourceCard: card);
-    });
-  }
-
-  void _maybeShowAceRequiredPopup(DuelSession session) {
-    final DuelAction? action = session.lastAction;
-    if (action == null ||
-        action.type != DuelActionType.playCard ||
-        action.actorId == _controller.localPlayerId ||
-        !_controller.isMyTurn) {
-      return;
-    }
-    final String? cardId = action.payload['cardId'] as String?;
-    if (cardId == null || !cardId.startsWith('A') || !(_board?.aceColorRequired ?? false)) {
-      return;
-    }
-    final String key = '${action.actorId}_${action.createdAt.toIso8601String()}_ace';
-    if (_lastAcePopupKey == key) {
-      return;
-    }
-    _lastAcePopupKey = key;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) {
-        return;
-      }
-      await _showAceRequiredPopup();
+      await _showForcedDrawPopup(amount);
     });
   }
 
@@ -2562,10 +2287,7 @@ class _DuelPageState extends State<DuelPage> {
     unawaited(_sfx.playDraw());
     await _controller.sendAction(
       DuelActionType.drawCard,
-      payload: <String, dynamic>{
-        ...move.payload,
-        'handCountAfter': board.handOf(_controller.localPlayerId).length + 1,
-      },
+      payload: move.payload,
       nextTurnOverride: move.nextTurn,
     );
   }
@@ -2632,20 +2354,11 @@ class _DuelPageState extends State<DuelPage> {
     }
     _lastStatsSyncKey = key;
     try {
-      final int stakeAmount =
-          session.isCreditsMode &&
-                  (session.stakeOffer.isAccepted ||
-                      session.stakeOffer.status == DuelStakeStatus.resolved)
-              ? session.stakeOffer.amount
-              : 0;
       await _statsService.recordDuelResult(
         gameId: session.gameId,
         round: session.round,
         winnerId: winnerId,
         loserId: loserId,
-        winnerCreditsDelta: stakeAmount,
-        loserCreditsDelta: -stakeAmount,
-        preventNegativeCredits: true,
       );
     } catch (error) {
       debugPrint('Stats sync failed: $error');
@@ -2663,13 +2376,6 @@ class _DuelPageState extends State<DuelPage> {
 
   int _creditsOf(DuelSession session, String playerId) =>
       session.playerCredits[playerId] ?? 1000;
-
-  int _cardCountOf({
-    required DuelBoardState board,
-    required String playerId,
-  }) {
-    return board.handOf(playerId).length;
-  }
 
   DuelCard _avatarCardForPlayer(String playerId) {
     if (playerId.isEmpty) {
@@ -2739,8 +2445,10 @@ class _DuelPageState extends State<DuelPage> {
     int? selectedAmount;
     String? validationError;
     final List<int> options = <int>[100, 250, 500, 1000, 2000];
-    final int? selected = await showDialog<int>(
+    final int? selected = await showModalBottomSheet<int>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, void Function(void Function()) setModalState) {
@@ -2758,128 +2466,152 @@ class _DuelPageState extends State<DuelPage> {
               });
             }
 
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.viewInsetsOf(context).bottom,
-              ),
-              child: GamePopupDialog(
-                title: 'PARI',
-                subtitle: 'Crédit $myCredits',
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    if (opponentCredits != null) ...<Widget>[
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  10,
+                  16,
+                  MediaQuery.viewInsetsOf(context).bottom + 14,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF142D22),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      const Text(
+                        'Faire un pari',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       Text(
-                        'Crédit adverse: $opponentCredits',
+                        'Solde disponible: $myCredits',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          color: Colors.black87,
+                          color: Color(0xFFE8FFF3),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                    ],
-                    if (selectedAmount != null && selectedAmount! > 0) ...<Widget>[
-                      Center(child: GameStakeBillsStack(amount: selectedAmount!)),
-                      const SizedBox(height: 8),
-                    ],
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: options.map((int amount) {
-                        final bool disabled = amount > myCredits;
-                        final bool exceedsOpponent = opponentCredits != null &&
-                            amount > opponentCredits;
-                        return ChoiceChip(
-                          label: Text('$amount'),
-                          selected: selectedAmount == amount,
-                          onSelected: (disabled || exceedsOpponent)
-                              ? null
-                              : (_) => selectAmount(amount),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: amountController,
-                      keyboardType: TextInputType.number,
-                      style: const TextStyle(color: Colors.black),
-                      decoration: InputDecoration(
-                        labelText: 'Montant',
-                        hintText: 'Ex: 750',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      if (opponentCredits != null) ...<Widget>[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Crédit adverse: $opponentCredits',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFFFFE9A8),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
+                      ],
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: options.map((int amount) {
+                          final bool disabled = amount > myCredits;
+                          final bool exceedsOpponent = opponentCredits != null &&
+                              amount > opponentCredits;
+                          return ChoiceChip(
+                            label: Text('$amount'),
+                            selected: selectedAmount == amount,
+                            onSelected: (disabled || exceedsOpponent)
+                                ? null
+                                : (_) => selectAmount(amount),
+                          );
+                        }).toList(),
                       ),
-                      onChanged: (String value) {
-                        final int? parsed = int.tryParse(value.trim());
-                        setModalState(() {
-                          selectedAmount = parsed;
-                          validationError = validate(parsed);
-                        });
-                      },
-                    ),
-                    if (validationError != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      Text(
-                        validationError!,
-                        style: const TextStyle(
-                          color: Color(0xFFC52626),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: amountController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: 'Montant du pari',
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          hintText: 'Ex: 750',
+                          hintStyle: const TextStyle(color: Colors.white70),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.08),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
+                        onChanged: (String value) {
+                          final int? parsed = int.tryParse(value.trim());
+                          setModalState(() {
+                            selectedAmount = parsed;
+                            validationError = validate(parsed);
+                          });
+                        },
+                      ),
+                      if (validationError != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        Text(
+                          validationError!,
+                          style: const TextStyle(
+                            color: Color(0xFFFFC9C9),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Annuler'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: validationError != null
+                                  ? null
+                                  : () {
+                                      final int? parsed = int.tryParse(
+                                        amountController.text.trim(),
+                                      );
+                                      final String? error = validate(parsed);
+                                      if (error != null) {
+                                        setModalState(() {
+                                          selectedAmount = parsed;
+                                          validationError = error;
+                                        });
+                                        return;
+                                      }
+                                      Navigator.of(context).pop(parsed);
+                                    },
+                              icon: const Icon(Icons.lock_rounded),
+                              label: const Text('Valider'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          unawaited(_exitPartyFlow());
+                        },
+                        child: const Text('Quitter la partie'),
                       ),
                     ],
-                  ],
+                  ),
                 ),
-                actions: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: GamePopupIconButton(
-                          icon: Icons.close_rounded,
-                          semanticLabel: 'Annuler',
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: GamePopupIconButton(
-                          icon: Icons.check_rounded,
-                          semanticLabel: 'Valider',
-                          onPressed: validationError != null
-                              ? null
-                              : () {
-                                  final int? parsed = int.tryParse(
-                                    amountController.text.trim(),
-                                  );
-                                  final String? error = validate(parsed);
-                                  if (error != null) {
-                                    setModalState(() {
-                                      selectedAmount = parsed;
-                                      validationError = error;
-                                    });
-                                    return;
-                                  }
-                                  Navigator.of(context).pop(parsed);
-                                },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  GamePopupIconButton(
-                    icon: Icons.logout_rounded,
-                    semanticLabel: 'Quitter la partie',
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      unawaited(_exitPartyFlow());
-                    },
-                    expanded: true,
-                  ),
-                ],
               ),
             );
           },
@@ -2982,42 +2714,35 @@ class _DuelPageState extends State<DuelPage> {
     final String? decision = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.42),
       builder: (BuildContext dialogContext) {
-        return GamePopupDialog(
-          title: isCounterProposal ? 'CONTRE-PROPOSITION' : 'PROPOSITION',
-          subtitle: isRematchOffer
-              ? '$proposer veut prendre sa revanche avec une mise de ${offer.amount}'
-              : (isCounterProposal
-                  ? '$proposer veut plutôt parier ${offer.amount}'
-                  : '$proposer propose une mise de ${offer.amount}'),
-          child: GameStakeBillsStack(amount: offer.amount),
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(
+            isCounterProposal ? 'CONTRE-PROPOSITION' : 'PROPOSITION',
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            isRematchOffer
+                ? '$proposer veut prendre sa revanche avec une mise de ${offer.amount}'
+                : (isCounterProposal
+                    ? '$proposer veut plutôt parier ${offer.amount}'
+                    : '$proposer propose une mise de ${offer.amount}'),
+            textAlign: TextAlign.center,
+          ),
           actions: <Widget>[
-            SizedBox(
-              width: 232,
-              child: GamePopupButton(
-                label: 'Quitter',
-                icon: Icons.logout_rounded,
-                onPressed: () => Navigator.of(dialogContext).pop('quit'),
-                expanded: true,
-              ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop('quit');
+              },
+              child: const Text('QUITTER LA PARTIE'),
             ),
-            const SizedBox(height: 8),
-            GamePopupIconButton(
-              icon: Icons.close_rounded,
-              semanticLabel: 'Refuser',
+            TextButton(
               onPressed: () => Navigator.of(dialogContext).pop('refuse'),
-              expanded: true,
-              backgroundColor: const Color(0xFFD93A2F),
+              child: const Text('REFUSER'),
             ),
-            const SizedBox(height: 8),
-            GamePopupButton(
-              label: 'Accepter',
-              icon: Icons.check_rounded,
+            ElevatedButton(
               onPressed: insufficient ? null : () => Navigator.of(dialogContext).pop('accept'),
-              expanded: true,
-              backgroundColor: const Color(0xFF1F9C4B),
-              foregroundColor: Colors.white,
+              child: const Text('ACCEPTER'),
             ),
           ],
         );
@@ -3104,26 +2829,29 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return GamePopupDialog(
-          title: 'MISE REFUSÉE',
-          subtitle: '$rejecterName a refusé cette mise.',
-          child: GameStakeBillsStack(amount: offer.amount),
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text(
+            'MISE REFUSÉE',
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            '$rejecterName a refusé cette mise.',
+            textAlign: TextAlign.center,
+          ),
           actions: <Widget>[
-            GamePopupIconButton(
-              icon: Icons.logout_rounded,
-              semanticLabel: 'Quitter',
+            TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 unawaited(_exitPartyFlow());
               },
-              expanded: true,
+              child: const Text('QUITTER LA PARTIE'),
             ),
-            const SizedBox(height: 8),
-            GamePopupIconButton(
-              icon: Icons.check_circle_outline_rounded,
-              semanticLabel: 'Fermer',
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              expanded: true,
+            Center(
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
             ),
           ],
         );
@@ -3244,19 +2972,11 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   Future<void> _exitPartyFlow() async {
-    await _leaveMatchAndReturnHome();
-  }
-
-  Future<void> _leaveMatchAndReturnHome() async {
-    if (_exitNotified) {
+    final DuelSession? session = _controller.session;
+    if (session == null || !_isCreditsMode) {
       return;
     }
-    _exitNotified = true;
-    try {
-      await _controller.exitGame();
-    } catch (_) {
-      // Ne bloque pas la navigation locale si le réseau échoue.
-    }
+    await _controller.exitBetParty();
     if (!mounted) {
       return;
     }
@@ -3273,27 +2993,52 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return GamePopupDialog(
-          title: 'REJOUER ?',
-          subtitle: '$requester veut prendre sa revanche',
-          child: const SizedBox.shrink(),
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text(
+            'REJOUER ?',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          content: Text(
+            '$requester veut prendre sa revanche',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
           actions: <Widget>[
-            Row(
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Expanded(
-                  child: GamePopupIconButton(
-                    icon: Icons.close_rounded,
-                    semanticLabel: 'Refuser',
-                    onPressed: () => Navigator.of(dialogContext).pop(false),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    SizedBox(
+                      width: 112,
+                      height: 44,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        child: const Text('NON'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 112,
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(true),
+                        child: const Text('OUI'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: GamePopupIconButton(
-                    icon: Icons.check_rounded,
-                    semanticLabel: 'Accepter',
-                    onPressed: () => Navigator.of(dialogContext).pop(true),
-                  ),
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+                  },
+                  child: const Text('QUITTER'),
                 ),
               ],
             ),
@@ -3365,10 +3110,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   void _maybeHandlePartyExit(DuelSession session) {
-    if (session.exitedBy == null || session.exitedBy!.isEmpty) {
-      return;
-    }
-    if (session.exitedBy == _controller.localPlayerId) {
+    if (!_isCreditsMode || session.betFlowState != DuelBetFlowState.partyExited) {
       return;
     }
     final String key = '${session.round}_${session.exitedBy ?? ''}';
@@ -3390,17 +3132,30 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return GamePopupDialog(
-          title: 'VICTOIRE',
-          subtitle: 'Vous avez gagné $gainAmount',
-          child: GameStakeBillsStack(amount: gainAmount),
-          actions: <Widget>[
-            GamePopupButton(
-              label: 'OK',
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              expanded: true,
-            ),
-          ],
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          titlePadding: const EdgeInsets.fromLTRB(16, 8, 6, 0),
+          title: Row(
+            children: <Widget>[
+              const Expanded(
+                child: Text(
+                  'VICTOIRE',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Fermer',
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          content: Text(
+            'Vous avez gagné $gainAmount',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
         );
       },
     );
@@ -3642,25 +3397,14 @@ class _DuelPageState extends State<DuelPage> {
                 opponentId: opponentId,
               );
         final DuelStakeOffer stakeOffer = session.stakeOffer;
-        final int opponentCardCount = opponentId.isEmpty
-            ? 0
-            : _cardCountOf(board: board, playerId: opponentId);
         final bool myTurn = _controller.isMyTurn &&
             session.status == DuelGameStatus.inProgress &&
             !_requiresStake(session);
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         final double topInset = MediaQuery.paddingOf(context).top;
-        return PopScope(
-          canPop: false,
-          onPopInvoked: (bool didPop) {
-            if (didPop) {
-              return;
-            }
-            unawaited(_leaveMatchAndReturnHome());
-          },
-          child: Scaffold(
-            backgroundColor: PremiumColors.tableGreenDark,
-            body: Stack(
+        return Scaffold(
+          backgroundColor: PremiumColors.tableGreenDark,
+          body: Stack(
             children: <Widget>[
               TableBackground(
                 child: Padding(
@@ -3673,7 +3417,9 @@ class _DuelPageState extends State<DuelPage> {
                           IconButton(
                             onPressed: () {
                               unawaited(_sfx.playClick());
-                              unawaited(_leaveMatchAndReturnHome());
+                              Navigator.of(context).popUntil(
+                                (Route<dynamic> route) => route.isFirst,
+                              );
                             },
                             tooltip: 'Retour aux modes',
                             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -3683,15 +3429,14 @@ class _DuelPageState extends State<DuelPage> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                const SizedBox(height: 6),
-                                const AppLogo(size: 86),
-                                const SizedBox(height: 3),
+                                const AppLogo(size: 74),
+                                const SizedBox(height: 1),
                                 Text(
                                   _isCreditsMode ? 'Duel Paris' : 'Duel',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
-                                    fontWeight: FontWeight.w400,
-                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
                                     height: 1,
                                   ),
                                 ),
@@ -3719,18 +3464,75 @@ class _DuelPageState extends State<DuelPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      if (_isCreditsMode) ...<Widget>[
+                        const SizedBox(height: 2),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  const Icon(
+                                    Icons.monetization_on_rounded,
+                                    size: 16,
+                                    color: Color(0xFFFFD45F),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '$myCredits',
+                                    style: const TextStyle(
+                                      color: Color(0xFFFFE8A0),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 2),
                       _DuelStatusBanner(
                         opponentName: opponentName,
                         myScore: myScore,
                         opponentScore: opponentScore,
                         round: session.round,
                       ),
-                      const SizedBox(height: 6),
+                      if (_isCreditsMode) ...<Widget>[
+                        const SizedBox(height: 6),
+                        _CreditsStakeBanner(
+                          activeStakeCredits: session.activeStakeCredits,
+                          playerStakeCredits: session.stakeOffer.amount,
+                          stakeText: _requiresStake(session)
+                              ? switch (stakeOffer.status) {
+                                  DuelStakeStatus.pending =>
+                                    'Proposition en attente : ${stakeOffer.amount}',
+                                  DuelStakeStatus.declined =>
+                                    'Proposition refusée. Faites un nouveau pari.',
+                                  DuelStakeStatus.insufficientFunds =>
+                                    'Solde insuffisant détecté. Proposez une autre mise.',
+                                  DuelStakeStatus.none ||
+                                  DuelStakeStatus.accepted ||
+                                  DuelStakeStatus.resolved =>
+                                    'Pari obligatoire avant de jouer.',
+                                }
+                              : null,
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       _OpponentRow(
                         name: opponentName,
-                        count: opponentCardCount,
+                        count: board.handOf(opponentId).length,
                         wins: opponentScore,
                         losses: myScore,
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
@@ -3756,7 +3558,7 @@ class _DuelPageState extends State<DuelPage> {
                         profileName: localName,
                         wins: myScore,
                         losses: opponentScore,
-                        credits: _isCreditsMode ? myCredits : null,
+                        credits: null,
                         fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
                         avatarCard: localAvatarCard,
                       ),
@@ -3798,10 +3600,6 @@ class _DuelPageState extends State<DuelPage> {
                                   ? 'EN ATTENTE...'
                                   : 'PRENDRE SA REVANCHE',
                             ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1F9C4B),
-                              foregroundColor: Colors.white,
-                            ),
                           ),
                         ),
                     ],
@@ -3817,7 +3615,6 @@ class _DuelPageState extends State<DuelPage> {
                 ),
               ),
             ],
-          ),
           ),
         );
       },
@@ -4459,7 +4256,7 @@ class DuelBoardState {
       return false;
     }
     if (aceColorRequired) {
-      return card.rank == 'A' || (card.isJoker && card.isSameColorAsSuit(discardTop.suit));
+      return card.rank == 'A';
     }
     if (card.rank == '8') {
       return true;
@@ -4472,7 +4269,7 @@ class DuelBoardState {
       return card.isSameColorAsSuit(colorRefSuit);
     }
     if (requiredSuit != null) {
-      return card.suit == requiredSuit || (card.rank == discardTop.rank && card.rank != 'JK');
+      return card.suit == requiredSuit || card.rank == discardTop.rank;
     }
     return card.matches(discardTop);
   }
@@ -4600,7 +4397,7 @@ class DuelBoardState {
         newOverlay = '+8';
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.rank == 'A') {
-        newAceRequired = !aceColorRequired;
+        newAceRequired = !newAceRequired;
         newOverlay = newAceRequired
             ? 'As joué: réponse As obligatoire'
             : 'Réponse As validée';
@@ -5009,7 +4806,7 @@ class _ProfileBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double avatarSize = compact ? 48.0 : 58.0;
+    final double avatarSize = compact ? 34 : 42;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -5023,10 +4820,6 @@ class _ProfileBlock extends StatelessWidget {
             width: avatarSize,
             height: avatarSize,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
             child: _AvatarCardCircle(
               card: avatarCard,
               size: avatarSize,
@@ -5062,22 +4855,13 @@ class _ProfileBlock extends StatelessWidget {
                 ),
                 if (credits != null) ...<Widget>[
                   const SizedBox(height: 1),
-                  Row(
-                    children: <Widget>[
-                      CreditCoinsIcon(
-                        size: compact ? 12 : 14,
-                        color: const Color(0xFFFFD45F),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Crédit $credits',
-                        style: TextStyle(
-                          color: const Color(0xFFFFE8A0).withOpacity(0.96),
-                          fontWeight: FontWeight.w800,
-                          fontSize: compact ? 10 : 11,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'Crédit $credits',
+                    style: TextStyle(
+                      color: const Color(0xFFFFE8A0).withOpacity(0.96),
+                      fontWeight: FontWeight.w800,
+                      fontSize: compact ? 10 : 11,
+                    ),
                   ),
                 ],
               ],
@@ -5180,11 +4964,11 @@ class _CenterArea extends StatelessWidget {
                     clipBehavior: Clip.none,
                     children: <Widget>[
                       Transform.translate(
-                        offset: const Offset(-6, 5),
+                        offset: const Offset(-4, 3),
                         child: Transform.rotate(
-                          angle: -0.16,
+                          angle: -0.08,
                           child: Opacity(
-                            opacity: 0.97,
+                            opacity: 0.9,
                             child: const _DuelCardBack(width: 64, height: 92),
                           ),
                         ),
@@ -5206,18 +4990,7 @@ class _CenterArea extends StatelessWidget {
             const SizedBox(width: 20),
             Column(
               children: <Widget>[
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: <Widget>[
-                    _DiscardPileAnimated(card: discard),
-                    if (requiredSuit != null && requiredSuit!.isNotEmpty)
-                      Positioned(
-                        top: -10,
-                        right: -14,
-                        child: _RequiredSuitBadge(suit: requiredSuit!),
-                      ),
-                  ],
-                ),
+                _FaceCard(card: discard),
               ],
             ),
           ],
@@ -5230,70 +5003,6 @@ class _CenterArea extends StatelessWidget {
             child: _SuitOverlayText(message: overlay),
           ),
       ],
-    );
-  }
-}
-
-class _DiscardPileAnimated extends StatefulWidget {
-  const _DiscardPileAnimated({required this.card});
-
-  final DuelCard card;
-
-  @override
-  State<_DiscardPileAnimated> createState() => _DiscardPileAnimatedState();
-}
-
-class _DiscardPileAnimatedState extends State<_DiscardPileAnimated> {
-  Key _cardKey = UniqueKey();
-  int _visualDepth = 0;
-
-  @override
-  void didUpdateWidget(covariant _DiscardPileAnimated oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.card.id != widget.card.id) {
-      _cardKey = UniqueKey();
-      _visualDepth = (_visualDepth + 1) % 9;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: _FaceCard.width + 16,
-      height: _FaceCard.height + 16,
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          Transform.translate(
-            offset: Offset(-4 - (_visualDepth * 0.15), 3 + (_visualDepth * 0.08)),
-            child: Transform.rotate(
-              angle: -0.03 - (_visualDepth * 0.002),
-              child: const Opacity(opacity: 0.3, child: _DuelCardBack(width: _FaceCard.width, height: _FaceCard.height)),
-            ),
-          ),
-          Transform.translate(
-            offset: Offset(3 + (_visualDepth * 0.14), -2 - (_visualDepth * 0.08)),
-            child: Transform.rotate(
-              angle: 0.025 + (_visualDepth * 0.002),
-              child: const Opacity(opacity: 0.2, child: _DuelCardBack(width: _FaceCard.width, height: _FaceCard.height)),
-            ),
-          ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(scale: Tween<double>(begin: 0.96, end: 1).animate(animation), child: child),
-              );
-            },
-            child: Transform.rotate(
-              key: _cardKey,
-              angle: 0.01,
-              child: _FaceCard(card: widget.card),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -5323,7 +5032,7 @@ class _MyHandRow extends StatelessWidget {
   final int? credits;
   final String fallbackInitial;
   final DuelCard avatarCard;
-  static const int _maxCardsPerRow = 7;
+  static const int _maxCardsPerRow = 5;
   static const double _cardGap = 6;
 
   @override
@@ -5607,46 +5316,6 @@ class _DrawCountBadge extends StatelessWidget {
           fontWeight: FontWeight.w900,
           height: 1,
         ),
-      ),
-    );
-  }
-}
-
-class _RequiredSuitBadge extends StatelessWidget {
-  const _RequiredSuitBadge({required this.suit});
-
-  final String suit;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color ink = (suit == '♥' || suit == '♦')
-        ? const Color(0xFFC62828)
-        : const Color(0xFF1B1B1B);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: const Color(0xFFDADADA)),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 3)),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Icon(Icons.flag_rounded, size: 12, color: Color(0xFF586A77)),
-          const SizedBox(width: 4),
-          Text(
-            suit,
-            style: TextStyle(
-              color: ink,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              height: 1,
-            ),
-          ),
-        ],
       ),
     );
   }

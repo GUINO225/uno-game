@@ -7,14 +7,13 @@ class PlayerProfile {
     this.email,
     this.photoUrl,
     this.avatarUrl,
-    this.credits = 1000,
+    this.credits = 0,
     this.wins = 0,
     this.losses = 0,
     this.totalGamesValue,
     this.rankScore = 0,
     this.createdAt,
     this.lastLoginAt,
-    this.role = 'player',
   });
 
   final String uid;
@@ -29,7 +28,6 @@ class PlayerProfile {
   final int rankScore;
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
-  final String role;
 
   int get totalGames => totalGamesValue ?? (wins + losses);
   double get winRatio => totalGames == 0 ? 0 : wins / totalGames;
@@ -52,7 +50,6 @@ class PlayerProfile {
       'rankScore': rankScore,
       'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
       'lastLoginAt': lastLoginAt == null ? null : Timestamp.fromDate(lastLoginAt!.toUtc()),
-      'role': role,
     };
   }
 
@@ -63,14 +60,10 @@ class PlayerProfile {
       email: map['email'] as String?,
       photoUrl: map['photoUrl'] as String?,
       avatarUrl: map['avatarUrl'] as String? ?? map['photoUrl'] as String?,
-      credits: (((map['credits'] as num?)?.toInt() ?? 1000) < 0)
-          ? 0
-          : ((map['credits'] as num?)?.toInt() ?? 1000),
+      credits: (map['credits'] as num?)?.toInt() ?? 0,
       wins: (map['wins'] as num?)?.toInt() ?? 0,
       losses: (map['losses'] as num?)?.toInt() ?? 0,
-      totalGamesValue:
-          (map['totalGames'] as num?)?.toInt() ??
-          (map['gamesPlayed'] as num?)?.toInt(),
+      totalGamesValue: (map['totalGames'] as num?)?.toInt(),
       rankScore:
           (map['rankScore'] as num?)?.toInt() ??
           (map['score'] as num?)?.toInt() ??
@@ -78,7 +71,6 @@ class PlayerProfile {
               ((map['losses'] as num?)?.toInt() ?? 0),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       lastLoginAt: (map['lastLoginAt'] as Timestamp?)?.toDate(),
-      role: map['role'] as String? ?? 'player',
     );
   }
 }

@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "894004314968",
-    "project_id": "huit-americain",
-    "storage_bucket": "huit-americain.firebasestorage.app"
+    "project_number": "1049226047630",
+    "project_id": "gino-923bb",
+    "storage_bucket": "gino-923bb.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:894004314968:android:ac177d33d22c02688ddb2d",
+        "mobilesdk_app_id": "1:1049226047630:android:1013fe66571cd26f3b59df",
         "android_client_info": {
-          "package_name": "com.example.huit"
+          "package_name": "com.akenoo.gino"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCxybey_rOE3REyIJxZFbDmxoKvSLG2OAQ"
+          "current_key": "AIzaSyCs-_RQOqJiBY45DleGGqNSloIOVHDQOrc"
         }
       ],
       "services": {

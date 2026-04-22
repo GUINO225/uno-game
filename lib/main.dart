@@ -7,12 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'app_logo.dart';
-import 'admin_dashboard_page.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'firebase_config.dart';
 import 'duel_mode.dart';
-import 'game_popup_ui.dart';
 import 'leaderboard_page.dart';
 import 'player_side_panel.dart';
 import 'premium_ui.dart';
@@ -118,7 +116,6 @@ class MyApp extends StatelessWidget {
           GameModeRoutes.credits: (_) =>
               const DuelLobbyPage(mode: DuelRoomMode.credits),
           GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
-          GameModeRoutes.admin: (_) => const AdminDashboardGatePage(),
         },
         home: const AppBootstrapPage(),
       ),
@@ -356,7 +353,6 @@ class GameModeRoutes {
   static const String duel = '/duel';
   static const String credits = '/credits';
   static const String leaderboard = '/leaderboard';
-  static const String admin = '/admin';
 }
 
 class GameModePalette {
@@ -796,6 +792,17 @@ class _GameModePageState extends State<GameModePage>
                                     letterSpacing: 0.5,
                                   ),
                                 ),
+                                Text(
+                                  ' DESIGNED BY AKENOO',
+                                  style: GoogleFonts.poppins(
+                                    color: GameModePalette.white.withOpacity(
+                                      0.85,
+                                    ),
+                                    fontSize: _versionFontSize,
+                                    fontWeight: FontWeight.w400,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -863,89 +870,21 @@ class _GameModePageState extends State<GameModePage>
       final bool shouldLogin = await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
-              return Dialog(
-                backgroundColor: Colors.transparent,
-                insetPadding: const EdgeInsets.symmetric(horizontal: 44),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0x15000000)),
-                    boxShadow: const <BoxShadow>[
-                      BoxShadow(
-                        color: Color(0x22000000),
-                        blurRadius: 14,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    children: <Widget>[
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              'Connexion requise',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                color: Colors.black,
-                                fontSize: 19,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Connectez-vous avec Google pour jouer en mode Paris.',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                color: Colors.black87,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () => Navigator.of(context).pop(true),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(0, 42),
-                                  backgroundColor: const Color(0xFF21A75A),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  textStyle: GoogleFonts.poppins(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                child: const Text('Connexion'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Positioned(
-                        top: -4,
-                        right: -6,
-                        child: IconButton(
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'Fermer',
-                          onPressed: () => Navigator.of(context).pop(false),
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 20,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              return AlertDialog(
+                title: const Text('Connexion requise'),
+                content: const Text(
+                  'Connectez-vous avec Google pour jouer en mode Paris.',
                 ),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Annuler'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Connexion Google'),
+                  ),
+                ],
               );
             },
           ) ??
@@ -1502,7 +1441,7 @@ class _PlayModeButtonState extends State<_PlayModeButton> {
               ],
             ),
             child: Text(
-              "Let's go",
+              "LET'S GO",
               style: GoogleFonts.poppins(
                 color: GameModePalette.backgroundShade,
                 fontSize: widget.fontSize,
@@ -1543,7 +1482,7 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 66, vertical: 18),
+          padding: const EdgeInsets.symmetric(horizontal: 54, vertical: 15),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             gradient: const LinearGradient(
@@ -1559,12 +1498,12 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
               ),
             ],
           ),
-          child: Text(
-            'Jouer',
+              child: Text(
+            'JOUER',
             style: GoogleFonts.poppins(
               color: GameModePalette.backgroundShade,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
+              fontSize: 24,
+              fontWeight: FontWeight.w400,
               letterSpacing: 1.0,
             ),
           ),
@@ -1694,14 +1633,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   bool _botMustAnswerAce = false;
   Suit? _activeSuitConstraint;
 
-  bool _isSpecialPopupVisible = false;
-  PlayingCard? _specialPopupCard;
-  String _specialPopupTitle = '';
-  String _specialPopupMessage = '';
-  Suit? _specialPopupSuit;
-  int? _specialPopupDrawCount;
-  DrawPenaltyType _specialPopupPenaltyType = DrawPenaltyType.other;
-  bool? _specialPopupJokerIsRed;
+  bool _isEightDemandOverlayVisible = false;
+  Suit? _eightDemandOverlaySuit;
+  String _eightDemandOverlayMessage = '';
   bool _humanDidVoluntaryDrawThisTurn = false;
 
   int _humanScore = 0;
@@ -1748,14 +1682,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _humanMustAnswerAce = false;
       _botMustAnswerAce = false;
       _activeSuitConstraint = null;
-      _isSpecialPopupVisible = false;
-      _specialPopupCard = null;
-      _specialPopupTitle = '';
-      _specialPopupMessage = '';
-      _specialPopupSuit = null;
-      _specialPopupDrawCount = null;
-      _specialPopupPenaltyType = DrawPenaltyType.other;
-      _specialPopupJokerIsRed = null;
+      _isEightDemandOverlayVisible = false;
+      _eightDemandOverlaySuit = null;
+      _eightDemandOverlayMessage = '';
       _humanDidVoluntaryDrawThisTurn = false;
       _humanHand.addAll(humanInitialCards);
       _botHand.addAll(botInitialCards);
@@ -1913,10 +1842,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return false;
     }
 
-    if (!card.isJoker && card.rank == 1) {
-      return true;
-    }
-    return card.isJoker && _sameColor(card, _topDiscard);
+    return !card.isJoker && card.rank == 1;
   }
 
   void _setForcedDraw({
@@ -2173,11 +2099,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
       if (currentTurn == PlayerTurn.human) {
-        await _showSpecialCardOverlay(
-          card: card,
-          title: 'AS EST CHAUD',
-          message: 'GINO doit répondre avec un As',
-        );
         setState(() {
           _botMustAnswerAce = true;
           _status =
@@ -2189,11 +2110,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         );
       }
 
-      await _showSpecialCardOverlay(
-        card: card,
-        title: 'AS EST CHAUD',
-        message: 'Répondez avec un As ou un joker de même couleur',
-      );
       setState(() {
         _humanMustAnswerAce = true;
         _status =
@@ -2208,13 +2124,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (card.rank == 2) {
       if (currentTurn == PlayerTurn.human) {
-        await _showSpecialCardOverlay(
-          card: card,
-          title: 'CARTE SPÉCIALE',
-          message: 'GINO doit piocher 3 cartes',
-          drawCount: 3,
-          penaltyType: DrawPenaltyType.two,
-        );
         _setForcedDraw(
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
@@ -2227,13 +2136,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           skipTurnSwitch: false,
         );
       } else {
-        await _showSpecialCardOverlay(
-          card: card,
-          title: 'PIOCHE OBLIGATOIRE',
-          message: 'Piochez 3 cartes',
-          drawCount: 3,
-          penaltyType: DrawPenaltyType.two,
-        );
         _setForcedDraw(
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
@@ -2250,14 +2152,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (card.isJoker) {
       if (currentTurn == PlayerTurn.human) {
-        await _showSpecialCardOverlay(
-          card: card,
-          title: 'JOKER',
-          message: 'GINO doit piocher 9 cartes',
-          drawCount: 9,
-          penaltyType: DrawPenaltyType.joker,
-          jokerIsRed: card.isRed,
-        );
         _setForcedDraw(
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
@@ -2270,14 +2164,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           skipTurnSwitch: false,
         );
       } else {
-        await _showSpecialCardOverlay(
-          card: card,
-          title: 'JOKER ADVERSE',
-          message: 'Piochez 9 cartes',
-          drawCount: 9,
-          penaltyType: DrawPenaltyType.joker,
-          jokerIsRed: card.isRed,
-        );
         _setForcedDraw(
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
@@ -2310,12 +2196,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _status = demander;
       });
 
-      await _showSpecialCardOverlay(
-        card: card,
-        suit: askedSuit,
-        title: '8 COMMANDÉ',
-        message: 'Couleur demandée : ${_suitName(askedSuit)}',
-      );
       return const _PlayResolution(
         extraTurn: false,
         skipTurnSwitch: false,
@@ -2397,36 +2277,30 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     final Suit bestSuit = _chooseRequestedSuitForBot(_botHand);
+    await _showEightDemandOverlay(
+      suit: bestSuit,
+      message: 'GINO demande ${_suitName(bestSuit)}',
+    );
     return bestSuit;
   }
 
-  Future<void> _showSpecialCardOverlay({
-    required PlayingCard card,
-    required String title,
+  Future<void> _showEightDemandOverlay({
+    required Suit suit,
     required String message,
-    Suit? suit,
-    int? drawCount,
-    DrawPenaltyType penaltyType = DrawPenaltyType.other,
-    bool? jokerIsRed,
   }) async {
     setState(() {
-      _specialPopupCard = card;
-      _specialPopupTitle = title;
-      _specialPopupMessage = message;
-      _specialPopupSuit = suit;
-      _specialPopupDrawCount = drawCount;
-      _specialPopupPenaltyType = penaltyType;
-      _specialPopupJokerIsRed = jokerIsRed;
-      _isSpecialPopupVisible = true;
+      _eightDemandOverlaySuit = suit;
+      _eightDemandOverlayMessage = message;
+      _isEightDemandOverlayVisible = true;
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 1300));
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _isSpecialPopupVisible = false;
+      _isEightDemandOverlayVisible = false;
     });
 
     await Future<void>.delayed(const Duration(milliseconds: 220));
@@ -2435,13 +2309,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     setState(() {
-      _specialPopupCard = null;
-      _specialPopupTitle = '';
-      _specialPopupMessage = '';
-      _specialPopupSuit = null;
-      _specialPopupDrawCount = null;
-      _specialPopupPenaltyType = DrawPenaltyType.other;
-      _specialPopupJokerIsRed = null;
+      _eightDemandOverlaySuit = null;
+      _eightDemandOverlayMessage = '';
     });
   }
 
@@ -2450,10 +2319,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return GamePopupDialog(
-          title: 'Choisis une enseigne',
-          subtitle: 'Carte 8 jouée',
-          child: SizedBox(
+        return AlertDialog(
+          backgroundColor: const Color(0xFFF9FAF8),
+          surfaceTintColor: Colors.transparent,
+          title: const Text(
+            'Choisis une enseigne',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF1A3427),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: SizedBox(
             width: 260,
             child: GridView.count(
               shrinkWrap: true,
@@ -2475,7 +2352,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       },
     );
 
-    return selected ?? Suit.spades;
+    final Suit chosenSuit = selected ?? Suit.spades;
+
+    await _showEightDemandOverlay(
+      suit: chosenSuit,
+      message: 'Vous demandez ${_suitName(chosenSuit)}',
+    );
+
+    return chosenSuit;
   }
 
   Suit _chooseRequestedSuitForBot(List<PlayingCard> hand) {
@@ -2970,10 +2854,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               child: GlobalMusicToggleButton(),
             ),
           ),
-          if (_isSpecialPopupVisible && _specialPopupCard != null)
+          if (_isEightDemandOverlayVisible && _eightDemandOverlaySuit != null)
             Positioned.fill(
               child: AnimatedOpacity(
-                opacity: _isSpecialPopupVisible ? 1 : 0,
+                opacity: _isEightDemandOverlayVisible ? 1 : 0,
                 duration: const Duration(milliseconds: 220),
                 child: Container(
                   color: Colors.black.withOpacity(0.55),
@@ -2990,44 +2874,31 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         );
                       },
                       child: Container(
-                        child: _specialPopupDrawCount != null
-                            ? DrawPenaltyPopupPanel(
-                                drawCount: _specialPopupDrawCount!,
-                                penaltyType: _specialPopupPenaltyType,
-                                jokerIsRed: _specialPopupJokerIsRed,
-                                suitSymbol: _specialPopupCard!.suitSymbol,
-                              )
-                            : Container(
-                                width: 290,
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: const <BoxShadow>[
-                                    BoxShadow(color: Colors.black45, blurRadius: 18),
-                                  ],
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    Text(
-                                      _specialPopupTitle,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    CardView(card: _specialPopupCard!, enabled: false),
-                                    if (_specialPopupSuit != null) ...<Widget>[
-                                      const SizedBox(height: 8),
-                                      _EightSuitCard(suit: _specialPopupSuit!),
-                                    ],
-                                    const SizedBox(height: 10),
-                                    Text(_specialPopupMessage, textAlign: TextAlign.center),
-                                  ],
-                                ),
+                        width: 240,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const <BoxShadow>[
+                            BoxShadow(color: Colors.black45, blurRadius: 18),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Text(
+                              'Nouvelle carte',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
                               ),
+                            ),
+                            const SizedBox(height: 10),
+                            _EightSuitCard(suit: _eightDemandOverlaySuit!),
+                            const SizedBox(height: 10),
+                            Text(_eightDemandOverlayMessage),
+                          ],
+                        ),
                       ),
                     ),
                   ),
