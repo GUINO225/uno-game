@@ -44,25 +44,25 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyAsgBrxqgSCt83BxDHQyeScSAVRj7pwK7s',
     appId: '1:894004314968:web:27109f9dc09e72758ddb2d',
     messagingSenderId: '894004314968',
-    projectId: 'huit-americain',
-    authDomain: 'huit-americain.firebaseapp.com',
-    storageBucket: 'huit-americain.firebasestorage.app',
+    projectId: 'gino',
+    authDomain: 'gino.firebaseapp.com',
+    storageBucket: 'gino.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCxybey_rOE3REyIJxZFbDmxoKvSLG2OAQ',
     appId: '1:894004314968:android:ac177d33d22c02688ddb2d',
     messagingSenderId: '894004314968',
-    projectId: 'huit-americain',
-    storageBucket: 'huit-americain.firebasestorage.app',
+    projectId: 'gino',
+    storageBucket: 'gino.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBw0rJfN_ZXE2WGXbwuVuARkJdQW_xHD2k',
     appId: '1:894004314968:ios:7d53bfb845198bab8ddb2d',
     messagingSenderId: '894004314968',
-    projectId: 'huit-americain',
-    storageBucket: 'huit-americain.firebasestorage.app',
+    projectId: 'gino',
+    storageBucket: 'gino.firebasestorage.app',
     iosBundleId: 'com.example.huit',
   );
 
@@ -70,8 +70,8 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyBw0rJfN_ZXE2WGXbwuVuARkJdQW_xHD2k',
     appId: '1:894004314968:ios:7d53bfb845198bab8ddb2d',
     messagingSenderId: '894004314968',
-    projectId: 'huit-americain',
-    storageBucket: 'huit-americain.firebasestorage.app',
+    projectId: 'gino',
+    storageBucket: 'gino.firebasestorage.app',
     iosBundleId: 'com.example.huit',
   );
 
@@ -79,9 +79,9 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyAsgBrxqgSCt83BxDHQyeScSAVRj7pwK7s',
     appId: '1:894004314968:web:3245dbb11a79f3388ddb2d',
     messagingSenderId: '894004314968',
-    projectId: 'huit-americain',
-    authDomain: 'huit-americain.firebaseapp.com',
-    storageBucket: 'huit-americain.firebasestorage.app',
+    projectId: 'gino',
+    authDomain: 'gino.firebaseapp.com',
+    storageBucket: 'gino.firebasestorage.app',
   );
 
 }
