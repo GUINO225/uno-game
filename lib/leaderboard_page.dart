@@ -14,19 +14,25 @@ class LeaderboardPage extends StatefulWidget {
 
 class _LeaderboardPageState extends State<LeaderboardPage> {
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
-  late Future<List<PlayerProfile>> _leaderboardFuture;
+  late Future<({List<PlayerProfile> players, int? usersCount})> _leaderboardFuture;
 
   @override
   void initState() {
     super.initState();
-    _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 100);
+    _leaderboardFuture = _loadLeaderboardData();
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: 100);
+      _leaderboardFuture = _loadLeaderboardData();
     });
     await _leaderboardFuture;
+  }
+
+  Future<({List<PlayerProfile> players, int? usersCount})> _loadLeaderboardData() async {
+    final List<PlayerProfile> players = await _leaderboardService.fetchTopPlayers(limit: 100);
+    final int? usersCount = await _leaderboardService.fetchRegisteredUsersCount();
+    return (players: players, usersCount: usersCount);
   }
 
   @override
@@ -38,10 +44,15 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         title: const Text('Classement'),
         backgroundColor: Colors.transparent,
       ),
-      body: FutureBuilder<List<PlayerProfile>>(
+      body: FutureBuilder<({List<PlayerProfile> players, int? usersCount})>(
           future: _leaderboardFuture,
-          builder: (BuildContext context, AsyncSnapshot<List<PlayerProfile>> snapshot) {
-            final List<PlayerProfile> players = snapshot.data ?? const <PlayerProfile>[];
+          builder: (
+            BuildContext context,
+            AsyncSnapshot<({List<PlayerProfile> players, int? usersCount})> snapshot,
+          ) {
+            final List<PlayerProfile> players =
+                snapshot.data?.players ?? const <PlayerProfile>[];
+            final int? usersCount = snapshot.data?.usersCount;
             return RefreshIndicator(
               onRefresh: _refresh,
               child: ListView(
@@ -50,7 +61,9 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                 children: <Widget>[
                   PremiumPanel(
                     child: Text(
-                      'Classement des joueurs connectés',
+                      usersCount == null
+                          ? 'Classement des joueurs connectés'
+                          : 'Classement des joueurs connectés ($usersCount)',
                       style: textTheme.titleMedium?.copyWith(
                             color: PremiumColors.textDark,
                             fontWeight: FontWeight.w800,

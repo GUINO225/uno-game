@@ -63,50 +63,54 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   Widget build(BuildContext context) {
     return Drawer(
       child: SafeArea(
-        child: FutureBuilder<(PlayerProfile?, int?)>(
-          future: _loadPanelData(),
-          builder: (BuildContext context, AsyncSnapshot<(PlayerProfile?, int?)> snapshot) {
-            final PlayerProfile? profile = snapshot.data?.$1;
-            final int? rank = snapshot.data?.$2;
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (profile == null) {
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: <Widget>[
-                  Text(
-                    'Mon compte',
-                    style: GoogleFonts.poppins(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w700,
-                      color: PremiumColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Connectez-vous avec Google pour voir vos statistiques.',
-                    style: GoogleFonts.poppins(
-                      color: PremiumColors.textDark.withOpacity(0.85),
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _signIn,
-                    icon: const Icon(Icons.g_mobiledata_rounded),
-                    label: const Text('Connexion Google'),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: widget.onOpenLeaderboard,
-                    icon: const Icon(Icons.leaderboard_outlined),
-                    label: const Text('Voir le classement'),
-                  ),
-                ],
-              );
-            }
-            final List<_PlayerInfoTileData> accountTiles = <_PlayerInfoTileData>[
+        child: StreamBuilder<User?>(
+          stream: _authService.authStateChanges,
+          builder: (BuildContext context, AsyncSnapshot<User?> _) {
+            return FutureBuilder<(PlayerProfile?, int?)>(
+              future: _loadPanelData(),
+              builder:
+                  (BuildContext context, AsyncSnapshot<(PlayerProfile?, int?)> snapshot) {
+                final PlayerProfile? profile = snapshot.data?.$1;
+                final int? rank = snapshot.data?.$2;
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (profile == null) {
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: <Widget>[
+                      Text(
+                        'Mon compte',
+                        style: GoogleFonts.poppins(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w700,
+                          color: PremiumColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Connectez-vous avec Google pour voir vos statistiques.',
+                        style: GoogleFonts.poppins(
+                          color: PremiumColors.textDark.withOpacity(0.85),
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _signIn,
+                        icon: const Icon(Icons.g_mobiledata_rounded),
+                        label: const Text('Connexion Google'),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: widget.onOpenLeaderboard,
+                        icon: const Icon(Icons.leaderboard_outlined),
+                        label: const Text('Voir le classement'),
+                      ),
+                    ],
+                  );
+                }
+                final List<_PlayerInfoTileData> accountTiles = <_PlayerInfoTileData>[
               _PlayerInfoTileData(
                 icon: Icons.account_circle_outlined,
                 label: 'Pseudo',
@@ -139,48 +143,50 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                 value: rank == null ? '-' : '#$rank',
               ),
             ];
-            if ((profile.email ?? '').isNotEmpty) {
-              accountTiles.add(
-                _PlayerInfoTileData(
-                  icon: Icons.mail_outline_rounded,
-                  label: 'Email',
-                  value: _safeLabel(profile.email, fallback: '-'),
-                ),
-              );
-            }
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
-              children: <Widget>[
-                _AccountDrawerHeader(profile: profile),
-                const SizedBox(height: 14),
-                PremiumPanel(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  child: Column(
-                    children: List<Widget>.generate(accountTiles.length, (int index) {
-                      final _PlayerInfoTileData tile = accountTiles[index];
-                      return _PlayerInfoTile(
-                        icon: tile.icon,
-                        label: tile.label,
-                        value: tile.value,
-                        accent: tile.accent,
-                        isLast: index == accountTiles.length - 1,
-                      );
-                    }),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: widget.onOpenLeaderboard,
-                  icon: const Icon(Icons.leaderboard_outlined),
-                  label: const Text('Page Classement'),
-                ),
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: _signOut,
-                  icon: const Icon(Icons.logout_rounded),
-                  label: const Text('Déconnexion'),
-                ),
-              ],
+                if ((profile.email ?? '').isNotEmpty) {
+                  accountTiles.add(
+                    _PlayerInfoTileData(
+                      icon: Icons.mail_outline_rounded,
+                      label: 'Email',
+                      value: _safeLabel(profile.email, fallback: '-'),
+                    ),
+                  );
+                }
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
+                  children: <Widget>[
+                    _AccountDrawerHeader(profile: profile),
+                    const SizedBox(height: 14),
+                    PremiumPanel(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Column(
+                        children: List<Widget>.generate(accountTiles.length, (int index) {
+                          final _PlayerInfoTileData tile = accountTiles[index];
+                          return _PlayerInfoTile(
+                            icon: tile.icon,
+                            label: tile.label,
+                            value: tile.value,
+                            accent: tile.accent,
+                            isLast: index == accountTiles.length - 1,
+                          );
+                        }),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: widget.onOpenLeaderboard,
+                      icon: const Icon(Icons.leaderboard_outlined),
+                      label: const Text('Page Classement'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _signOut,
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Déconnexion'),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),
@@ -419,33 +425,38 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
         child: FutureBuilder<PlayerProfile?>(
           future: _loadProfile(),
           builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
-            final PlayerProfile? profile = snapshot.data;
-            final String creditsLabel = snapshot.connectionState == ConnectionState.waiting
-                ? '...'
-                : '${profile?.credits ?? 0}';
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                _CreditBadge(value: creditsLabel),
-                const SizedBox(width: 6),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () => Scaffold.of(context).openEndDrawer(),
-                    child: Tooltip(
-                      message: 'Menu joueur',
-                      child: GameCardAvatar(
-                        size: 52,
-                        data: GameCardAvatarPalette.fromSeed(
-                          profile?.id ?? _authService.currentUser?.uid ?? 'menu_guest',
-                          salt: 5,
+            return StreamBuilder<User?>(
+              stream: _authService.authStateChanges,
+              builder: (BuildContext context, AsyncSnapshot<User?> _) {
+                final PlayerProfile? profile = snapshot.data;
+                final String creditsLabel = snapshot.connectionState == ConnectionState.waiting
+                    ? '...'
+                    : '${profile?.credits ?? 0}';
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    _CreditBadge(value: creditsLabel),
+                    const SizedBox(width: 6),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => Scaffold.of(context).openEndDrawer(),
+                        child: Tooltip(
+                          message: 'Menu joueur',
+                          child: GameCardAvatar(
+                            size: 52,
+                            data: GameCardAvatarPalette.fromSeed(
+                              profile?.id ?? _authService.currentUser?.uid ?? 'menu_guest',
+                              salt: 5,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             );
           },
         ),

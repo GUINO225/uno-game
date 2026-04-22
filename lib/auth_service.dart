@@ -50,7 +50,9 @@ class AuthService {
   FirebaseAuth? get _authOrNull {
     try {
       return FirebaseAuth.instance;
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('[AuthService] FirebaseAuth unavailable: $e');
+      debugPrintStack(stackTrace: stackTrace);
       return null;
     }
   }
@@ -80,6 +82,7 @@ class AuthService {
             message: 'Connexion Google incomplète.',
           );
         }
+        debugPrint('[AuthService] Google sign-in success (web): uid=${user.uid}');
         return GoogleAuthResult.success(user);
       }
 
@@ -98,6 +101,7 @@ class AuthService {
           message: 'Connexion Google incomplète.',
         );
       }
+      debugPrint('[AuthService] Google sign-in success: uid=${user.uid}');
       return GoogleAuthResult.success(user);
     } on FirebaseAuthException catch (e) {
       return _mapFirebaseAuthException(e);
@@ -135,6 +139,7 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    debugPrint('[AuthService] Sign out requested.');
     await _authOrNull?.signOut();
     if (!kIsWeb) {
       try {
