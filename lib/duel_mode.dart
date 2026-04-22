@@ -1200,7 +1200,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   bool _openedDuel = false;
   bool _googleBusy = false;
   String? _profileError;
-  late final String _localPlayerId;
+  late String _localPlayerId;
   String? _authenticatedPlayerId;
   PlayerProfile? _playerProfile;
 
@@ -1258,7 +1258,28 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     if (user == null) {
       return;
     }
+    if (user.isAnonymous) {
+      _localPlayerId = user.uid;
+      return;
+    }
     await _upsertProfileFromGoogle(user);
+  }
+
+  Future<void> _ensureFirestoreIdentity() async {
+    final User? user = _authService.currentUser;
+    if (user != null) {
+      if (user.isAnonymous) {
+        _localPlayerId = user.uid;
+      } else {
+        _authenticatedPlayerId ??= user.uid;
+      }
+      return;
+    }
+    final UserCredential credential = await FirebaseAuth.instance.signInAnonymously();
+    final User? anonUser = credential.user;
+    if (anonUser != null) {
+      _localPlayerId = anonUser.uid;
+    }
   }
 
   Future<void> _upsertProfileFromGoogle(User user) async {
@@ -1421,6 +1442,21 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _createGame() async {
     unawaited(_sfx.playClick());
+    try {
+      await _ensureFirestoreIdentity();
+    } on FirebaseAuthException catch (e) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Connexion anonyme Firebase impossible (${e.code}).';
+      });
+      return;
+    } catch (e) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Impossible de préparer la connexion Firebase: $e';
+      });
+      return;
+    }
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
       unawaited(_sfx.playError());
@@ -1442,6 +1478,21 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _joinGame() async {
     unawaited(_sfx.playClick());
+    try {
+      await _ensureFirestoreIdentity();
+    } on FirebaseAuthException catch (e) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Connexion anonyme Firebase impossible (${e.code}).';
+      });
+      return;
+    } catch (e) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Impossible de préparer la connexion Firebase: $e';
+      });
+      return;
+    }
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
       unawaited(_sfx.playError());
