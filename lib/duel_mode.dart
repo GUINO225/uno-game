@@ -241,6 +241,24 @@ class DuelSession {
     this.invitedRefusalCount = 0,
     this.exitedBy,
     this.lastInsufficientFundsPlayerId,
+    this.player1Hand = const <String>[],
+    this.player2Hand = const <String>[],
+    this.drawPile = const <String>[],
+    this.discardPile = const <String>[],
+    this.topDiscard,
+    this.player1CardCount = 0,
+    this.player2CardCount = 0,
+    this.deckSeed,
+    this.revision = 0,
+    this.lastActionId,
+    this.lastActionBy,
+    this.deckInitialized = false,
+    this.integrityError,
+    this.repairLock,
+    this.pendingDrawCount = 0,
+    this.forcedDrawInitial = 0,
+    this.requiredSuit,
+    this.aceColorRequired = false,
   });
 
   final String gameId;
@@ -264,9 +282,29 @@ class DuelSession {
   final int invitedRefusalCount;
   final String? exitedBy;
   final String? lastInsufficientFundsPlayerId;
+  final List<String> player1Hand;
+  final List<String> player2Hand;
+  final List<String> drawPile;
+  final List<String> discardPile;
+  final String? topDiscard;
+  final int player1CardCount;
+  final int player2CardCount;
+  final String? deckSeed;
+  final int revision;
+  final String? lastActionId;
+  final String? lastActionBy;
+  final bool deckInitialized;
+  final Map<String, dynamic>? integrityError;
+  final Map<String, dynamic>? repairLock;
+  final int pendingDrawCount;
+  final int forcedDrawInitial;
+  final String? requiredSuit;
+  final bool aceColorRequired;
 
   bool get canStart => players.length == 2;
   bool get isCreditsMode => mode == DuelRoomMode.credits;
+  String get player1Id => players.isNotEmpty ? players.first : '';
+  String get player2Id => players.length > 1 ? players[1] : '';
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -292,6 +330,24 @@ class DuelSession {
       'invitedRefusalCount': invitedRefusalCount,
       'exitedBy': exitedBy,
       'lastInsufficientFundsPlayerId': lastInsufficientFundsPlayerId,
+      'player1Hand': player1Hand,
+      'player2Hand': player2Hand,
+      'drawPile': drawPile,
+      'discardPile': discardPile,
+      'topDiscard': topDiscard,
+      'player1CardCount': player1CardCount,
+      'player2CardCount': player2CardCount,
+      'deckSeed': deckSeed,
+      'revision': revision,
+      'lastActionId': lastActionId,
+      'lastActionBy': lastActionBy,
+      'deckInitialized': deckInitialized,
+      'integrityError': integrityError,
+      'repairLock': repairLock,
+      'pendingDrawCount': pendingDrawCount,
+      'forcedDrawInitial': forcedDrawInitial,
+      'requiredSuit': requiredSuit,
+      'aceColorRequired': aceColorRequired,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -354,6 +410,24 @@ class DuelSession {
       invitedRefusalCount: (json['invitedRefusalCount'] as num?)?.toInt() ?? 0,
       exitedBy: json['exitedBy'] as String?,
       lastInsufficientFundsPlayerId: json['lastInsufficientFundsPlayerId'] as String?,
+      player1Hand: List<String>.from(json['player1Hand'] as List? ?? const <String>[]),
+      player2Hand: List<String>.from(json['player2Hand'] as List? ?? const <String>[]),
+      drawPile: List<String>.from(json['drawPile'] as List? ?? const <String>[]),
+      discardPile: List<String>.from(json['discardPile'] as List? ?? const <String>[]),
+      topDiscard: json['topDiscard'] as String?,
+      player1CardCount: (json['player1CardCount'] as num?)?.toInt() ?? 0,
+      player2CardCount: (json['player2CardCount'] as num?)?.toInt() ?? 0,
+      deckSeed: json['deckSeed'] as String?,
+      revision: (json['revision'] as num?)?.toInt() ?? 0,
+      lastActionId: json['lastActionId'] as String?,
+      lastActionBy: json['lastActionBy'] as String?,
+      deckInitialized: json['deckInitialized'] as bool? ?? false,
+      integrityError: (json['integrityError'] as Map?)?.cast<String, dynamic>(),
+      repairLock: (json['repairLock'] as Map?)?.cast<String, dynamic>(),
+      pendingDrawCount: (json['pendingDrawCount'] as num?)?.toInt() ?? 0,
+      forcedDrawInitial: (json['forcedDrawInitial'] as num?)?.toInt() ?? 0,
+      requiredSuit: json['requiredSuit'] as String?,
+      aceColorRequired: json['aceColorRequired'] as bool? ?? false,
     );
   }
 }
@@ -417,6 +491,26 @@ class GameService {
     return List<String>.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
+  String _buildDeckSeed(String gameId, int round) => '$gameId-$round';
+
+  Map<String, dynamic> _boardInitPatch({
+    required String gameId,
+    required List<String> players,
+    required int round,
+  }) {
+    final DuelBoardState board = DuelBoardState.initial(
+      gameId: gameId,
+      players: players,
+      round: round,
+    );
+    return <String, dynamic>{
+      ...board.toFirestoreFields(),
+      'deckSeed': _buildDeckSeed(gameId, round),
+      'integrityError': null,
+      'repairLock': null,
+    };
+  }
+
   Future<String> createGame({
     required String playerId,
     required String playerName,
@@ -470,6 +564,7 @@ class GameService {
         throw StateError('Partie déjà complète');
       }
       final List<String> players = <String>{...session.players, playerId}.toList();
+      final bool activatesNow = players.length == 2 && !session.isCreditsMode;
       tx.update(ref, <String, dynamic>{
         'players': players,
         'playerNames.$playerId': playerName,
@@ -481,6 +576,13 @@ class GameService {
                 ? DuelGameStatus.waiting.name
                 : DuelGameStatus.inProgress.name)
             : DuelGameStatus.waiting.name,
+        if (activatesNow && !session.deckInitialized)
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: players,
+            round: session.round,
+          ),
+        if (activatesNow && !session.deckInitialized) 'revision': session.revision + 1,
       });
     });
   }
@@ -492,6 +594,61 @@ class GameService {
         .snapshots()
         .where((DocumentSnapshot<Map<String, dynamic>> doc) => doc.exists)
         .map(DuelSession.fromDoc);
+  }
+
+  Future<void> repairGameStateIfNeeded({
+    required String gameId,
+    required String requestedBy,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        return;
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.hostId != requestedBy || !session.deckInitialized) {
+        return;
+      }
+      final DuelGameStateValidationResult validation = validateGameState(session);
+      if (validation.isValid) {
+        return;
+      }
+      final DateTime now = DateTime.now().toUtc();
+      final Timestamp? lockAtTs = session.repairLock?['lockedAt'] as Timestamp?;
+      final DateTime? lockAt = lockAtTs?.toDate().toUtc();
+      final bool lockExpired = lockAt == null || now.difference(lockAt).inSeconds > 15;
+      final String? lockBy = session.repairLock?['lockedBy'] as String?;
+      if (!lockExpired && lockBy != requestedBy) {
+        return;
+      }
+      if (validation.integrityError != null) {
+        tx.update(ref, <String, dynamic>{
+          'status': DuelGameStatus.finished.name,
+          'integrityError': validation.integrityError,
+          'revision': session.revision + 1,
+          'repairLock': <String, dynamic>{
+            'lockedBy': requestedBy,
+            'lockedAt': FieldValue.serverTimestamp(),
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+      if (validation.autoCorrectPatch.isNotEmpty) {
+        tx.update(ref, <String, dynamic>{
+          ...validation.autoCorrectPatch,
+          'revision': session.revision + 1,
+          'repairLock': <String, dynamic>{
+            'lockedBy': requestedBy,
+            'lockedAt': FieldValue.serverTimestamp(),
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
   }
 
 
@@ -574,19 +731,19 @@ class GameService {
       if (!session.players.contains(action.actorId)) {
         throw StateError('Action invalide.');
       }
-      final QuerySnapshot<Map<String, dynamic>> actionsSnap =
-          await gameRef.collection('actions').orderBy('createdAt').get();
-      final List<DuelAction> existingActions = actionsSnap.docs
-          .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-            final Map<String, dynamic> data = doc.data();
-            return DuelAction.fromMap(data);
-          })
-          .toList();
-      DuelBoardState board = DuelBoardState.initial(
-        gameId: session.gameId,
-        players: session.players,
-        round: session.round,
-      ).rebuildFromActions(existingActions);
+      if (!session.deckInitialized) {
+        throw StateError('Deck non initialisé.');
+      }
+      final DuelGameStateValidationResult preValidation = validateGameState(session);
+      if (preValidation.integrityError != null) {
+        tx.update(gameRef, <String, dynamic>{
+          'status': DuelGameStatus.finished.name,
+          'integrityError': preValidation.integrityError,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        throw StateError('Partie corrompue: cartes dupliquées détectées.');
+      }
+      DuelBoardState board = DuelBoardState.fromSession(session);
 
       DuelMoveResult move;
       if (action.type == DuelActionType.playCard) {
@@ -614,16 +771,23 @@ class GameService {
         createdAt: action.createdAt,
         payload: move.payload,
       );
+      final DuelBoardState nextBoard = board.applyValidatedAction(validatedAction);
       final DuelGameStatus nextStatus = move.payload.containsKey('winnerId')
           ? DuelGameStatus.finished
           : status;
+      final String actionId = gameRef.collection('actions').doc().id;
       tx.update(gameRef, <String, dynamic>{
         'currentTurn': move.nextTurn!,
         'lastAction': validatedAction.toMap(),
+        'lastActionId': actionId,
+        'lastActionBy': action.actorId,
         'status': nextStatus.name,
+        'revision': session.revision + 1,
+        ...nextBoard.toFirestoreFields(),
+        'updatedAt': FieldValue.serverTimestamp(),
         ...sessionPatch,
       });
-      tx.set(gameRef.collection('actions').doc(), validatedAction.toMap());
+      tx.set(gameRef.collection('actions').doc(actionId), validatedAction.toMap());
     });
   }
 
@@ -665,11 +829,14 @@ class GameService {
         'status': DuelGameStatus.finished.name,
         'currentTurn': winnerId,
         'lastAction': action.toMap(),
+        'lastActionBy': quitterId,
+        'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
         'scores.$winnerId': FieldValue.increment(1),
         'rematchRequestBy': null,
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.pending.name,
         'rematchDecisionBy': null,
+        'revision': session.revision + 1,
       };
       if (session.isCreditsMode) {
         final DuelStakeOffer offer = session.stakeOffer;
@@ -726,6 +893,8 @@ class GameService {
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
+        'lastActionBy': requestedBy,
+        'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
         'activeStakeCredits': 0,
         'stakeOffer': const DuelStakeOffer().toMap(),
         'rematchRequestBy': null,
@@ -738,6 +907,13 @@ class GameService {
         'invitedRefusalCount': 0,
         'exitedBy': null,
         'lastInsufficientFundsPlayerId': null,
+        'revision': session.revision + 1,
+        if (!session.isCreditsMode)
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: session.players,
+            round: nextRound,
+          ),
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -853,6 +1029,8 @@ class GameService {
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
+        'lastActionBy': responderId,
+        'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
         'activeStakeCredits': session.isCreditsMode ? session.activeStakeCredits : 0,
         'stakeOffer': session.isCreditsMode
             ? session.stakeOffer.toMap()
@@ -861,6 +1039,13 @@ class GameService {
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.accepted.name,
         'rematchDecisionBy': responderId,
+        'revision': session.revision + 1,
+        if (!session.isCreditsMode)
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: session.players,
+            round: nextRound,
+          ),
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -1058,6 +1243,8 @@ class GameService {
           'round': nextRound,
           'currentTurn': starter,
           'lastAction': action.toMap(),
+          'lastActionBy': responderId,
+          'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
           'stakeOffer': acceptedOffer.toMap(),
           'rematchRequestBy': null,
           'rematchRequestedAt': null,
@@ -1067,6 +1254,12 @@ class GameService {
           'invitedRefusalCount': 0,
           'exitedBy': null,
           'lastInsufficientFundsPlayerId': null,
+          'revision': session.revision + 1,
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: session.players,
+            round: nextRound,
+          ),
         });
         tx.set(ref.collection('actions').doc(), action.toMap());
         return;
@@ -1078,6 +1271,13 @@ class GameService {
         'stakeOffer': acceptedOffer.toMap(),
         'betFlowState': DuelBetFlowState.readyToStart.name,
         'lastInsufficientFundsPlayerId': null,
+        if (!session.deckInitialized)
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: session.players,
+            round: session.round,
+          ),
+        'revision': session.revision + 1,
       });
     });
   }
@@ -1144,6 +1344,7 @@ class DuelController extends ChangeNotifier {
 
   DuelSession? session;
   StreamSubscription<DuelSession>? _subscription;
+  bool _repairInFlight = false;
   bool busy = false;
   String? error;
 
@@ -1188,8 +1389,25 @@ class DuelController extends ChangeNotifier {
     await _subscription?.cancel();
     _subscription = service.watchSession(gameId).listen((DuelSession value) {
       session = value;
+      _maybeRepairSessionIntegrity(value);
       notifyListeners();
     });
+  }
+
+  void _maybeRepairSessionIntegrity(DuelSession value) {
+    if (_repairInFlight || value.hostId != localPlayerId || !value.deckInitialized) {
+      return;
+    }
+    final DuelGameStateValidationResult validation = validateGameState(value);
+    if (validation.isValid) {
+      return;
+    }
+    _repairInFlight = true;
+    service
+        .repairGameStateIfNeeded(gameId: value.gameId, requestedBy: localPlayerId)
+        .whenComplete(() {
+          _repairInFlight = false;
+        });
   }
 
   bool get isMyTurn => session?.currentTurn == localPlayerId;
@@ -2054,27 +2272,12 @@ class _DuelPageState extends State<DuelPage> {
     if (session == null || session.players.length < 2) {
       return;
     }
-    if (_board == null || _board!.gameId != session.gameId || _board!.round != session.round) {
-      final DuelBoardState initial = DuelBoardState.initial(
-        gameId: session.gameId,
-        players: session.players,
-        round: session.round,
-      );
-      setState(() {
-        _board = initial;
-      });
-      _actionsSubscription?.cancel();
-      _actionsSubscription = _controller.service
-          .watchActions(session.gameId)
-          .listen((List<DuelAction> actions) {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _board = initial.rebuildFromActions(actions);
-            });
-          });
-    }
+    final DuelBoardState snapshotBoard = DuelBoardState.fromSession(session);
+    setState(() {
+      _board = snapshotBoard;
+    });
+    _actionsSubscription?.cancel();
+    _actionsSubscription = null;
     _bindChatRealtime(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
@@ -3533,7 +3736,7 @@ class _DuelPageState extends State<DuelPage> {
                       const SizedBox(height: 8),
                       _OpponentRow(
                         name: opponentName,
-                        count: board.handOf(opponentId).length,
+                        count: getOpponentCardCount(session, _controller.localPlayerId),
                         wins: opponentScore,
                         losses: myScore,
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
@@ -4198,6 +4401,80 @@ class DuelBoardState {
   final String status;
   final int round;
 
+  int get player1Count => players.isNotEmpty ? handOf(players.first).length : 0;
+  int get player2Count => players.length > 1 ? handOf(players[1]).length : 0;
+  int get totalCardCount =>
+      (players.isNotEmpty ? handOf(players.first).length : 0) +
+      (players.length > 1 ? handOf(players[1]).length : 0) +
+      drawPile.length +
+      discardPile.length;
+
+  factory DuelBoardState.fromSession(DuelSession session) {
+    if (!session.deckInitialized || session.players.length < 2) {
+      return DuelBoardState.initial(
+        gameId: session.gameId,
+        players: session.players,
+        round: session.round,
+      );
+    }
+    final String p1 = session.players.first;
+    final String p2 = session.players[1];
+    final List<DuelCard> discardCards = session.discardPile
+        .map(DuelCard.fromId)
+        .toList();
+    final DuelCard top = session.topDiscard != null
+        ? DuelCard.fromId(session.topDiscard!)
+        : (discardCards.isNotEmpty
+            ? discardCards.last
+            : const DuelCard(suit: '♥', rank: 'A'));
+    return DuelBoardState._(
+      gameId: session.gameId,
+      players: session.players,
+      drawPile: session.drawPile.map(DuelCard.fromId).toList(),
+      discardPile: discardCards,
+      hands: <String, List<DuelCard>>{
+        p1: session.player1Hand.map(DuelCard.fromId).toList(),
+        p2: session.player2Hand.map(DuelCard.fromId).toList(),
+      },
+      discardTop: top,
+      requiredSuit: session.requiredSuit,
+      pendingDraw: session.pendingDrawCount,
+      forcedDrawInitial: session.forcedDrawInitial,
+      aceColorRequired: session.aceColorRequired,
+      overlay: '',
+      status: '',
+      round: session.round,
+    );
+  }
+
+  Map<String, dynamic> toFirestoreFields() {
+    final String p1 = players.isNotEmpty ? players.first : '';
+    final String p2 = players.length > 1 ? players[1] : '';
+    final List<String> p1Hand = p1.isEmpty
+        ? const <String>[]
+        : handOf(p1).map((DuelCard c) => c.id).toList();
+    final List<String> p2Hand = p2.isEmpty
+        ? const <String>[]
+        : handOf(p2).map((DuelCard c) => c.id).toList();
+    final List<String> drawIds = drawPile.map((DuelCard c) => c.id).toList();
+    final List<String> discardIds = discardPile.map((DuelCard c) => c.id).toList();
+    final DuelCard? top = discardIds.isEmpty ? null : discardPile.last;
+    return <String, dynamic>{
+      'player1Hand': p1Hand,
+      'player2Hand': p2Hand,
+      'drawPile': drawIds,
+      'discardPile': discardIds,
+      'topDiscard': top?.id,
+      'player1CardCount': p1Hand.length,
+      'player2CardCount': p2Hand.length,
+      'deckInitialized': true,
+      'pendingDrawCount': pendingDraw,
+      'forcedDrawInitial': forcedDrawInitial,
+      'requiredSuit': requiredSuit,
+      'aceColorRequired': aceColorRequired,
+    };
+  }
+
   factory DuelBoardState.initial({
     required String gameId,
     required List<String> players,
@@ -4251,6 +4528,8 @@ class DuelBoardState {
     }
     return state;
   }
+
+  DuelBoardState applyValidatedAction(DuelAction action) => _apply(action);
 
   List<DuelCard> handOf(String playerId) => hands[playerId] ?? <DuelCard>[];
 
@@ -4513,6 +4792,106 @@ int _stableDeckSeed(String gameId, int round) {
     hash = (hash * 16777619) & 0x7fffffff;
   }
   return hash;
+}
+
+class DuelGameStateValidationResult {
+  const DuelGameStateValidationResult({
+    required this.isValid,
+    required this.errors,
+    required this.autoCorrectPatch,
+    this.integrityError,
+  });
+
+  final bool isValid;
+  final List<String> errors;
+  final Map<String, dynamic> autoCorrectPatch;
+  final Map<String, dynamic>? integrityError;
+
+  bool get hasOnlyAutoCorrectableIssues =>
+      !isValid && integrityError == null && autoCorrectPatch.isNotEmpty;
+}
+
+DuelGameStateValidationResult validateGameState(DuelSession session) {
+  final List<String> errors = <String>[];
+  final Map<String, dynamic> patch = <String, dynamic>{};
+  final List<String> allCards = <String>[
+    ...session.player1Hand,
+    ...session.player2Hand,
+    ...session.drawPile,
+    ...session.discardPile,
+  ];
+  final Map<String, List<String>> locationsByCard = <String, List<String>>{};
+  void collect(String zone, List<String> cards) {
+    for (final String card in cards) {
+      locationsByCard.putIfAbsent(card, () => <String>[]).add(zone);
+    }
+  }
+
+  collect('player1Hand', session.player1Hand);
+  collect('player2Hand', session.player2Hand);
+  collect('drawPile', session.drawPile);
+  collect('discardPile', session.discardPile);
+
+  final int computedP1 = session.player1Hand.length;
+  final int computedP2 = session.player2Hand.length;
+  if (session.player1CardCount != computedP1) {
+    errors.add('player1CardCount incohérent');
+    patch['player1CardCount'] = computedP1;
+  }
+  if (session.player2CardCount != computedP2) {
+    errors.add('player2CardCount incohérent');
+    patch['player2CardCount'] = computedP2;
+  }
+  final String? expectedTop = session.discardPile.isEmpty ? null : session.discardPile.last;
+  if (session.topDiscard != expectedTop) {
+    errors.add('topDiscard incohérent avec discardPile');
+    patch['topDiscard'] = expectedTop;
+  }
+  if (session.status == DuelGameStatus.inProgress &&
+      !session.players.contains(session.currentTurn)) {
+    errors.add('currentTurn invalide pour une partie active');
+  }
+  if (allCards.length != 54) {
+    errors.add('Nombre total de cartes incohérent: ${allCards.length}/54');
+  }
+
+  for (final MapEntry<String, List<String>> entry in locationsByCard.entries) {
+    if (entry.value.length > 1) {
+      final Map<String, dynamic> integrity = <String, dynamic>{
+        'type': 'duplicate_card',
+        'cardId': entry.key,
+        'locations': entry.value,
+        'detectedAt': FieldValue.serverTimestamp(),
+      };
+      errors.add('Carte dupliquée ${entry.key} dans ${entry.value.join(', ')}');
+      return DuelGameStateValidationResult(
+        isValid: false,
+        errors: errors,
+        autoCorrectPatch: patch,
+        integrityError: integrity,
+      );
+    }
+  }
+
+  return DuelGameStateValidationResult(
+    isValid: errors.isEmpty,
+    errors: errors,
+    autoCorrectPatch: patch,
+  );
+}
+
+int getOpponentCardCount(DuelSession session, String currentUserId) {
+  if (currentUserId == session.player1Id) {
+    return session.player2Hand.isNotEmpty
+        ? session.player2Hand.length
+        : session.player2CardCount;
+  }
+  if (currentUserId == session.player2Id) {
+    return session.player1Hand.isNotEmpty
+        ? session.player1Hand.length
+        : session.player1CardCount;
+  }
+  return 0;
 }
 
 class _DuelStatusBanner extends StatelessWidget {
