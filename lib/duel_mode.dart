@@ -18,6 +18,7 @@ import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'stats_service.dart';
 import 'user_profile_service.dart';
+import 'widgets/gino_popups.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
@@ -2236,70 +2237,14 @@ class _DuelPageState extends State<DuelPage> {
   Future<String?> _showSuitChoice(BuildContext context) {
     return showDialog<String>(
       context: context,
+      barrierColor: Colors.black54,
       builder: (BuildContext dialogContext) {
-        const List<(String, String)> suits = <(String, String)>[
-          ('♣', 'Trèfle'),
-          ('♦', 'Carreau'),
-          ('♠', 'Pique'),
-          ('♥', 'Cœur'),
-        ];
-        return AlertDialog(
-          backgroundColor: const Color(0xFFF8F6F0),
-          surfaceTintColor: Colors.transparent,
-          title: const Center(
-            child: Text(
-              'TU COMMANDES ?',
-              style: TextStyle(
-                color: Color(0xFF152B22),
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          content: SizedBox(
-            width: 280,
-            child: GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              children: suits
-                  .map(
-                    ((String, String) suit) => InkWell(
-                      onTap: () => Navigator.of(dialogContext).pop(suit.$1),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Ink(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0x3320332B)),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            Text(
-                              suit.$1,
-                              style: TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w700,
-                                color: _suitColor(suit.$1),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              suit.$2,
-                              style: const TextStyle(
-                                color: Color(0xFF1A342A),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          child: GinoChooseSuitPopup(
+            suits: const <String>['♥', '♠', '♣', '♦'],
+            onSuitSelected: (String suit) => Navigator.of(dialogContext).pop(suit),
           ),
         );
       },
@@ -2322,44 +2267,13 @@ class _DuelPageState extends State<DuelPage> {
           }),
         );
         return AlertDialog(
-          backgroundColor: const Color(0xFFF8F6F0),
+          backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(
-                actorName,
-                style: const TextStyle(
-                  color: Color(0xFF152B22),
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Text(
-                    'a commandé',
-                    style: TextStyle(
-                      color: Color(0xFF1A342A),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    suit,
-                    style: TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.bold,
-                      color: _suitGlyphColor(suit),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          elevation: 0,
+          contentPadding: const EdgeInsets.all(0),
+          content: GinoOpponentCommandPopup(
+            playerName: actorName,
+            suit: suit,
           ),
         );
       },
@@ -2379,26 +2293,13 @@ class _DuelPageState extends State<DuelPage> {
           }),
         );
         return AlertDialog(
-          backgroundColor: const Color(0xFFF8F6F0),
+          backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const _DuelCardBack(width: 52, height: 76),
-              const SizedBox(height: 12),
-              Text(
-                'PIOCHEZ $amount CARTES',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF13261D),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ],
+          elevation: 0,
+          contentPadding: const EdgeInsets.all(0),
+          content: GinoDrawPenaltyPopup(
+            cardsToDraw: amount,
+            suit: _board?.requiredSuit ?? _board?.discardTop.suit,
           ),
         );
       },
@@ -2635,6 +2536,7 @@ class _DuelPageState extends State<DuelPage> {
         ? null
         : _creditsOf(session, opponentId);
     final int? selected = await _showStakeSelectionDialog(
+      opponentName: opponentId.isEmpty ? 'Adversaire' : _displayNameUpper(session, opponentId),
       myCredits: myCredits,
       opponentCredits: opponentCredits,
     );
@@ -2648,6 +2550,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   Future<int?> _showStakeSelectionDialog({
+    required String opponentName,
     required int myCredits,
     required int? opponentCredits,
   }) async {
@@ -2659,10 +2562,10 @@ class _DuelPageState extends State<DuelPage> {
     int? selectedAmount;
     String? validationError;
     final List<int> options = <int>[100, 250, 500, 1000, 2000];
-    final int? selected = await showModalBottomSheet<int>(
+    final int? selected = await showDialog<int>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, void Function(void Function()) setModalState) {
@@ -2680,151 +2583,51 @@ class _DuelPageState extends State<DuelPage> {
               });
             }
 
-            return SafeArea(
-              top: false,
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20),
               child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  10,
-                  16,
-                  MediaQuery.viewInsetsOf(context).bottom + 14,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF142D22),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      const Text(
-                        'Faire un pari',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Solde disponible: $myCredits',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFFE8FFF3),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (opponentCredits != null) ...<Widget>[
-                        const SizedBox(height: 2),
-                        Text(
-                          'Crédit adverse: $opponentCredits',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Color(0xFFFFE9A8),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: options.map((int amount) {
-                          final bool disabled = amount > myCredits;
-                          final bool exceedsOpponent = opponentCredits != null &&
-                              amount > opponentCredits;
-                          return ChoiceChip(
-                            label: Text('$amount'),
-                            selected: selectedAmount == amount,
-                            onSelected: (disabled || exceedsOpponent)
-                                ? null
-                                : (_) => selectAmount(amount),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: amountController,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: 'Montant du pari',
-                          labelStyle: const TextStyle(color: Colors.white70),
-                          hintText: 'Ex: 750',
-                          hintStyle: const TextStyle(color: Colors.white70),
-                          filled: true,
-                          fillColor: Colors.white.withOpacity(0.08),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onChanged: (String value) {
-                          final int? parsed = int.tryParse(value.trim());
+                padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    GinoBetProposalPopup(
+                      opponentName: opponentName,
+                      presetAmounts: options,
+                      selectedAmount: selectedAmount,
+                      amountController: amountController,
+                      validationError: validationError,
+                      onAmountChanged: (String value) {
+                        final int? parsed = int.tryParse(value.trim());
+                        setModalState(() {
+                          selectedAmount = parsed;
+                          validationError = validate(parsed);
+                        });
+                      },
+                      onSelectAmount: selectAmount,
+                      onCancel: () => Navigator.of(context).pop(),
+                      onValidate: () {
+                        final int? parsed = int.tryParse(amountController.text.trim());
+                        final String? error = validate(parsed);
+                        if (error != null) {
                           setModalState(() {
                             selectedAmount = parsed;
-                            validationError = validate(parsed);
+                            validationError = error;
                           });
-                        },
-                      ),
-                      if (validationError != null) ...<Widget>[
-                        const SizedBox(height: 8),
-                        Text(
-                          validationError!,
-                          style: const TextStyle(
-                            color: Color(0xFFFFC9C9),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Annuler'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: validationError != null
-                                  ? null
-                                  : () {
-                                      final int? parsed = int.tryParse(
-                                        amountController.text.trim(),
-                                      );
-                                      final String? error = validate(parsed);
-                                      if (error != null) {
-                                        setModalState(() {
-                                          selectedAmount = parsed;
-                                          validationError = error;
-                                        });
-                                        return;
-                                      }
-                                      Navigator.of(context).pop(parsed);
-                                    },
-                              icon: const Icon(Icons.lock_rounded),
-                              label: const Text('Valider'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          unawaited(_exitPartyFlow());
-                        },
-                        child: const Text('Quitter la partie'),
-                      ),
-                    ],
-                  ),
+                          return;
+                        }
+                        Navigator.of(context).pop(parsed);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        unawaited(_exitPartyFlow());
+                      },
+                      child: const Text('Quitter la partie'),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -2928,37 +2731,30 @@ class _DuelPageState extends State<DuelPage> {
     final String? decision = await showDialog<String>(
       context: context,
       barrierDismissible: false,
+      barrierColor: Colors.black54,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: Text(
-            isCounterProposal ? 'CONTRE-PROPOSITION' : 'PROPOSITION',
-            textAlign: TextAlign.center,
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              GinoIncomingBetPopup(
+                proposerName: proposer,
+                amount: offer.amount,
+                acceptEnabled: !insufficient,
+                onAccept: () => Navigator.of(dialogContext).pop('accept'),
+                onRefuse: () => Navigator.of(dialogContext).pop('refuse'),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop('quit'),
+                child: Text(
+                  isRematchOffer || isCounterProposal ? 'Quitter la partie' : 'QUITTER LA PARTIE',
+                ),
+              ),
+            ],
           ),
-          content: Text(
-            isRematchOffer
-                ? '$proposer veut prendre sa revanche avec une mise de ${offer.amount}'
-                : (isCounterProposal
-                    ? '$proposer veut plutôt parier ${offer.amount}'
-                    : '$proposer propose une mise de ${offer.amount}'),
-            textAlign: TextAlign.center,
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop('quit');
-              },
-              child: const Text('QUITTER LA PARTIE'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop('refuse'),
-              child: const Text('REFUSER'),
-            ),
-            ElevatedButton(
-              onPressed: insufficient ? null : () => Navigator.of(dialogContext).pop('accept'),
-              child: const Text('ACCEPTER'),
-            ),
-          ],
         );
       },
     );
