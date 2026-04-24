@@ -13,9 +13,11 @@ import 'auth_service.dart';
 import 'firebase_config.dart';
 import 'duel_mode.dart';
 import 'leaderboard_page.dart';
+import 'admin_dashboard.dart';
 import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'user_profile_service.dart';
+import 'widgets/gino_popups.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -128,6 +130,8 @@ class MyApp extends StatelessWidget {
           GameModeRoutes.credits: (_) =>
               const DuelLobbyPage(mode: DuelRoomMode.credits),
           GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
+          GameModeRoutes.adminLogin: (_) => const LoginAdminPage(),
+          GameModeRoutes.adminDashboard: (_) => const AdminDashboardPage(),
         },
         home: const AppBootstrapPage(),
       ),
@@ -365,6 +369,8 @@ class GameModeRoutes {
   static const String duel = '/duel';
   static const String credits = '/credits';
   static const String leaderboard = '/leaderboard';
+  static const String adminLogin = '/admin-login';
+  static const String adminDashboard = '/admin-dashboard';
 }
 
 class GameModePalette {
@@ -854,6 +860,34 @@ class _GameModePageState extends State<GameModePage>
               ),
             ),
           ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12, top: 8),
+                child: GestureDetector(
+                  onLongPress: () {
+                    unawaited(AppSfxService.instance.playClick());
+                    Navigator.of(context).pushNamed(GameModeRoutes.adminLogin);
+                  },
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF003B22).withOpacity(0.85),
+                      border: Border.all(color: const Color(0x667CC79A), width: 1),
+                    ),
+                    child: const Icon(
+                      Icons.shield_outlined,
+                      size: 17,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -882,21 +916,16 @@ class _GameModePageState extends State<GameModePage>
       final bool shouldLogin = await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('Connexion requise'),
-                content: const Text(
-                  'Connectez-vous avec Google pour jouer en mode Paris.',
+              return Dialog(
+                backgroundColor: Colors.transparent,
+                child: GinoDecisionPopup(
+                  title: 'Connexion',
+                  message: 'Connecte-toi avec Google pour continuer.',
+                  primaryLabel: 'Google',
+                  secondaryLabel: 'Annuler',
+                  onPrimary: () => Navigator.of(context).pop(true),
+                  onSecondary: () => Navigator.of(context).pop(false),
                 ),
-                actions: <Widget>[
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Annuler'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('Connexion Google'),
-                  ),
-                ],
               );
             },
           ) ??
@@ -2327,44 +2356,25 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Future<Suit> _showSuitChooserDialog() async {
-    final Suit? selected = await showDialog<Suit>(
+    final String? selected = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFFF9FAF8),
-          surfaceTintColor: Colors.transparent,
-          title: const Text(
-            'Choisis une enseigne',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Color(0xFF1A3427),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          content: SizedBox(
-            width: 260,
-            child: GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              children: Suit.values
-                  .map(
-                    (Suit suit) => _SuitChoiceTile(
-                      suit: suit,
-                      onTap: () => Navigator.of(context).pop(suit),
-                    ),
-                  )
-                  .toList(),
-            ),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: GinoChooseSuitPopup(
+            onSuitSelected: (String suit) => Navigator.of(context).pop(suit),
           ),
         );
       },
     );
 
-    final Suit chosenSuit = selected ?? Suit.spades;
+    final Suit chosenSuit = switch (selected) {
+      '♥' => Suit.hearts,
+      '♣' => Suit.clubs,
+      '♦' => Suit.diamonds,
+      _ => Suit.spades,
+    };
 
     await _showEightDemandOverlay(
       suit: chosenSuit,
