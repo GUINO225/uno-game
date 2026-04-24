@@ -241,6 +241,10 @@ class DuelSession {
     this.invitedRefusalCount = 0,
     this.exitedBy,
     this.lastInsufficientFundsPlayerId,
+    this.payoutDone = false,
+    this.payoutWinnerId,
+    this.payoutAmount = 0,
+    this.payoutAt,
     this.player1Hand = const <String>[],
     this.player2Hand = const <String>[],
     this.drawPile = const <String>[],
@@ -282,6 +286,10 @@ class DuelSession {
   final int invitedRefusalCount;
   final String? exitedBy;
   final String? lastInsufficientFundsPlayerId;
+  final bool payoutDone;
+  final String? payoutWinnerId;
+  final int payoutAmount;
+  final DateTime? payoutAt;
   final List<String> player1Hand;
   final List<String> player2Hand;
   final List<String> drawPile;
@@ -313,6 +321,7 @@ class DuelSession {
       'playerNames': playerNames,
       'currentTurn': currentTurn,
       'status': status.name,
+      'roundStatus': status == DuelGameStatus.inProgress ? 'playing' : 'finished',
       'scores': scores,
       'round': round,
       'mode': mode.name,
@@ -325,11 +334,16 @@ class DuelSession {
           ? null
           : Timestamp.fromDate(rematchRequestedAt!.toUtc()),
       'rematchDecision': rematchDecision.name,
+      'rematchStatus': rematchRequestBy == null ? 'none' : 'requested',
       'rematchDecisionBy': rematchDecisionBy,
       'betFlowState': betFlowState.name,
       'invitedRefusalCount': invitedRefusalCount,
       'exitedBy': exitedBy,
       'lastInsufficientFundsPlayerId': lastInsufficientFundsPlayerId,
+      'payoutDone': payoutDone,
+      'payoutWinnerId': payoutWinnerId,
+      'payoutAmount': payoutAmount,
+      'payoutAt': payoutAt == null ? null : Timestamp.fromDate(payoutAt!.toUtc()),
       'player1Hand': player1Hand,
       'player2Hand': player2Hand,
       'drawPile': drawPile,
@@ -410,6 +424,10 @@ class DuelSession {
       invitedRefusalCount: (json['invitedRefusalCount'] as num?)?.toInt() ?? 0,
       exitedBy: json['exitedBy'] as String?,
       lastInsufficientFundsPlayerId: json['lastInsufficientFundsPlayerId'] as String?,
+      payoutDone: json['payoutDone'] as bool? ?? false,
+      payoutWinnerId: json['payoutWinnerId'] as String?,
+      payoutAmount: (json['payoutAmount'] as num?)?.toInt() ?? 0,
+      payoutAt: (json['payoutAt'] as Timestamp?)?.toDate(),
       player1Hand: List<String>.from(json['player1Hand'] as List? ?? const <String>[]),
       player2Hand: List<String>.from(json['player2Hand'] as List? ?? const <String>[]),
       drawPile: List<String>.from(json['drawPile'] as List? ?? const <String>[]),
@@ -485,6 +503,13 @@ class GameService {
   Future<CollectionReference<Map<String, dynamic>>> _games() async =>
       (await _resolveDb()).collection('duel_games');
 
+  DocumentReference<Map<String, dynamic>> _userProfileRef(
+    FirebaseFirestore db,
+    String uid,
+  ) {
+    return db.collection('user_profiles').doc(uid);
+  }
+
   String _generateCode() {
     const String chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final Random random = Random();
@@ -518,6 +543,25 @@ class GameService {
   }) async {
     final String code = _generateCode();
     final CollectionReference<Map<String, dynamic>> games = await _games();
+    int initialCredits = 1000;
+    if (mode == DuelRoomMode.credits) {
+      final FirebaseFirestore db = await _resolveDb();
+      final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
+      final DocumentSnapshot<Map<String, dynamic>> profileSnap = await profileRef.get();
+      if (!profileSnap.exists) {
+        await profileRef.set(<String, dynamic>{
+          'uid': playerId,
+          'displayName': playerName,
+          'credits': 1000,
+          'wins': 0,
+          'losses': 0,
+          'gamesPlayed': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+      initialCredits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 1000;
+    }
     debugPrint('[GameService] createGame requested by $playerId in mode=${mode.name}.');
     await games.doc(code).set(
       DuelSession(
@@ -531,7 +575,7 @@ class GameService {
         round: 1,
         mode: mode,
         playerCredits: mode == DuelRoomMode.credits
-            ? <String, int>{playerId: 1000}
+            ? <String, int>{playerId: initialCredits}
             : const <String, int>{},
         betFlowState: mode == DuelRoomMode.credits
             ? DuelBetFlowState.initialStakeProposed
@@ -565,12 +609,39 @@ class GameService {
       }
       final List<String> players = <String>{...session.players, playerId}.toList();
       final bool activatesNow = players.length == 2 && !session.isCreditsMode;
+      int joiningPlayerCredits = session.playerCredits[playerId] ?? 1000;
+      if (session.isCreditsMode) {
+        final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
+        final DocumentSnapshot<Map<String, dynamic>> profileSnap = await tx.get(profileRef);
+        if (!profileSnap.exists) {
+          tx.set(profileRef, <String, dynamic>{
+            'uid': playerId,
+            'displayName': playerName,
+            'credits': 1000,
+            'wins': 0,
+            'losses': 0,
+            'gamesPlayed': 0,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          joiningPlayerCredits = 1000;
+        } else {
+          joiningPlayerCredits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 1000;
+          if (!(profileSnap.data()?.containsKey('credits') ?? false)) {
+            tx.set(profileRef, <String, dynamic>{
+              'credits': 1000,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+            joiningPlayerCredits = 1000;
+          }
+        }
+      }
       tx.update(ref, <String, dynamic>{
         'players': players,
         'playerNames.$playerId': playerName,
         'scores.$playerId': session.scores[playerId] ?? 0,
         if (session.isCreditsMode)
-          'playerCredits.$playerId': session.playerCredits[playerId] ?? 1000,
+          'playerCredits.$playerId': joiningPlayerCredits,
         'status': players.length == 2
             ? (session.isCreditsMode
                 ? DuelGameStatus.waiting.name
@@ -782,6 +853,8 @@ class GameService {
         'lastActionId': actionId,
         'lastActionBy': action.actorId,
         'status': nextStatus.name,
+        'roundStatus': move.payload.containsKey('winnerId') ? 'finished' : 'playing',
+        if (move.payload.containsKey('winnerId')) 'rematchStatus': 'none',
         'revision': session.revision + 1,
         ...nextBoard.toFirestoreFields(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -827,6 +900,7 @@ class GameService {
       );
       final Map<String, dynamic> patch = <String, dynamic>{
         'status': DuelGameStatus.finished.name,
+        'roundStatus': 'finished',
         'currentTurn': winnerId,
         'lastAction': action.toMap(),
         'lastActionBy': quitterId,
@@ -836,13 +910,14 @@ class GameService {
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.pending.name,
         'rematchDecisionBy': null,
+        'rematchStatus': 'none',
         'revision': session.revision + 1,
       };
       if (session.isCreditsMode) {
         final DuelStakeOffer offer = session.stakeOffer;
         final int pot = session.activeStakeCredits;
         final int winnerCredits = session.playerCredits[winnerId] ?? 0;
-        if (offer.isAccepted && pot > 0) {
+        if (!session.payoutDone && offer.isAccepted && pot > 0) {
           patch.addAll(<String, dynamic>{
             'playerCredits.$winnerId': winnerCredits + pot,
             'activeStakeCredits': 0,
@@ -854,6 +929,10 @@ class GameService {
               createdAt: offer.createdAt,
             ).toMap(),
             'betFlowState': DuelBetFlowState.matchFinished.name,
+            'payoutDone': true,
+            'payoutWinnerId': winnerId,
+            'payoutAmount': offer.amount,
+            'payoutAt': FieldValue.serverTimestamp(),
           });
         }
       }
@@ -890,6 +969,7 @@ class GameService {
       );
       tx.update(ref, <String, dynamic>{
         'status': session.isCreditsMode ? DuelGameStatus.waiting.name : DuelGameStatus.inProgress.name,
+        'roundStatus': session.isCreditsMode ? 'finished' : 'playing',
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
@@ -901,12 +981,17 @@ class GameService {
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.pending.name,
         'rematchDecisionBy': null,
+        'rematchStatus': 'none',
         'betFlowState': session.isCreditsMode
             ? DuelBetFlowState.initialStakeProposed.name
             : DuelBetFlowState.idle.name,
         'invitedRefusalCount': 0,
         'exitedBy': null,
         'lastInsufficientFundsPlayerId': null,
+        'payoutDone': false,
+        'payoutWinnerId': null,
+        'payoutAmount': 0,
+        'payoutAt': null,
         'revision': session.revision + 1,
         if (!session.isCreditsMode)
           ..._boardInitPatch(
@@ -945,6 +1030,8 @@ class GameService {
         'rematchRequestedAt': FieldValue.serverTimestamp(),
         'rematchDecision': DuelRematchDecision.pending.name,
         'rematchDecisionBy': null,
+        'roundStatus': 'rematch_requested',
+        'rematchStatus': 'requested',
         if (session.isCreditsMode) ...<String, dynamic>{
           'betFlowState': DuelBetFlowState.rematchPendingFromLoser.name,
           'stakeOffer': const DuelStakeOffer().toMap(),
@@ -992,10 +1079,10 @@ class GameService {
       if (!accept) {
         tx.update(ref, <String, dynamic>{
           'status': DuelGameStatus.finished.name,
-          'rematchRequestBy': null,
-          'rematchRequestedAt': null,
+          'roundStatus': 'finished',
           'rematchDecision': DuelRematchDecision.declined.name,
           'rematchDecisionBy': responderId,
+          'rematchStatus': 'refused',
           if (session.isCreditsMode)
             'betFlowState': DuelBetFlowState.rematchRejected.name,
         });
@@ -1004,10 +1091,12 @@ class GameService {
       if (session.isCreditsMode) {
         tx.update(ref, <String, dynamic>{
           'status': DuelGameStatus.finished.name,
+          'roundStatus': 'finished',
           'activeStakeCredits': 0,
           'stakeOffer': const DuelStakeOffer().toMap(),
           'rematchDecision': DuelRematchDecision.accepted.name,
           'rematchDecisionBy': responderId,
+          'rematchStatus': 'accepted',
         });
         return;
       }
@@ -1025,7 +1114,8 @@ class GameService {
         },
       );
       tx.update(ref, <String, dynamic>{
-        'status': session.isCreditsMode ? DuelGameStatus.waiting.name : DuelGameStatus.inProgress.name,
+        'status': DuelGameStatus.inProgress.name,
+        'roundStatus': 'playing',
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
@@ -1039,6 +1129,15 @@ class GameService {
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.accepted.name,
         'rematchDecisionBy': responderId,
+        'rematchStatus': 'none',
+        'pendingDrawCount': 0,
+        'forcedDrawInitial': 0,
+        'requiredSuit': null,
+        'aceColorRequired': false,
+        'payoutDone': false,
+        'payoutWinnerId': null,
+        'payoutAmount': 0,
+        'payoutAt': null,
         'revision': session.revision + 1,
         if (!session.isCreditsMode)
           ..._boardInitPatch(
@@ -1240,6 +1339,7 @@ class GameService {
           'playerCredits.$responderId': responderCredits - offer.amount,
           'activeStakeCredits': offer.amount * 2,
           'status': DuelGameStatus.inProgress.name,
+          'roundStatus': 'playing',
           'round': nextRound,
           'currentTurn': starter,
           'lastAction': action.toMap(),
@@ -1250,10 +1350,15 @@ class GameService {
           'rematchRequestedAt': null,
           'rematchDecision': DuelRematchDecision.pending.name,
           'rematchDecisionBy': null,
+          'rematchStatus': 'none',
           'betFlowState': DuelBetFlowState.rematchAccepted.name,
           'invitedRefusalCount': 0,
           'exitedBy': null,
           'lastInsufficientFundsPlayerId': null,
+          'payoutDone': false,
+          'payoutWinnerId': null,
+          'payoutAmount': 0,
+          'payoutAt': null,
           'revision': session.revision + 1,
           ..._boardInitPatch(
             gameId: session.gameId,
@@ -1268,9 +1373,14 @@ class GameService {
         'playerCredits.$responderId': responderCredits - offer.amount,
         'activeStakeCredits': offer.amount * 2,
         'status': DuelGameStatus.inProgress.name,
+        'roundStatus': 'playing',
         'stakeOffer': acceptedOffer.toMap(),
         'betFlowState': DuelBetFlowState.readyToStart.name,
         'lastInsufficientFundsPlayerId': null,
+        'payoutDone': false,
+        'payoutWinnerId': null,
+        'payoutAmount': 0,
+        'payoutAt': null,
         if (!session.deckInitialized)
           ..._boardInitPatch(
             gameId: session.gameId,
@@ -1300,7 +1410,10 @@ class GameService {
       final DuelSession session = DuelSession.fromDoc(snap);
       final DuelStakeOffer offer = session.stakeOffer;
       final int amount = session.activeStakeCredits;
-      if (!offer.isAccepted || amount <= 0 || !session.players.contains(winnerId)) {
+      if (session.payoutDone ||
+          !offer.isAccepted ||
+          amount <= 0 ||
+          !session.players.contains(winnerId)) {
         return;
       }
       final String loserId = session.players.firstWhere(
@@ -1324,6 +1437,10 @@ class GameService {
           createdAt: offer.createdAt,
         ).toMap(),
         'betFlowState': DuelBetFlowState.matchFinished.name,
+        'payoutDone': true,
+        'payoutWinnerId': winnerId,
+        'payoutAmount': offer.amount,
+        'payoutAt': FieldValue.serverTimestamp(),
       });
     });
   }
@@ -2250,6 +2367,18 @@ class _DuelPageState extends State<DuelPage> {
       _stakeRejectedDialogOpen ||
       _winDialogOpen;
 
+  void _resetLocalRoundUiState() {
+    _rematchDialogOpen = false;
+    _rematchActionBusy = false;
+    _stakeActionBusy = false;
+    _stakeDialogOpen = false;
+    _stakeSelectionDialogOpen = false;
+    _stakeRejectedDialogOpen = false;
+    _winDialogOpen = false;
+    _pendingStakeOfferAfterVictoryKey = null;
+    _pendingRematchAfterVictoryKey = null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2278,6 +2407,12 @@ class _DuelPageState extends State<DuelPage> {
     });
     _actionsSubscription?.cancel();
     _actionsSubscription = null;
+    if (session.status == DuelGameStatus.inProgress &&
+        (session.betFlowState == DuelBetFlowState.readyToStart ||
+            session.betFlowState == DuelBetFlowState.rematchAccepted ||
+            !_isCreditsMode)) {
+      _resetLocalRoundUiState();
+    }
     _bindChatRealtime(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
@@ -2634,6 +2769,11 @@ class _DuelPageState extends State<DuelPage> {
     if (session.status != DuelGameStatus.finished) {
       return;
     }
+    if (_isCreditsMode &&
+        session.stakeOffer.status == DuelStakeStatus.accepted &&
+        !session.payoutDone) {
+      return;
+    }
     final String? winnerId = _winnerId(session);
     if (winnerId == null || winnerId.isEmpty) {
       return;
@@ -2666,11 +2806,19 @@ class _DuelPageState extends State<DuelPage> {
     }
     _lastStatsSyncKey = key;
     try {
+      final int winnerDelta = _isCreditsMode && session.payoutDone
+          ? session.payoutAmount
+          : 0;
+      final int loserDelta = _isCreditsMode && session.payoutDone
+          ? -session.payoutAmount
+          : 0;
       await _statsService.recordDuelResult(
         gameId: session.gameId,
         round: session.round,
         winnerId: winnerId,
         loserId: loserId,
+        winnerCreditsDelta: winnerDelta,
+        loserCreditsDelta: loserDelta,
       );
     } catch (error) {
       debugPrint('Stats sync failed: $error');
@@ -3185,7 +3333,7 @@ class _DuelPageState extends State<DuelPage> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Quitter'),
+              child: const Text('Confirmer'),
             ),
           ],
         );
@@ -3219,7 +3367,7 @@ class _DuelPageState extends State<DuelPage> {
           backgroundColor: Colors.transparent,
           child: GinoDecisionPopup(
             title: 'Revanche',
-            message: '$requester veut prendre sa revanche',
+            message: '$requester demande une revanche.',
             primaryLabel: 'Accepter',
             secondaryLabel: 'Refuser',
             onPrimary: () => Navigator.of(dialogContext).pop(true),
@@ -3259,7 +3407,7 @@ class _DuelPageState extends State<DuelPage> {
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Votre adversaire a refusé la revanche.')),
+          const SnackBar(content: Text('Ton adversaire a refusé la revanche.')),
         );
       });
       return;
@@ -3791,19 +3939,19 @@ class _DuelPageState extends State<DuelPage> {
                           session.rematchDecision != DuelRematchDecision.accepted)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              unawaited(_sfx.playClick());
-                              _onReplayTap();
-                            },
-                            icon: const Icon(Icons.refresh),
-                            label: Text(
-                              session.rematchRequestBy == _controller.localPlayerId &&
-                                      session.rematchDecision ==
-                                          DuelRematchDecision.pending
-                                  ? 'EN ATTENTE...'
-                                  : 'PRENDRE SA REVANCHE',
-                            ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: session.rematchRequestBy == _controller.localPlayerId &&
+                                    session.rematchDecision ==
+                                        DuelRematchDecision.pending
+                                ? const GinoDisabledPopupButton(label: 'Patienter')
+                                : GinoPopupButton(
+                                    label: 'Revanche',
+                                    onPressed: () {
+                                      unawaited(_sfx.playClick());
+                                      _onReplayTap();
+                                    },
+                                  ),
                           ),
                         ),
                     ],
