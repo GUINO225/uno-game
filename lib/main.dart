@@ -1786,7 +1786,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _setForcedDraw(
         target: startingPlayer,
         source: dealer,
-        count: 3,
+        count: 2,
         announcement: '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un 2.',
       );
       return;
@@ -2139,8 +2139,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _setForcedDraw(
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
-          count: 3,
-          announcement: 'Vous jouez un 2 : GINO doit piocher 3 cartes.',
+          count: 2,
+          announcement: 'Vous jouez un 2 : GINO doit piocher 2 cartes.',
         );
         await _runForcedDrawForBot();
         return const _PlayResolution(
@@ -2151,13 +2151,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _setForcedDraw(
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
-          count: 3,
-          announcement: 'GINO joue un 2 : vous devez piocher 3 cartes.',
+          count: 2,
+          announcement: 'GINO joue un 2 : vous devez piocher 2 cartes.',
         );
       }
 
       return const _PlayResolution(
-        extraTurn: false,
+        extraTurn: true,
         skipTurnSwitch: false,
       );
     }
@@ -2185,7 +2185,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
 
       return const _PlayResolution(
-        extraTurn: false,
+        extraTurn: true,
         skipTurnSwitch: false,
       );
     }
