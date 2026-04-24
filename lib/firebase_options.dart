@@ -63,7 +63,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '894004314968',
     projectId: 'gino',
     storageBucket: 'gino.firebasestorage.app',
-    iosBundleId: 'com.example.huit',
+    iosBundleId: 'com.company.gino',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -72,7 +72,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '894004314968',
     projectId: 'gino',
     storageBucket: 'gino.firebasestorage.app',
-    iosBundleId: 'com.example.huit',
+    iosBundleId: 'com.company.gino',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
