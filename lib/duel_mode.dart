@@ -244,6 +244,8 @@ class DuelSession {
     this.exitedBy,
     this.lastInsufficientFundsPlayerId,
     this.payoutDone = false,
+    this.abandonedBy,
+    this.exitBothPlayers = false,
     this.payoutWinnerId,
     this.payoutAmount = 0,
     this.payoutAt,
@@ -289,6 +291,8 @@ class DuelSession {
   final String? exitedBy;
   final String? lastInsufficientFundsPlayerId;
   final bool payoutDone;
+  final String? abandonedBy;
+  final bool exitBothPlayers;
   final String? payoutWinnerId;
   final int payoutAmount;
   final DateTime? payoutAt;
@@ -358,6 +362,8 @@ class DuelSession {
       'exitedBy': exitedBy,
       'lastInsufficientFundsPlayerId': lastInsufficientFundsPlayerId,
       'payoutDone': payoutDone,
+      'abandonedBy': abandonedBy,
+      'exitBothPlayers': exitBothPlayers,
       'payoutWinnerId': payoutWinnerId,
       'payoutAmount': payoutAmount,
       'payoutAt': payoutAt == null ? null : Timestamp.fromDate(payoutAt!.toUtc()),
@@ -442,6 +448,8 @@ class DuelSession {
       exitedBy: json['exitedBy'] as String?,
       lastInsufficientFundsPlayerId: json['lastInsufficientFundsPlayerId'] as String?,
       payoutDone: json['payoutDone'] as bool? ?? false,
+      abandonedBy: json['abandonedBy'] as String?,
+      exitBothPlayers: json['exitBothPlayers'] as bool? ?? false,
       payoutWinnerId: json['payoutWinnerId'] as String?,
       payoutAmount: (json['payoutAmount'] as num?)?.toInt() ?? 0,
       payoutAt: (json['payoutAt'] as Timestamp?)?.toDate(),
@@ -881,25 +889,24 @@ class GameService {
     });
   }
 
-  Future<void> forfeitGame({
-    required DuelSession current,
-    required String quitterId,
+  Future<void> handlePlayerExitGame({
+    required String gameId,
+    required String currentUserId,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(current.gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db.collection('duel_games').doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
         throw StateError('Partie introuvable');
       }
       final DuelSession session = DuelSession.fromDoc(snap);
-      if (!session.players.contains(quitterId) ||
+      if (!session.players.contains(currentUserId) ||
           session.status != DuelGameStatus.inProgress) {
         return;
       }
       final String winnerId = session.players.firstWhere(
-        (String id) => id != quitterId,
+        (String id) => id != currentUserId,
         orElse: () => '',
       );
       if (winnerId.isEmpty) {
@@ -907,20 +914,24 @@ class GameService {
       }
       final DuelAction action = DuelAction(
         type: DuelActionType.forfeit,
-        actorId: quitterId,
+        actorId: currentUserId,
         createdAt: DateTime.now(),
         payload: <String, dynamic>{
           'winnerId': winnerId,
-          'loserId': quitterId,
+          'loserId': currentUserId,
           'abandoned': true,
         },
       );
       final Map<String, dynamic> patch = <String, dynamic>{
         'status': DuelGameStatus.finished.name,
         'roundStatus': 'finished',
+        'abandonedBy': currentUserId,
+        'winnerId': winnerId,
+        'loserId': currentUserId,
+        'exitBothPlayers': true,
         'currentTurn': winnerId,
         'lastAction': action.toMap(),
-        'lastActionBy': quitterId,
+        'lastActionBy': currentUserId,
         'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
         'scores.$winnerId': FieldValue.increment(1),
         'rematchRequestBy': null,
@@ -953,6 +964,7 @@ class GameService {
           });
         }
       }
+      patch['updatedAt'] = FieldValue.serverTimestamp();
       tx.update(ref, patch);
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -1718,7 +1730,10 @@ class DuelController extends ChangeNotifier {
     if (current == null) {
       return;
     }
-    await service.forfeitGame(current: current, quitterId: localPlayerId);
+    await service.handlePlayerExitGame(
+      gameId: current.gameId,
+      currentUserId: localPlayerId,
+    );
   }
 
   @override
@@ -1913,8 +1928,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
               backgroundColor: Colors.transparent,
               child: GinoDecisionPopup(
                 title: 'Connexion',
-                message: 'Connectez-vous avec Google pour jouer en mode Paris.',
-                primaryLabel: 'Valider',
+                message: 'Connecte-toi avec Google pour continuer.',
+                primaryLabel: 'Google',
                 secondaryLabel: 'Annuler',
                 onPrimary: () => Navigator.of(context).pop(true),
                 onSecondary: () => Navigator.of(context).pop(false),
@@ -3407,25 +3422,16 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text(
-            'Voulez-vous vraiment quitter la partie ?',
-            style: TextStyle(fontWeight: FontWeight.w800),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: GinoDecisionPopup(
+            title: 'Confirmer',
+            message: 'Si tu pars maintenant, tu perds la manche.',
+            primaryLabel: 'Quitter',
+            secondaryLabel: 'Annuler',
+            onPrimary: () => Navigator.of(dialogContext).pop(true),
+            onSecondary: () => Navigator.of(dialogContext).pop(false),
           ),
-          content: const Text(
-            'Si vous quittez maintenant, vous perdez la manche et votre mise sera donnée à l’adversaire.',
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Confirmer'),
-            ),
-          ],
         );
       },
     );
@@ -3562,10 +3568,14 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   void _maybeHandlePartyExit(DuelSession session) {
-    if (!_isCreditsMode || session.betFlowState != DuelBetFlowState.partyExited) {
+    final bool shouldForceExit = session.betFlowState == DuelBetFlowState.partyExited ||
+        session.exitBothPlayers ||
+        session.abandonedBy != null;
+    if (!shouldForceExit) {
       return;
     }
-    final String key = '${session.round}_${session.exitedBy ?? ''}';
+    final String key =
+        '${session.round}_${session.exitedBy ?? ''}_${session.abandonedBy ?? ''}_${session.exitBothPlayers}';
     if (_lastExitKey == key) {
       return;
     }
@@ -3573,6 +3583,11 @@ class _DuelPageState extends State<DuelPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
+      }
+      if (session.abandonedBy != null && session.abandonedBy != _controller.localPlayerId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ton adversaire a quitté la partie.')),
+        );
       }
       Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
     });
