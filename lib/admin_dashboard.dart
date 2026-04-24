@@ -137,7 +137,7 @@ class AdminDashboardPage extends StatelessWidget {
     required String uid,
     required bool add,
   }) async {
-    final TextEditingController amountController = TextEditingController();
+    String amountInput = '';
     final int? amount = await showDialog<int>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -149,8 +149,8 @@ class AdminDashboardPage extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 TextField(
-                  controller: amountController,
                   keyboardType: TextInputType.number,
+                  onChanged: (String value) => amountInput = value,
                   style: GinoPopupStyle.baseText(fontSize: 16),
                   decoration: InputDecoration(
                     hintText: 'Montant',
@@ -187,10 +187,11 @@ class AdminDashboardPage extends StatelessWidget {
                       child: GinoPopupButton(
                         label: 'Valider',
                         onPressed: () {
-                          final int? parsed = int.tryParse(amountController.text.trim());
+                          final int? parsed = int.tryParse(amountInput.trim());
                           if (parsed == null || parsed <= 0) {
                             return;
                           }
+                          FocusScope.of(dialogContext).unfocus();
                           Navigator.of(dialogContext).pop(parsed);
                         },
                       ),
@@ -203,7 +204,6 @@ class AdminDashboardPage extends StatelessWidget {
         );
       },
     );
-    amountController.dispose();
     if (amount == null || amount <= 0) {
       return;
     }
