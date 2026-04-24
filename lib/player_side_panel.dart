@@ -33,7 +33,12 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       return (null, null);
     }
     final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
-    final int? rank = await _leaderboardService.fetchPlayerRank(user.uid);
+    int? rank;
+    try {
+      rank = await _leaderboardService.fetchPlayerRank(user.uid);
+    } catch (e) {
+      debugPrint('[PlayerSidePanel] rank unavailable for uid=${user.uid}: $e');
+    }
     return (profile, rank);
   }
 
@@ -74,6 +79,43 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                 final int? rank = snapshot.data?.$2;
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: <Widget>[
+                      Text(
+                        'Mon compte',
+                        style: GoogleFonts.poppins(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w700,
+                          color: PremiumColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Compte connecté, mais impossible de charger les données pour le moment.',
+                        style: GoogleFonts.poppins(
+                          color: PremiumColors.textDark.withOpacity(0.85),
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '${snapshot.error}',
+                        style: GoogleFonts.poppins(
+                          color: PremiumColors.textDark.withOpacity(0.65),
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: () => setState(() {}),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  );
                 }
                 if (profile == null) {
                   return ListView(
