@@ -21,7 +21,7 @@ import 'user_profile_service.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
-enum DuelActionType { playCard, drawCard, resetRound }
+enum DuelActionType { playCard, drawCard, resetRound, forfeit }
 
 enum DuelRematchDecision { pending, accepted, declined }
 
@@ -555,15 +555,143 @@ class GameService {
     DuelGameStatus status = DuelGameStatus.inProgress,
     Map<String, dynamic> sessionPatch = const <String, dynamic>{},
   }) async {
-    final CollectionReference<Map<String, dynamic>> games = await _games();
-    final DocumentReference<Map<String, dynamic>> gameRef = games.doc(gameId);
-    await gameRef.update(<String, dynamic>{
-      'currentTurn': nextTurn,
-      'lastAction': action.toMap(),
-      'status': status.name,
-      ...sessionPatch,
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> gameRef =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(gameRef);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.status != DuelGameStatus.inProgress) {
+        throw StateError('La partie n’est pas active.');
+      }
+      if (session.currentTurn != action.actorId) {
+        throw StateError('Ce n’est pas votre tour.');
+      }
+      if (!session.players.contains(action.actorId)) {
+        throw StateError('Action invalide.');
+      }
+      final QuerySnapshot<Map<String, dynamic>> actionsSnap =
+          await tx.get(gameRef.collection('actions').orderBy('createdAt'));
+      final List<DuelAction> existingActions = actionsSnap.docs
+          .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+            final Map<String, dynamic> data = doc.data();
+            return DuelAction.fromMap(data);
+          })
+          .toList();
+      DuelBoardState board = DuelBoardState.initial(
+        gameId: session.gameId,
+        players: session.players,
+        round: session.round,
+      ).rebuildFromActions(existingActions);
+
+      DuelMoveResult move;
+      if (action.type == DuelActionType.playCard) {
+        final String? cardId = action.payload['cardId'] as String?;
+        if (cardId == null || cardId.isEmpty) {
+          throw StateError('Carte invalide.');
+        }
+        final DuelCard card = DuelCard.fromId(cardId);
+        move = board.tryPlay(
+          actorId: action.actorId,
+          card: card,
+          chosenSuit: action.payload['chosenSuit'] as String?,
+        );
+      } else if (action.type == DuelActionType.drawCard) {
+        move = board.tryDraw(actorId: action.actorId);
+      } else {
+        throw StateError('Action non supportée.');
+      }
+      if (!move.accepted || move.nextTurn == null) {
+        throw StateError('Action refusée par la logique de jeu.');
+      }
+      final DuelAction validatedAction = DuelAction(
+        type: action.type,
+        actorId: action.actorId,
+        createdAt: action.createdAt,
+        payload: move.payload,
+      );
+      final DuelGameStatus nextStatus = move.payload.containsKey('winnerId')
+          ? DuelGameStatus.finished
+          : status;
+      tx.update(gameRef, <String, dynamic>{
+        'currentTurn': move.nextTurn!,
+        'lastAction': validatedAction.toMap(),
+        'status': nextStatus.name,
+        ...sessionPatch,
+      });
+      tx.set(gameRef.collection('actions').doc(), validatedAction.toMap());
     });
-    await gameRef.collection('actions').add(action.toMap());
+  }
+
+  Future<void> forfeitGame({
+    required DuelSession current,
+    required String quitterId,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (!session.players.contains(quitterId) ||
+          session.status != DuelGameStatus.inProgress) {
+        return;
+      }
+      final String winnerId = session.players.firstWhere(
+        (String id) => id != quitterId,
+        orElse: () => '',
+      );
+      if (winnerId.isEmpty) {
+        return;
+      }
+      final DuelAction action = DuelAction(
+        type: DuelActionType.forfeit,
+        actorId: quitterId,
+        createdAt: DateTime.now(),
+        payload: <String, dynamic>{
+          'winnerId': winnerId,
+          'loserId': quitterId,
+          'abandoned': true,
+        },
+      );
+      final Map<String, dynamic> patch = <String, dynamic>{
+        'status': DuelGameStatus.finished.name,
+        'currentTurn': winnerId,
+        'lastAction': action.toMap(),
+        'scores.$winnerId': FieldValue.increment(1),
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+      };
+      if (session.isCreditsMode) {
+        final DuelStakeOffer offer = session.stakeOffer;
+        final int pot = session.activeStakeCredits;
+        final int winnerCredits = session.playerCredits[winnerId] ?? 0;
+        if (offer.isAccepted && pot > 0) {
+          patch.addAll(<String, dynamic>{
+            'playerCredits.$winnerId': winnerCredits + pot,
+            'activeStakeCredits': 0,
+            'stakeOffer': DuelStakeOffer(
+              proposedBy: offer.proposedBy,
+              acceptedBy: offer.acceptedBy,
+              amount: offer.amount,
+              status: DuelStakeStatus.resolved,
+              createdAt: offer.createdAt,
+            ).toMap(),
+            'betFlowState': DuelBetFlowState.matchFinished.name,
+          });
+        }
+      }
+      tx.update(ref, patch);
+      tx.set(ref.collection('actions').doc(), action.toMap());
+    });
   }
 
   Future<void> startNewRound({
@@ -686,8 +814,13 @@ class GameService {
       }
       if (!accept) {
         tx.update(ref, <String, dynamic>{
+          'status': DuelGameStatus.finished.name,
+          'rematchRequestBy': null,
+          'rematchRequestedAt': null,
           'rematchDecision': DuelRematchDecision.declined.name,
           'rematchDecisionBy': responderId,
+          if (session.isCreditsMode)
+            'betFlowState': DuelBetFlowState.rematchRejected.name,
         });
         return;
       }
@@ -1178,6 +1311,14 @@ class DuelController extends ChangeNotifier {
       return;
     }
     await service.resolveStakeAfterRound(current: current, winnerId: winnerId);
+  }
+
+  Future<void> forfeitMatch() async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.forfeitGame(current: current, quitterId: localPlayerId);
   }
 
   @override
@@ -1831,7 +1972,6 @@ class _DuelPageState extends State<DuelPage> {
   String? _lastWinPopupKey;
   String? _lastInsufficientFundsKey;
   String? _lastExitKey;
-  bool _didNavigateHomeAfterDecline = false;
   final ValueNotifier<List<DuelChatMessage>> _chatMessagesNotifier =
       ValueNotifier<List<DuelChatMessage>>(const <DuelChatMessage>[]);
   final Set<String> _knownMessageIds = <String>{};
@@ -1842,6 +1982,8 @@ class _DuelPageState extends State<DuelPage> {
   String? _chatGameId;
   String? _pendingStakeOfferAfterVictoryKey;
   String? _pendingRematchAfterVictoryKey;
+  String? _lastRematchDeclineNotificationKey;
+  String? _lastForfeitNotificationKey;
   final Queue<String> _chatPreviewQueue = Queue<String>();
   final StatsService _statsService = StatsService.instance;
   String? _activeChatPreview;
@@ -1945,6 +2087,7 @@ class _DuelPageState extends State<DuelPage> {
     _maybeHandleStakeRejected(session);
     _maybeHandleInsufficientFunds(session);
     _maybeHandleRematchFlow(session);
+    _maybeHandleForfeitNotification(session);
     _maybeHandlePartyExit(session);
     _maybePromptMandatoryStake(session);
     _maybeShowWinPopup(session);
@@ -2305,7 +2448,7 @@ class _DuelPageState extends State<DuelPage> {
     }
     final int amount = (_board?.pendingDraw ?? 0) > 0
         ? _board!.pendingDraw
-        : (card.rank == '2' ? 3 : 8);
+        : (card.rank == '2' ? 2 : 8);
     final String key = '${action.actorId}_${action.createdAt.toIso8601String()}_$amount';
     if (_lastForcedDrawPopupKey == key) {
       return;
@@ -3044,14 +3187,65 @@ class _DuelPageState extends State<DuelPage> {
 
   Future<void> _exitPartyFlow() async {
     final DuelSession? session = _controller.session;
-    if (session == null || !_isCreditsMode) {
+    if (session == null) {
       return;
     }
-    await _controller.exitBetParty();
+    if (session.status == DuelGameStatus.inProgress && session.players.length == 2) {
+      await _controller.forfeitMatch();
+    } else if (_isCreditsMode) {
+      await _controller.exitBetParty();
+    }
     if (!mounted) {
       return;
     }
     Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+  }
+
+  Future<bool> _confirmLeaveGame() async {
+    final DuelSession? session = _controller.session;
+    if (session == null ||
+        session.status != DuelGameStatus.inProgress ||
+        session.players.length < 2) {
+      return true;
+    }
+    final bool? shouldQuit = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text(
+            'Voulez-vous vraiment quitter la partie ?',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          content: const Text(
+            'Si vous quittez maintenant, vous perdez la manche et votre mise sera donnée à l’adversaire.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Quitter'),
+            ),
+          ],
+        );
+      },
+    );
+    if (shouldQuit != true) {
+      return false;
+    }
+    await _exitPartyFlow();
+    return true;
+  }
+
+  Future<void> _handleBackNavigation() async {
+    final bool leave = await _confirmLeaveGame();
+    if (!leave && mounted) {
+      unawaited(_sfx.playClick());
+    }
   }
 
   Future<void> _showRematchConfirmDialog({
@@ -3136,19 +3330,20 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   void _maybeHandleRematchFlow(DuelSession session) {
-    if (_isCreditsMode) {
-      return;
-    }
-    if (_didNavigateHomeAfterDecline) {
-      return;
-    }
     if (session.rematchDecision == DuelRematchDecision.declined) {
-      _didNavigateHomeAfterDecline = true;
+      final String key =
+          '${session.round}_${session.rematchDecisionBy ?? ''}_${session.rematchRequestedAt?.millisecondsSinceEpoch ?? 0}';
+      if (_lastRematchDeclineNotificationKey == key) {
+        return;
+      }
+      _lastRematchDeclineNotificationKey = key;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
-        Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Votre adversaire a refusé la revanche.')),
+        );
       });
       return;
     }
@@ -3177,6 +3372,37 @@ class _DuelPageState extends State<DuelPage> {
         return;
       }
       await _showRematchConfirmDialog(session: session, requesterId: requesterId);
+    });
+  }
+
+  void _maybeHandleForfeitNotification(DuelSession session) {
+    final DuelAction? action = session.lastAction;
+    if (action == null || action.type != DuelActionType.forfeit) {
+      return;
+    }
+    final String key =
+        '${session.gameId}_${session.round}_${action.createdAt.toIso8601String()}';
+    if (_lastForfeitNotificationKey == key) {
+      return;
+    }
+    _lastForfeitNotificationKey = key;
+    final String quitterId = action.actorId;
+    final String winnerId = action.payload['winnerId'] as String? ?? '';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (winnerId == _controller.localPlayerId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Votre adversaire a quitté la partie. Vous gagnez la manche.'),
+          ),
+        );
+      } else if (quitterId == _controller.localPlayerId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vous avez quitté la partie. Manche perdue.')),
+        );
+      }
     });
   }
 
@@ -3473,10 +3699,18 @@ class _DuelPageState extends State<DuelPage> {
             !_requiresStake(session);
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         final double topInset = MediaQuery.paddingOf(context).top;
-        return Scaffold(
-          backgroundColor: PremiumColors.tableGreenDark,
-          body: Stack(
-            children: <Widget>[
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (bool didPop, Object? _) {
+            if (didPop) {
+              return;
+            }
+            unawaited(_handleBackNavigation());
+          },
+          child: Scaffold(
+            backgroundColor: PremiumColors.tableGreenDark,
+            body: Stack(
+              children: <Widget>[
               TableBackground(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(12, topInset + 2, 12, 10),
@@ -3488,9 +3722,7 @@ class _DuelPageState extends State<DuelPage> {
                           IconButton(
                             onPressed: () {
                               unawaited(_sfx.playClick());
-                              Navigator.of(context).popUntil(
-                                (Route<dynamic> route) => route.isFirst,
-                              );
+                              unawaited(_handleBackNavigation());
                             },
                             tooltip: 'Retour aux modes',
                             icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
@@ -3686,6 +3918,7 @@ class _DuelPageState extends State<DuelPage> {
                 ),
               ),
             ],
+          ),
           ),
         );
       },
@@ -4268,7 +4501,7 @@ class DuelBoardState {
     required List<String> players,
     required int round,
   }) {
-    final Random random = Random('$gameId#$round'.hashCode);
+    final Random random = Random(_stableDeckSeed(gameId, round));
     final List<DuelCard> deck = <DuelCard>[
       for (final String suit in <String>['♥', '♠', '♦', '♣'])
         for (int rank = 1; rank <= 13; rank++)
@@ -4458,9 +4691,9 @@ class DuelBoardState {
         newOverlay = '${action.actorId} a commandé $newRequiredSuit';
         newStatus = 'Couleur demandée: $newRequiredSuit';
       } else if (card.rank == '2') {
-        newPendingDraw += 3;
+        newPendingDraw += 2;
         newForcedDrawInitial = newPendingDraw;
-        newOverlay = '+3';
+        newOverlay = '+2';
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.isJoker) {
         newPendingDraw += 8;
@@ -4562,6 +4795,16 @@ String _rankToLabel(int rank) {
     default:
       return '$rank';
   }
+}
+
+int _stableDeckSeed(String gameId, int round) {
+  final String value = '$gameId#$round';
+  int hash = 2166136261;
+  for (final int rune in value.runes) {
+    hash ^= rune;
+    hash = (hash * 16777619) & 0x7fffffff;
+  }
+  return hash;
 }
 
 class _DuelStatusBanner extends StatelessWidget {
