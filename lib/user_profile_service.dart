@@ -52,8 +52,10 @@ class UserProfileService {
         }
         final String existingDisplayName =
             (snapshot.data()?['displayName'] as String?)?.trim() ?? '';
+        final bool hasCreditsField = snapshot.data()?.containsKey('credits') ?? false;
         tx.update(ref, <String, dynamic>{
           if (existingDisplayName.isEmpty) 'displayName': suggestedDisplayName,
+          if (!hasCreditsField) 'credits': 1000,
           'email': user.email,
           'photoUrl': user.photoURL,
           'avatarUrl': user.photoURL,

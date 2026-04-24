@@ -133,6 +133,26 @@ class GinoPopupButton extends StatelessWidget {
   }
 }
 
+class GinoDisabledPopupButton extends StatelessWidget {
+  const GinoDisabledPopupButton({
+    super.key,
+    required this.label,
+  });
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: 0.55,
+      child: GinoPopupButton(
+        label: label,
+        onPressed: null,
+      ),
+    );
+  }
+}
+
 class GinoAmountCard extends StatelessWidget {
   const GinoAmountCard({
     super.key,
