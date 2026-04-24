@@ -862,9 +862,9 @@ class _GameModePageState extends State<GameModePage>
           ),
           SafeArea(
             child: Align(
-              alignment: Alignment.topRight,
+              alignment: Alignment.bottomLeft,
               child: Padding(
-                padding: const EdgeInsets.only(right: 12, top: 8),
+                padding: const EdgeInsets.only(left: 12, bottom: 8),
                 child: GestureDetector(
                   onLongPress: () {
                     unawaited(AppSfxService.instance.playClick());
