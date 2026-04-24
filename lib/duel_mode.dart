@@ -1510,21 +1510,16 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           context: context,
           barrierDismissible: true,
           builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('Mode Paris'),
-              content: const Text(
-                'Connectez-vous avec Google pour jouer en mode Paris.',
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: GinoDecisionPopup(
+                title: 'Connexion',
+                message: 'Connectez-vous avec Google pour jouer en mode Paris.',
+                primaryLabel: 'Valider',
+                secondaryLabel: 'Annuler',
+                onPrimary: () => Navigator.of(context).pop(true),
+                onSecondary: () => Navigator.of(context).pop(false),
               ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Retour'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('Connexion Google'),
-                ),
-              ],
             );
           },
         ) ??
@@ -2266,12 +2261,11 @@ class _DuelPageState extends State<DuelPage> {
             }
           }),
         );
-        return AlertDialog(
+        return Dialog(
           backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
           elevation: 0,
-          contentPadding: const EdgeInsets.all(0),
-          content: GinoOpponentCommandPopup(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          child: GinoOpponentCommandPopup(
             playerName: actorName,
             suit: suit,
           ),
@@ -2292,14 +2286,14 @@ class _DuelPageState extends State<DuelPage> {
             }
           }),
         );
-        return AlertDialog(
+        return Dialog(
           backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
           elevation: 0,
-          contentPadding: const EdgeInsets.all(0),
-          content: GinoDrawPenaltyPopup(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          child: GinoDrawPenaltyPopup(
             cardsToDraw: amount,
-            suit: _board?.requiredSuit ?? _board?.discardTop.suit,
+            rank: amount >= 8 ? '8' : '2',
+            suit: amount >= 8 ? 'spades' : 'diamonds',
           ),
         );
       },
@@ -2619,14 +2613,6 @@ class _DuelPageState extends State<DuelPage> {
                         Navigator.of(context).pop(parsed);
                       },
                     ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        unawaited(_exitPartyFlow());
-                      },
-                      child: const Text('Quitter la partie'),
-                    ),
                   ],
                 ),
               ),
@@ -2720,11 +2706,6 @@ class _DuelPageState extends State<DuelPage> {
   Future<void> _showStakeDecisionDialog(DuelSession session) async {
     final DuelStakeOffer offer = session.stakeOffer;
     final String proposer = _displayNameUpper(session, offer.proposedBy ?? '');
-    final bool isRematchOffer = session.status == DuelGameStatus.finished;
-    final bool isCounterProposal =
-        session.invitedRefusalCount >= 2 &&
-        offer.proposedBy != session.hostId &&
-        session.status == DuelGameStatus.waiting;
     final int myCredits = _creditsOf(session, _controller.localPlayerId);
     final bool insufficient = myCredits < offer.amount;
     _stakeDialogOpen = true;
@@ -2746,23 +2727,12 @@ class _DuelPageState extends State<DuelPage> {
                 onAccept: () => Navigator.of(dialogContext).pop('accept'),
                 onRefuse: () => Navigator.of(dialogContext).pop('refuse'),
               ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop('quit'),
-                child: Text(
-                  isRematchOffer || isCounterProposal ? 'Quitter la partie' : 'QUITTER LA PARTIE',
-                ),
-              ),
             ],
           ),
         );
       },
     );
     _stakeDialogOpen = false;
-    if (decision == 'quit') {
-      await _exitPartyFlow();
-      return;
-    }
     if (decision == null || _stakeActionBusy) {
       if (insufficient) {
         _showStakeRequiredMessage('Solde insuffisant');
@@ -2839,31 +2809,19 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text(
-            'MISE REFUSÉE',
-            textAlign: TextAlign.center,
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: GinoDecisionPopup(
+            title: 'Mise refusée',
+            message: '$rejecterName a refusé cette mise.',
+            primaryLabel: 'Valider',
+            secondaryLabel: 'Retour menu',
+            onPrimary: () => Navigator.of(dialogContext).pop(),
+            onSecondary: () {
+              Navigator.of(dialogContext).pop();
+              unawaited(_exitPartyFlow());
+            },
           ),
-          content: Text(
-            '$rejecterName a refusé cette mise.',
-            textAlign: TextAlign.center,
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                unawaited(_exitPartyFlow());
-              },
-              child: const Text('QUITTER LA PARTIE'),
-            ),
-            Center(
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('OK'),
-              ),
-            ),
-          ],
         );
       },
     );
@@ -3054,56 +3012,16 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Text(
-            'REJOUER ?',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.w800),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: GinoDecisionPopup(
+            title: 'Revanche',
+            message: '$requester veut prendre sa revanche',
+            primaryLabel: 'Accepter',
+            secondaryLabel: 'Refuser',
+            onPrimary: () => Navigator.of(dialogContext).pop(true),
+            onSecondary: () => Navigator.of(dialogContext).pop(false),
           ),
-          content: Text(
-            '$requester veut prendre sa revanche',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-          actions: <Widget>[
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    SizedBox(
-                      width: 112,
-                      height: 44,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(false),
-                        child: const Text('NON'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 112,
-                      height: 44,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(true),
-                        child: const Text('OUI'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
-                  },
-                  child: const Text('QUITTER'),
-                ),
-              ],
-            ),
-          ],
         );
       },
     );
@@ -3225,29 +3143,13 @@ class _DuelPageState extends State<DuelPage> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          titlePadding: const EdgeInsets.fromLTRB(16, 8, 6, 0),
-          title: Row(
-            children: <Widget>[
-              const Expanded(
-                child: Text(
-                  'VICTOIRE',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Fermer',
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                icon: const Icon(Icons.close_rounded),
-              ),
-            ],
-          ),
-          content: Text(
-            'Vous avez gagné $gainAmount',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: GinoVictoryPopup(
+            title: 'Victoire',
+            message: 'Tu as gagné la manche.',
+            wonAmount: gainAmount,
+            onBackToMenu: () => Navigator.of(dialogContext).pop(),
           ),
         );
       },
@@ -4213,10 +4115,10 @@ class DuelCard {
   String get id => '$rank$suit';
 
   bool get isRed => suit == '♥' || suit == '♦';
+  String get color => isRed ? 'red' : 'black';
 
   bool isSameColorAsSuit(String suitRef) {
-    final bool refIsRed = suitRef == '♥' || suitRef == '♦';
-    return isRed == refIsRed;
+    return color == colorFromSuit(suitRef);
   }
 
   bool matches(DuelCard other) {
@@ -4246,6 +4148,10 @@ class DuelCard {
       return DuelCard.fromId(cardId);
     }
     throw ArgumentError('Carte de duel invalide : $json');
+  }
+
+  static String colorFromSuit(String suitRef) {
+    return (suitRef == '♥' || suitRef == '♦') ? 'red' : 'black';
   }
 }
 
@@ -4366,7 +4272,7 @@ class DuelBoardState {
       if (requiredSuit != null) {
         return false;
       }
-      return card.isSameColorAsSuit(colorRefSuit);
+      return card.color == DuelCard.colorFromSuit(colorRefSuit);
     }
     if (requiredSuit != null) {
       return card.suit == requiredSuit || card.rank == discardTop.rank;
@@ -4475,7 +4381,13 @@ class DuelBoardState {
 
     if (action.type == DuelActionType.playCard) {
       final DuelCard card = DuelCard.fromId(action.payload['cardId'] as String);
-      newHands[action.actorId]?.removeWhere((DuelCard c) => c.id == card.id);
+      final List<DuelCard>? actorCards = newHands[action.actorId];
+      if (actorCards != null) {
+        final int cardIndex = actorCards.indexWhere((DuelCard c) => c.id == card.id);
+        if (cardIndex >= 0) {
+          actorCards.removeAt(cardIndex);
+        }
+      }
       newTop = card;
       newDiscardPile.add(card);
       newRequiredSuit = null;

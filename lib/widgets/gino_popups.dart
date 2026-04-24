@@ -327,17 +327,20 @@ class GinoSuitCard extends StatelessWidget {
 class GinoStackedDrawCards extends StatelessWidget {
   const GinoStackedDrawCards({
     super.key,
-    this.suit,
+    required this.rank,
+    required this.suit,
     required this.count,
   });
 
-  final String? suit;
+  final String rank;
+  final String suit;
   final int count;
 
   @override
   Widget build(BuildContext context) {
     final int totalCards = count <= 1 ? 2 : 3;
-    final String resolvedSuit = suit ?? '♠';
+    final String symbol = _normalizeSuitSymbol(suit);
+    final Color ink = _suitColor(symbol);
 
     return SizedBox(
       width: 164,
@@ -351,12 +354,52 @@ class GinoStackedDrawCards extends StatelessWidget {
               child: Transform.rotate(
                 angle: -0.10 + (i * 0.11),
                 child: GinoSuitCard(
-                  suit: resolvedSuit,
+                  suit: symbol,
                   width: 86,
                   height: 124,
                 ),
               ),
             ),
+          Positioned(
+            child: Transform.rotate(
+              angle: -0.06,
+              child: Container(
+                width: 86,
+                height: 124,
+                decoration: BoxDecoration(
+                  color: GinoPopupStyle.cardWhite,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.black12, width: 1),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        rank,
+                        style: GinoPopupStyle.baseText(
+                          color: ink,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                      Text(
+                        symbol,
+                        style: GinoPopupStyle.baseText(
+                          color: ink,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -551,7 +594,8 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
   const GinoDrawPenaltyPopup({
     super.key,
     required this.cardsToDraw,
-    this.suit,
+    required this.rank,
+    required this.suit,
     this.title = 'PIOCHEZ !!!',
     this.showButton = false,
     this.buttonLabel = 'Piocher',
@@ -559,7 +603,8 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
   });
 
   final int cardsToDraw;
-  final String? suit;
+  final String rank;
+  final String suit;
   final String title;
   final bool showButton;
   final String buttonLabel;
@@ -587,6 +632,7 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           GinoStackedDrawCards(
+            rank: rank,
             suit: suit,
             count: cardsToDraw,
           ),
@@ -613,6 +659,173 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
       ),
     );
   }
+}
+
+class GinoVictoryPopup extends StatelessWidget {
+  const GinoVictoryPopup({
+    super.key,
+    required this.title,
+    required this.message,
+    this.wonAmount,
+    this.canRequestRematch = false,
+    this.onReplay,
+    this.onRematch,
+    this.onBackToMenu,
+  });
+
+  final String title;
+  final String message;
+  final int? wonAmount;
+  final bool canRequestRematch;
+  final VoidCallback? onReplay;
+  final VoidCallback? onRematch;
+  final VoidCallback? onBackToMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    return GinoPopupFrame(
+      titleTag: title,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GinoPopupStyle.baseText(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          if (wonAmount != null) ...<Widget>[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: GinoPopupStyle.accentGreen,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                'GAIN : $wonAmount',
+                style: GinoPopupStyle.baseText(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          if (canRequestRematch && onRematch != null) ...<Widget>[
+            SizedBox(
+              width: double.infinity,
+              child: GinoPopupButton(label: 'Revanche', onPressed: onRematch),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (onReplay != null) ...<Widget>[
+            SizedBox(
+              width: double.infinity,
+              child: GinoPopupButton(label: 'Rejouer', onPressed: onReplay),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (onBackToMenu != null)
+            SizedBox(
+              width: double.infinity,
+              child: GinoPopupButton(
+                label: 'Retour menu',
+                onPressed: onBackToMenu,
+                isPrimary: false,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class GinoDecisionPopup extends StatelessWidget {
+  const GinoDecisionPopup({
+    super.key,
+    required this.title,
+    required this.message,
+    required this.primaryLabel,
+    required this.secondaryLabel,
+    required this.onPrimary,
+    required this.onSecondary,
+  });
+
+  final String title;
+  final String message;
+  final String primaryLabel;
+  final String secondaryLabel;
+  final VoidCallback onPrimary;
+  final VoidCallback onSecondary;
+
+  @override
+  Widget build(BuildContext context) {
+    return GinoPopupFrame(
+      titleTag: title,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GinoPopupStyle.baseText(fontSize: 17),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: GinoPopupButton(
+                  label: secondaryLabel,
+                  onPressed: onSecondary,
+                  isPrimary: false,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GinoPopupButton(
+                  label: primaryLabel,
+                  onPressed: onPrimary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _normalizeSuitSymbol(String suit) {
+  switch (suit.toLowerCase()) {
+    case 'hearts':
+    case 'heart':
+    case 'coeur':
+    case 'cœur':
+    case '♥':
+      return '♥';
+    case 'spades':
+    case 'spade':
+    case 'pique':
+    case '♠':
+      return '♠';
+    case 'clubs':
+    case 'club':
+    case 'trefle':
+    case 'trèfle':
+    case '♣':
+      return '♣';
+    case 'diamonds':
+    case 'diamond':
+    case 'carreau':
+    case '♦':
+      return '♦';
+    default:
+      return suit;
+  }
+}
+
+Color _suitColor(String symbol) {
+  if (symbol == '♥' || symbol == '♦') {
+    return GinoPopupStyle.suitRed;
+  }
+  return GinoPopupStyle.suitBlack;
 }
 
 class GinoOpponentCommandPopup extends StatelessWidget {
