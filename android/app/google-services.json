@@ -1,26 +1,44 @@
 {
   "project_info": {
-    "project_number": "1049226047630",
-    "project_id": "gino-923bb",
-    "storage_bucket": "gino-923bb.firebasestorage.app"
+    "project_number": "859286280853",
+    "project_id": "gino-f8efa",
+    "storage_bucket": "gino-f8efa.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1049226047630:android:1013fe66571cd26f3b59df",
+        "mobilesdk_app_id": "1:859286280853:android:3ea3d4bb42f1bd98c5599c",
         "android_client_info": {
-          "package_name": "com.akenoo.gino"
+          "package_name": "com.company.gino"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "859286280853-3vk7qjcp117c6anu7chhi1vh73vk64g8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.company.gino",
+            "certificate_hash": "01ebe2821be0975f1911aed36713e19c1316a56a"
+          }
+        },
+        {
+          "client_id": "859286280853-il1b2e9eb9asu01n54oe8509en4t5gf7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCs-_RQOqJiBY45DleGGqNSloIOVHDQOrc"
+          "current_key": "AIzaSyAJHeVuAoxi3PsR_SxKQybha-3R9qSUXMw"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "859286280853-il1b2e9eb9asu01n54oe8509en4t5gf7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
