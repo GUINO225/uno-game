@@ -477,26 +477,32 @@ class StartupAdPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.of(context).size;
+    final double maxPopupWidth = (screenSize.width * 0.9).clamp(260, 560).toDouble();
+    final double maxPopupHeight = (screenSize.height * 0.8).clamp(220, 680).toDouble();
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: GinoPopupStyle.popupGreen,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: GinoPopupStyle.borderGreen,
-                width: 1,
-              ),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: maxPopupWidth,
+              maxHeight: maxPopupHeight,
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: GinoPopupStyle.popupGreen,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: GinoPopupStyle.borderGreen,
+                  width: 1,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
                 child: Image.asset(
                   _adAssetPath,
                   fit: BoxFit.contain,

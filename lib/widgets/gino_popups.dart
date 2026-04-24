@@ -16,7 +16,7 @@ class GinoPopupStyle {
 
   static const double popupRadius = 16;
   static const double buttonRadius = 12;
-  static const FontWeight titleWeight = FontWeight.w400;
+  static const FontWeight titleWeight = FontWeight.w300;
   static const FontWeight textWeight = FontWeight.w300;
   static const FontWeight buttonWeight = FontWeight.w300;
 
@@ -43,7 +43,7 @@ class GinoPopupFrame extends StatelessWidget {
     required this.child,
     this.titleTag,
     this.width,
-    this.padding = const EdgeInsets.fromLTRB(22, 34, 22, 20),
+    this.padding = const EdgeInsets.fromLTRB(18, 28, 18, 16),
     this.showTitleTag = true,
   });
 
@@ -55,7 +55,7 @@ class GinoPopupFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double resolvedWidth = width ?? math.min(MediaQuery.of(context).size.width * 0.84, 420);
+    final double resolvedWidth = width ?? math.min(MediaQuery.of(context).size.width * 0.82, 400);
     final bool shouldShowTitle = showTitleTag && titleTag != null && titleTag!.trim().isNotEmpty;
 
     return Center(
@@ -75,19 +75,19 @@ class GinoPopupFrame extends StatelessWidget {
           ),
           if (shouldShowTitle)
             Positioned(
-              top: -22,
+              top: -18,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   color: GinoPopupStyle.accentGreen,
-                  borderRadius: BorderRadius.circular(9),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  titleTag!.toUpperCase(),
+                  _popupTitleCase(titleTag!),
                   style: GinoPopupStyle.baseText(
-                    fontSize: 22,
+                    fontSize: 17,
                     fontWeight: GinoPopupStyle.titleWeight,
-                    letterSpacing: 0.45,
+                    letterSpacing: 0.1,
                   ),
                 ),
               ),
@@ -96,6 +96,15 @@ class GinoPopupFrame extends StatelessWidget {
       ),
     );
   }
+}
+
+String _popupTitleCase(String rawTitle) {
+  final String normalized = rawTitle.trim();
+  if (normalized.isEmpty) {
+    return normalized;
+  }
+  final String lower = normalized.toLowerCase();
+  return '${lower[0].toUpperCase()}${lower.substring(1)}';
 }
 
 class GinoPopupButton extends StatelessWidget {

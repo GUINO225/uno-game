@@ -125,9 +125,10 @@ class GamePopupDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String formattedTitle = _popupTitleCase(title);
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 22),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: TweenAnimationBuilder<double>(
         duration: const Duration(milliseconds: 240),
         curve: Curves.easeOutCubic,
@@ -136,10 +137,10 @@ class GamePopupDialog extends StatelessWidget {
           return Transform.scale(scale: value, child: child);
         },
         child: Container(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+          padding: const EdgeInsets.fromLTRB(16, 13, 16, 12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0x14000000)),
             boxShadow: const <BoxShadow>[
               BoxShadow(color: Colors.black26, blurRadius: 16, offset: Offset(0, 8)),
@@ -149,13 +150,13 @@ class GamePopupDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
-                title,
+                formattedTitle,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   color: Colors.black,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: 0.1,
                 ),
               ),
               if (subtitle != null) ...<Widget>[
@@ -181,6 +182,15 @@ class GamePopupDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+String _popupTitleCase(String rawTitle) {
+  final String normalized = rawTitle.trim();
+  if (normalized.isEmpty) {
+    return normalized;
+  }
+  final String lower = normalized.toLowerCase();
+  return '${lower[0].toUpperCase()}${lower.substring(1)}';
 }
 
 class GameStakeBillsStack extends StatelessWidget {
