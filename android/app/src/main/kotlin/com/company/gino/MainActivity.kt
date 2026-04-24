@@ -1,4 +1,4 @@
-package com.akenoo.gino
+package com.company.gino
 
 import io.flutter.embedding.android.FlutterActivity
 

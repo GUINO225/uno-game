@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:huit/main.dart';
+import 'package:gino/main.dart';
 
 void main() {
   testWidgets('L\'écran principal du jeu est visible', (WidgetTester tester) async {

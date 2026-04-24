@@ -9,7 +9,7 @@ Le mode duel utilise Firestore. Sans configuration Firebase valide, le mode solo
 ### 1) Ajouter le fichier Android Firebase
 
 1. Créer un projet Firebase (ou réutiliser un existant).
-2. Enregistrer l'application Android avec l'`applicationId` de l'app (`com.example.huit` dans ce repo, à renommer ensuite si besoin).
+2. Enregistrer l'application Android avec l'`applicationId` de l'app (`com.company.gino` dans ce repo, à renommer ensuite si besoin).
 3. Télécharger `google-services.json`.
 4. Copier le fichier dans:
 
