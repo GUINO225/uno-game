@@ -574,7 +574,7 @@ class GameService {
         throw StateError('Action invalide.');
       }
       final QuerySnapshot<Map<String, dynamic>> actionsSnap =
-          await tx.get(gameRef.collection('actions').orderBy('createdAt'));
+          await gameRef.collection('actions').orderBy('createdAt').get();
       final List<DuelAction> existingActions = actionsSnap.docs
           .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
             final Map<String, dynamic> data = doc.data();
