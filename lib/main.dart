@@ -392,10 +392,19 @@ class IntroLandingPage extends StatefulWidget {
 
 class _IntroLandingPageState extends State<IntroLandingPage>
     with WidgetsBindingObserver {
+  bool _hasShownStartupAd = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _hasShownStartupAd) {
+        return;
+      }
+      _hasShownStartupAd = true;
+      showStartupAdPopup(context);
+    });
   }
 
   @override
@@ -459,6 +468,79 @@ class _IntroLandingPageState extends State<IntroLandingPage>
       ),
     );
   }
+}
+
+class StartupAdPopup extends StatelessWidget {
+  const StartupAdPopup({super.key});
+
+  static const String _adAssetPath = 'assets/img/ADS1.jpeg';
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: GinoPopupStyle.popupGreen,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: GinoPopupStyle.borderGreen,
+                width: 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.asset(
+                  _adAssetPath,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -10,
+            right: -10,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => Navigator.of(context).pop(),
+                borderRadius: BorderRadius.circular(24),
+                child: Ink(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF12C76A),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+void showStartupAdPopup(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black54,
+    builder: (_) => const StartupAdPopup(),
+  );
 }
 
 class GameModePage extends StatefulWidget {
