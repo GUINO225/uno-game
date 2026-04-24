@@ -9,13 +9,24 @@ class LeaderboardService {
   static final LeaderboardService instance = LeaderboardService._();
 
   Future<List<PlayerProfile>> fetchTopPlayers({int limit = 20}) async {
-    final QuerySnapshot<Map<String, dynamic>> snapshot =
-        await FirebaseFirestore.instance
-            .collection('user_profiles')
-            .where('isRegistered', isEqualTo: true)
-            .orderBy('score', descending: true)
-            .limit(limit * 3)
-            .get();
+    QuerySnapshot<Map<String, dynamic>> snapshot;
+    try {
+      snapshot = await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .where('isRegistered', isEqualTo: true)
+          .orderBy('score', descending: true)
+          .limit(limit * 3)
+          .get();
+    } on FirebaseException catch (e, stackTrace) {
+      debugPrint('[LeaderboardService] indexed query failed (${e.code}): ${e.message}');
+      debugPrintStack(stackTrace: stackTrace);
+      snapshot = await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .orderBy('score', descending: true)
+          .limit(limit * 6)
+          .get();
+    }
+
     final List<PlayerProfile> players = <PlayerProfile>[];
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
       final Map<String, dynamic> data = doc.data();
@@ -34,9 +45,7 @@ class LeaderboardService {
       }
       return b.wins.compareTo(a.wins);
     });
-    return players
-        .take(limit)
-        .toList(growable: false);
+    return players.take(limit).toList(growable: false);
   }
 
   Future<int?> fetchPlayerRank(String uid, {int scanLimit = 250}) async {
