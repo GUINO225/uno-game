@@ -4002,7 +4002,7 @@ class _DuelPageState extends State<DuelPage> {
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ton adversaire a refusé la revanche.')),
+          const SnackBar(content: Text('Votre adversaire a refusé la revanche.')),
         );
       });
       return;
@@ -4236,7 +4236,7 @@ class _DuelPageState extends State<DuelPage> {
       }
       if (session.abandonedBy != null && session.abandonedBy != _controller.localPlayerId) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ton adversaire a quitté la partie.')),
+          const SnackBar(content: Text('Votre adversaire a quitté la partie.')),
         );
       }
       Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
@@ -4254,7 +4254,7 @@ class _DuelPageState extends State<DuelPage> {
           backgroundColor: Colors.transparent,
           child: GinoVictoryPopup(
             title: 'Victoire',
-            message: 'Tu as gagné la manche.',
+            message: 'Vous avez gagné la manche.',
             wonAmount: gainAmount,
             onBackToMenu: () => Navigator.of(dialogContext).pop(),
           ),
@@ -5528,7 +5528,7 @@ class DuelBoardState {
         debugPrint('[JokerRule] card rejected: wrong color');
         return const DuelMoveResult(
           accepted: false,
-          rejectionMessage: 'Tu dois jouer une carte rouge.',
+          rejectionMessage: 'Vous devez jouer une carte rouge.',
         );
       }
       if (requiredColorAfterJoker == 'black' &&
@@ -5536,7 +5536,7 @@ class DuelBoardState {
         debugPrint('[JokerRule] card rejected: wrong color');
         return const DuelMoveResult(
           accepted: false,
-          rejectionMessage: 'Tu dois jouer une carte noire.',
+          rejectionMessage: 'Vous devez jouer une carte noire.',
         );
       }
       return const DuelMoveResult(accepted: false);
@@ -6133,46 +6133,52 @@ class _OpponentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
-      child: Row(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
         children: <Widget>[
-          _ProfileBlock(
-            name: name,
-            wins: wins,
-            losses: losses,
-            fallbackInitial: fallbackInitial,
-            compact: true,
-            avatarCard: avatarCard,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: <Widget>[
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    reverse: true,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List<Widget>.generate(
-                        count,
-                        (int _) => const Padding(
-                          padding: EdgeInsets.only(left: 4),
-                          child: _DuelCardBack(width: 28, height: 40),
-                        ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _ProfileBlock(
+                name: name,
+                wins: wins,
+                losses: losses,
+                fallbackInitial: fallbackInitial,
+                compact: true,
+                avatarCard: avatarCard,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
+              ),
+              SizedBox(
+                height: 42,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  reverse: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List<Widget>.generate(
+                      count,
+                      (int index) => Padding(
+                        padding: EdgeInsets.only(left: index == count - 1 ? 0 : 8),
+                        child: const _DuelCardBack(width: 28, height: 40),
                       ),
                     ),
                   ),
-                  Positioned(
-                    top: -8,
-                    right: -8,
-                    child: _DrawCountBadge(count: count),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
+          ),
+          Positioned(
+            top: -6,
+            right: -6,
+            child: _DrawCountBadge(count: count),
           ),
         ],
       ),
@@ -6202,68 +6208,61 @@ class _ProfileBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final double avatarSize = compact ? 34 : 42;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.22),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: avatarSize,
-            height: avatarSize,
-            alignment: Alignment.center,
-            child: _AvatarCardCircle(
-              card: avatarCard,
-              size: avatarSize,
-              fallbackInitial: fallbackInitial,
-            ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: avatarSize,
+          height: avatarSize,
+          alignment: Alignment.center,
+          child: _AvatarCardCircle(
+            card: avatarCard,
+            size: avatarSize,
+            fallbackInitial: fallbackInitial,
           ),
-          const SizedBox(width: 10),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: compact ? 116 : 148),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: compact ? 13 : 15,
-                    letterSpacing: 0.3,
-                  ),
+        ),
+        const SizedBox(width: 10),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: compact ? 116 : 148),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: compact ? 13 : 15,
+                  letterSpacing: 0.3,
                 ),
-                const SizedBox(height: 2),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'V $wins   D $losses',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                  fontSize: compact ? 10 : 11,
+                ),
+              ),
+              if (credits != null) ...<Widget>[
+                const SizedBox(height: 1),
                 Text(
-                  'V $wins   D $losses',
+                  'Crédit $credits',
                   style: TextStyle(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFFFE8A0).withOpacity(0.96),
+                    fontWeight: FontWeight.w800,
                     fontSize: compact ? 10 : 11,
                   ),
                 ),
-                if (credits != null) ...<Widget>[
-                  const SizedBox(height: 1),
-                  Text(
-                    'Crédit $credits',
-                    style: TextStyle(
-                      color: const Color(0xFFFFE8A0).withOpacity(0.96),
-                      fontWeight: FontWeight.w800,
-                      fontSize: compact ? 10 : 11,
-                    ),
-                  ),
-                ],
               ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -6439,84 +6438,84 @@ class _MyHandRow extends StatelessWidget {
         decoration: BoxDecoration(color: Colors.black.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
         child: Stack(
           children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      _ProfileBlock(
-                        name: profileName,
-                        wins: wins,
-                        losses: losses,
-                        credits: credits,
-                        fallbackInitial: fallbackInitial,
-                        compact: true,
-                        avatarCard: avatarCard,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: _TurnStateBadge(
-                            text: canInteract ? 'À votre tour' : 'En attente',
-                            blink: canInteract,
-                          ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    _ProfileBlock(
+                      name: profileName,
+                      wins: wins,
+                      losses: losses,
+                      credits: credits,
+                      fallbackInitial: fallbackInitial,
+                      compact: true,
+                      avatarCard: avatarCard,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _TurnStateBadge(
+                          text: canInteract ? 'À votre tour' : 'En attente',
+                          blink: canInteract,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (BuildContext context, BoxConstraints constraints) {
-                        if (cards.isEmpty) {
-                          return const SizedBox.expand();
-                        }
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
+                ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (BuildContext context, BoxConstraints constraints) {
+                      if (cards.isEmpty) {
+                        return const SizedBox.expand();
+                      }
 
-                        final double maxRowWidth =
-                            (_FaceCard.width * _maxCardsPerRow) +
-                            (_cardGap * (_maxCardsPerRow - 1));
-                        final double wrapWidth = min(
-                          constraints.maxWidth - 8,
-                          maxRowWidth,
-                        );
+                      final double maxRowWidth =
+                          (_FaceCard.width * _maxCardsPerRow) +
+                          (_cardGap * (_maxCardsPerRow - 1));
+                      final double wrapWidth = min(
+                        constraints.maxWidth - 8,
+                        maxRowWidth,
+                      );
 
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.vertical,
-                          padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: SizedBox(
-                              width: wrapWidth,
-                              child: Wrap(
-                                spacing: _cardGap,
-                                runSpacing: _cardGap,
-                                children: List<Widget>.generate(cards.length, (int index) {
-                                  final DuelCard card = cards[index];
-                                  final bool isPlayable = playable(card);
-                                  return SizedBox(
-                                    width: _FaceCard.width,
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
-                                      child: Opacity(
-                                        opacity: canInteract && !isPlayable ? 0.45 : 1,
-                                        child: _FaceCard(card: card),
-                                      ),
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: SizedBox(
+                            width: wrapWidth,
+                            child: Wrap(
+                              spacing: _cardGap,
+                              runSpacing: _cardGap,
+                              children: List<Widget>.generate(cards.length, (int index) {
+                                final DuelCard card = cards[index];
+                                final bool isPlayable = playable(card);
+                                return SizedBox(
+                                  width: _FaceCard.width,
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
+                                    child: Opacity(
+                                      opacity: canInteract && !isPlayable ? 0.45 : 1,
+                                      child: _FaceCard(card: card),
                                     ),
-                                  );
-                                }),
-                              ),
+                                  ),
+                                );
+                              }),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
             Positioned(
               top: 2,
