@@ -3,10 +3,12 @@ import 'dart:html' as html;
 
 class WebPageLifecycleBinding {
   WebPageLifecycleBinding._({
-    required this._beforeUnloadSub,
-    required this._visibilitySub,
-    required this._pageHideSub,
-  });
+    required StreamSubscription<html.Event> beforeUnloadSub,
+    required StreamSubscription<html.Event> visibilitySub,
+    required StreamSubscription<html.Event> pageHideSub,
+  })  : _beforeUnloadSub = beforeUnloadSub,
+        _visibilitySub = visibilitySub,
+        _pageHideSub = pageHideSub;
 
   final StreamSubscription<html.Event> _beforeUnloadSub;
   final StreamSubscription<html.Event> _visibilitySub;
@@ -29,9 +31,9 @@ class WebPageLifecycleBinding {
     });
 
     return WebPageLifecycleBinding._(
-      _beforeUnloadSub: beforeUnloadSub,
-      _visibilitySub: visibilitySub,
-      _pageHideSub: pageHideSub,
+      beforeUnloadSub: beforeUnloadSub,
+      visibilitySub: visibilitySub,
+      pageHideSub: pageHideSub,
     );
   }
 
