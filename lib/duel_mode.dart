@@ -18,6 +18,7 @@ import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'stats_service.dart';
 import 'user_profile_service.dart';
+import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
 
@@ -6112,7 +6113,7 @@ class _StakeInfoChip extends StatelessWidget {
   }
 }
 
-class _OpponentRow extends StatelessWidget {
+class _OpponentRow extends StatefulWidget {
   const _OpponentRow({
     required this.name,
     required this.count,
@@ -6130,6 +6131,23 @@ class _OpponentRow extends StatelessWidget {
   final DuelCard avatarCard;
 
   @override
+  State<_OpponentRow> createState() => _OpponentRowState();
+}
+
+class _OpponentRowState extends State<_OpponentRow> {
+  int _animatedStartIndex = -1;
+
+  @override
+  void didUpdateWidget(covariant _OpponentRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.count > oldWidget.count) {
+      _animatedStartIndex = oldWidget.count;
+    } else {
+      _animatedStartIndex = -1;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(10),
@@ -6145,12 +6163,12 @@ class _OpponentRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               _ProfileBlock(
-                name: name,
-                wins: wins,
-                losses: losses,
-                fallbackInitial: fallbackInitial,
+                name: widget.name,
+                wins: widget.wins,
+                losses: widget.losses,
+                fallbackInitial: widget.fallbackInitial,
                 compact: true,
-                avatarCard: avatarCard,
+                avatarCard: widget.avatarCard,
               ),
               Padding(
                 padding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -6164,11 +6182,20 @@ class _OpponentRow extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: List<Widget>.generate(
-                      count,
-                      (int index) => Padding(
-                        padding: EdgeInsets.only(left: index == count - 1 ? 0 : 8),
-                        child: const _DuelCardBack(width: 28, height: 40),
-                      ),
+                      widget.count,
+                      (int index) {
+                        final bool isNewCard = _animatedStartIndex >= 0 && index >= _animatedStartIndex;
+                        final int staggerStep = isNewCard ? index - _animatedStartIndex : 0;
+                        return Padding(
+                          padding: EdgeInsets.only(left: index == widget.count - 1 ? 0 : 8),
+                          child: BouncyCardEntry(
+                            key: ValueKey<String>('duel-opponent-$index'),
+                            animate: isNewCard,
+                            delay: Duration(milliseconds: isNewCard ? staggerStep * 34 : 0),
+                            child: const _DuelCardBack(width: 28, height: 40),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -6178,7 +6205,7 @@ class _OpponentRow extends StatelessWidget {
           Positioned(
             top: -6,
             right: -6,
-            child: _DrawCountBadge(count: count),
+            child: _DrawCountBadge(count: widget.count),
           ),
         ],
       ),
@@ -6402,7 +6429,7 @@ class _CenterArea extends StatelessWidget {
 }
 
 
-class _MyHandRow extends StatelessWidget {
+class _MyHandRow extends StatefulWidget {
   const _MyHandRow({
     required this.cards,
     required this.canInteract,
@@ -6430,6 +6457,29 @@ class _MyHandRow extends StatelessWidget {
   static const double _cardGap = 6;
 
   @override
+  State<_MyHandRow> createState() => _MyHandRowState();
+}
+
+class _MyHandRowState extends State<_MyHandRow> {
+  List<String> _previousCardIds = const <String>[];
+  Set<String> _newCardIds = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _previousCardIds = widget.cards.map((DuelCard c) => c.id).toList();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MyHandRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final List<String> currentIds = widget.cards.map((DuelCard c) => c.id).toList();
+    final Set<String> previousIds = _previousCardIds.toSet();
+    _newCardIds = currentIds.where((String id) => !previousIds.contains(id)).toSet();
+    _previousCardIds = currentIds;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
@@ -6444,21 +6494,21 @@ class _MyHandRow extends StatelessWidget {
                 Row(
                   children: <Widget>[
                     _ProfileBlock(
-                      name: profileName,
-                      wins: wins,
-                      losses: losses,
-                      credits: credits,
-                      fallbackInitial: fallbackInitial,
+                      name: widget.profileName,
+                      wins: widget.wins,
+                      losses: widget.losses,
+                      credits: widget.credits,
+                      fallbackInitial: widget.fallbackInitial,
                       compact: true,
-                      avatarCard: avatarCard,
+                      avatarCard: widget.avatarCard,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Align(
                         alignment: Alignment.centerRight,
                         child: _TurnStateBadge(
-                          text: canInteract ? 'À votre tour' : 'En attente',
-                          blink: canInteract,
+                          text: widget.canInteract ? 'À votre tour' : 'En attente',
+                          blink: widget.canInteract,
                         ),
                       ),
                     ),
@@ -6471,13 +6521,15 @@ class _MyHandRow extends StatelessWidget {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (BuildContext context, BoxConstraints constraints) {
+                      final List<DuelCard> cards = widget.cards;
                       if (cards.isEmpty) {
                         return const SizedBox.expand();
                       }
+                      int newCardOrder = 0;
 
                       final double maxRowWidth =
-                          (_FaceCard.width * _maxCardsPerRow) +
-                          (_cardGap * (_maxCardsPerRow - 1));
+                          (_FaceCard.width * _MyHandRow._maxCardsPerRow) +
+                          (_MyHandRow._cardGap * (_MyHandRow._maxCardsPerRow - 1));
                       final double wrapWidth = min(
                         constraints.maxWidth - 8,
                         maxRowWidth,
@@ -6491,19 +6543,28 @@ class _MyHandRow extends StatelessWidget {
                           child: SizedBox(
                             width: wrapWidth,
                             child: Wrap(
-                              spacing: _cardGap,
-                              runSpacing: _cardGap,
+                              spacing: _MyHandRow._cardGap,
+                              runSpacing: _MyHandRow._cardGap,
                               children: List<Widget>.generate(cards.length, (int index) {
                                 final DuelCard card = cards[index];
-                                final bool isPlayable = playable(card);
+                                final bool isPlayable = widget.playable(card);
+                                final bool isNew = _newCardIds.contains(card.id);
+                                final int staggerIndex = isNew ? newCardOrder++ : 0;
                                 return SizedBox(
                                   width: _FaceCard.width,
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: canInteract && isPlayable ? () => onCardTap(card) : null,
-                                    child: Opacity(
-                                      opacity: canInteract && !isPlayable ? 0.45 : 1,
-                                      child: _FaceCard(card: card),
+                                  child: BouncyCardEntry(
+                                    key: ValueKey<String>('duel-my-${card.id}-$index'),
+                                    animate: isNew,
+                                    delay: Duration(milliseconds: isNew ? staggerIndex * 34 : 0),
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: widget.canInteract && isPlayable
+                                          ? () => widget.onCardTap(card)
+                                          : null,
+                                      child: Opacity(
+                                        opacity: widget.canInteract && !isPlayable ? 0.45 : 1,
+                                        child: _FaceCard(card: card),
+                                      ),
                                     ),
                                   ),
                                 );
@@ -6520,7 +6581,7 @@ class _MyHandRow extends StatelessWidget {
             Positioned(
               top: 2,
               right: 2,
-              child: _DrawCountBadge(count: cards.length),
+              child: _DrawCountBadge(count: widget.cards.length),
             ),
           ],
         ),
