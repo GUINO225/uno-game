@@ -2692,27 +2692,52 @@ class _DuelPageState extends State<DuelPage> {
   void _showFunnyGameMessage({
     required String playerName,
     required String message,
+    required String targetPlayerId,
+    required FunnyMessageType type,
   }) {
     if (!_funnyMessagesEnabled || !mounted || _isBlockingDialogOpen()) {
+      return;
+    }
+    if (targetPlayerId != _controller.localPlayerId) {
       return;
     }
     FunnyGameToast.show(
       context,
       playerName: playerName,
       message: message,
+      type: type,
       alignment: Alignment.topCenter,
     );
   }
 
   void _maybeShowFunnyGameMessage(DuelSession session) {
     final DuelAction? action = session.lastAction;
-    if (action == null || action.type != DuelActionType.playCard || session.lastActionId == null) {
+    if (action == null || session.lastActionId == null) {
       return;
     }
     if (_lastFunnyActionKey == session.lastActionId) {
       return;
     }
     _lastFunnyActionKey = session.lastActionId;
+    if (action.type == DuelActionType.drawCard) {
+      final bool isForcedDraw = action.payload['forcedDraw'] == true;
+      if (isForcedDraw) {
+        final List<String> targetHand = session.handForPlayer(action.actorId);
+        final bool manyCards = targetHand.length >= 12;
+        _showFunnyGameMessage(
+          playerName: session.playerNames[action.actorId] ?? 'Joueur',
+          message: manyCards
+              ? 'Djo, c’est éventail tu veux faire ou bien ?'
+              : 'Camarade, tu n’as pas ? Pioche.',
+          targetPlayerId: action.actorId,
+          type: FunnyMessageType.difficulty,
+        );
+      }
+      return;
+    }
+    if (action.type != DuelActionType.playCard) {
+      return;
+    }
     final String actorName = session.playerNames[action.actorId] ?? 'Joueur';
     final String targetId = session.players.firstWhere(
       (String id) => id != action.actorId,
@@ -2725,24 +2750,61 @@ class _DuelPageState extends State<DuelPage> {
     }
     final DuelCard card = DuelCard.fromId(cardId);
     if (card.isJoker) {
-      _showFunnyGameMessage(playerName: targetName, message: 'va lire l’heure !');
+      _showFunnyGameMessage(
+        playerName: actorName,
+        message: 'Oui, tu as mis dans joker.',
+        targetPlayerId: action.actorId,
+        type: FunnyMessageType.success,
+      );
+      _showFunnyGameMessage(
+        playerName: targetName,
+        message: 'Oui, $targetName est sur toi-même.',
+        targetPlayerId: targetId,
+        type: FunnyMessageType.difficulty,
+      );
       return;
     }
     if (card.rank == '2') {
-      _showFunnyGameMessage(playerName: targetName, message: 'deux cartes, sans discuter.');
+      _showFunnyGameMessage(
+        playerName: actorName,
+        message: 'Oui, tu as mis dans deux.',
+        targetPlayerId: action.actorId,
+        type: FunnyMessageType.success,
+      );
+      _showFunnyGameMessage(
+        playerName: targetName,
+        message: 'Camarade, tu n’as pas ? Pioche.',
+        targetPlayerId: targetId,
+        type: FunnyMessageType.difficulty,
+      );
       return;
     }
     if (card.rank == '8') {
-      _showFunnyGameMessage(playerName: targetName, message: 'la commande est lancée.');
+      _showFunnyGameMessage(
+        playerName: targetName,
+        message: 'Est-ce que tu vas t’en sortir ?',
+        targetPlayerId: targetId,
+        type: FunnyMessageType.difficulty,
+      );
       return;
     }
     if (action.payload.containsKey('winnerId')) {
-      _showFunnyGameMessage(playerName: actorName, message: 'victoire confirmée.');
+      _showFunnyGameMessage(
+        playerName: actorName,
+        message: 'victoire confirmée.',
+        targetPlayerId: action.actorId,
+        type: FunnyMessageType.info,
+      );
       return;
     }
     final List<String> actorHand = session.handForPlayer(action.actorId);
     if (actorHand.length == 1) {
-      _showFunnyGameMessage(playerName: actorName, message: 'une seule carte, pression maximale.');
+      _showFunnyGameMessage(
+        playerName: actorName,
+        message: 'une seule carte, pression maximale.',
+        targetPlayerId: action.actorId,
+        type: FunnyMessageType.info,
+      );
     }
   }
 
