@@ -572,7 +572,7 @@ class GinoIncomingBetPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GinoPopupFrame(
-      titleTag: 'PROPOSITION',
+      titleTag: 'Proposition',
       width: math.min(MediaQuery.of(context).size.width * 0.82, 400),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -587,10 +587,10 @@ class GinoIncomingBetPopup extends StatelessWidget {
             fontSize: 17,
             spans: <TextSpan>[
               TextSpan(
-                text: proposerName.toUpperCase(),
+                text: proposerName,
                 style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.titleWeight),
               ),
-              const TextSpan(text: ' PROPOSE UNE MISE DE '),
+              const TextSpan(text: ' propose une mise de '),
               TextSpan(
                 text: '$amount',
                 style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.titleWeight),
@@ -628,7 +628,7 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
     required this.cardsToDraw,
     required this.rank,
     required this.suit,
-    this.title = 'PIOCHEZ !!!',
+    this.title = 'Piochez',
     this.showButton = false,
     this.buttonLabel = 'Piocher',
     this.onDrawPressed,
@@ -644,7 +644,7 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String bottomLabel = cardsToDraw == 1 ? '1 CARTE' : '$cardsToDraw CARTES';
+    final String bottomLabel = cardsToDraw == 1 ? '1 carte' : '$cardsToDraw cartes';
 
     return GinoPopupFrame(
       width: math.min(MediaQuery.of(context).size.width * 0.74, 360),
