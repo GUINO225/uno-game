@@ -26,6 +26,8 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
+  Future<(PlayerProfile?, int?)>? _panelDataFuture;
+  String? _panelDataUid;
 
   Future<(PlayerProfile?, int?)> _loadPanelData() async {
     final User? user = _authService.currentUser;
@@ -53,7 +55,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       );
       return;
     }
-    setState(() {});
+    _refreshPanelData();
   }
 
   Future<void> _signOut() async {
@@ -61,7 +63,25 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     if (!mounted) {
       return;
     }
-    setState(() {});
+    _refreshPanelData();
+  }
+
+  void _refreshPanelData() {
+    setState(() {
+      _panelDataUid = null;
+      _panelDataFuture = null;
+    });
+  }
+
+  Future<(PlayerProfile?, int?)> _panelDataForCurrentUser() {
+    final User? user = _authService.currentUser;
+    final String? uid = user?.uid;
+    if (_panelDataFuture != null && _panelDataUid == uid) {
+      return _panelDataFuture!;
+    }
+    _panelDataUid = uid;
+    _panelDataFuture = _loadPanelData();
+    return _panelDataFuture!;
   }
 
   @override
@@ -70,9 +90,14 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       child: SafeArea(
         child: StreamBuilder<User?>(
           stream: _authService.authStateChanges,
-          builder: (BuildContext context, AsyncSnapshot<User?> _) {
+          builder: (BuildContext context, AsyncSnapshot<User?> snapshot) {
+            final String? authUid = snapshot.data?.uid;
+            if (_panelDataUid != authUid) {
+              _panelDataUid = authUid;
+              _panelDataFuture = _loadPanelData();
+            }
             return FutureBuilder<(PlayerProfile?, int?)>(
-              future: _loadPanelData(),
+              future: _panelDataForCurrentUser(),
               builder:
                   (BuildContext context, AsyncSnapshot<(PlayerProfile?, int?)> snapshot) {
                 final PlayerProfile? profile = snapshot.data?.$1;
@@ -110,7 +135,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
-                        onPressed: () => setState(() {}),
+                        onPressed: _refreshPanelData,
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Réessayer'),
                       ),

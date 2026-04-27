@@ -1570,6 +1570,17 @@ class DuelController extends ChangeNotifier {
   Future<void> attach(String gameId) async {
     await _subscription?.cancel();
     _subscription = service.watchSession(gameId).listen((DuelSession value) {
+      final DuelSession? previous = session;
+      if (previous != null &&
+          previous.gameId == value.gameId &&
+          previous.revision == value.revision &&
+          previous.status == value.status &&
+          previous.lastActionId == value.lastActionId &&
+          previous.currentTurn == value.currentTurn &&
+          mapEquals(previous.scores, value.scores) &&
+          mapEquals(previous.playerCredits, value.playerCredits)) {
+        return;
+      }
       session = value;
       _maybeRepairSessionIntegrity(value);
       notifyListeners();
@@ -2363,9 +2374,9 @@ class _DuelPageState extends State<DuelPage> {
     DuelCard(suit: '♣', rank: '10'),
   ];
 
-  StreamSubscription<List<DuelAction>>? _actionsSubscription;
   StreamSubscription<List<DuelChatMessage>>? _chatSub;
   DuelBoardState? _board;
+  String? _lastSessionUiKey;
   String? _lastEightPopupKey;
   String? _lastForcedDrawPopupKey;
   String? _lastRematchRequestKey;
@@ -2468,7 +2479,6 @@ class _DuelPageState extends State<DuelPage> {
   @override
   void dispose() {
     _controller.removeListener(_onControllerChange);
-    _actionsSubscription?.cancel();
     _chatSub?.cancel();
     _chatPreviewTimer?.cancel();
     _chatMessagesNotifier.dispose();
@@ -2480,12 +2490,19 @@ class _DuelPageState extends State<DuelPage> {
     if (session == null || session.players.length < 2) {
       return;
     }
+    final String sessionUiKey =
+        '${session.gameId}_${session.revision}_${session.status.name}_${session.betFlowState.name}_${session.currentTurn}_${session.lastActionId}';
+    if (_lastSessionUiKey == sessionUiKey) {
+      return;
+    }
+    _lastSessionUiKey = sessionUiKey;
+
     final DuelBoardState snapshotBoard = DuelBoardState.fromSession(session);
-    setState(() {
-      _board = snapshotBoard;
-    });
-    _actionsSubscription?.cancel();
-    _actionsSubscription = null;
+    if (_board != snapshotBoard) {
+      setState(() {
+        _board = snapshotBoard;
+      });
+    }
     if (session.status == DuelGameStatus.inProgress &&
         (session.betFlowState == DuelBetFlowState.readyToStart ||
             session.betFlowState == DuelBetFlowState.rematchAccepted ||
@@ -2544,11 +2561,14 @@ class _DuelPageState extends State<DuelPage> {
                 previews.add(message.text);
               }
             }
-            setState(() {
-              _chatMessagesNotifier.value = List<DuelChatMessage>.unmodifiable(ordered);
-              _chatError = null;
-              _unreadChatCount += unreadDelta;
-            });
+            _chatMessagesNotifier.value = List<DuelChatMessage>.unmodifiable(ordered);
+            final bool hadError = _chatError != null;
+            _chatError = null;
+            if (unreadDelta > 0 || hadError) {
+              setState(() {
+                _unreadChatCount += unreadDelta;
+              });
+            }
             if (previews.isNotEmpty) {
               _enqueueChatPreview(previews);
             }
