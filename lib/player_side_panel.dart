@@ -28,6 +28,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
   Future<(PlayerProfile?, int?)>? _panelDataFuture;
   String? _panelDataUid;
+  String? _promptedUid;
 
   Future<(PlayerProfile?, int?)> _loadPanelData() async {
     final User? user = _authService.currentUser;
@@ -84,6 +85,77 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     return _panelDataFuture!;
   }
 
+  void _maybeSuggestProfileCustomization(PlayerProfile profile) {
+    if (profile.hasCustomProfile) {
+      return;
+    }
+    if (_promptedUid == profile.uid) {
+      return;
+    }
+    _promptedUid = profile.uid;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      final bool shouldEdit = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Personnalise ton profil'),
+                content: const Text(
+                  'Choisis un pseudo et un avatar de carte pour rester discret dans le classement.',
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Plus tard'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Modifier maintenant'),
+                  ),
+                ],
+              );
+            },
+          ) ??
+          false;
+      if (!mounted || !shouldEdit) {
+        return;
+      }
+      await _openProfileEditor(profile);
+    });
+  }
+
+  Future<void> _openProfileEditor(PlayerProfile profile) async {
+    final User? user = _authService.currentUser;
+    if (user == null) {
+      return;
+    }
+    final bool? updated = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => _PublicProfileEditorSheet(
+        initialProfile: profile,
+        onSave: (String displayName, String rank, String suit) async {
+          await _profileService.updatePublicProfile(
+            uid: user.uid,
+            displayName: displayName,
+            cardAvatarRank: rank,
+            cardAvatarSuit: suit,
+          );
+        },
+      ),
+    );
+    if (!mounted || updated != true) {
+      return;
+    }
+    _refreshPanelData();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Profil mis à jour.')));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Drawer(
@@ -102,6 +174,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   (BuildContext context, AsyncSnapshot<(PlayerProfile?, int?)> snapshot) {
                 final PlayerProfile? profile = snapshot.data?.$1;
                 final int? rank = snapshot.data?.$2;
+                if (profile != null) {
+                  _maybeSuggestProfileCustomization(profile);
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -178,47 +253,43 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   );
                 }
                 final List<_PlayerInfoTileData> accountTiles = <_PlayerInfoTileData>[
-              _PlayerInfoTileData(
-                icon: Icons.account_circle_outlined,
-                label: 'Pseudo',
-                value: _safeLabel(profile.displayName, fallback: 'Joueur'),
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.workspace_premium_rounded,
-                label: 'Crédit',
-                value: profile.credits.toString(),
-                accent: true,
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.emoji_events_outlined,
-                label: 'Victoires',
-                value: profile.wins.toString(),
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.cancel_outlined,
-                label: 'Défaites',
-                value: profile.losses.toString(),
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.sports_esports_outlined,
-                label: 'Parties',
-                value: profile.totalGames.toString(),
-              ),
-              _PlayerInfoTileData(
-                icon: Icons.leaderboard_outlined,
-                label: 'Classement',
-                value: rank == null ? '-' : '#$rank',
-              ),
-            ];
-                if ((profile.email ?? '').isNotEmpty) {
-                  accountTiles.add(
-                    _PlayerInfoTileData(
-                      icon: Icons.mail_outline_rounded,
-                      label: 'Email',
-                      value: _safeLabel(profile.email, fallback: '-'),
-                    ),
-                  );
-                }
+                  _PlayerInfoTileData(
+                    icon: Icons.account_circle_outlined,
+                    label: 'Pseudo',
+                    value: _safeLabel(profile.publicDisplayName, fallback: 'Joueur'),
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.workspace_premium_rounded,
+                    label: 'Crédit',
+                    value: profile.credits.toString(),
+                    accent: true,
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.emoji_events_outlined,
+                    label: 'Victoires',
+                    value: profile.wins.toString(),
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.cancel_outlined,
+                    label: 'Défaites',
+                    value: profile.losses.toString(),
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.sports_esports_outlined,
+                    label: 'Parties',
+                    value: profile.totalGames.toString(),
+                  ),
+                  _PlayerInfoTileData(
+                    icon: Icons.leaderboard_outlined,
+                    label: 'Classement',
+                    value: rank == null ? '-' : '#$rank',
+                  ),
+                  const _PlayerInfoTileData(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Connexion',
+                    value: 'Compte Google connecté',
+                  ),
+                ];
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
                   children: <Widget>[
@@ -240,10 +311,16 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: () => _openProfileEditor(profile),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Modifier mon profil'),
+                    ),
+                    const SizedBox(height: 8),
                     OutlinedButton.icon(
                       onPressed: widget.onOpenLeaderboard,
                       icon: const Icon(Icons.leaderboard_outlined),
-                      label: const Text('Page Classement'),
+                      label: const Text('Voir le classement'),
                     ),
                     const SizedBox(height: 8),
                     TextButton.icon(
@@ -274,11 +351,7 @@ class _AccountDrawerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String safeName = _safeLabel(profile.displayName, fallback: 'Joueur');
-    final String? safeEmail =
-        (profile.email != null && profile.email!.trim().isNotEmpty)
-            ? profile.email!.trim()
-            : null;
+    final String safeName = _safeLabel(profile.publicDisplayName, fallback: 'Joueur');
 
     return PremiumPanel(
       padding: const EdgeInsets.all(14),
@@ -304,22 +377,20 @@ class _AccountDrawerHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: PremiumColors.textDark.withOpacity(0.92),
                   ),
                 ),
-                if (safeEmail != null) ...<Widget>[
-                  const SizedBox(height: 2),
-                  Text(
-                    safeEmail,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: PremiumColors.textDark.withOpacity(0.72),
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  'Compte Google connecté',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: PremiumColors.textDark.withOpacity(0.72),
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -360,9 +431,8 @@ class _PlayerInfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color tileColor = accent
-        ? PremiumColors.accent.withOpacity(0.2)
-        : Colors.white.withOpacity(0.7);
+    final Color tileColor =
+        accent ? PremiumColors.accent.withOpacity(0.2) : Colors.white.withOpacity(0.7);
 
     return Container(
       margin: isLast ? EdgeInsets.zero : const EdgeInsets.only(bottom: 8),
@@ -454,12 +524,232 @@ class _PanelAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GameCardAvatar(
+    return GameCardAvatar.fromSelection(
       size: size,
-      data: GameCardAvatarPalette.fromSeed(
-        profile.id,
-        salt: 2,
+      rank: profile.selectedCardAvatar.rank,
+      suit: profile.selectedCardAvatar.suit,
+    );
+  }
+}
+
+class _PublicProfileEditorSheet extends StatefulWidget {
+  const _PublicProfileEditorSheet({
+    required this.initialProfile,
+    required this.onSave,
+  });
+
+  final PlayerProfile initialProfile;
+  final Future<void> Function(String displayName, String rank, String suit) onSave;
+
+  @override
+  State<_PublicProfileEditorSheet> createState() => _PublicProfileEditorSheetState();
+}
+
+class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
+  late final TextEditingController _displayNameController;
+  late String _selectedRank;
+  late String _selectedSuit;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayNameController = TextEditingController(text: widget.initialProfile.publicDisplayName);
+    _selectedRank = widget.initialProfile.selectedCardAvatar.rank;
+    _selectedSuit = widget.initialProfile.selectedCardAvatar.suit;
+  }
+
+  @override
+  void dispose() {
+    _displayNameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final String name = _displayNameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choisis ton pseudo.')),
+      );
+      return;
+    }
+    setState(() {
+      _saving = true;
+    });
+    try {
+      await widget.onSave(name, _selectedRank, _selectedSuit);
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Impossible de mettre à jour le profil: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final EdgeInsets viewInsets = MediaQuery.of(context).viewInsets;
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F4EC),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Personnalise ton profil',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: PremiumColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Choisis ton pseudo',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    color: PremiumColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _displayNameController,
+                  maxLength: 18,
+                  decoration: const InputDecoration(
+                    hintText: 'Ton pseudo',
+                    border: OutlineInputBorder(),
+                    counterText: '',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Choisis ton avatar',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    color: PremiumColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: GameCardAvatar.fromSelection(
+                    rank: _selectedRank,
+                    suit: _selectedSuit,
+                    size: 72,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _AvatarSelectorGrid<String>(
+                  values: GameCardAvatarPalette.ranks,
+                  selected: _selectedRank,
+                  onSelected: (String rank) => setState(() => _selectedRank = rank),
+                  labelBuilder: (String rank) => rank,
+                ),
+                const SizedBox(height: 10),
+                _AvatarSelectorGrid<String>(
+                  values: GameCardAvatarPalette.suits,
+                  selected: _selectedSuit,
+                  onSelected: (String suit) => setState(() => _selectedSuit = suit),
+                  labelBuilder: _suitLabel,
+                  textColorBuilder: _suitColor,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+                        child: const Text('Annuler'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : _submit,
+                        child: Text(_saving ? 'Enregistrement...' : 'Enregistrer'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
+    );
+  }
+
+  static String _suitLabel(String suit) {
+    return switch (suit) {
+      'hearts' => '♥ cœur',
+      'diamonds' => '♦ carreau',
+      'spades' => '♠ pique',
+      'clubs' => '♣ trèfle',
+      _ => suit,
+    };
+  }
+
+  static Color _suitColor(String suit) {
+    return switch (suit) {
+      'hearts' || 'diamonds' => const Color(0xFFD32F2F),
+      _ => const Color(0xFF151515),
+    };
+  }
+}
+
+class _AvatarSelectorGrid<T> extends StatelessWidget {
+  const _AvatarSelectorGrid({
+    required this.values,
+    required this.selected,
+    required this.onSelected,
+    required this.labelBuilder,
+    this.textColorBuilder,
+  });
+
+  final List<T> values;
+  final T selected;
+  final ValueChanged<T> onSelected;
+  final String Function(T value) labelBuilder;
+  final Color Function(T value)? textColorBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: values.map((T value) {
+        final bool isSelected = value == selected;
+        return ChoiceChip(
+          label: Text(
+            labelBuilder(value),
+            style: TextStyle(
+              color: textColorBuilder?.call(value) ?? PremiumColors.textDark,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          selected: isSelected,
+          onSelected: (_) => onSelected(value),
+        );
+      }).toList(growable: false),
     );
   }
 }
@@ -511,12 +801,18 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                         onTap: () => Scaffold.of(context).openEndDrawer(),
                         child: Tooltip(
                           message: 'Menu joueur',
-                          child: GameCardAvatar(
+                          child: GameCardAvatar.fromSelection(
                             size: 52,
-                            data: GameCardAvatarPalette.fromSeed(
-                              profile?.id ?? _authService.currentUser?.uid ?? 'menu_guest',
-                              salt: 5,
-                            ),
+                            rank: profile?.selectedCardAvatar.rank ??
+                                GameCardAvatarPalette.fromSeed(
+                                  _authService.currentUser?.uid ?? 'menu_guest',
+                                  salt: 5,
+                                ).rank,
+                            suit: profile?.selectedCardAvatar.suit ??
+                                GameCardAvatarPalette.fromSeed(
+                                  _authService.currentUser?.uid ?? 'menu_guest',
+                                  salt: 5,
+                                ).suit,
                           ),
                         ),
                       ),
