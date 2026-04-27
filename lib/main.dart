@@ -1994,15 +1994,50 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   bool _isCardPlayableForHuman(PlayingCard card) {
+    return _evaluateHumanCardPlayability(card).canPlay;
+  }
+
+  ({bool canPlay, String? rejectionMessage}) _evaluateHumanCardPlayability(
+    PlayingCard card,
+  ) {
     if (_humanMustAnswerAce) {
-      return _isValidAceResponse(card);
+      return _isValidAceResponse(card)
+          ? (canPlay: true, rejectionMessage: null)
+          : (canPlay: false, rejectionMessage: 'Tu dois répondre à l’As.');
     }
 
     if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.human) {
-      return false;
+      return (
+        canPlay: false,
+        rejectionMessage: 'Tu dois d’abord piocher.',
+      );
     }
 
-    return _isCardPlayableForHand(card, _humanHand);
+    if (_activeSuitConstraint != null &&
+        (card.isJoker || card.suit != _activeSuitConstraint)) {
+      return (
+        canPlay: false,
+        rejectionMessage: 'Tu dois respecter la couleur.',
+      );
+    }
+
+    if (_discardPile.isNotEmpty &&
+        _topDiscard.isJoker &&
+        !_sameColor(card, _topDiscard)) {
+      final String colorMessage = _topDiscard.isRed
+          ? 'Tu dois jouer une carte rouge.'
+          : 'Tu dois jouer une carte noire.';
+      return (
+        canPlay: false,
+        rejectionMessage: colorMessage,
+      );
+    }
+
+    if (!_isCardPlayableForHand(card, _humanHand)) {
+      return (canPlay: false, rejectionMessage: 'Carte non jouable.');
+    }
+
+    return (canPlay: true, rejectionMessage: null);
   }
 
   bool _isValidAceResponse(PlayingCard card) {
@@ -2054,7 +2089,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return;
     }
 
-    if (!_isCardPlayableForHuman(card)) {
+    final ({bool canPlay, String? rejectionMessage}) playability =
+        _evaluateHumanCardPlayability(card);
+    if (!playability.canPlay) {
+      _showShortHumanMessage(playability.rejectionMessage ?? 'Carte non jouable.');
       return;
     }
 
@@ -2076,6 +2114,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       // Re-check bot progression once the resolving lock is released.
       _ensureBotTurnProgress();
     }
+  }
+
+  void _showShortHumanMessage(String message) {
+    if (!mounted || message.trim().isEmpty) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message.trim()),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _humanPlayCard(
@@ -3156,12 +3207,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 spacing: 6,
                 runSpacing: 6,
                 children: _humanHand.map((PlayingCard card) {
+                  final ({bool canPlay, String? rejectionMessage}) playability =
+                      _evaluateHumanCardPlayability(card);
                   return CardView(
                     card: card,
-                    enabled: canInteract && _isCardPlayableForHuman(card),
-                    onTap: canInteract && _isCardPlayableForHuman(card)
-                        ? () => _onHumanTapCard(card)
-                        : null,
+                    enabled: canInteract && playability.canPlay,
+                    opacity: canInteract && !playability.canPlay ? 0.45 : 1,
+                    onTap: canInteract ? () => _onHumanTapCard(card) : null,
                   );
                 }).toList(),
               ),
@@ -3576,11 +3628,13 @@ class CardView extends StatelessWidget {
     super.key,
     required this.card,
     this.enabled = false,
+    this.opacity = 1,
     this.onTap,
   });
 
   final PlayingCard card;
   final bool enabled;
+  final double opacity;
   final VoidCallback? onTap;
 
   @override
@@ -3631,7 +3685,10 @@ class CardView extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: cardWidget,
+      child: Opacity(
+        opacity: opacity,
+        child: cardWidget,
+      ),
     );
   }
 }
