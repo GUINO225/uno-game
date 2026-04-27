@@ -18,6 +18,7 @@ import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'stats_service.dart';
 import 'user_profile_service.dart';
+import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
@@ -1948,7 +1949,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   String? _validatePseudo() {
     if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId == null) {
-      return 'Connectez-vous avec Google pour jouer en mode Paris.';
+      return 'Connectez-vous avec Google pour jouer en mode pari.';
     }
     if (_authenticatedPlayerId != null) {
       return null;
@@ -2230,7 +2231,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final bool busy = _controller?.busy ?? false;
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
     final bool isAuthenticated = _authenticatedPlayerId != null;
-    final String title = creditsMode ? 'Duel paris' : 'Duel simple';
+    final String title = creditsMode ? 'Mode pari' : 'Duel simple';
     return Scaffold(
       endDrawer: PlayerSidePanel(
         onOpenLeaderboard: () {
@@ -2550,6 +2551,8 @@ class _DuelPageState extends State<DuelPage> {
   String? _lastOutcomeSfxKey;
   String? _lastStatsSyncKey;
   String? _lastOpponentActionSfxKey;
+  String? _lastFunnyActionKey;
+  bool _funnyMessagesEnabled = true;
   final AppSfxService _sfx = AppSfxService.instance;
 
   static const List<String> _quickMessages = <String>[
@@ -2626,6 +2629,7 @@ class _DuelPageState extends State<DuelPage> {
     _chatPreviewTimer?.cancel();
     _rematchTimeoutTimer?.cancel();
     _chatMessagesNotifier.dispose();
+    FunnyGameToast.hide();
     super.dispose();
   }
 
@@ -2663,6 +2667,7 @@ class _DuelPageState extends State<DuelPage> {
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
     _maybePlayOpponentActionSfx(session);
+    _maybeShowFunnyGameMessage(session);
     _maybeHandleStakeFlow(session);
     _maybeHandleStakeRejected(session);
     _maybeHandleInsufficientFunds(session);
@@ -2672,6 +2677,63 @@ class _DuelPageState extends State<DuelPage> {
     _maybePromptMandatoryStake(session);
     _maybeShowWinPopup(session);
     _maybePlayRoundOutcomeSfx(session);
+  }
+
+  void _showFunnyGameMessage({
+    required String playerName,
+    required String message,
+  }) {
+    if (!_funnyMessagesEnabled || !mounted || _isBlockingDialogOpen()) {
+      return;
+    }
+    FunnyGameToast.show(
+      context,
+      playerName: playerName,
+      message: message,
+      alignment: Alignment.topCenter,
+    );
+  }
+
+  void _maybeShowFunnyGameMessage(DuelSession session) {
+    final DuelAction? action = session.lastAction;
+    if (action == null || action.type != DuelActionType.playCard || session.lastActionId == null) {
+      return;
+    }
+    if (_lastFunnyActionKey == session.lastActionId) {
+      return;
+    }
+    _lastFunnyActionKey = session.lastActionId;
+    final String actorName = session.playerNames[action.actorId] ?? 'Joueur';
+    final String targetId = session.players.firstWhere(
+      (String id) => id != action.actorId,
+      orElse: () => action.actorId,
+    );
+    final String targetName = session.playerNames[targetId] ?? 'Joueur';
+    final String cardId = (action.payload['cardId'] as String?) ?? '';
+    if (cardId.isEmpty) {
+      return;
+    }
+    final DuelCard card = DuelCard.fromId(cardId);
+    if (card.isJoker) {
+      _showFunnyGameMessage(playerName: targetName, message: 'va lire l’heure !');
+      return;
+    }
+    if (card.rank == '2') {
+      _showFunnyGameMessage(playerName: targetName, message: 'deux cartes, sans discuter.');
+      return;
+    }
+    if (card.rank == '8') {
+      _showFunnyGameMessage(playerName: targetName, message: 'la commande est lancée.');
+      return;
+    }
+    if (action.payload.containsKey('winnerId')) {
+      _showFunnyGameMessage(playerName: actorName, message: 'victoire confirmée.');
+      return;
+    }
+    final List<DuelCard>? actorHand = session.hands[action.actorId];
+    if (actorHand != null && actorHand.length == 1) {
+      _showFunnyGameMessage(playerName: actorName, message: 'une seule carte, pression maximale.');
+    }
   }
 
   void _bindChatRealtime(DuelSession session) {
@@ -4192,7 +4254,7 @@ class _DuelPageState extends State<DuelPage> {
           orElse: () => '',
         );
         final String opponentName = opponentId.isEmpty
-            ? 'JOUEUR 2'
+            ? 'Joueur 2'
             : _displayNameUpper(session, opponentId);
         final String localName = _displayNameUpper(
           session,
@@ -4252,7 +4314,7 @@ class _DuelPageState extends State<DuelPage> {
                                 const AppLogo(size: 74),
                                 const SizedBox(height: 1),
                                 Text(
-                                  _isCreditsMode ? 'Duel Paris' : 'Duel',
+                                  _isCreditsMode ? 'Mode pari' : 'Duel',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.9),
                                     fontWeight: FontWeight.w600,
@@ -5590,7 +5652,7 @@ class _DuelStatusBanner extends StatelessWidget {
                 text: TextSpan(
                   children: <InlineSpan>[
                     const TextSpan(
-                      text: 'VOUS  ',
+                      text: 'Vous  ',
                       style: TextStyle(
                         color: Colors.white70,
                         fontWeight: FontWeight.w700,
@@ -5639,7 +5701,7 @@ class _DuelStatusBanner extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'MANCHE $round',
+              'Manche $round',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white70,
@@ -6123,7 +6185,7 @@ class _MyHandRow extends StatelessWidget {
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: _TurnStateBadge(
-                            text: canInteract ? 'À VOTRE TOUR' : 'PATIENTEZ',
+                            text: canInteract ? 'À votre tour' : 'En attente',
                             blink: canInteract,
                           ),
                         ),
@@ -6216,8 +6278,7 @@ class _ActionMessageCard extends StatelessWidget {
 
     final DuelCard card = DuelCard.fromMap(rawCard);
     final bool isMe = action.actorId == localPlayerId;
-    final String actorName = session.playerNames[action.actorId]?.toUpperCase() ?? 'JOUEUR';
-    final String prefix = isMe ? 'Vous avez joué' : '$actorName a joué';
+    final String actorName = session.playerNames[action.actorId] ?? 'Joueur';
 
     return Container(
       width: double.infinity,
@@ -6230,13 +6291,22 @@ class _ActionMessageCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           Flexible(
-            child: Text(
-              prefix,
+            child: RichText(
               textAlign: TextAlign.right,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+              text: TextSpan(
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+                children: <TextSpan>[
+                  if (isMe)
+                    const TextSpan(text: 'Vous avez joué')
+                  else ...<TextSpan>[
+                    TextSpan(text: actorName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const TextSpan(text: ' a joué'),
+                  ],
+                ],
               ),
             ),
           ),

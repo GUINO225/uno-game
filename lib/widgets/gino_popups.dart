@@ -406,26 +406,44 @@ class GinoStackedDrawCards extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        rank,
-                        style: GinoPopupStyle.baseText(
-                          color: ink,
-                          fontSize: 21,
-                          fontWeight: GinoPopupStyle.titleWeight,
-                          height: 1,
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              rank,
+                              style: GinoPopupStyle.baseText(
+                                color: ink,
+                                fontSize: 21,
+                                fontWeight: GinoPopupStyle.titleWeight,
+                                height: 1,
+                              ),
+                            ),
+                            Text(
+                              symbol,
+                              style: GinoPopupStyle.baseText(
+                                color: ink,
+                                fontSize: 22,
+                                fontWeight: GinoPopupStyle.titleWeight,
+                                height: 1,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      const Spacer(),
                       Text(
                         symbol,
                         style: GinoPopupStyle.baseText(
                           color: ink,
-                          fontSize: 22,
+                          fontSize: 42,
                           fontWeight: GinoPopupStyle.titleWeight,
                           height: 1,
                         ),
                       ),
+                      const Spacer(),
                     ],
                   ),
                 ),
@@ -465,17 +483,17 @@ class GinoBetProposalPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GinoPopupFrame(
-      titleTag: 'MISE',
+      titleTag: 'Montant du pari',
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           _CenteredRichText(
             fontSize: 17,
             spans: <TextSpan>[
-              const TextSpan(text: 'PROPOSE TA MISE À '),
+              const TextSpan(text: 'Propose un pari à '),
               TextSpan(
-                text: opponentName.toUpperCase(),
-                style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.titleWeight),
+                text: opponentName,
+                style: GinoPopupStyle.baseText(fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -502,7 +520,7 @@ class GinoBetProposalPopup extends StatelessWidget {
             style: GinoPopupStyle.baseText(fontSize: 16),
             onChanged: onAmountChanged,
             decoration: InputDecoration(
-              hintText: 'Montant du paris',
+              hintText: 'Montant du pari',
               hintStyle: GinoPopupStyle.baseText(fontSize: 15, color: Colors.white70),
               filled: true,
               fillColor: GinoPopupStyle.screenGreen.withOpacity(0.35),
@@ -588,7 +606,7 @@ class GinoIncomingBetPopup extends StatelessWidget {
             spans: <TextSpan>[
               TextSpan(
                 text: proposerName,
-                style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.titleWeight),
+                style: GinoPopupStyle.baseText(fontWeight: FontWeight.w700),
               ),
               const TextSpan(text: ' propose une mise de '),
               TextSpan(
@@ -734,7 +752,7 @@ class GinoVictoryPopup extends StatelessWidget {
                 borderRadius: BorderRadius.circular(9),
               ),
               child: Text(
-                'GAIN : $wonAmount',
+                'Gain : $wonAmount',
                 style: GinoPopupStyle.baseText(
                   fontSize: 18,
                   fontWeight: GinoPopupStyle.titleWeight,
@@ -886,14 +904,14 @@ class GinoOpponentCommandPopup extends StatelessWidget {
             fontSize: 24,
             spans: <TextSpan>[
               TextSpan(
-                text: playerName.toUpperCase(),
+                text: playerName,
                 style: GinoPopupStyle.baseText(
-                  fontWeight: GinoPopupStyle.titleWeight,
+                  fontWeight: FontWeight.w700,
                   fontSize: 24,
                 ),
               ),
               TextSpan(
-                text: ' COMMANDE',
+                text: ' commande',
                 style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.textWeight, fontSize: 24),
               ),
             ],
@@ -939,14 +957,14 @@ class GinoChooseSuitPopup extends StatelessWidget {
             fontSize: 24,
             spans: <TextSpan>[
               TextSpan(
-                text: 'JE ',
+                text: 'Je ',
                 style: GinoPopupStyle.baseText(
                   fontSize: 24,
                   fontWeight: GinoPopupStyle.titleWeight,
                 ),
               ),
               TextSpan(
-                text: 'COMMANDE',
+                text: 'commande',
                 style: GinoPopupStyle.baseText(fontSize: 24, fontWeight: GinoPopupStyle.textWeight),
               ),
             ],
