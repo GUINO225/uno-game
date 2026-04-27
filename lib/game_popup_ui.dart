@@ -318,7 +318,7 @@ class DrawPenaltyPopupPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Text(
-            'TU PIOCHES',
+            'Tu pioches',
             style: GoogleFonts.poppins(
               color: Colors.black87,
               fontSize: 13,
@@ -347,7 +347,7 @@ class DrawPenaltyPopupPanel extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'CARTES',
+            'Cartes',
             style: GoogleFonts.poppins(
               color: Colors.black87,
               fontSize: 13,
