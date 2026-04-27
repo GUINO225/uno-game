@@ -35,6 +35,11 @@ enum DuelChatDelivery { sending, sent, failed }
 
 enum DuelRoomMode { duel, credits }
 
+const Duration _presenceGracePeriod = Duration(seconds: 20);
+const Duration _connectionWarningTimeout = Duration(seconds: 25);
+const Duration _abandonTimeout = Duration(seconds: 45);
+const Duration _presenceHeartbeatInterval = Duration(seconds: 8);
+
 enum DuelStakeStatus { none, pending, accepted, declined, resolved, insufficientFunds }
 
 enum DuelBetFlowState {
@@ -317,6 +322,9 @@ class DuelSession {
     this.requiredSuit,
     this.requiredColorAfterJoker,
     this.aceColorRequired = false,
+    this.gameStartedAt,
+    this.roundStartedAt,
+    this.presenceGraceUntil,
     this.presence = const <String, DuelPlayerPresence>{},
   });
 
@@ -366,6 +374,9 @@ class DuelSession {
   final String? requiredSuit;
   final String? requiredColorAfterJoker;
   final bool aceColorRequired;
+  final DateTime? gameStartedAt;
+  final DateTime? roundStartedAt;
+  final DateTime? presenceGraceUntil;
   final Map<String, DuelPlayerPresence> presence;
 
   bool get canStart => players.length == 2;
@@ -449,6 +460,12 @@ class DuelSession {
       'requiredSuit': requiredSuit,
       'requiredColorAfterJoker': requiredColorAfterJoker,
       'aceColorRequired': aceColorRequired,
+      'gameStartedAt': gameStartedAt == null ? null : Timestamp.fromDate(gameStartedAt!.toUtc()),
+      'roundStartedAt':
+          roundStartedAt == null ? null : Timestamp.fromDate(roundStartedAt!.toUtc()),
+      'presenceGraceUntil': presenceGraceUntil == null
+          ? null
+          : Timestamp.fromDate(presenceGraceUntil!.toUtc()),
       'presence': presence.map(
         (String playerId, DuelPlayerPresence value) => MapEntry(
           playerId,
@@ -550,6 +567,9 @@ class DuelSession {
       requiredSuit: json['requiredSuit'] as String?,
       requiredColorAfterJoker: json['requiredColorAfterJoker'] as String?,
       aceColorRequired: json['aceColorRequired'] as bool? ?? false,
+      gameStartedAt: (json['gameStartedAt'] as Timestamp?)?.toDate(),
+      roundStartedAt: (json['roundStartedAt'] as Timestamp?)?.toDate(),
+      presenceGraceUntil: (json['presenceGraceUntil'] as Timestamp?)?.toDate(),
       presence: (json['presence'] as Map? ?? const <String, dynamic>{}).map(
         (Object? key, Object? value) => MapEntry(
           key.toString(),
@@ -564,8 +584,9 @@ class DuelSession {
 class GameService {
   GameService({FirebaseFirestore? firestore}) : _firestore = firestore;
 
-  static const Duration _forfeitPresenceTimeout = Duration(seconds: 25);
   final FirebaseFirestore? _firestore;
+
+  DateTime _presenceGraceDeadline() => DateTime.now().toUtc().add(_presenceGracePeriod);
 
   Map<String, dynamic> _presenceOnlinePatch(String playerId) {
     return <String, dynamic>{
@@ -580,6 +601,18 @@ class GameService {
       'presence.$playerId.state': 'offline',
       'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
       'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  Map<String, dynamic> _presenceStatePatch({
+    required String playerId,
+    required String state,
+  }) {
+    return <String, dynamic>{
+      'presence.$playerId.state': state,
+      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+      if (state != 'offline') 'presence.$playerId.leftAt': null,
+      if (state == 'offline') 'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
     };
   }
 
@@ -710,6 +743,7 @@ class GameService {
         presence: <String, DuelPlayerPresence>{
           playerId: const DuelPlayerPresence(state: 'online'),
         },
+        presenceGraceUntil: _presenceGraceDeadline(),
       ).toMap()
         ..addAll(_presenceOnlinePatch(playerId)),
     );
@@ -784,8 +818,20 @@ class GameService {
             players: players,
             round: session.round,
           ),
+        if (players.length == 2 && session.gameStartedAt == null)
+          'gameStartedAt': FieldValue.serverTimestamp(),
+        if (players.length == 2) 'roundStartedAt': FieldValue.serverTimestamp(),
+        if (players.length == 2) 'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
         if (activatesNow && !session.deckInitialized) 'revision': session.revision + 1,
         ..._presenceOnlinePatch(playerId),
+        ...players
+            .where((String id) => id != playerId)
+            .fold<Map<String, dynamic>>(<String, dynamic>{}, (Map<String, dynamic> acc, String id) {
+          acc['presence.$id.state'] = 'online';
+          acc['presence.$id.lastSeenAt'] = FieldValue.serverTimestamp();
+          acc['presence.$id.leftAt'] = null;
+          return acc;
+        }),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
@@ -796,21 +842,24 @@ class GameService {
     required String playerId,
   }) async {
     final CollectionReference<Map<String, dynamic>> games = await _games();
-    debugPrint('[Presence] heartbeat game=$gameId player=$playerId');
+    debugPrint('[Presence] heartbeat sent player=$playerId');
     await games.doc(gameId).update(<String, dynamic>{
       ..._presenceOnlinePatch(playerId),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
-  Future<void> markPlayerOffline({
+  Future<void> markPlayerPresenceState({
     required String gameId,
     required String playerId,
+    required String state,
   }) async {
     final CollectionReference<Map<String, dynamic>> games = await _games();
-    debugPrint('[Presence] player offline game=$gameId player=$playerId');
+    if (state == 'maybeOffline' || state == 'leaving') {
+      debugPrint('[Presence] beforeunload detected, marking maybeOffline only');
+    }
     await games.doc(gameId).update(<String, dynamic>{
-      ..._presenceOfflinePatch(playerId),
+      ..._presenceStatePatch(playerId: playerId, state: state),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -1065,15 +1114,36 @@ class GameService {
       if (reportedBy != abandonedBy && reportedBy != winnerId) {
         throw StateError('Signalement non autorisé.');
       }
+      final bool voluntaryQuit = reportedBy == abandonedBy;
+      final DateTime now = DateTime.now().toUtc();
       if (reportedBy != abandonedBy) {
         final DuelPlayerPresence abandonedPresence =
             session.presence[abandonedBy] ?? const DuelPlayerPresence();
-        final DateTime now = DateTime.now().toUtc();
+        final DateTime? graceUntil = session.presenceGraceUntil?.toUtc();
+        if (graceUntil != null && now.isBefore(graceUntil)) {
+          debugPrint('[Presence] abandon check skipped: grace period');
+          throw StateError('Période de grâce active.');
+        }
+        final DateTime? gameStartedAt = session.gameStartedAt?.toUtc();
+        if (gameStartedAt == null || now.difference(gameStartedAt) < _presenceGracePeriod) {
+          debugPrint('[Presence] abandon check skipped: grace period');
+          throw StateError('Partie trop récente pour valider un abandon.');
+        }
+        if (session.status != DuelGameStatus.inProgress) {
+          throw StateError('La partie n’a pas encore commencé.');
+        }
+        if (session.isCreditsMode && !session.stakeOffer.isAccepted) {
+          throw StateError('La mise n’est pas acceptée.');
+        }
         final DateTime? lastSeen = abandonedPresence.lastSeenAt?.toUtc();
-        final bool stale = lastSeen == null || now.difference(lastSeen) >= _forfeitPresenceTimeout;
-        final bool explicitlyOffline = abandonedPresence.isOffline;
-        if (!stale && !explicitlyOffline) {
-          debugPrint('[Forfeit] rejected: opponent still online');
+        final bool heartbeatExpired =
+            lastSeen == null || now.difference(lastSeen) >= _abandonTimeout;
+        if (abandonedPresence.state == 'online') {
+          debugPrint('[Presence] abandon check skipped: heartbeat still recent');
+          throw StateError('L’adversaire est encore connecté.');
+        }
+        if (!heartbeatExpired) {
+          debugPrint('[Presence] abandon check skipped: heartbeat still recent');
           throw StateError('L’adversaire est encore connecté.');
         }
       }
@@ -1137,7 +1207,11 @@ class GameService {
         }
       }
       patch['updatedAt'] = FieldValue.serverTimestamp();
-      debugPrint('[Forfeit] accepted winner=$winnerId');
+      debugPrint(
+        voluntaryQuit
+            ? '[Forfeit] voluntary quit confirmed'
+            : '[Forfeit] detected absence confirmed after timeout',
+      );
       tx.update(ref, patch);
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -1195,6 +1269,8 @@ class GameService {
         'payoutWinnerId': null,
         'payoutAmount': 0,
         'payoutAt': null,
+        'roundStartedAt': FieldValue.serverTimestamp(),
+        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
         'revision': session.revision + 1,
         if (!session.isCreditsMode)
           ..._boardInitPatch(
@@ -1346,6 +1422,7 @@ class GameService {
           'rematchStatus': 'accepted',
           'betFlowState': DuelBetFlowState.rematchStakePendingWinnerResponse.name,
           'activeStakeCredits': 0,
+          'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
           'updatedAt': FieldValue.serverTimestamp(),
           'revision': session.revision + 1,
         });
@@ -1393,6 +1470,8 @@ class GameService {
         'payoutWinnerId': null,
         'payoutAmount': 0,
         'payoutAt': null,
+        'roundStartedAt': FieldValue.serverTimestamp(),
+        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
         'updatedAt': FieldValue.serverTimestamp(),
         'revision': session.revision + 1,
         ..._boardInitPatch(
@@ -1693,6 +1772,8 @@ class GameService {
           'payoutWinnerId': null,
           'payoutAmount': 0,
           'payoutAt': null,
+          'roundStartedAt': FieldValue.serverTimestamp(),
+          'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
           'updatedAt': FieldValue.serverTimestamp(),
           'revision': session.revision + 1,
           ..._boardInitPatch(
@@ -1721,6 +1802,8 @@ class GameService {
         'payoutWinnerId': null,
         'payoutAmount': 0,
         'payoutAt': null,
+        'roundStartedAt': FieldValue.serverTimestamp(),
+        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
         if (!session.deckInitialized)
           ..._boardInitPatch(
             gameId: session.gameId,
@@ -1807,6 +1890,9 @@ class DuelController extends ChangeNotifier {
   bool _repairInFlight = false;
   bool _forfeitReportInFlight = false;
   String? _lastForfeitReportKey;
+  String? _lastGraceCheckpointKey;
+  DateTime? _localPresenceGraceUntil;
+  bool _connectionWarningLogged = false;
   bool busy = false;
   String? error;
 
@@ -1862,6 +1948,11 @@ class DuelController extends ChangeNotifier {
         return;
       }
       session = value;
+      final String graceCheckpoint = '${value.gameId}_${value.round}_${value.status.name}';
+      if (_lastGraceCheckpointKey != graceCheckpoint) {
+        _lastGraceCheckpointKey = graceCheckpoint;
+        startPresenceGracePeriod();
+      }
       _syncPresenceJobs(value);
       _maybeRepairSessionIntegrity(value);
       notifyListeners();
@@ -1886,7 +1977,8 @@ class DuelController extends ChangeNotifier {
       _presenceWatchdogTimer = null;
       return;
     }
-    _presenceHeartbeatTimer ??= Timer.periodic(const Duration(seconds: 8), (_) {
+    final bool startedHeartbeat = _presenceHeartbeatTimer == null;
+    _presenceHeartbeatTimer ??= Timer.periodic(_presenceHeartbeatInterval, (_) {
       final DuelSession? latest = session;
       if (latest == null || !_isActiveSession(latest)) {
         return;
@@ -1896,10 +1988,17 @@ class DuelController extends ChangeNotifier {
         playerId: localPlayerId,
       ));
     });
+    if (startedHeartbeat) {
+      debugPrint('[Presence] heartbeat started player=$localPlayerId game=${current.gameId}');
+    }
     _presenceWatchdogTimer ??= Timer.periodic(const Duration(seconds: 6), (_) {
       unawaited(_reportOfflineOpponentIfNeeded());
     });
     unawaited(service.updatePresenceHeartbeat(gameId: current.gameId, playerId: localPlayerId));
+  }
+
+  void startPresenceGracePeriod({Duration duration = _presenceGracePeriod}) {
+    _localPresenceGraceUntil = DateTime.now().toUtc().add(duration);
   }
 
   Future<void> _reportOfflineOpponentIfNeeded() async {
@@ -1920,10 +2019,25 @@ class DuelController extends ChangeNotifier {
     final DuelPlayerPresence opponentPresence =
         current.presence[opponentId] ?? const DuelPlayerPresence();
     final DateTime now = DateTime.now().toUtc();
+    if (_localPresenceGraceUntil != null && now.isBefore(_localPresenceGraceUntil!)) {
+      debugPrint('[Presence] abandon check skipped: grace period');
+      return;
+    }
+    final DateTime? backendGrace = current.presenceGraceUntil?.toUtc();
+    if (backendGrace != null && now.isBefore(backendGrace)) {
+      debugPrint('[Presence] abandon check skipped: grace period');
+      return;
+    }
     final DateTime? lastSeen = opponentPresence.lastSeenAt?.toUtc();
-    final bool stale = lastSeen == null || now.difference(lastSeen) >= const Duration(seconds: 25);
+    final Duration elapsed = lastSeen == null ? _abandonTimeout : now.difference(lastSeen);
+    if (elapsed >= _connectionWarningTimeout && elapsed < _abandonTimeout && !_connectionWarningLogged) {
+      _connectionWarningLogged = true;
+      debugPrint('[Presence] warning: Connexion de l’adversaire instable');
+    }
+    final bool stale = elapsed >= _abandonTimeout;
     final bool shouldReport = opponentPresence.isOffline || stale;
     if (!shouldReport) {
+      _connectionWarningLogged = false;
       return;
     }
     final String reportKey =
@@ -2124,6 +2238,7 @@ class DuelController extends ChangeNotifier {
     if (current == null) {
       return;
     }
+    debugPrint('[Forfeit] voluntary quit confirmed');
     await service.markPlayerAbandoned(
       gameId: current.gameId,
       abandonedBy: localPlayerId,
@@ -2137,7 +2252,11 @@ class DuelController extends ChangeNotifier {
       return;
     }
     try {
-      await service.markPlayerOffline(gameId: current.gameId, playerId: localPlayerId);
+      await service.markPlayerPresenceState(
+        gameId: current.gameId,
+        playerId: localPlayerId,
+        state: 'background',
+      );
     } catch (_) {}
   }
 
@@ -2865,6 +2984,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _winDialogOpen;
   void _markImportantPopupOpened() {
     _lastImportantPopupOpenedAt = DateTime.now();
+    _controller.startPresenceGracePeriod();
   }
 
   bool _wasImportantPopupRecentlyOpened() {
@@ -2896,6 +3016,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _controller.startPresenceGracePeriod();
     _webLifecycleBinding = WebPageLifecycleBinding.install((String reason) {
       unawaited(_handleLifecycleExitSignal(reason));
     });
@@ -2906,7 +3027,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_controller.markOffline());
     _webLifecycleBinding?.dispose();
     _controller.removeListener(_onControllerChange);
     _chatSub?.cancel();
@@ -2919,10 +3039,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached || state == AppLifecycleState.paused) {
-      unawaited(_handleLifecycleExitSignal('app:${state.name}'));
-    } else if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed) {
       _lifecycleExitTriggered = false;
+      _controller.startPresenceGracePeriod();
       final DuelSession? current = _controller.session;
       if (current != null) {
         unawaited(_controller.service.updatePresenceHeartbeat(
@@ -2930,13 +3049,19 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           playerId: _controller.localPlayerId,
         ));
       }
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      debugPrint('[Presence] lifecycle=$state, no abandon triggered');
+      unawaited(_handleLifecycleExitSignal('app:${state.name}'));
     }
   }
 
   Future<void> _handleLifecycleExitSignal(String reason) async {
-    final bool terminalSignal = reason.contains('beforeunload') ||
-        reason.contains('pagehide') ||
-        reason.contains('detached');
+    final bool terminalSignal = reason.contains('beforeunload') || reason.contains('pagehide');
     if (terminalSignal && _lifecycleExitTriggered) {
       return;
     }
@@ -2949,15 +3074,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return;
     }
     try {
-      await _controller.markOffline();
-      if (!terminalSignal) {
-        return;
-      }
-      if (session.status == DuelGameStatus.inProgress && session.players.length == 2) {
-        await _controller.forfeitMatch();
-      }
+      await _controller.service.markPlayerPresenceState(
+        gameId: session.gameId,
+        playerId: _controller.localPlayerId,
+        state: terminalSignal ? 'maybeOffline' : 'away',
+      );
     } catch (_) {
-      // The heartbeat watchdog on opponent side will resolve eventual abandonment.
+      // Heartbeat watchdog will determine actual abandonment after timeout.
     }
   }
 
