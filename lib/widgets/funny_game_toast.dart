@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+enum FunnyMessageType { difficulty, success, info }
+
 class FunnyGameToast {
   FunnyGameToast._();
 
@@ -14,6 +16,7 @@ class FunnyGameToast {
     BuildContext context, {
     required String playerName,
     required String message,
+    FunnyMessageType type = FunnyMessageType.info,
     Duration duration = const Duration(seconds: 3),
     Alignment alignment = Alignment.topCenter,
   }) {
@@ -37,7 +40,11 @@ class FunnyGameToast {
               alignment: alignment,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: _FunnyToastCard(playerName: playerName, message: message),
+                child: _FunnyToastCard(
+                  playerName: playerName,
+                  message: message,
+                  type: type,
+                ),
               ),
             ),
           ),
@@ -64,10 +71,37 @@ class FunnyGameToast {
 }
 
 class _FunnyToastCard extends StatelessWidget {
-  const _FunnyToastCard({required this.playerName, required this.message});
+  const _FunnyToastCard({
+    required this.playerName,
+    required this.message,
+    required this.type,
+  });
 
   final String playerName;
   final String message;
+  final FunnyMessageType type;
+
+  Color _backgroundColor() {
+    switch (type) {
+      case FunnyMessageType.difficulty:
+        return const Color(0xCC8B0000);
+      case FunnyMessageType.success:
+        return const Color(0xCC1E5F3A);
+      case FunnyMessageType.info:
+        return const Color(0xCC1E1E1E);
+    }
+  }
+
+  Color _borderColor() {
+    switch (type) {
+      case FunnyMessageType.difficulty:
+        return const Color(0x66FF7B7B);
+      case FunnyMessageType.success:
+        return const Color(0x66A8F0C6);
+      case FunnyMessageType.info:
+        return Colors.white24;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,9 +120,9 @@ class _FunnyToastCard extends StatelessWidget {
       },
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.65),
+          color: _backgroundColor(),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: _borderColor()),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
