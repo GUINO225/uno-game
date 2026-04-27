@@ -36,15 +36,33 @@ class CreditCoinsIcon extends StatelessWidget {
             ),
           ],
         ),
-        child: Center(
-          child: Container(
-            width: size * 0.42,
-            height: size * 0.42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withOpacity(0.55), width: 0.8),
+        child: Stack(
+          alignment: Alignment.center,
+          children: <Widget>[
+            Container(
+              width: size * 0.58,
+              height: size * 0.58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0x00FFFFFF),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.46),
+                  width: 0.85,
+                ),
+              ),
             ),
-          ),
+            Positioned(
+              top: size * 0.16,
+              child: Container(
+                width: size * 0.34,
+                height: size * 0.14,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.24),
+                  borderRadius: BorderRadius.circular(size * 0.08),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

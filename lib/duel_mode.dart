@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
+import 'credit_coins_icon.dart';
 import 'firebase_config.dart';
 import 'leaderboard_page.dart';
 import 'player_profile.dart';
@@ -4594,11 +4595,7 @@ class _DuelPageState extends State<DuelPage> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: <Widget>[
-                                  const Icon(
-                                    Icons.monetization_on_rounded,
-                                    size: 16,
-                                    color: Color(0xFFFFD45F),
-                                  ),
+                                  const CreditCoinsIcon(size: 16),
                                   const SizedBox(width: 6),
                                   Text(
                                     '$myCredits',
@@ -4654,7 +4651,7 @@ class _DuelPageState extends State<DuelPage> {
                       ),
                       SizedBox(height: sectionGap),
                       _CenterArea(
-                        discard: board.discardTop,
+                        discardPile: board.discardPile,
                         drawCount: board.drawPile.length,
                         canDraw: myTurn && board.canDraw(_controller.localPlayerId),
                         onDrawTap: _onDrawTap,
@@ -4676,7 +4673,7 @@ class _DuelPageState extends State<DuelPage> {
                         credits: null,
                         fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
                         avatarCard: localAvatarCard,
-                        cardScale: isCompactDuelLayout ? 1.08 : 1,
+                        cardScale: isCompactDuelLayout ? 0.9 : 0.94,
                         minCardsViewportHeight: isCompactDuelLayout ? 210 : 190,
                       ),
                       SizedBox(height: isCompactDuelLayout ? 4 : 6),
@@ -6366,7 +6363,7 @@ class _AvatarCardCircle extends StatelessWidget {
 
 class _CenterArea extends StatelessWidget {
   const _CenterArea({
-    required this.discard,
+    required this.discardPile,
     required this.drawCount,
     required this.canDraw,
     required this.onDrawTap,
@@ -6376,7 +6373,7 @@ class _CenterArea extends StatelessWidget {
     this.compact = false,
   });
 
-  final DuelCard discard;
+  final List<DuelCard> discardPile;
   final int drawCount;
   final bool canDraw;
   final VoidCallback onDrawTap;
@@ -6434,7 +6431,10 @@ class _CenterArea extends StatelessWidget {
             SizedBox(width: compact ? 14 : 20),
             Column(
               children: <Widget>[
-                compact ? Transform.scale(scale: 0.92, child: _FaceCard(card: discard)) : _FaceCard(card: discard),
+                _DiscardPileStackView(
+                  cards: discardPile,
+                  compact: compact,
+                ),
               ],
             ),
           ],
@@ -6447,6 +6447,80 @@ class _CenterArea extends StatelessWidget {
             child: _SuitOverlayText(message: overlay),
           ),
       ],
+    );
+  }
+}
+
+class _DiscardPileStackView extends StatelessWidget {
+  const _DiscardPileStackView({
+    required this.cards,
+    required this.compact,
+  });
+
+  final List<DuelCard> cards;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final DuelCard topCard = cards.last;
+    final int cardCount = cards.length;
+    final List<DuelCard> underCards = cardCount <= 1
+        ? const <DuelCard>[]
+        : cardCount == 2
+            ? <DuelCard>[cards[cardCount - 2]]
+            : <DuelCard>[cards[cardCount - 3], cards[cardCount - 2]];
+
+    return SizedBox(
+      width: compact ? 82 : 86,
+      height: compact ? 114 : 118,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          for (int index = 0; index < underCards.length; index++)
+            Transform.translate(
+              offset: Offset(-4.0 + (index * 4), -2.0 + (index * 3)),
+              child: Transform.rotate(
+                angle: index == 0 ? -0.087 : 0.070,
+                child: Opacity(
+                  opacity: 0.92 - (index * 0.15),
+                  child: compact
+                      ? Transform.scale(
+                          scale: 0.92,
+                          child: _FaceCard(card: underCards[index]),
+                        )
+                      : _FaceCard(card: underCards[index]),
+                ),
+              ),
+            ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.92, end: 1).animate(animation),
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.06, 0.05),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey<String>('${topCard.id}-$cardCount'),
+              child: compact
+                  ? Transform.scale(
+                      scale: 0.92,
+                      child: _FaceCard(card: topCard),
+                    )
+                  : _FaceCard(card: topCard),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -6480,7 +6554,7 @@ class _MyHandRow extends StatefulWidget {
   final DuelCard avatarCard;
   final double cardScale;
   final double minCardsViewportHeight;
-  static const int _maxCardsPerRow = 5;
+  static const int _maxCardsPerRow = 6;
   static const double _cardGap = 6;
 
   @override
@@ -6567,66 +6641,71 @@ class _MyHandRowState extends State<_MyHandRow> {
                         _FaceCard.height * widget.cardScale + 8,
                       );
 
-                      return ConstrainedBox(
-                        constraints: BoxConstraints(minHeight: cardsMinHeight),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.vertical,
-                          padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: SizedBox(
-                              width: wrapWidth,
-                              child: Wrap(
-                                spacing: _MyHandRow._cardGap,
-                                runSpacing: _MyHandRow._cardGap,
-                                children: List<Widget>.generate(cards.length, (int index) {
-                                  final DuelCard card = cards[index];
-                                  final bool isPlayable = widget.playable(card);
-                                  final bool isNew = _newCardIds.contains(card.id);
-                                  final int staggerIndex = isNew ? newCardOrder++ : 0;
-                                  return SizedBox(
-                                    width: cardWidth,
-                                    child: BouncyCardEntry(
-                                      key: ValueKey<String>('duel-my-${card.id}-$index'),
-                                      animate: isNew,
-                                      delay: Duration(milliseconds: isNew ? staggerIndex * 34 : 0),
-                                      child: GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: widget.canInteract && isPlayable
-                                            ? () => widget.onCardTap(card)
-                                            : null,
-                                        child: Opacity(
-                                          opacity: widget.canInteract && !isPlayable ? 0.45 : 1,
-                                          child: widget.cardScale == 1
-                                              ? _FaceCard(card: card)
-                                              : SizedBox(
-                                                  width: cardWidth,
-                                                  height: _FaceCard.height * widget.cardScale,
-                                                  child: FittedBox(
-                                                    fit: BoxFit.contain,
-                                                    alignment: Alignment.topCenter,
-                                                    child: _FaceCard(card: card),
-                                                  ),
-                                                ),
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: <Widget>[
+                          ConstrainedBox(
+                            constraints: BoxConstraints(minHeight: cardsMinHeight),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.vertical,
+                              padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                child: SizedBox(
+                                  width: wrapWidth,
+                                  child: Wrap(
+                                    spacing: _MyHandRow._cardGap,
+                                    runSpacing: _MyHandRow._cardGap,
+                                    children: List<Widget>.generate(cards.length, (int index) {
+                                      final DuelCard card = cards[index];
+                                      final bool isPlayable = widget.playable(card);
+                                      final bool isNew = _newCardIds.contains(card.id);
+                                      final int staggerIndex = isNew ? newCardOrder++ : 0;
+                                      return SizedBox(
+                                        width: cardWidth,
+                                        child: BouncyCardEntry(
+                                          key: ValueKey<String>('duel-my-${card.id}-$index'),
+                                          animate: isNew,
+                                          delay: Duration(milliseconds: isNew ? staggerIndex * 34 : 0),
+                                          child: GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onTap: widget.canInteract && isPlayable
+                                                ? () => widget.onCardTap(card)
+                                                : null,
+                                            child: Opacity(
+                                              opacity: widget.canInteract && !isPlayable ? 0.45 : 1,
+                                              child: widget.cardScale == 1
+                                                  ? _FaceCard(card: card)
+                                                  : SizedBox(
+                                                      width: cardWidth,
+                                                      height: _FaceCard.height * widget.cardScale,
+                                                      child: FittedBox(
+                                                        fit: BoxFit.contain,
+                                                        alignment: Alignment.topCenter,
+                                                        child: _FaceCard(card: card),
+                                                      ),
+                                                    ),
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                  );
-                                }),
+                                      );
+                                    }),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          Positioned(
+                            top: 0,
+                            right: 6,
+                            child: _DrawCountBadge(count: widget.cards.length),
+                          ),
+                        ],
                       );
                     },
                   ),
                 ),
               ],
-            ),
-            Positioned(
-              top: 2,
-              right: 2,
-              child: _DrawCountBadge(count: widget.cards.length),
             ),
           ],
         ),
