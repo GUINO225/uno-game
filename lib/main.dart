@@ -20,6 +20,7 @@ import 'player_profile.dart';
 import 'game_card_avatar.dart';
 import 'game_popup_ui.dart';
 import 'user_profile_service.dart';
+import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
 
@@ -1755,6 +1756,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   final List<PlayingCard> _discardPile = <PlayingCard>[];
   final List<PlayingCard> _humanHand = <PlayingCard>[];
   final List<PlayingCard> _botHand = <PlayingCard>[];
+  List<int> _previousHumanCardRefs = <int>[];
+  List<int> _previousBotCardRefs = <int>[];
+  Set<int> _newHumanCardRefs = <int>{};
+  Set<int> _newBotCardRefs = <int>{};
 
   PlayerTurn _turn = PlayerTurn.human;
   String _status = '';
@@ -2965,8 +2970,21 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return !_humanHasPlayableCard() || _humanDidVoluntaryDrawThisTurn;
   }
 
+  void _refreshHandEntryAnimations() {
+    final List<int> currentHumanRefs = _humanHand.map<int>(identityHashCode).toList();
+    final Set<int> previousHumanRefs = _previousHumanCardRefs.toSet();
+    _newHumanCardRefs = currentHumanRefs.where((int ref) => !previousHumanRefs.contains(ref)).toSet();
+    _previousHumanCardRefs = currentHumanRefs;
+
+    final List<int> currentBotRefs = _botHand.map<int>(identityHashCode).toList();
+    final Set<int> previousBotRefs = _previousBotCardRefs.toSet();
+    _newBotCardRefs = currentBotRefs.where((int ref) => !previousBotRefs.contains(ref)).toSet();
+    _previousBotCardRefs = currentBotRefs;
+  }
+
   @override
   Widget build(BuildContext context) {
+    _refreshHandEntryAnimations();
     final bool canInteract = _turn == PlayerTurn.human &&
         !_gameOver &&
         !_isResolvingTurn &&
@@ -3168,16 +3186,24 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               child: Wrap(
                 spacing: 6,
                 runSpacing: 6,
-                children: _humanHand.map((PlayingCard card) {
+                children: List<Widget>.generate(_humanHand.length, (int index) {
+                  final PlayingCard card = _humanHand[index];
+                  final int cardRef = identityHashCode(card);
+                  final bool isNew = _newHumanCardRefs.contains(cardRef);
                   final ({bool canPlay, String? rejectionMessage}) playability =
                       _evaluateHumanCardPlayability(card);
-                  return CardView(
-                    card: card,
-                    enabled: canInteract && playability.canPlay,
-                    opacity: canInteract && !playability.canPlay ? 0.45 : 1,
-                    onTap: canInteract ? () => _onHumanTapCard(card) : null,
+                  return BouncyCardEntry(
+                    key: ValueKey<int>(cardRef),
+                    animate: isNew,
+                    delay: Duration(milliseconds: isNew ? index * 36 : 0),
+                    child: CardView(
+                      card: card,
+                      enabled: canInteract && playability.canPlay,
+                      opacity: canInteract && !playability.canPlay ? 0.45 : 1,
+                      onTap: canInteract ? () => _onHumanTapCard(card) : null,
+                    ),
                   );
-                }).toList(),
+                }),
               ),
             ),
           ),
@@ -3221,10 +3247,20 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                     mainAxisSize: MainAxisSize.min,
                     children: List<Widget>.generate(
                       _botHand.length,
-                      (int index) => Padding(
-                        padding: EdgeInsets.only(left: index == _botHand.length - 1 ? 0 : 8),
-                        child: const CardBackView(width: 28, height: 40),
-                      ),
+                      (int index) {
+                        final PlayingCard card = _botHand[index];
+                        final int cardRef = identityHashCode(card);
+                        final bool isNew = _newBotCardRefs.contains(cardRef);
+                        return Padding(
+                          padding: EdgeInsets.only(left: index == _botHand.length - 1 ? 0 : 8),
+                          child: BouncyCardEntry(
+                            key: ValueKey<int>(cardRef),
+                            animate: isNew,
+                            delay: Duration(milliseconds: isNew ? index * 32 : 0),
+                            child: const CardBackView(width: 28, height: 40),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
