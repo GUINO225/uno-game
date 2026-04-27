@@ -3034,6 +3034,20 @@ class _DuelPageState extends State<DuelPage> {
     });
   }
 
+  void _showSnackBar(String message) {
+    if (!mounted || message.trim().isEmpty) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message.trim()),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   Future<void> _onCardTap(DuelCard card) async {
     final DuelSession? session = _controller.session;
     final DuelBoardState? board = _board;
