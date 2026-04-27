@@ -15,8 +15,7 @@ class LeaderboardPage extends StatefulWidget {
 
 class _LeaderboardPageState extends State<LeaderboardPage> {
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
-  late Future<({List<PlayerProfile> players, int? usersCount, int? currentUserRank})>
-      _leaderboardFuture;
+  late Future<List<PlayerProfile>> _leaderboardFuture;
 
   @override
   void initState() {
@@ -31,21 +30,12 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     await _leaderboardFuture;
   }
 
-  Future<({List<PlayerProfile> players, int? usersCount, int? currentUserRank})>
-      _loadLeaderboardData() async {
-    final List<PlayerProfile> players = await _leaderboardService.fetchTopPlayers(limit: 100);
-    final int? usersCount = await _leaderboardService.fetchRegisteredUsersCount();
-    final String? currentUid = FirebaseAuth.instance.currentUser?.uid;
-    int? currentUserRank;
-    if (currentUid != null) {
-      currentUserRank = await _leaderboardService.fetchPlayerRank(currentUid);
-    }
-    return (players: players, usersCount: usersCount, currentUserRank: currentUserRank);
+  Future<List<PlayerProfile>> _loadLeaderboardData() async {
+    return _leaderboardService.fetchTopPlayers(limit: 100);
   }
 
   @override
   Widget build(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
     final String? currentUid = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       backgroundColor: const Color(0xFF004F2C),
@@ -53,46 +43,17 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         title: const Text('Classement'),
         backgroundColor: Colors.transparent,
       ),
-      body: FutureBuilder<({List<PlayerProfile> players, int? usersCount, int? currentUserRank})>(
+      body: FutureBuilder<List<PlayerProfile>>(
         future: _leaderboardFuture,
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<({List<PlayerProfile> players, int? usersCount, int? currentUserRank})>
-              snapshot,
-        ) {
-          final List<PlayerProfile> players = snapshot.data?.players ?? const <PlayerProfile>[];
-          final int? usersCount = snapshot.data?.usersCount;
-          final int? currentUserRank = snapshot.data?.currentUserRank;
+        builder: (BuildContext context, AsyncSnapshot<List<PlayerProfile>> snapshot) {
+          final List<PlayerProfile> players = snapshot.data ?? const <PlayerProfile>[];
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
               children: <Widget>[
-                PremiumPanel(
-                  child: Text(
-                    usersCount == null
-                        ? 'Classement des joueurs connectés'
-                        : 'Classement des joueurs connectés ($usersCount)',
-                    style: textTheme.titleMedium?.copyWith(
-                      color: PremiumColors.textDark,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                PremiumPanel(
-                  child: Text(
-                    currentUserRank == null
-                        ? 'Votre rang : vous n\'êtes pas encore classé. Jouez en mode pari pour entrer dans le classement.'
-                        : 'Votre rang : #$currentUserRank',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: PremiumColors.textDark,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
                 const _LeaderboardHeader(),
                 if (snapshot.connectionState == ConnectionState.waiting)
                   const LinearProgressIndicator(minHeight: 2),

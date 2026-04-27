@@ -43,7 +43,7 @@ class GinoPopupFrame extends StatelessWidget {
     required this.child,
     this.titleTag,
     this.width,
-    this.padding = const EdgeInsets.fromLTRB(18, 28, 18, 16),
+    this.padding = const EdgeInsets.fromLTRB(16, 22, 16, 14),
     this.showTitleTag = true,
   });
 
@@ -55,7 +55,7 @@ class GinoPopupFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double resolvedWidth = width ?? math.min(MediaQuery.of(context).size.width * 0.82, 400);
+    final double resolvedWidth = width ?? math.min(MediaQuery.of(context).size.width * 0.8, 330);
     final bool shouldShowTitle = showTitleTag && titleTag != null && titleTag!.trim().isNotEmpty;
 
     return Center(
@@ -75,9 +75,9 @@ class GinoPopupFrame extends StatelessWidget {
           ),
           if (shouldShowTitle)
             Positioned(
-              top: -18,
+              top: -16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                 decoration: BoxDecoration(
                   color: GinoPopupStyle.accentGreen,
                   borderRadius: BorderRadius.circular(8),
@@ -122,7 +122,7 @@ class GinoPopupButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 50,
+      height: 44,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
@@ -136,7 +136,7 @@ class GinoPopupButton extends StatelessWidget {
         child: Text(
           label,
           style: GinoPopupStyle.baseText(
-            fontSize: 18,
+            fontSize: 15,
             fontWeight: GinoPopupStyle.buttonWeight,
           ),
         ),
@@ -171,8 +171,8 @@ class GinoAmountCard extends StatelessWidget {
     required this.amount,
     this.selected = false,
     this.onTap,
-    this.width = 62,
-    this.height = 96,
+    this.width = 56,
+    this.height = 84,
   });
 
   final int amount;
@@ -213,7 +213,7 @@ class GinoAmountCard extends StatelessWidget {
                 '$amount',
                 style: GinoPopupStyle.baseText(
                   color: GinoPopupStyle.amountGreen,
-                  fontSize: width >= 72 ? 28 : 22,
+                  fontSize: width >= 72 ? 25 : 19,
                   fontWeight: GinoPopupStyle.titleWeight,
                 ),
               ),
@@ -275,8 +275,8 @@ class GinoSuitCard extends StatelessWidget {
     required this.suit,
     this.onTap,
     this.selected = false,
-    this.width = 82,
-    this.height = 118,
+    this.width = 64,
+    this.height = 92,
   });
 
   final String suit;
@@ -375,20 +375,20 @@ class GinoStackedDrawCards extends StatelessWidget {
     final Color ink = _suitColor(symbol);
 
     return SizedBox(
-      width: 164,
-      height: 160,
+      width: 132,
+      height: 132,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
           for (int i = 0; i < totalCards; i++)
             Transform.translate(
-              offset: Offset(-16 + (i * 16), 6 + (i * 2)),
+              offset: Offset(-12 + (i * 12), 5 + (i * 2)),
               child: Transform.rotate(
                 angle: -0.10 + (i * 0.11),
                 child: GinoSuitCard(
                   suit: symbol,
-                  width: 86,
-                  height: 124,
+                  width: 64,
+                  height: 92,
                 ),
               ),
             ),
@@ -396,15 +396,15 @@ class GinoStackedDrawCards extends StatelessWidget {
             child: Transform.rotate(
               angle: -0.06,
               child: Container(
-                width: 86,
-                height: 124,
+                width: 64,
+                height: 92,
                 decoration: BoxDecoration(
                   color: GinoPopupStyle.cardWhite,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.black12, width: 1),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   child: Column(
                     children: <Widget>[
                       Align(
@@ -416,7 +416,7 @@ class GinoStackedDrawCards extends StatelessWidget {
                               rank,
                               style: GinoPopupStyle.baseText(
                                 color: ink,
-                                fontSize: 21,
+                                fontSize: 16,
                                 fontWeight: GinoPopupStyle.titleWeight,
                                 height: 1,
                               ),
@@ -425,7 +425,7 @@ class GinoStackedDrawCards extends StatelessWidget {
                               symbol,
                               style: GinoPopupStyle.baseText(
                                 color: ink,
-                                fontSize: 22,
+                                fontSize: 17,
                                 fontWeight: GinoPopupStyle.titleWeight,
                                 height: 1,
                               ),
@@ -438,7 +438,7 @@ class GinoStackedDrawCards extends StatelessWidget {
                         symbol,
                         style: GinoPopupStyle.baseText(
                           color: ink,
-                          fontSize: 42,
+                          fontSize: 30,
                           fontWeight: GinoPopupStyle.titleWeight,
                           height: 1,
                         ),
@@ -665,8 +665,8 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
     final String bottomLabel = cardsToDraw == 1 ? '1 carte' : '$cardsToDraw cartes';
 
     return GinoPopupFrame(
-      width: math.min(MediaQuery.of(context).size.width * 0.74, 360),
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
+      width: math.min(MediaQuery.of(context).size.width * 0.78, 320),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       showTitleTag: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -675,12 +675,12 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
             title,
             textAlign: TextAlign.center,
             style: GinoPopupStyle.baseText(
-              fontSize: 24,
+              fontSize: 18,
               fontWeight: GinoPopupStyle.titleWeight,
               letterSpacing: 0.3,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           GinoStackedDrawCards(
             rank: rank,
             suit: suit,
@@ -688,7 +688,7 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: GinoPopupStyle.accentGreen,
               borderRadius: BorderRadius.circular(8),
@@ -696,7 +696,7 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
             child: Text(
               bottomLabel,
               style: GinoPopupStyle.baseText(
-                fontSize: 22,
+                fontSize: 16,
                 fontWeight: GinoPopupStyle.titleWeight,
               ),
             ),
@@ -894,35 +894,35 @@ class GinoOpponentCommandPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GinoPopupFrame(
-      width: math.min(MediaQuery.of(context).size.width * 0.72, 340),
-      padding: const EdgeInsets.fromLTRB(24, 26, 24, 28),
+      width: math.min(MediaQuery.of(context).size.width * 0.78, 320),
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
       showTitleTag: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           _CenteredRichText(
-            fontSize: 24,
+            fontSize: 18,
             spans: <TextSpan>[
               TextSpan(
                 text: playerName,
                 style: GinoPopupStyle.baseText(
                   fontWeight: FontWeight.w700,
-                  fontSize: 24,
+                  fontSize: 18,
                 ),
               ),
               TextSpan(
                 text: ' commande',
-                style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.textWeight, fontSize: 24),
+                style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.textWeight, fontSize: 18),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           Transform.rotate(
             angle: -0.08,
             child: GinoSuitCard(
               suit: suit,
-              width: 112,
-              height: 160,
+              width: 72,
+              height: 104,
             ),
           ),
         ],
@@ -947,36 +947,36 @@ class GinoChooseSuitPopup extends StatelessWidget {
         ? suits.take(4).toList(growable: false)
         : const <String>['♥', '♠', '♣', '♦'];
     return GinoPopupFrame(
-      width: math.min(MediaQuery.of(context).size.width * 0.76, 360),
-      padding: const EdgeInsets.fromLTRB(30, 24, 30, 30),
+      width: math.min(MediaQuery.of(context).size.width * 0.78, 320),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       showTitleTag: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           _CenteredRichText(
-            fontSize: 24,
+            fontSize: 17,
             spans: <TextSpan>[
               TextSpan(
                 text: 'Je ',
                 style: GinoPopupStyle.baseText(
-                  fontSize: 24,
+                  fontSize: 17,
                   fontWeight: GinoPopupStyle.titleWeight,
                 ),
               ),
               TextSpan(
                 text: 'commande',
-                style: GinoPopupStyle.baseText(fontSize: 24, fontWeight: GinoPopupStyle.textWeight),
+                style: GinoPopupStyle.baseText(fontSize: 17, fontWeight: GinoPopupStyle.textWeight),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 24,
-            mainAxisSpacing: 18,
-            childAspectRatio: 82 / 118,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 64 / 92,
             children: <Widget>[
               GinoSuitCard(
                 suit: resolvedSuits[0],
