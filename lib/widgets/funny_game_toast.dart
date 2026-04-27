@@ -11,6 +11,7 @@ class FunnyGameToast {
   static OverlayEntry? _activeEntry;
   static Timer? _hideTimer;
   static bool enabled = true;
+  static bool get isVisible => _activeEntry != null;
 
   static void show(
     BuildContext context, {
