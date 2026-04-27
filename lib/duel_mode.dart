@@ -2009,7 +2009,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       _authenticatedPlayerId = user.uid;
       _playerProfile = profile;
       if (_nameController.text.trim().isEmpty) {
-        _nameController.text = profile.displayName;
+        _nameController.text = profile.publicDisplayName;
       }
     });
   }
@@ -2139,7 +2139,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   String? _resolvePlayerName() {
     if (_authenticatedPlayerId != null) {
-      final String profileName = _playerProfile?.displayName.trim() ?? '';
+      final String profileName = _playerProfile?.publicDisplayName.trim() ?? '';
       if (profileName.isNotEmpty) {
         return profileName;
       }
