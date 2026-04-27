@@ -2828,8 +2828,7 @@ class _DuelPageState extends State<DuelPage> {
     if (action.type == DuelActionType.drawCard) {
       final bool isForcedDraw = action.payload['forcedDraw'] == true;
       if (isForcedDraw) {
-        final int pendingDrawCount =
-            (session.pendingDrawCountByPlayer[action.actorId] ?? 0).toInt();
+        final int pendingDrawCount = session.pendingDrawCount;
         final ComicMessageTrigger trigger = pendingDrawCount >= 4
             ? ComicMessageTrigger.heavyDraw
             : ComicMessageTrigger.mustDraw;
