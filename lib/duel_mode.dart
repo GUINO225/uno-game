@@ -61,6 +61,16 @@ enum DuelRematchUiState {
   rematchError,
 }
 
+enum ComicMessageTrigger {
+  mustDraw,
+  strongActionAgainstPlayer,
+  heavyDraw,
+  tooManyCards,
+  playedJoker,
+  playedTwo,
+  aceForced,
+}
+
 String _localizeUserError(Object error) {
   String message = error.toString().trim();
   message = message
@@ -2563,6 +2573,9 @@ class _DuelPageState extends State<DuelPage> {
   String? _lastOpponentActionSfxKey;
   String? _lastFunnyActionKey;
   bool _funnyMessagesEnabled = true;
+  final Duration comicMessageCooldown = const Duration(seconds: 8);
+  DateTime? _lastComicMessageAt;
+  DateTime? _lastImportantPopupOpenedAt;
   final AppSfxService _sfx = AppSfxService.instance;
 
   static const List<String> _quickMessages = <String>[
@@ -2607,6 +2620,17 @@ class _DuelPageState extends State<DuelPage> {
       _stakeSelectionDialogOpen ||
       _stakeRejectedDialogOpen ||
       _winDialogOpen;
+  void _markImportantPopupOpened() {
+    _lastImportantPopupOpenedAt = DateTime.now();
+  }
+
+  bool _wasImportantPopupRecentlyOpened() {
+    final DateTime? openedAt = _lastImportantPopupOpenedAt;
+    if (openedAt == null) {
+      return false;
+    }
+    return DateTime.now().difference(openedAt) < const Duration(seconds: 3);
+  }
 
   void _resetLocalRoundUiState() {
     _rematchDialogOpen = false;
@@ -2689,24 +2713,105 @@ class _DuelPageState extends State<DuelPage> {
     _maybePlayRoundOutcomeSfx(session);
   }
 
-  void _showFunnyGameMessage({
-    required String playerName,
-    required String message,
-    required String targetPlayerId,
-    required FunnyMessageType type,
+  double _defaultProbabilityForTrigger(ComicMessageTrigger trigger) {
+    switch (trigger) {
+      case ComicMessageTrigger.mustDraw:
+        return 0.14;
+      case ComicMessageTrigger.strongActionAgainstPlayer:
+        return 0.16;
+      case ComicMessageTrigger.heavyDraw:
+        return 0.25;
+      case ComicMessageTrigger.tooManyCards:
+        return 0.12;
+      case ComicMessageTrigger.playedJoker:
+        return 0.16;
+      case ComicMessageTrigger.playedTwo:
+        return 0.15;
+      case ComicMessageTrigger.aceForced:
+        return 0.13;
+    }
+  }
+
+  bool shouldShowComicMessage({
+    required ComicMessageTrigger trigger,
+    double probability = 0.18,
   }) {
-    if (!_funnyMessagesEnabled || !mounted || _isBlockingDialogOpen()) {
+    if (!_funnyMessagesEnabled ||
+        !mounted ||
+        _controller.busy ||
+        _isBlockingDialogOpen() ||
+        _wasImportantPopupRecentlyOpened()) {
+      return false;
+    }
+    if (FunnyGameToast.isVisible) {
+      debugPrint('[ComicMessage] skipped: cooldown');
+      return false;
+    }
+    final DateTime? lastShown = _lastComicMessageAt;
+    if (lastShown != null &&
+        DateTime.now().difference(lastShown) < comicMessageCooldown) {
+      debugPrint('[ComicMessage] skipped: cooldown');
+      return false;
+    }
+    final double clampedProbability = probability.clamp(0.0, 0.25);
+    if (Random().nextDouble() > clampedProbability) {
+      debugPrint('[ComicMessage] skipped: probability');
+      return false;
+    }
+    return true;
+  }
+
+  void maybeShowComicMessage({
+    required String targetPlayerId,
+    required String currentPlayerId,
+    required ComicMessageTrigger trigger,
+    String? targetPlayerName,
+  }) {
+    if (targetPlayerId != currentPlayerId) {
+      debugPrint('[ComicMessage] skipped: not target player');
       return;
     }
-    if (targetPlayerId != _controller.localPlayerId) {
+    final double probability = _defaultProbabilityForTrigger(trigger);
+    if (!shouldShowComicMessage(trigger: trigger, probability: probability)) {
       return;
     }
+
+    String message;
+    FunnyMessageType type;
+    switch (trigger) {
+      case ComicMessageTrigger.mustDraw:
+        message = 'Vas-y, pioche mon frère !!!';
+        type = FunnyMessageType.difficulty;
+      case ComicMessageTrigger.strongActionAgainstPlayer:
+        final String playerName = (targetPlayerName ?? 'Joueur').trim();
+        message = 'Oui, $playerName est sur toi-même.';
+        type = FunnyMessageType.difficulty;
+      case ComicMessageTrigger.heavyDraw:
+        message = 'Est-ce que tu vas t’en sortir ?';
+        type = FunnyMessageType.difficulty;
+      case ComicMessageTrigger.tooManyCards:
+        message = 'Djo, c’est éventail tu veux faire ou bien ?';
+        type = FunnyMessageType.difficulty;
+      case ComicMessageTrigger.playedJoker:
+        message = 'Oui, tu as mis dans joker même.';
+        type = FunnyMessageType.success;
+      case ComicMessageTrigger.playedTwo:
+        message = 'Oui, tu as mis dans deux même.';
+        type = FunnyMessageType.success;
+      case ComicMessageTrigger.aceForced:
+        message = 'C’est As forcé hein, poto.';
+        type = FunnyMessageType.difficulty;
+    }
+
+    _lastComicMessageAt = DateTime.now();
+    debugPrint('[ComicMessage] show trigger=$trigger target=$targetPlayerId');
     FunnyGameToast.show(
       context,
-      playerName: playerName,
+      playerName: targetPlayerName ?? 'Joueur',
       message: message,
       type: type,
       alignment: Alignment.topCenter,
+      duration: const Duration(milliseconds: 2500),
     );
   }
 
@@ -2719,19 +2824,30 @@ class _DuelPageState extends State<DuelPage> {
       return;
     }
     _lastFunnyActionKey = session.lastActionId;
+    final String localPlayerId = _controller.localPlayerId;
     if (action.type == DuelActionType.drawCard) {
       final bool isForcedDraw = action.payload['forcedDraw'] == true;
       if (isForcedDraw) {
-        final List<String> targetHand = session.handForPlayer(action.actorId);
-        final bool manyCards = targetHand.length >= 12;
-        _showFunnyGameMessage(
-          playerName: session.playerNames[action.actorId] ?? 'Joueur',
-          message: manyCards
-              ? 'Djo, c’est éventail tu veux faire ou bien ?'
-              : 'Camarade, tu n’as pas ? Pioche.',
+        final int pendingDrawCount =
+            (session.pendingDrawCountByPlayer[action.actorId] ?? 0).toInt();
+        final ComicMessageTrigger trigger = pendingDrawCount >= 4
+            ? ComicMessageTrigger.heavyDraw
+            : ComicMessageTrigger.mustDraw;
+        maybeShowComicMessage(
           targetPlayerId: action.actorId,
-          type: FunnyMessageType.difficulty,
+          currentPlayerId: localPlayerId,
+          trigger: trigger,
+          targetPlayerName: session.playerNames[action.actorId] ?? 'Joueur',
         );
+        final List<String> targetHand = session.handForPlayer(action.actorId);
+        if (targetHand.length > 10) {
+          maybeShowComicMessage(
+            targetPlayerId: action.actorId,
+            currentPlayerId: localPlayerId,
+            trigger: ComicMessageTrigger.tooManyCards,
+            targetPlayerName: session.playerNames[action.actorId] ?? 'Joueur',
+          );
+        }
       }
       return;
     }
@@ -2750,60 +2866,66 @@ class _DuelPageState extends State<DuelPage> {
     }
     final DuelCard card = DuelCard.fromId(cardId);
     if (card.isJoker) {
-      _showFunnyGameMessage(
-        playerName: actorName,
-        message: 'Oui, tu as mis dans joker.',
-        targetPlayerId: action.actorId,
-        type: FunnyMessageType.success,
-      );
-      _showFunnyGameMessage(
-        playerName: targetName,
-        message: 'Oui, $targetName est sur toi-même.',
-        targetPlayerId: targetId,
-        type: FunnyMessageType.difficulty,
-      );
+      if (localPlayerId == action.actorId) {
+        maybeShowComicMessage(
+          targetPlayerId: action.actorId,
+          currentPlayerId: localPlayerId,
+          trigger: ComicMessageTrigger.playedJoker,
+          targetPlayerName: actorName,
+        );
+      } else {
+        maybeShowComicMessage(
+          targetPlayerId: targetId,
+          currentPlayerId: localPlayerId,
+          trigger: ComicMessageTrigger.heavyDraw,
+          targetPlayerName: targetName,
+        );
+      }
       return;
     }
     if (card.rank == '2') {
-      _showFunnyGameMessage(
-        playerName: actorName,
-        message: 'Oui, tu as mis dans deux.',
-        targetPlayerId: action.actorId,
-        type: FunnyMessageType.success,
-      );
-      _showFunnyGameMessage(
-        playerName: targetName,
-        message: 'Camarade, tu n’as pas ? Pioche.',
+      if (localPlayerId == action.actorId) {
+        maybeShowComicMessage(
+          targetPlayerId: action.actorId,
+          currentPlayerId: localPlayerId,
+          trigger: ComicMessageTrigger.playedTwo,
+          targetPlayerName: actorName,
+        );
+      } else {
+        maybeShowComicMessage(
+          targetPlayerId: targetId,
+          currentPlayerId: localPlayerId,
+          trigger: ComicMessageTrigger.mustDraw,
+          targetPlayerName: targetName,
+        );
+      }
+      return;
+    }
+    if (card.rank == 'A') {
+      maybeShowComicMessage(
         targetPlayerId: targetId,
-        type: FunnyMessageType.difficulty,
+        currentPlayerId: localPlayerId,
+        trigger: ComicMessageTrigger.aceForced,
+        targetPlayerName: targetName,
       );
       return;
     }
     if (card.rank == '8') {
-      _showFunnyGameMessage(
-        playerName: targetName,
-        message: 'Est-ce que tu vas t’en sortir ?',
+      maybeShowComicMessage(
         targetPlayerId: targetId,
-        type: FunnyMessageType.difficulty,
+        currentPlayerId: localPlayerId,
+        trigger: ComicMessageTrigger.strongActionAgainstPlayer,
+        targetPlayerName: targetName,
       );
       return;
     }
-    if (action.payload.containsKey('winnerId')) {
-      _showFunnyGameMessage(
-        playerName: actorName,
-        message: 'victoire confirmée.',
-        targetPlayerId: action.actorId,
-        type: FunnyMessageType.info,
-      );
-      return;
-    }
-    final List<String> actorHand = session.handForPlayer(action.actorId);
-    if (actorHand.length == 1) {
-      _showFunnyGameMessage(
-        playerName: actorName,
-        message: 'une seule carte, pression maximale.',
-        targetPlayerId: action.actorId,
-        type: FunnyMessageType.info,
+    final List<String> localHand = session.handForPlayer(localPlayerId);
+    if (localHand.length > 10) {
+      maybeShowComicMessage(
+        targetPlayerId: localPlayerId,
+        currentPlayerId: localPlayerId,
+        trigger: ComicMessageTrigger.tooManyCards,
+        targetPlayerName: session.playerNames[localPlayerId] ?? 'Joueur',
       );
     }
   }
@@ -2951,6 +3073,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   Future<String?> _showSuitChoice(BuildContext context) {
+    _markImportantPopupOpened();
     return showDialog<String>(
       context: context,
       barrierColor: Colors.black54,
@@ -2971,6 +3094,7 @@ class _DuelPageState extends State<DuelPage> {
     required String actorName,
     required String suit,
   }) async {
+    _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -2996,6 +3120,7 @@ class _DuelPageState extends State<DuelPage> {
   }
 
   Future<void> _showForcedDrawPopup(int amount) async {
+    _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -3286,6 +3411,7 @@ class _DuelPageState extends State<DuelPage> {
       return null;
     }
     _stakeSelectionDialogOpen = true;
+    _markImportantPopupOpened();
     final TextEditingController amountController = TextEditingController();
     int? selectedAmount;
     String? validationError;
@@ -3443,6 +3569,7 @@ class _DuelPageState extends State<DuelPage> {
     final int myCredits = _creditsOf(session, _controller.localPlayerId);
     final bool insufficient = myCredits < offer.amount;
     _stakeDialogOpen = true;
+    _markImportantPopupOpened();
     final String? decision = await showDialog<String>(
       context: context,
       barrierDismissible: false,
@@ -3539,6 +3666,7 @@ class _DuelPageState extends State<DuelPage> {
         ? 'Votre adversaire'
         : _displayNameUpper(session, rejecterId);
     _stakeRejectedDialogOpen = true;
+    _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -3783,6 +3911,7 @@ class _DuelPageState extends State<DuelPage> {
   }) async {
     final String requester = _displayNameUpper(session, requesterId);
     _rematchDialogOpen = true;
+    _markImportantPopupOpened();
     final bool? accepted = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -4092,6 +4221,7 @@ class _DuelPageState extends State<DuelPage> {
 
   Future<void> _showWinPopup({required int gainAmount}) async {
     _winDialogOpen = true;
+    _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
