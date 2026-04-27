@@ -1927,7 +1927,7 @@ class DuelController extends ChangeNotifier {
       return;
     }
     final String reportKey =
-        '${current.gameId}_${current.round}_$opponentId_${opponentPresence.lastSeenAt?.millisecondsSinceEpoch ?? -1}_${opponentPresence.state}';
+        '${current.gameId}_${current.round}_${opponentId}_${opponentPresence.lastSeenAt?.millisecondsSinceEpoch ?? -1}_${opponentPresence.state}';
     if (_lastForfeitReportKey == reportKey) {
       return;
     }
