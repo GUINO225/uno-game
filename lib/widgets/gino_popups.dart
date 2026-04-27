@@ -957,14 +957,14 @@ class GinoChooseSuitPopup extends StatelessWidget {
             fontSize: 17,
             spans: <TextSpan>[
               TextSpan(
-                text: 'Je ',
+                text: 'Choisis ',
                 style: GinoPopupStyle.baseText(
                   fontSize: 17,
                   fontWeight: GinoPopupStyle.titleWeight,
                 ),
               ),
               TextSpan(
-                text: 'commande',
+                text: 'une couleur',
                 style: GinoPopupStyle.baseText(fontSize: 17, fontWeight: GinoPopupStyle.textWeight),
               ),
             ],
@@ -980,18 +980,26 @@ class GinoChooseSuitPopup extends StatelessWidget {
             children: <Widget>[
               GinoSuitCard(
                 suit: resolvedSuits[0],
+                width: 54,
+                height: 78,
                 onTap: () => onSuitSelected(resolvedSuits[0]),
               ),
               GinoSuitCard(
                 suit: resolvedSuits[1],
+                width: 54,
+                height: 78,
                 onTap: () => onSuitSelected(resolvedSuits[1]),
               ),
               GinoSuitCard(
                 suit: resolvedSuits[2],
+                width: 54,
+                height: 78,
                 onTap: () => onSuitSelected(resolvedSuits[2]),
               ),
               GinoSuitCard(
                 suit: resolvedSuits[3],
+                width: 54,
+                height: 78,
                 onTap: () => onSuitSelected(resolvedSuits[3]),
               ),
             ],
