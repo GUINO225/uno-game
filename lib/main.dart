@@ -17,6 +17,7 @@ import 'admin_dashboard.dart';
 import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'user_profile_service.dart';
+import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
 
 Future<void> main() async {
@@ -1030,7 +1031,7 @@ class _GameModePageState extends State<GameModePage>
           SnackBar(
             content: Text(
               result.errorMessage ??
-                  'Connectez-vous avec Google pour jouer en mode Paris.',
+                  'Connectez-vous avec Google pour jouer en mode pari.',
             ),
           ),
         );
@@ -1194,7 +1195,7 @@ class GameModeCard extends StatelessWidget {
   String get _label => switch (mode) {
     _ModeCardVariant.solo => 'Solo',
     _ModeCardVariant.duel => 'Duel',
-    _ModeCardVariant.paris => 'Paris',
+    _ModeCardVariant.paris => 'Pari',
   };
 }
 
@@ -1570,7 +1571,7 @@ class _PlayModeButtonState extends State<_PlayModeButton> {
               ],
             ),
             child: Text(
-              "LET'S GO",
+              "Let's go",
               style: GoogleFonts.poppins(
                 color: GameModePalette.backgroundShade,
                 fontSize: widget.fontSize,
@@ -1628,7 +1629,7 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
             ],
           ),
               child: Text(
-            'JOUER',
+            'Jouer',
             style: GoogleFonts.poppins(
               color: GameModePalette.backgroundShade,
               fontSize: 24,
@@ -1773,6 +1774,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   static const Duration _uiTransitionDuration = Duration(milliseconds: 260);
   static const double _handCardWidth = 64;
   static const double _handCardHeight = 96;
+  bool _funnyMessagesEnabled = true;
 
   @override
   void initState() {
@@ -2259,6 +2261,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           count: 2,
           announcement: 'Vous jouez un 2 : GINO doit piocher 2 cartes.',
         );
+        _showFunnyGameMessage(playerName: 'GINO', message: 'deux cartes, sans discuter.');
         await _runForcedDrawForBot();
         return const _PlayResolution(
           extraTurn: true,
@@ -2271,6 +2274,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           count: 2,
           announcement: 'GINO joue un 2 : vous devez piocher 2 cartes.',
         );
+        _showFunnyGameMessage(playerName: 'Vous', message: 'petit cadeau du quartier.');
       }
 
       return const _PlayResolution(
@@ -2287,6 +2291,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           count: 9,
           announcement: 'Vous jouez un joker : GINO doit piocher 9 cartes.',
         );
+        _showFunnyGameMessage(playerName: 'GINO', message: 'va lire l’heure !');
         await _runForcedDrawForBot();
         return const _PlayResolution(
           extraTurn: true,
@@ -2299,6 +2304,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           count: 9,
           announcement: 'GINO joue un joker : vous devez piocher 9 cartes.',
         );
+        _showFunnyGameMessage(playerName: 'Vous', message: 'le joker a parlé.');
       }
 
       return const _PlayResolution(
@@ -2324,6 +2330,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _activeSuitConstraint = askedSuit;
         _status = demander;
       });
+      _showFunnyGameMessage(
+        playerName: currentTurn == PlayerTurn.human ? 'GINO' : 'Vous',
+        message: 'la commande est lancée.',
+      );
 
       return const _PlayResolution(
         extraTurn: false,
@@ -2725,7 +2735,27 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _status = '${_turnLabel(winner)} a gagné !';
     });
 
+    _showFunnyGameMessage(
+      playerName: _turnLabel(winner),
+      message: 'propre, net, sans bavure.',
+    );
+
     return true;
+  }
+
+  void _showFunnyGameMessage({
+    required String playerName,
+    required String message,
+  }) {
+    if (!_funnyMessagesEnabled || !mounted || _isInitialDealRunning) {
+      return;
+    }
+    FunnyGameToast.show(
+      context,
+      playerName: playerName,
+      message: message,
+      alignment: Alignment.topCenter,
+    );
   }
 
   void _switchToHuman() {
@@ -3156,9 +3186,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
-        _ScorePill(label: 'VOUS', value: _humanScore),
+        _ScorePill(label: 'Vous', value: _humanScore),
         const SizedBox(width: 10),
-        _ScorePill(label: 'GINO', value: _botScore),
+        _ScorePill(label: 'Gino', value: _botScore),
       ],
     );
   }
