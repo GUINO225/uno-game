@@ -51,6 +51,15 @@ enum DuelBetFlowState {
 
 const Duration _kRematchRequestTimeout = Duration(seconds: 45);
 
+enum DuelRematchUiState {
+  idle,
+  waitingForOpponentResponse,
+  rematchRequestReceived,
+  rematchAcceptedStarting,
+  rematchRejected,
+  rematchError,
+}
+
 String _localizeUserError(Object error) {
   String message = error.toString().trim();
   message = message
@@ -1037,6 +1046,7 @@ class GameService {
     required String gameId,
     required String requestedBy,
   }) async {
+    debugPrint('[Rematch] request by=$requestedBy game=$gameId');
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
@@ -1047,14 +1057,17 @@ class GameService {
       }
       final DuelSession session = DuelSession.fromDoc(snap);
       final String? winnerId = session.lastAction?.payload['winnerId'] as String?;
-      final bool canOverrideExpiredOwnRequest =
-          session.rematchRequestBy == requestedBy && session.isRematchRequestExpired();
+      final String loserId = session.players.firstWhere(
+        (String id) => id != winnerId,
+        orElse: () => '',
+      );
+      final bool canOverrideExpiredRequest = session.isRematchRequestExpired();
       if (session.status != DuelGameStatus.finished ||
           winnerId == null ||
           winnerId.isEmpty ||
-          winnerId == requestedBy ||
           !session.players.contains(requestedBy) ||
-          (session.hasPendingRematchRequest && !canOverrideExpiredOwnRequest)) {
+          (session.isCreditsMode && requestedBy != loserId) ||
+          (session.hasPendingRematchRequest && !canOverrideExpiredRequest)) {
         return;
       }
       tx.update(ref, <String, dynamic>{
@@ -1064,12 +1077,15 @@ class GameService {
         'rematchDecisionBy': null,
         'roundStatus': 'rematchProposalPending',
         'rematchStatus': 'requested',
+        'betFlowState': DuelBetFlowState.rematchPendingFromLoser.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
         if (session.isCreditsMode) ...<String, dynamic>{
-          'betFlowState': DuelBetFlowState.rematchPendingFromLoser.name,
           'stakeOffer': const DuelStakeOffer().toMap(),
           'activeStakeCredits': 0,
         },
       });
+      debugPrint('[Rematch] request written by=$requestedBy game=$gameId');
     });
   }
 
@@ -1127,9 +1143,21 @@ class GameService {
     required String responderId,
     required bool accept,
   }) async {
+    if (accept) {
+      await acceptRematch(gameId: current.gameId, acceptedBy: responderId);
+      return;
+    }
+    await declineRematch(gameId: current.gameId, declinedBy: responderId);
+  }
+
+  Future<void> acceptRematch({
+    required String gameId,
+    required String acceptedBy,
+  }) async {
+    debugPrint('[Rematch] accept requested by=$acceptedBy game=$gameId');
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(current.gameId);
+        db.collection('duel_games').doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1137,44 +1165,100 @@ class GameService {
       }
       final DuelSession session = DuelSession.fromDoc(snap);
       if (session.rematchRequestBy == null ||
-          session.rematchRequestBy == responderId ||
+          session.rematchRequestBy == acceptedBy ||
           session.status != DuelGameStatus.finished ||
           session.rematchDecision != DuelRematchDecision.pending) {
         return;
       }
-      if (!accept) {
-        tx.update(ref, <String, dynamic>{
-          'status': DuelGameStatus.finished.name,
-          'roundStatus': 'rematchDeclined',
-          'rematchDecision': DuelRematchDecision.declined.name,
-          'rematchDecisionBy': responderId,
-          'rematchStatus': 'refused',
-          'exitBothPlayers': true,
-          'exitedBy': responderId,
-          if (session.isCreditsMode)
-            'betFlowState': DuelBetFlowState.partyExited.name,
-        });
-        return;
-      }
+      final String requesterId = session.rematchRequestBy!;
       if (session.isCreditsMode) {
+        final DuelStakeOffer offer = session.stakeOffer;
+        final int amount = offer.isAccepted ? offer.amount : 0;
+        if (amount <= 0) {
+          tx.update(ref, <String, dynamic>{
+            'status': DuelGameStatus.finished.name,
+            'roundStatus': 'roundFinished',
+            'rematchDecision': DuelRematchDecision.accepted.name,
+            'rematchDecisionBy': acceptedBy,
+            'rematchStatus': 'accepted',
+            'betFlowState': DuelBetFlowState.rematchStakePendingWinnerResponse.name,
+            'activeStakeCredits': 0,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'revision': session.revision + 1,
+          });
+          return;
+        }
+        final int requesterCredits = session.playerCredits[requesterId] ?? 0;
+        final int accepterCredits = session.playerCredits[acceptedBy] ?? 0;
+        if (requesterCredits < amount || accepterCredits < amount) {
+          tx.update(ref, <String, dynamic>{
+            'status': DuelGameStatus.finished.name,
+            'roundStatus': 'roundFinished',
+            'betFlowState': DuelBetFlowState.rematchStakePendingWinnerResponse.name,
+            'rematchDecision': DuelRematchDecision.accepted.name,
+            'rematchDecisionBy': acceptedBy,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'revision': session.revision + 1,
+          });
+          return;
+        }
+        final int nextRound = session.round + 1;
+        final DuelAction action = DuelAction(
+          type: DuelActionType.resetRound,
+          actorId: acceptedBy,
+          createdAt: DateTime.now(),
+          payload: <String, dynamic>{
+            'round': nextRound,
+            'startingPlayerId': requesterId,
+          },
+        );
         tx.update(ref, <String, dynamic>{
-          'status': DuelGameStatus.finished.name,
-          'roundStatus': 'roundFinished',
-          'activeStakeCredits': 0,
-          'stakeOffer': const DuelStakeOffer().toMap(),
-          'rematchDecision': DuelRematchDecision.accepted.name,
-          'rematchDecisionBy': responderId,
-          'rematchStatus': 'accepted',
+          'playerCredits.$requesterId': requesterCredits - amount,
+          'playerCredits.$acceptedBy': accepterCredits - amount,
+          'activeStakeCredits': amount * 2,
+          'status': DuelGameStatus.inProgress.name,
+          'roundStatus': 'playing',
+          'round': nextRound,
+          'currentTurn': requesterId,
+          'lastAction': action.toMap(),
+          'lastActionBy': acceptedBy,
+          'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
+          'stakeOffer': offer.toMap(),
+          'rematchRequestBy': null,
+          'rematchRequestedAt': null,
+          'rematchDecision': DuelRematchDecision.pending.name,
+          'rematchDecisionBy': null,
+          'rematchStatus': 'none',
+          'pendingDrawCount': 0,
+          'forcedDrawInitial': 0,
+          'requiredSuit': null,
+          'aceColorRequired': false,
+          'abandonedBy': null,
+          'exitBothPlayers': false,
+          'integrityError': null,
+          'repairLock': null,
+          'betFlowState': DuelBetFlowState.rematchAccepted.name,
+          'payoutDone': false,
+          'payoutWinnerId': null,
+          'payoutAmount': 0,
+          'payoutAt': null,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'revision': session.revision + 1,
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: session.players,
+            round: nextRound,
+          ),
         });
+        tx.set(ref.collection('actions').doc(), action.toMap());
+        debugPrint('[Rematch] board reset applied, status=inProgress');
         return;
       }
       final int nextRound = session.round + 1;
-      final String starter = session.players.contains(session.rematchRequestBy)
-          ? session.rematchRequestBy!
-          : session.hostId;
+      final String starter = requesterId;
       final DuelAction action = DuelAction(
         type: DuelActionType.resetRound,
-        actorId: responderId,
+        actorId: acceptedBy,
         createdAt: DateTime.now(),
         payload: <String, dynamic>{
           'round': nextRound,
@@ -1187,7 +1271,7 @@ class GameService {
         'round': nextRound,
         'currentTurn': starter,
         'lastAction': action.toMap(),
-        'lastActionBy': responderId,
+        'lastActionBy': acceptedBy,
         'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
         'activeStakeCredits': session.isCreditsMode ? session.activeStakeCredits : 0,
         'stakeOffer': session.isCreditsMode
@@ -1195,26 +1279,96 @@ class GameService {
             : const DuelStakeOffer().toMap(),
         'rematchRequestBy': null,
         'rematchRequestedAt': null,
-        'rematchDecision': DuelRematchDecision.accepted.name,
-        'rematchDecisionBy': responderId,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
         'rematchStatus': 'none',
         'pendingDrawCount': 0,
         'forcedDrawInitial': 0,
         'requiredSuit': null,
         'aceColorRequired': false,
+        'abandonedBy': null,
+        'exitBothPlayers': false,
+        'integrityError': null,
+        'repairLock': null,
+        'betFlowState': DuelBetFlowState.rematchAccepted.name,
         'payoutDone': false,
         'payoutWinnerId': null,
         'payoutAmount': 0,
         'payoutAt': null,
+        'updatedAt': FieldValue.serverTimestamp(),
         'revision': session.revision + 1,
-        if (!session.isCreditsMode)
-          ..._boardInitPatch(
-            gameId: session.gameId,
-            players: session.players,
-            round: nextRound,
-          ),
+        ..._boardInitPatch(
+          gameId: session.gameId,
+          players: session.players,
+          round: nextRound,
+        ),
       });
       tx.set(ref.collection('actions').doc(), action.toMap());
+      debugPrint('[Rematch] accepted by=$acceptedBy, starting round=$nextRound');
+      debugPrint('[Rematch] board reset applied, status=inProgress');
+    });
+  }
+
+  Future<void> declineRematch({
+    required String gameId,
+    required String declinedBy,
+  }) async {
+    debugPrint('[Rematch] decline requested by=$declinedBy game=$gameId');
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.rematchRequestBy == null ||
+          session.status != DuelGameStatus.finished ||
+          session.rematchDecision != DuelRematchDecision.pending) {
+        return;
+      }
+      tx.update(ref, <String, dynamic>{
+        'status': DuelGameStatus.finished.name,
+        'roundStatus': 'rematchDeclined',
+        'rematchDecision': DuelRematchDecision.declined.name,
+        'rematchDecisionBy': declinedBy,
+        'rematchStatus': 'refused',
+        'betFlowState': DuelBetFlowState.rematchRejected.name,
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+      });
+    });
+  }
+
+  Future<void> cleanupExpiredRematchRequest({
+    required String gameId,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        return;
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (!session.isRematchRequestExpired()) {
+        return;
+      }
+      tx.update(ref, <String, dynamic>{
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+        'rematchStatus': 'none',
+        'roundStatus': 'roundFinished',
+        'betFlowState': DuelBetFlowState.matchFinished.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+      });
     });
   }
 
@@ -1678,11 +1832,35 @@ class DuelController extends ChangeNotifier {
     if (current == null) {
       return;
     }
-    await service.respondToRematch(
-      current: current,
-      responderId: localPlayerId,
-      accept: accept,
-    );
+    if (accept) {
+      await acceptRematch();
+      return;
+    }
+    await declineRematch();
+  }
+
+  Future<void> acceptRematch() async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.acceptRematch(gameId: current.gameId, acceptedBy: localPlayerId);
+  }
+
+  Future<void> declineRematch() async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.declineRematch(gameId: current.gameId, declinedBy: localPlayerId);
+  }
+
+  Future<void> cleanupExpiredRematchRequest() async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.cleanupExpiredRematchRequest(gameId: current.gameId);
   }
 
   Future<void> sendChatMessage(String text) async {
@@ -2407,6 +2585,10 @@ class _DuelPageState extends State<DuelPage> {
   String? _pendingStakeOfferAfterVictoryKey;
   String? _pendingRematchAfterVictoryKey;
   String? _lastRematchDeclineNotificationKey;
+  DuelRematchUiState _rematchUiState = DuelRematchUiState.idle;
+  String? _rematchErrorMessage;
+  Timer? _rematchTimeoutTimer;
+  String? _rematchTimeoutRequestKey;
   String? _lastForfeitNotificationKey;
   final Queue<String> _chatPreviewQueue = Queue<String>();
   final StatsService _statsService = StatsService.instance;
@@ -2468,6 +2650,11 @@ class _DuelPageState extends State<DuelPage> {
     _stakeSelectionDialogOpen = false;
     _stakeRejectedDialogOpen = false;
     _winDialogOpen = false;
+    _rematchUiState = DuelRematchUiState.idle;
+    _rematchErrorMessage = null;
+    _rematchTimeoutTimer?.cancel();
+    _rematchTimeoutTimer = null;
+    _rematchTimeoutRequestKey = null;
     _pendingStakeOfferAfterVictoryKey = null;
     _pendingRematchAfterVictoryKey = null;
   }
@@ -2484,6 +2671,7 @@ class _DuelPageState extends State<DuelPage> {
     _controller.removeListener(_onControllerChange);
     _chatSub?.cancel();
     _chatPreviewTimer?.cancel();
+    _rematchTimeoutTimer?.cancel();
     _chatMessagesNotifier.dispose();
     super.dispose();
   }
@@ -2512,6 +2700,12 @@ class _DuelPageState extends State<DuelPage> {
             !_isCreditsMode)) {
       _resetLocalRoundUiState();
     }
+    _updateRematchUiState(session);
+    debugPrint(
+      '[Rematch] snapshot game=${session.gameId} status=${session.status.name} '
+      'bet=${session.betFlowState.name} requestBy=${session.rematchRequestBy} '
+      'decision=${session.rematchDecision.name}',
+    );
     _bindChatRealtime(session);
     _maybeShowCommandPopup(session);
     _maybeShowForcedDrawPopup(session);
@@ -3366,22 +3560,37 @@ class _DuelPageState extends State<DuelPage> {
       return;
     }
     final DuelSession? session = _controller.session;
-    if (session == null ||
-        session.status != DuelGameStatus.finished ||
-        !_isLocalLoser(session)) {
-      return;
-    }
-    if (session.rematchRequestBy == _controller.localPlayerId) {
+    if (session == null || session.status != DuelGameStatus.finished) {
       return;
     }
     setState(() {
       _rematchActionBusy = true;
+      _rematchErrorMessage = null;
     });
     try {
-      await _controller.requestRematch();
-      final DuelSession? latest = _controller.session;
-      if (latest != null) {
-        await _openStakeProposal(latest);
+      debugPrint('[Rematch] button tap by=${_controller.localPlayerId} game=${session.gameId}');
+      if (session.rematchRequestBy != null &&
+          session.rematchRequestBy != _controller.localPlayerId) {
+        await _controller.acceptRematch();
+      } else {
+        await _controller.requestRematch();
+        final DuelSession? latest = _controller.session;
+        if (latest != null && _canPromptRematchStake(latest)) {
+          await _openStakeProposal(latest);
+        }
+      }
+    } catch (error) {
+      debugPrint('[Rematch] failed: $error');
+      if (mounted) {
+        setState(() {
+          _rematchUiState = DuelRematchUiState.rematchError;
+          _rematchErrorMessage = 'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de lancer la revanche. Vérifie ta connexion et réessaie.'),
+          ),
+        );
       }
     } finally {
       if (mounted) {
@@ -3409,6 +3618,15 @@ class _DuelPageState extends State<DuelPage> {
     });
     try {
       await _controller.cancelRematchRequest();
+    } catch (error) {
+      debugPrint('[Rematch] failed: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de lancer la revanche. Vérifie ta connexion et réessaie.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -3488,7 +3706,7 @@ class _DuelPageState extends State<DuelPage> {
             title: 'Revanche',
             message: '$requester demande une revanche.',
             primaryLabel: 'Accepter',
-            secondaryLabel: 'Refuser',
+            secondaryLabel: 'Quitter / Refuser',
             onPrimary: () => Navigator.of(dialogContext).pop(true),
             onSecondary: () => Navigator.of(dialogContext).pop(false),
           ),
@@ -3501,9 +3719,27 @@ class _DuelPageState extends State<DuelPage> {
     }
     setState(() {
       _rematchActionBusy = true;
+      _rematchErrorMessage = null;
     });
     try {
-      await _controller.respondToRematch(accepted);
+      if (accepted) {
+        await _controller.acceptRematch();
+      } else {
+        await _controller.declineRematch();
+      }
+    } catch (error) {
+      debugPrint('[Rematch] failed: $error');
+      if (mounted) {
+        setState(() {
+          _rematchUiState = DuelRematchUiState.rematchError;
+          _rematchErrorMessage = 'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de lancer la revanche. Vérifie ta connexion et réessaie.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -3556,6 +3792,109 @@ class _DuelPageState extends State<DuelPage> {
         return;
       }
       await _showRematchConfirmDialog(session: session, requesterId: requesterId);
+    });
+  }
+
+  void _updateRematchUiState(DuelSession session) {
+    if (session.status == DuelGameStatus.inProgress) {
+      _rematchTimeoutTimer?.cancel();
+      _rematchTimeoutTimer = null;
+      _rematchTimeoutRequestKey = null;
+      if (_rematchUiState != DuelRematchUiState.idle) {
+        setState(() {
+          _rematchUiState = DuelRematchUiState.rematchAcceptedStarting;
+          _rematchErrorMessage = null;
+        });
+      }
+      return;
+    }
+    if (session.rematchDecision == DuelRematchDecision.declined) {
+      _rematchTimeoutTimer?.cancel();
+      _rematchTimeoutTimer = null;
+      _rematchTimeoutRequestKey = null;
+      if (_rematchUiState != DuelRematchUiState.rematchRejected) {
+        setState(() {
+          _rematchUiState = DuelRematchUiState.rematchRejected;
+        });
+      }
+      return;
+    }
+    final String? requesterId = session.rematchRequestBy;
+    final bool pendingRequest = session.status == DuelGameStatus.finished &&
+        requesterId != null &&
+        requesterId.isNotEmpty &&
+        session.rematchDecision == DuelRematchDecision.pending;
+    if (!pendingRequest) {
+      _rematchTimeoutTimer?.cancel();
+      _rematchTimeoutTimer = null;
+      _rematchTimeoutRequestKey = null;
+      if (_rematchUiState != DuelRematchUiState.idle &&
+          _rematchUiState != DuelRematchUiState.rematchError) {
+        setState(() {
+          _rematchUiState = DuelRematchUiState.idle;
+        });
+      }
+      return;
+    }
+    if (requesterId == _controller.localPlayerId) {
+      if (_rematchUiState != DuelRematchUiState.waitingForOpponentResponse) {
+        setState(() {
+          _rematchUiState = DuelRematchUiState.waitingForOpponentResponse;
+        });
+      }
+      _scheduleRematchTimeout(session);
+      return;
+    }
+    _rematchTimeoutTimer?.cancel();
+    _rematchTimeoutTimer = null;
+    _rematchTimeoutRequestKey = null;
+    if (_rematchUiState != DuelRematchUiState.rematchRequestReceived) {
+      setState(() {
+        _rematchUiState = DuelRematchUiState.rematchRequestReceived;
+      });
+    }
+  }
+
+  void _scheduleRematchTimeout(DuelSession session) {
+    final DateTime? requestedAt = session.rematchRequestedAt?.toUtc();
+    if (requestedAt == null) {
+      return;
+    }
+    final String requestKey =
+        '${session.gameId}_${session.rematchRequestBy}_${requestedAt.millisecondsSinceEpoch}';
+    if (_rematchTimeoutRequestKey == requestKey) {
+      return;
+    }
+    _rematchTimeoutTimer?.cancel();
+    _rematchTimeoutRequestKey = requestKey;
+    final Duration elapsed = DateTime.now().toUtc().difference(requestedAt);
+    final Duration waitFor = elapsed >= _kRematchRequestTimeout
+        ? Duration.zero
+        : _kRematchRequestTimeout - elapsed;
+    _rematchTimeoutTimer = Timer(waitFor, () async {
+      if (!mounted) {
+        return;
+      }
+      final DuelSession? latest = _controller.session;
+      if (latest == null ||
+          latest.rematchRequestBy != _controller.localPlayerId ||
+          latest.rematchDecision != DuelRematchDecision.pending ||
+          latest.status != DuelGameStatus.finished) {
+        return;
+      }
+      setState(() {
+        _rematchUiState = DuelRematchUiState.rematchError;
+        _rematchErrorMessage = 'L’adversaire n’a pas répondu.';
+        _rematchActionBusy = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('L’adversaire n’a pas répondu.')),
+      );
+      try {
+        await _controller.cleanupExpiredRematchRequest();
+      } catch (error) {
+        debugPrint('[Rematch] failed: $error');
+      }
     });
   }
 
@@ -4063,18 +4402,18 @@ class _DuelPageState extends State<DuelPage> {
                           ),
                         ),
                       if (session.status == DuelGameStatus.finished &&
-                          _isLocalLoser(session) &&
-                          session.rematchDecision != DuelRematchDecision.accepted)
+                          session.rematchDecision != DuelRematchDecision.accepted &&
+                          (_isLocalLoser(session) ||
+                              (session.rematchRequestBy != null &&
+                                  session.rematchRequestBy != _controller.localPlayerId)))
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: SizedBox(
                             width: double.infinity,
-                            child: session.rematchRequestBy == _controller.localPlayerId &&
-                                    session.rematchDecision ==
-                                        DuelRematchDecision.pending
+                            child: _rematchUiState == DuelRematchUiState.waitingForOpponentResponse
                                 ? Column(
                                     children: <Widget>[
-                                      const GinoDisabledPopupButton(label: 'Patienter'),
+                                      const GinoDisabledPopupButton(label: 'En attente de l’adversaire…'),
                                       const SizedBox(height: 8),
                                       GinoPopupButton(
                                         label: 'Annuler la demande',
@@ -4085,12 +4424,37 @@ class _DuelPageState extends State<DuelPage> {
                                       ),
                                     ],
                                   )
-                                : GinoPopupButton(
-                                    label: 'Demander revanche',
-                                    onPressed: () {
-                                      unawaited(_sfx.playClick());
-                                      _onReplayTap();
-                                    },
+                                : Column(
+                                    children: <Widget>[
+                                      GinoPopupButton(
+                                        label: session.rematchRequestBy != null &&
+                                                session.rematchRequestBy != _controller.localPlayerId
+                                            ? 'Accepter la revanche'
+                                            : 'Demander revanche',
+                                        onPressed: () {
+                                          unawaited(_sfx.playClick());
+                                          _onReplayTap();
+                                        },
+                                      ),
+                                      if (_rematchUiState == DuelRematchUiState.rematchRejected)
+                                        const Padding(
+                                          padding: EdgeInsets.only(top: 8),
+                                          child: Text(
+                                            'Revanche refusée.',
+                                            style: TextStyle(color: Colors.white70),
+                                          ),
+                                        ),
+                                      if (_rematchUiState == DuelRematchUiState.rematchError)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 8),
+                                          child: Text(
+                                            _rematchErrorMessage ??
+                                                'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.',
+                                            style: const TextStyle(color: Colors.white70),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                           ),
                         ),
