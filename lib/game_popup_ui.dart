@@ -259,7 +259,7 @@ class _StakeBillCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Text(
-            'MISE',
+            'Mise',
             style: GoogleFonts.poppins(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -439,13 +439,24 @@ class _OverlayCardFace extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(6),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          Align(
+            alignment: Alignment.topLeft,
+            child: Text(
+              rank,
+              style: TextStyle(
+                color: inkColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Spacer(),
           Text(
-            rank,
+            symbol,
             style: TextStyle(
               color: inkColor,
-              fontSize: 14,
+              fontSize: 24,
               fontWeight: FontWeight.w700,
             ),
           ),
