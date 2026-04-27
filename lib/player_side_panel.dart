@@ -605,92 +605,141 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
       padding: EdgeInsets.only(bottom: viewInsets.bottom),
       child: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFFF7F4EC),
+          color: Color(0xFF0A4A2A),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Personnalise ton profil',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: PremiumColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Choisis ton pseudo',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    color: PremiumColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _displayNameController,
-                  maxLength: 18,
-                  decoration: const InputDecoration(
-                    hintText: 'Ton pseudo',
-                    border: OutlineInputBorder(),
-                    counterText: '',
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Choisis ton avatar',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    color: PremiumColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Center(
-                  child: GameCardAvatar.fromSelection(
-                    rank: _selectedRank,
-                    suit: _selectedSuit,
-                    size: 72,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _AvatarSelectorGrid<String>(
-                  values: GameCardAvatarPalette.ranks,
-                  selected: _selectedRank,
-                  onSelected: (String rank) => setState(() => _selectedRank = rank),
-                  labelBuilder: (String rank) => rank,
-                ),
-                const SizedBox(height: 10),
-                _AvatarSelectorGrid<String>(
-                  values: GameCardAvatarPalette.suits,
-                  selected: _selectedSuit,
-                  onSelected: (String suit) => setState(() => _selectedSuit = suit),
-                  labelBuilder: _suitLabel,
-                  textColorBuilder: _suitColor,
-                ),
-                const SizedBox(height: 16),
-                Row(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F4EC),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFF1B8B4A), width: 2),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-                        child: const Text('Annuler'),
+                    Text(
+                      'Modifier mon profil',
+                      style: GoogleFonts.poppins(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        color: PremiumColors.textDark,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _saving ? null : _submit,
-                        child: Text(_saving ? 'Enregistrement...' : 'Enregistrer'),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Pseudo public',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: PremiumColors.textDark,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _displayNameController,
+                      maxLength: 18,
+                      style: GoogleFonts.poppins(
+                        color: PremiumColors.textDark,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Ton pseudo',
+                        counterText: '',
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF2D8D55)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF2D8D55)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF0B6D3A), width: 2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Avatar carte',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: PremiumColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF8EF),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFB9DDBE)),
+                        ),
+                        child: GameCardAvatar.fromSelection(
+                          rank: _selectedRank,
+                          suit: _selectedSuit,
+                          size: 72,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _AvatarSelectorGrid<String>(
+                      values: GameCardAvatarPalette.ranks,
+                      selected: _selectedRank,
+                      onSelected: (String rank) => setState(() => _selectedRank = rank),
+                      labelBuilder: (String rank) => rank,
+                    ),
+                    const SizedBox(height: 10),
+                    _AvatarSelectorGrid<String>(
+                      values: GameCardAvatarPalette.suits,
+                      selected: _selectedSuit,
+                      onSelected: (String suit) => setState(() => _selectedSuit = suit),
+                      labelBuilder: _suitLabel,
+                      textColorBuilder: _suitColor,
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF0B6D3A),
+                              side: const BorderSide(color: Color(0xFF0B6D3A), width: 1.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Annuler'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _saving ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0B6D3A),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(_saving ? 'Enregistrement...' : 'Enregistrer'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -742,11 +791,18 @@ class _AvatarSelectorGrid<T> extends StatelessWidget {
           label: Text(
             labelBuilder(value),
             style: TextStyle(
-              color: textColorBuilder?.call(value) ?? PremiumColors.textDark,
+              color: textColorBuilder?.call(value) ?? const Color(0xFF1A1A1A),
               fontWeight: FontWeight.w700,
             ),
           ),
           selected: isSelected,
+          selectedColor: const Color(0xFFE7F6EA),
+          backgroundColor: Colors.white,
+          side: BorderSide(
+            color: isSelected ? const Color(0xFF0B6D3A) : const Color(0xFFD6D6D6),
+            width: isSelected ? 1.8 : 1,
+          ),
+          showCheckmark: false,
           onSelected: (_) => onSelected(value),
         );
       }).toList(growable: false),

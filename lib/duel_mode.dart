@@ -286,6 +286,7 @@ class DuelSession {
     this.pendingDrawCount = 0,
     this.forcedDrawInitial = 0,
     this.requiredSuit,
+    this.requiredColorAfterJoker,
     this.aceColorRequired = false,
   });
 
@@ -333,6 +334,7 @@ class DuelSession {
   final int pendingDrawCount;
   final int forcedDrawInitial;
   final String? requiredSuit;
+  final String? requiredColorAfterJoker;
   final bool aceColorRequired;
 
   bool get canStart => players.length == 2;
@@ -414,6 +416,7 @@ class DuelSession {
       'pendingDrawCount': pendingDrawCount,
       'forcedDrawInitial': forcedDrawInitial,
       'requiredSuit': requiredSuit,
+      'requiredColorAfterJoker': requiredColorAfterJoker,
       'aceColorRequired': aceColorRequired,
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -500,6 +503,7 @@ class DuelSession {
       pendingDrawCount: (json['pendingDrawCount'] as num?)?.toInt() ?? 0,
       forcedDrawInitial: (json['forcedDrawInitial'] as num?)?.toInt() ?? 0,
       requiredSuit: json['requiredSuit'] as String?,
+      requiredColorAfterJoker: json['requiredColorAfterJoker'] as String?,
       aceColorRequired: json['aceColorRequired'] as bool? ?? false,
     );
   }
@@ -889,6 +893,9 @@ class GameService {
         throw StateError('Action non supportée.');
       }
       if (!move.accepted || move.nextTurn == null) {
+        if (move.rejectionMessage != null && move.rejectionMessage!.trim().isNotEmpty) {
+          throw StateError(move.rejectionMessage!);
+        }
         throw StateError('Action refusée par la logique de jeu.');
       }
       final DuelAction validatedAction = DuelAction(
@@ -1238,6 +1245,7 @@ class GameService {
         'pendingDrawCount': 0,
         'forcedDrawInitial': 0,
         'requiredSuit': null,
+        'requiredColorAfterJoker': null,
         'aceColorRequired': false,
         'abandonedBy': null,
         'exitBothPlayers': false,
@@ -3049,6 +3057,9 @@ class _DuelPageState extends State<DuelPage> {
       chosenSuit: chosenSuit,
     );
     if (!move.accepted) {
+      if (move.rejectionMessage != null && move.rejectionMessage!.trim().isNotEmpty) {
+        _showSnackBar(move.rejectionMessage!);
+      }
       return;
     }
     unawaited(_sfx.playCard());
@@ -5283,11 +5294,13 @@ class DuelMoveResult {
     required this.accepted,
     this.payload = const <String, dynamic>{},
     this.nextTurn,
+    this.rejectionMessage,
   });
 
   final bool accepted;
   final Map<String, dynamic> payload;
   final String? nextTurn;
+  final String? rejectionMessage;
 }
 
 class DuelBoardState {
@@ -5302,6 +5315,7 @@ class DuelBoardState {
     required this.pendingDraw,
     required this.forcedDrawInitial,
     required this.aceColorRequired,
+    required this.requiredColorAfterJoker,
     required this.overlay,
     required this.status,
     required this.round,
@@ -5317,6 +5331,7 @@ class DuelBoardState {
   final int pendingDraw;
   final int forcedDrawInitial;
   final bool aceColorRequired;
+  final String? requiredColorAfterJoker;
   final String overlay;
   final String status;
   final int round;
@@ -5361,6 +5376,7 @@ class DuelBoardState {
       pendingDraw: session.pendingDrawCount,
       forcedDrawInitial: session.forcedDrawInitial,
       aceColorRequired: session.aceColorRequired,
+      requiredColorAfterJoker: session.requiredColorAfterJoker,
       overlay: '',
       status: '',
       round: session.round,
@@ -5391,6 +5407,7 @@ class DuelBoardState {
       'pendingDrawCount': pendingDraw,
       'forcedDrawInitial': forcedDrawInitial,
       'requiredSuit': requiredSuit,
+      'requiredColorAfterJoker': requiredColorAfterJoker,
       'aceColorRequired': aceColorRequired,
     };
   }
@@ -5435,6 +5452,7 @@ class DuelBoardState {
       pendingDraw: 0,
       forcedDrawInitial: 0,
       aceColorRequired: false,
+      requiredColorAfterJoker: null,
       overlay: '',
       status: '',
       round: round,
@@ -5463,6 +5481,10 @@ class DuelBoardState {
     if (aceColorRequired) {
       return card.rank == 'A';
     }
+    if (requiredColorAfterJoker != null &&
+        !_matchesRequiredJokerColor(requiredColorAfterJoker!, card)) {
+      return false;
+    }
     if (card.rank == '8') {
       return true;
     }
@@ -5487,6 +5509,22 @@ class DuelBoardState {
     String? chosenSuit,
   }) {
     if (!canPlay(actorId, card)) {
+      if (requiredColorAfterJoker == 'red' &&
+          !_matchesRequiredJokerColor('red', card)) {
+        debugPrint('[JokerRule] card rejected: wrong color');
+        return const DuelMoveResult(
+          accepted: false,
+          rejectionMessage: 'Tu dois jouer une carte rouge.',
+        );
+      }
+      if (requiredColorAfterJoker == 'black' &&
+          !_matchesRequiredJokerColor('black', card)) {
+        debugPrint('[JokerRule] card rejected: wrong color');
+        return const DuelMoveResult(
+          accepted: false,
+          rejectionMessage: 'Tu dois jouer une carte noire.',
+        );
+      }
       return const DuelMoveResult(accepted: false);
     }
     final String? suitChoice = card.rank == '8' ? chosenSuit : null;
@@ -5541,6 +5579,7 @@ class DuelBoardState {
     int newPendingDraw = pendingDraw;
     int newForcedDrawInitial = forcedDrawInitial;
     bool newAceRequired = aceColorRequired;
+    String? newRequiredColorAfterJoker = requiredColorAfterJoker;
     String newOverlay = overlay;
     String newStatus = status;
     final int reshuffleSeedBase = Object.hash(
@@ -5572,6 +5611,9 @@ class DuelBoardState {
         }
       }
       newAceRequired = false;
+      if (newRequiredColorAfterJoker != null) {
+        debugPrint('[JokerRule] required color active=$newRequiredColorAfterJoker');
+      }
       newOverlay = '${action.actorId} pioche';
       newStatus = newPendingDraw > 0
           ? '$newPendingDraw cartes à piocher'
@@ -5593,6 +5635,12 @@ class DuelBoardState {
       newOverlay = '${action.actorId} a joué ${card.label}';
       newStatus = newOverlay;
 
+      if (newRequiredColorAfterJoker != null &&
+          _matchesRequiredJokerColor(newRequiredColorAfterJoker, card)) {
+        newRequiredColorAfterJoker = null;
+        debugPrint('[JokerRule] required color cleared');
+      }
+
       if (card.rank == '8') {
         newRequiredSuit = action.payload['chosenSuit'] as String? ?? '♥';
         newOverlay = '${action.actorId} a commandé $newRequiredSuit';
@@ -5603,6 +5651,9 @@ class DuelBoardState {
         newOverlay = '+2';
         newStatus = '$newPendingDraw cartes à piocher';
       } else if (card.isJoker) {
+        newRequiredColorAfterJoker = card.color;
+        debugPrint('[JokerRule] joker played color=${card.color}');
+        debugPrint('[JokerRule] required color active=$newRequiredColorAfterJoker');
         newPendingDraw += 8;
         newForcedDrawInitial = newPendingDraw;
         newOverlay = '+8';
@@ -5636,6 +5687,7 @@ class DuelBoardState {
       newForcedDrawInitial = 0;
       newAceRequired = false;
       newRequiredSuit = null;
+      newRequiredColorAfterJoker = null;
       newOverlay = '$winnerId a gagné';
       newStatus = '$winnerId a gagné';
     }
@@ -5651,10 +5703,18 @@ class DuelBoardState {
       pendingDraw: newPendingDraw,
       forcedDrawInitial: newForcedDrawInitial,
       aceColorRequired: newAceRequired,
+      requiredColorAfterJoker: newRequiredColorAfterJoker,
       overlay: newOverlay,
       status: newStatus,
       round: round,
     );
+  }
+
+  static bool _matchesRequiredJokerColor(String requiredColor, DuelCard card) {
+    if (requiredColor == 'red') {
+      return card.isRed;
+    }
+    return !card.isRed;
   }
 
   String _nextPlayer(String actorId, {bool skip = false}) {
