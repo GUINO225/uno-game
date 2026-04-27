@@ -23,12 +23,16 @@ class PlayerSidePanel extends StatefulWidget {
 }
 
 class _PlayerSidePanelState extends State<PlayerSidePanel> {
+  static const Duration _profilePromptCooldown = Duration(days: 7);
+
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
   Future<(PlayerProfile?, int?)>? _panelDataFuture;
   String? _panelDataUid;
   String? _promptedUid;
+  String? _lastAuthUid;
+  String? _justConnectedUid;
 
   Future<(PlayerProfile?, int?)> _loadPanelData() async {
     final User? user = _authService.currentUser;
@@ -86,10 +90,13 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   }
 
   void _maybeSuggestProfileCustomization(PlayerProfile profile) {
-    if (profile.hasCustomProfile) {
+    final User? user = _authService.currentUser;
+    if (user == null) {
       return;
     }
-    if (_promptedUid == profile.uid) {
+
+    final bool shouldPrompt = _shouldPromptProfileCustomization(profile: profile, user: user);
+    if (!shouldPrompt || _promptedUid == profile.uid) {
       return;
     }
     _promptedUid = profile.uid;
@@ -98,20 +105,44 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
         return;
       }
       final bool shouldEdit = await showDialog<bool>(
+            barrierDismissible: true,
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: const Text('Personnalise ton profil'),
-                content: const Text(
-                  'Choisis un pseudo et un avatar de carte pour rester discret dans le classement.',
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                backgroundColor: const Color(0xFFF7F4EC),
+                title: Text(
+                  'Personnalisez votre profil',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: PremiumColors.textDark,
+                  ),
+                ),
+                content: Text(
+                  'Vous pouvez changer votre pseudonyme et choisir un avatar de carte pour garder votre anonymat dans le classement.',
+                  style: GoogleFonts.poppins(
+                    color: PremiumColors.textDark.withOpacity(0.85),
+                    height: 1.35,
+                  ),
                 ),
                 actions: <Widget>[
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(false),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF0B6D3A),
+                    ),
                     child: const Text('Plus tard'),
                   ),
                   ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0B6D3A),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     child: const Text('Modifier maintenant'),
                   ),
                 ],
@@ -119,11 +150,70 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
             },
           ) ??
           false;
-      if (!mounted || !shouldEdit) {
+      if (!mounted) {
+        return;
+      }
+      if (!shouldEdit) {
+        await _profileService.dismissProfileCustomizationPrompt(uid: profile.uid);
+        _refreshPanelData();
         return;
       }
       await _openProfileEditor(profile);
     });
+  }
+
+  bool _shouldPromptProfileCustomization({
+    required PlayerProfile profile,
+    required User user,
+  }) {
+    if (profile.hasCustomProfile) {
+      return false;
+    }
+    final DateTime? dismissedAt = profile.profilePromptDismissedAt;
+    if (dismissedAt != null &&
+        DateTime.now().toUtc().difference(dismissedAt.toUtc()) < _profilePromptCooldown) {
+      return false;
+    }
+
+    final bool recentlyConnected = _justConnectedUid == profile.uid;
+    final bool looksNewProfile = _isLikelyNewProfile(profile);
+    final bool hasDefaultIdentity = _looksLikeDefaultIdentity(profile, user);
+    return recentlyConnected || looksNewProfile || hasDefaultIdentity;
+  }
+
+  bool _isLikelyNewProfile(PlayerProfile profile) {
+    final DateTime? createdAt = profile.createdAt;
+    final DateTime? lastLoginAt = profile.lastLoginAt;
+    if (createdAt == null || lastLoginAt == null) {
+      return false;
+    }
+    return lastLoginAt.toUtc().difference(createdAt.toUtc()).abs() < const Duration(minutes: 2);
+  }
+
+  bool _looksLikeDefaultIdentity(PlayerProfile profile, User user) {
+    final String currentPublicName = _profileService.sanitizeDisplayName(
+      profile.publicDisplayName,
+      maxLength: 18,
+    );
+    if (currentPublicName.isEmpty) {
+      return true;
+    }
+    final String googleName = _profileService.sanitizeDisplayName(
+      user.displayName ?? '',
+      maxLength: 18,
+    );
+    if (googleName.isNotEmpty && currentPublicName.toLowerCase() == googleName.toLowerCase()) {
+      return true;
+    }
+    final String emailLocalPart = _profileService.sanitizeDisplayName(
+      (user.email ?? '').split('@').first,
+      maxLength: 18,
+    );
+    if (emailLocalPart.isNotEmpty &&
+        currentPublicName.toLowerCase() == emailLocalPart.toLowerCase()) {
+      return true;
+    }
+    return false;
   }
 
   Future<void> _openProfileEditor(PlayerProfile profile) async {
@@ -164,6 +254,10 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
           stream: _authService.authStateChanges,
           builder: (BuildContext context, AsyncSnapshot<User?> snapshot) {
             final String? authUid = snapshot.data?.uid;
+            if (_lastAuthUid != authUid) {
+              _justConnectedUid = _lastAuthUid == null ? authUid : null;
+              _lastAuthUid = authUid;
+            }
             if (_panelDataUid != authUid) {
               _panelDataUid = authUid;
               _panelDataFuture = _loadPanelData();

@@ -115,6 +115,7 @@ class UserProfileService {
       'cardAvatarRank': data['cardAvatarRank'] ?? defaultCardAvatar.rank,
       'cardAvatarSuit': data['cardAvatarSuit'] ?? defaultCardAvatar.suit,
       'hasCustomProfile': data['hasCustomProfile'] ?? false,
+      'profilePromptDismissedAt': data['profilePromptDismissedAt'],
       'createdAt': data['createdAt'] ?? Timestamp.fromDate(now),
       'lastLoginAt': data['lastLoginAt'] ?? Timestamp.fromDate(now),
     });
@@ -161,6 +162,19 @@ class UserProfileService {
         'uid': uid,
         'displayName': cleanedName,
         'lastLoginAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> dismissProfileCustomizationPrompt({
+    required String uid,
+  }) async {
+    await _profiles.doc(uid).set(
+      <String, dynamic>{
+        'uid': uid,
+        'profilePromptDismissedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),
     );
