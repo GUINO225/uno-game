@@ -1770,9 +1770,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   bool _botMustAnswerAce = false;
   Suit? _activeSuitConstraint;
 
-  bool _isEightDemandOverlayVisible = false;
-  Suit? _eightDemandOverlaySuit;
-  String _eightDemandOverlayMessage = '';
   bool _humanDidVoluntaryDrawThisTurn = false;
 
   int _humanScore = 0;
@@ -1786,7 +1783,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   DateTime? _lastFunnyMessageAt;
   bool _isImportantPopupOpen = false;
   int _roundNumber = 0;
-  String _humanDisplayName = 'Tu';
+  String _humanDisplayName = 'Vous';
   int _humanWins = 0;
   int _humanLosses = 0;
   GameCardAvatarData _humanAvatar = GameCardAvatarPalette.fromSeed('solo-human');
@@ -1852,9 +1849,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _humanMustAnswerAce = false;
       _botMustAnswerAce = false;
       _activeSuitConstraint = null;
-      _isEightDemandOverlayVisible = false;
-      _eightDemandOverlaySuit = null;
-      _eightDemandOverlayMessage = '';
       _humanDidVoluntaryDrawThisTurn = false;
       _humanHand.addAll(humanInitialCards);
       _botHand.addAll(botInitialCards);
@@ -1899,9 +1893,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return player == PlayerTurn.human ? PlayerTurn.bot : PlayerTurn.human;
   }
 
-  String _turnLabel(PlayerTurn turn) => turn == PlayerTurn.human ? 'Tu' : _botName;
+  String _turnLabel(PlayerTurn turn) => turn == PlayerTurn.human ? 'Vous' : _botName;
 
-  String _turnStartText(PlayerTurn turn) => turn == PlayerTurn.human ? 'À ton tour' : 'Tour de l’ordi';
+  String _turnStartText(PlayerTurn turn) => turn == PlayerTurn.human ? 'À votre tour' : 'Tour de l’ordi';
 
   List<PlayingCard> _dealCards(List<PlayingCard> deck, int count) {
     final List<PlayingCard> dealt = <PlayingCard>[];
@@ -2001,13 +1995,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     if (_humanMustAnswerAce) {
       return _isValidAceResponse(card)
           ? (canPlay: true, rejectionMessage: null)
-          : (canPlay: false, rejectionMessage: 'Tu dois répondre à l’As.');
+          : (canPlay: false, rejectionMessage: 'Vous devez répondre à l’As.');
     }
 
     if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.human) {
       return (
         canPlay: false,
-        rejectionMessage: 'Tu dois d’abord piocher.',
+        rejectionMessage: 'Vous devez d’abord piocher.',
       );
     }
 
@@ -2015,7 +2009,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         (card.isJoker || card.suit != _activeSuitConstraint)) {
       return (
         canPlay: false,
-        rejectionMessage: 'Tu dois respecter la couleur.',
+        rejectionMessage: 'Vous devez respecter la couleur.',
       );
     }
 
@@ -2023,8 +2017,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _topDiscard.isJoker &&
         !_sameColor(card, _topDiscard)) {
       final String colorMessage = _topDiscard.isRed
-          ? 'Tu dois jouer une carte rouge.'
-          : 'Tu dois jouer une carte noire.';
+          ? 'Vous devez jouer une carte rouge.'
+          : 'Vous devez jouer une carte noire.';
       return (
         canPlay: false,
         rejectionMessage: colorMessage,
@@ -2071,8 +2065,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return '';
     }
     return _forcedDrawCount > 1
-        ? 'Tu pioches • encore $_forcedDrawCount cartes'
-        : 'Tu pioches • encore 1 carte';
+        ? 'Vous piochez • encore $_forcedDrawCount cartes'
+        : 'Vous piochez • encore 1 carte';
   }
 
   Future<void> _onHumanTapCard(PlayingCard card) async {
@@ -2134,7 +2128,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     await _playCard(
       hand: _humanHand,
       card: card,
-      playerName: 'Tu',
+      playerName: 'Vous',
     );
 
     final _PlayResolution result = await _applyCardEffects(
@@ -2153,7 +2147,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (result.extraTurn) {
       setState(() {
-        _status = 'Tu rejoues';
+        _status = 'Vous rejouez';
       });
       return;
     }
@@ -2187,7 +2181,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       setState(() {
         _humanHand.add(card);
         _forcedDrawCount--;
-        _status = _forcedDrawCount > 0 ? 'Tu pioches' : 'Pioche terminée';
+        _status = _forcedDrawCount > 0 ? 'Vous piochez' : 'Pioche terminée';
       });
       unawaited(_sfx.playDraw());
 
@@ -2201,7 +2195,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _humanMustAnswerAce = false;
         _humanDidVoluntaryDrawThisTurn = false;
         _status = drawn > 0
-            ? 'Tu pioches.'
+            ? 'Vous piochez.'
             : 'Pioche vide';
       });
       if (drawn > 0) {
@@ -2213,7 +2207,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (_humanDidVoluntaryDrawThisTurn) {
       setState(() {
-        _status = 'Tu passes.';
+        _status = 'Vous passez.';
       });
       _endHumanTurn();
       return;
@@ -2231,7 +2225,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     setState(() {
       _humanHand.add(drawnCard);
       _humanDidVoluntaryDrawThisTurn = true;
-      _status = 'Tu pioches';
+      _status = 'Vous piochez';
     });
     unawaited(_sfx.playDraw());
   }
@@ -2286,8 +2280,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       if (card.rank != 8) {
         _activeSuitConstraint = null;
       }
-      _status = playerName == 'Tu'
-          ? 'Tu joues ${card.label}'
+      _status = playerName == 'Vous'
+          ? 'Vous jouez ${card.label}'
           : 'Ordi joue ${card.label}';
       hand.remove(card);
       _discardPile.add(card);
@@ -2303,7 +2297,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       if (wasAceResponse) {
         setState(() {
           _status = currentTurn == PlayerTurn.human
-              ? 'Tu réponds à l’As'
+              ? 'Vous répondez à l’As'
               : 'L’ordi répond à l’As';
         });
         return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
@@ -2321,7 +2315,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
       setState(() {
         _humanMustAnswerAce = true;
-        _status = 'Tu dois répondre à l’As';
+        _status = 'Vous devez répondre à l’As';
       });
 
       return const _PlayResolution(
@@ -2350,7 +2344,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           count: 2,
           announcement: '$_botName joue un 2.',
         );
-        _showFunnyGameMessage(playerName: 'Tu', message: 'Petit cadeau du quartier.');
+        _showFunnyGameMessage(playerName: 'Vous', message: 'Petit cadeau du quartier.');
       }
 
       return const _PlayResolution(
@@ -2379,7 +2373,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           count: 9,
           announcement: '$_botName joue un joker.',
         );
-        _showFunnyGameMessage(playerName: 'Tu', message: 'Le joker a parlé.');
+        _showFunnyGameMessage(playerName: 'Vous', message: 'Le joker a parlé.');
       }
 
       return const _PlayResolution(
@@ -2398,7 +2392,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
 
       final String demander = currentTurn == PlayerTurn.human
-          ? 'Tu demandes ${_suitName(askedSuit)}'
+          ? 'Vous demandez ${_suitName(askedSuit)}'
           : 'Ordi demande ${_suitName(askedSuit)}';
 
       setState(() {
@@ -2406,7 +2400,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _status = demander;
       });
       _showFunnyGameMessage(
-        playerName: currentTurn == PlayerTurn.human ? _botName : 'Tu',
+        playerName: currentTurn == PlayerTurn.human ? _botName : 'Vous',
         message: 'Commande lancée.',
       );
 
@@ -2418,7 +2412,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     if (card.rank == 10 || card.rank == 11) {
       setState(() {
-        _status = currentTurn == PlayerTurn.human ? 'Tu rejoues' : 'Tour de l’ordi';
+        _status = currentTurn == PlayerTurn.human ? 'Vous rejouez' : 'Tour de l’ordi';
       });
 
       return const _PlayResolution(
@@ -2441,7 +2435,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     final PlayerTurn source = _forcedDrawSource!;
 
     setState(() {
-      _status = source == PlayerTurn.human ? 'À ton tour' : 'Tour de l’ordi';
+      _status = source == PlayerTurn.human ? 'À votre tour' : 'Tour de l’ordi';
       _forcedDrawTarget = null;
       _forcedDrawSource = null;
       _turn = source;
@@ -2517,36 +2511,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     );
   }
 
-  Future<void> _showEightDemandOverlay({
-    required Suit suit,
-    required String message,
-  }) async {
-    setState(() {
-      _eightDemandOverlaySuit = suit;
-      _eightDemandOverlayMessage = message;
-      _isEightDemandOverlayVisible = true;
-    });
-
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isEightDemandOverlayVisible = false;
-    });
-
-    await Future<void>.delayed(const Duration(milliseconds: 220));
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _eightDemandOverlaySuit = null;
-      _eightDemandOverlayMessage = '';
-    });
-  }
-
   Future<Suit> _showSuitChooserDialog() async {
     final String? selected = await showDialog<String>(
       context: context,
@@ -2567,11 +2531,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       '♦' => Suit.diamonds,
       _ => Suit.spades,
     };
-
-    await _showEightDemandOverlay(
-      suit: chosenSuit,
-      message: 'Tu demandes ${_suitName(chosenSuit)}',
-    );
 
     return chosenSuit;
   }
@@ -2873,7 +2832,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         return Dialog(
           backgroundColor: Colors.transparent,
           child: GinoPopupFrame(
-            titleTag: humanWon ? 'Tu as gagné' : 'Tu as perdu',
+            titleTag: humanWon ? 'Vous avez gagné' : 'Vous avez perdu',
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -2926,8 +2885,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _humanDidVoluntaryDrawThisTurn = false;
       _turn = PlayerTurn.human;
       if (!_gameOver) {
-        _status =
-        _isHumanForcedToDrawNow() ? _forcedDrawRemainingText() : 'À ton tour';
+        _status = _isHumanForcedToDrawNow() ? _forcedDrawRemainingText() : 'À votre tour';
       }
     });
   }
@@ -3051,35 +3009,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       ),
                       Expanded(
                         flex: compact ? 5 : 6,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            _playerHeader(
-                              isHuman: true,
-                              name: _humanDisplayName,
-                              count: _humanHand.length,
-                              wins: _humanWins,
-                              losses: _humanLosses,
-                              avatar: _humanAvatar,
-                              showCountBadge: false,
-                            ),
-                            const SizedBox(height: 8),
-                            Expanded(
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: <Widget>[
-                                  _playerHandArea(canInteract: canInteract),
-                                  Positioned(
-                                    top: -8,
-                                    right: -8,
-                                    child: _CountBadge(count: _humanHand.length),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: _playerPanel(canInteract: canInteract),
                       ),
                     ],
                   ),
@@ -3093,57 +3023,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               child: GlobalMusicToggleButton(),
             ),
           ),
-          if (_isEightDemandOverlayVisible && _eightDemandOverlaySuit != null)
-            Positioned.fill(
-              child: AnimatedOpacity(
-                opacity: _isEightDemandOverlayVisible ? 1 : 0,
-                duration: const Duration(milliseconds: 220),
-                child: Container(
-                  color: Colors.black.withOpacity(0.55),
-                  child: Center(
-                    child: TweenAnimationBuilder<double>(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutBack,
-                      tween: Tween<double>(begin: 0.85, end: 1),
-                      builder:
-                          (BuildContext context, double value, Widget? child) {
-                        return Transform.scale(
-                          scale: value,
-                          child: child,
-                        );
-                      },
-                      child: Container(
-                        width: 240,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const <BoxShadow>[
-                            BoxShadow(color: Colors.black45, blurRadius: 18),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            const Text(
-                              'Nouvelle carte',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            _EightSuitCard(suit: _eightDemandOverlaySuit!),
-                            const SizedBox(height: 10),
-                            Text(_eightDemandOverlayMessage),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           if (_isHumanForcedToDrawNow())
             Positioned(
               top: topInset + 118,
@@ -3160,8 +3039,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                     ),
                     child: Text(
                       _forcedDrawCount > 1
-                          ? 'Tu pioches • encore $_forcedDrawCount cartes'
-                          : 'Tu pioches • encore 1 carte',
+                          ? 'Vous piochez • encore $_forcedDrawCount cartes'
+                          : 'Vous piochez • encore 1 carte',
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -3209,34 +3088,67 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     required GameCardAvatarData avatar,
     bool showCountBadge = true,
   }) {
+    return Row(
+      children: <Widget>[
+        GameCardAvatar(data: avatar, size: 34),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                name.isEmpty ? (isHuman ? 'Vous' : _botName) : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+              Text(
+                'V $wins   D $losses',
+                style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w600, fontSize: 10.5),
+              ),
+            ],
+          ),
+        ),
+        if (showCountBadge) _CountBadge(count: count),
+      ],
+    );
+  }
+
+  Widget _playerPanel({required bool canInteract}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white24),
       ),
-      child: Row(
+      child: Stack(
+        clipBehavior: Clip.none,
         children: <Widget>[
-          GameCardAvatar(data: avatar, size: 34),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  name.isEmpty ? (isHuman ? 'Tu' : _botName) : name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
-                ),
-                Text(
-                  'V $wins   D $losses',
-                  style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w600, fontSize: 10.5),
-                ),
-              ],
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _playerHeader(
+                isHuman: true,
+                name: _humanDisplayName,
+                count: _humanHand.length,
+                wins: _humanWins,
+                losses: _humanLosses,
+                avatar: _humanAvatar,
+                showCountBadge: false,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
+              ),
+              Expanded(child: _playerHandArea(canInteract: canInteract)),
+            ],
           ),
-          if (showCountBadge) _CountBadge(count: count),
+          Positioned(
+            top: -6,
+            right: -6,
+            child: _CountBadge(count: _humanHand.length),
+          ),
         ],
       ),
     );
@@ -3248,32 +3160,24 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         final double maxRowWidth =
             (_handCardWidth * _maxCardsPerRow) + (6 * (_maxCardsPerRow - 1));
         final double wrapWidth = min(maxRowWidth, constraints.maxWidth - 4);
-        return Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.26),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white24),
-          ),
-          child: SingleChildScrollView(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: SizedBox(
-                width: wrapWidth,
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: _humanHand.map((PlayingCard card) {
-                    final ({bool canPlay, String? rejectionMessage}) playability =
-                        _evaluateHumanCardPlayability(card);
-                    return CardView(
-                      card: card,
-                      enabled: canInteract && playability.canPlay,
-                      opacity: canInteract && !playability.canPlay ? 0.45 : 1,
-                      onTap: canInteract ? () => _onHumanTapCard(card) : null,
-                    );
-                  }).toList(),
-                ),
+        return SingleChildScrollView(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: wrapWidth,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _humanHand.map((PlayingCard card) {
+                  final ({bool canPlay, String? rejectionMessage}) playability =
+                      _evaluateHumanCardPlayability(card);
+                  return CardView(
+                    card: card,
+                    enabled: canInteract && playability.canPlay,
+                    opacity: canInteract && !playability.canPlay ? 0.45 : 1,
+                    onTap: canInteract ? () => _onHumanTapCard(card) : null,
+                  );
+                }).toList(),
               ),
             ),
           ),
@@ -3283,52 +3187,57 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Widget _botHandArea() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        _playerHeader(
-          isHuman: false,
-          name: _botName,
-          count: _botHand.length,
-          wins: 0,
-          losses: 0,
-          avatar: _botAvatar,
-          showCountBadge: false,
-        ),
-        const SizedBox(height: 8),
-        Container(
-          height: 66,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.25),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
+    return Container(
+      height: 114,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Column(
             children: <Widget>[
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                reverse: true,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List<Widget>.generate(
-                    _botHand.length,
-                    (int index) => Padding(
-                      padding: EdgeInsets.only(left: index == _botHand.length - 1 ? 0 : 4),
-                      child: const CardBackView(width: 28, height: 40),
+              _playerHeader(
+                isHuman: false,
+                name: _botName,
+                count: _botHand.length,
+                wins: 0,
+                losses: 0,
+                avatar: _botAvatar,
+                showCountBadge: false,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  reverse: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List<Widget>.generate(
+                      _botHand.length,
+                      (int index) => Padding(
+                        padding: EdgeInsets.only(left: index == _botHand.length - 1 ? 0 : 8),
+                        child: const CardBackView(width: 28, height: 40),
+                      ),
                     ),
                   ),
                 ),
               ),
-              Positioned(
-                top: -8,
-                right: -8,
-                child: _CountBadge(count: _botHand.length),
-              ),
             ],
           ),
-        ),
-      ],
+          Positioned(
+            top: -6,
+            right: -6,
+            child: _CountBadge(count: _botHand.length),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3430,7 +3339,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            _ScorePill(label: 'Tu', value: _humanScore),
+            _ScorePill(label: 'Vous', value: _humanScore),
             const SizedBox(width: 8),
             _ScorePill(label: _botName, value: _botScore),
           ],
@@ -3824,26 +3733,6 @@ class _DiscardPileView extends StatelessWidget {
             child: KeyedSubtree(
               key: ValueKey<String>('${topCard.label}-$cardCount'),
               child: CardView(card: topCard),
-            ),
-          ),
-          Positioned(
-            right: 0,
-            top: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.55),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Text(
-                '${cards.length}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 10,
-                ),
-              ),
             ),
           ),
         ],

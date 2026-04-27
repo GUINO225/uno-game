@@ -947,59 +947,59 @@ class GinoChooseSuitPopup extends StatelessWidget {
         ? suits.take(4).toList(growable: false)
         : const <String>['♥', '♠', '♣', '♦'];
     return GinoPopupFrame(
-      width: math.min(MediaQuery.of(context).size.width * 0.78, 320),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      width: math.min(MediaQuery.of(context).size.width * 0.74, 308),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       showTitleTag: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           _CenteredRichText(
-            fontSize: 17,
+            fontSize: 16,
             spans: <TextSpan>[
               TextSpan(
-                text: 'Choisis ',
+                text: 'Choisissez ',
                 style: GinoPopupStyle.baseText(
-                  fontSize: 17,
+                  fontSize: 16,
                   fontWeight: GinoPopupStyle.titleWeight,
                 ),
               ),
               TextSpan(
                 text: 'une couleur',
-                style: GinoPopupStyle.baseText(fontSize: 17, fontWeight: GinoPopupStyle.textWeight),
+                style: GinoPopupStyle.baseText(fontSize: 16, fontWeight: GinoPopupStyle.textWeight),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 64 / 92,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 52 / 74,
             children: <Widget>[
               GinoSuitCard(
                 suit: resolvedSuits[0],
-                width: 54,
-                height: 78,
+                width: 52,
+                height: 74,
                 onTap: () => onSuitSelected(resolvedSuits[0]),
               ),
               GinoSuitCard(
                 suit: resolvedSuits[1],
-                width: 54,
-                height: 78,
+                width: 52,
+                height: 74,
                 onTap: () => onSuitSelected(resolvedSuits[1]),
               ),
               GinoSuitCard(
                 suit: resolvedSuits[2],
-                width: 54,
-                height: 78,
+                width: 52,
+                height: 74,
                 onTap: () => onSuitSelected(resolvedSuits[2]),
               ),
               GinoSuitCard(
                 suit: resolvedSuits[3],
-                width: 54,
-                height: 78,
+                width: 52,
+                height: 74,
                 onTap: () => onSuitSelected(resolvedSuits[3]),
               ),
             ],
