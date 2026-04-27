@@ -1718,6 +1718,8 @@ class PlayingCard {
   String get label =>
       isJoker ? 'Joker ${isRed ? 'rouge' : 'noir'}' : '$rankLabel$suitSymbol';
 
+  String get displayLabel => label;
+
   Color get suitColor {
     if (isJoker) {
       return isRed ? Colors.red.shade700 : Colors.black87;
