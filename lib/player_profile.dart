@@ -17,6 +17,7 @@ class PlayerProfile {
     this.cardAvatarRank = '',
     this.cardAvatarSuit = '',
     this.hasCustomProfile = false,
+    this.profilePromptDismissedAt,
     this.createdAt,
     this.lastLoginAt,
   });
@@ -34,6 +35,7 @@ class PlayerProfile {
   final String cardAvatarRank;
   final String cardAvatarSuit;
   final bool hasCustomProfile;
+  final DateTime? profilePromptDismissedAt;
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
 
@@ -74,6 +76,9 @@ class PlayerProfile {
       'cardAvatarRank': cardAvatarRank,
       'cardAvatarSuit': cardAvatarSuit,
       'hasCustomProfile': hasCustomProfile,
+      'profilePromptDismissedAt': profilePromptDismissedAt == null
+          ? null
+          : Timestamp.fromDate(profilePromptDismissedAt!.toUtc()),
       'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
       'lastLoginAt': lastLoginAt == null ? null : Timestamp.fromDate(lastLoginAt!.toUtc()),
     };
@@ -104,6 +109,7 @@ class PlayerProfile {
       cardAvatarSuit:
           GameCardAvatarPalette.suits.contains(suit) ? suit : fallback.suit,
       hasCustomProfile: map['hasCustomProfile'] as bool? ?? false,
+      profilePromptDismissedAt: (map['profilePromptDismissedAt'] as Timestamp?)?.toDate(),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       lastLoginAt: (map['lastLoginAt'] as Timestamp?)?.toDate(),
     );
