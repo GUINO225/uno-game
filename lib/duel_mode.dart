@@ -4505,6 +4505,9 @@ class _DuelPageState extends State<DuelPage> {
             !_requiresStake(session);
         final ({String status, String overlay}) texts = _personalizedTexts(session, board);
         final double topInset = MediaQuery.paddingOf(context).top;
+        final Size screenSize = MediaQuery.sizeOf(context);
+        final bool isCompactDuelLayout = screenSize.height <= 860 || screenSize.width <= 393;
+        final double sectionGap = isCompactDuelLayout ? 5 : 8;
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (bool didPop, Object? _) {
@@ -4519,7 +4522,7 @@ class _DuelPageState extends State<DuelPage> {
               children: <Widget>[
               TableBackground(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(12, topInset + 2, 12, 10),
+                  padding: EdgeInsets.fromLTRB(12, topInset + 1, 12, isCompactDuelLayout ? 6 : 10),
                   child: Column(
                     children: <Widget>[
                       Row(
@@ -4610,12 +4613,13 @@ class _DuelPageState extends State<DuelPage> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 2),
+                      SizedBox(height: isCompactDuelLayout ? 1 : 2),
                       _DuelStatusBanner(
                         opponentName: opponentName,
                         myScore: myScore,
                         opponentScore: opponentScore,
                         round: session.round,
+                        compact: isCompactDuelLayout,
                       ),
                       if (_isCreditsMode) ...<Widget>[
                         const SizedBox(height: 6),
@@ -4638,7 +4642,7 @@ class _DuelPageState extends State<DuelPage> {
                               : null,
                         ),
                       ],
-                      const SizedBox(height: 8),
+                      SizedBox(height: sectionGap),
                       _OpponentRow(
                         name: opponentName,
                         count: getOpponentCardCount(session, _controller.localPlayerId),
@@ -4646,8 +4650,9 @@ class _DuelPageState extends State<DuelPage> {
                         losses: myScore,
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
                         avatarCard: opponentAvatarCard,
+                        compact: isCompactDuelLayout,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: sectionGap),
                       _CenterArea(
                         discard: board.discardTop,
                         drawCount: board.drawPile.length,
@@ -4656,8 +4661,9 @@ class _DuelPageState extends State<DuelPage> {
                         overlay: texts.overlay,
                         requiredSuit: board.requiredSuit,
                         mustDraw: myTurn && board.pendingDraw > 0,
+                        compact: isCompactDuelLayout,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: sectionGap),
                       _MyHandRow(
                         cards: board.handOf(_controller.localPlayerId),
                         canInteract: myTurn,
@@ -4670,8 +4676,10 @@ class _DuelPageState extends State<DuelPage> {
                         credits: null,
                         fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
                         avatarCard: localAvatarCard,
+                        cardScale: isCompactDuelLayout ? 1.08 : 1,
+                        minCardsViewportHeight: isCompactDuelLayout ? 210 : 190,
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: isCompactDuelLayout ? 4 : 6),
                       _ActionMessageCard(
                         session: session,
                         localPlayerId: _controller.localPlayerId,
@@ -5895,25 +5903,27 @@ class _DuelStatusBanner extends StatelessWidget {
     required this.myScore,
     required this.opponentScore,
     required this.round,
+    this.compact = false,
   });
 
   final String opponentName;
   final int myScore;
   final int opponentScore;
   final int round;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: compact ? 3 : 6),
       child: Column(
         children: <Widget>[
           Align(
             alignment: Alignment.topCenter,
             child: Container(
               constraints: const BoxConstraints(maxWidth: 300),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: compact ? 7 : 10),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.38),
                 borderRadius: BorderRadius.circular(16),
@@ -5927,12 +5937,12 @@ class _DuelStatusBanner extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 text: TextSpan(
                   children: <InlineSpan>[
-                    const TextSpan(
+                    TextSpan(
                       text: 'Vous  ',
                       style: TextStyle(
                         color: Colors.white70,
                         fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                        fontSize: compact ? 12 : 13,
                         letterSpacing: 0.6,
                       ),
                     ),
@@ -5941,7 +5951,7 @@ class _DuelStatusBanner extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
-                        fontSize: 19,
+                        fontSize: 18,
                       ),
                     ),
                     const TextSpan(
@@ -5949,15 +5959,15 @@ class _DuelStatusBanner extends StatelessWidget {
                       style: TextStyle(
                         color: Colors.white54,
                         fontWeight: FontWeight.w700,
-                        fontSize: 15,
+                        fontSize: 14,
                       ),
                     ),
                     TextSpan(
                       text: '$opponentName  ',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white70,
                         fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                        fontSize: compact ? 12 : 13,
                         letterSpacing: 0.6,
                       ),
                     ),
@@ -5966,7 +5976,7 @@ class _DuelStatusBanner extends StatelessWidget {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
-                        fontSize: 19,
+                        fontSize: 18,
                       ),
                     ),
                   ],
@@ -5975,13 +5985,13 @@ class _DuelStatusBanner extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(top: 6),
+            padding: EdgeInsets.only(top: compact ? 4 : 6),
             child: Text(
               'Manche $round',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white70,
-                fontSize: 12,
+                fontSize: compact ? 11 : 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
               ),
@@ -6121,6 +6131,7 @@ class _OpponentRow extends StatefulWidget {
     required this.losses,
     required this.fallbackInitial,
     required this.avatarCard,
+    this.compact = false,
   });
 
   final String name;
@@ -6129,6 +6140,7 @@ class _OpponentRow extends StatefulWidget {
   final int losses;
   final String fallbackInitial;
   final DuelCard avatarCard;
+  final bool compact;
 
   @override
   State<_OpponentRow> createState() => _OpponentRowState();
@@ -6150,7 +6162,7 @@ class _OpponentRowState extends State<_OpponentRow> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(widget.compact ? 8 : 10),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.25),
         borderRadius: BorderRadius.circular(12),
@@ -6171,11 +6183,11 @@ class _OpponentRowState extends State<_OpponentRow> {
                 avatarCard: widget.avatarCard,
               ),
               Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                padding: EdgeInsets.only(top: widget.compact ? 6 : 8, bottom: widget.compact ? 6 : 8),
                 child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
               ),
               SizedBox(
-                height: 42,
+                height: widget.compact ? 36 : 42,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   reverse: true,
@@ -6192,7 +6204,10 @@ class _OpponentRowState extends State<_OpponentRow> {
                             key: ValueKey<String>('duel-opponent-$index'),
                             animate: isNewCard,
                             delay: Duration(milliseconds: isNewCard ? staggerStep * 34 : 0),
-                            child: const _DuelCardBack(width: 28, height: 40),
+                            child: _DuelCardBack(
+                              width: widget.compact ? 24 : 28,
+                              height: widget.compact ? 34 : 40,
+                            ),
                           ),
                         );
                       },
@@ -6358,6 +6373,7 @@ class _CenterArea extends StatelessWidget {
     required this.overlay,
     required this.requiredSuit,
     required this.mustDraw,
+    this.compact = false,
   });
 
   final DuelCard discard;
@@ -6367,6 +6383,7 @@ class _CenterArea extends StatelessWidget {
   final String overlay;
   final String? requiredSuit;
   final bool mustDraw;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -6390,13 +6407,19 @@ class _CenterArea extends StatelessWidget {
                           angle: -0.08,
                           child: Opacity(
                             opacity: 0.9,
-                            child: const _DuelCardBack(width: 64, height: 92),
+                            child: _DuelCardBack(
+                              width: compact ? 56 : 64,
+                              height: compact ? 82 : 92,
+                            ),
                           ),
                         ),
                       ),
                       Transform.rotate(
                         angle: 0.05,
-                        child: const _DuelCardBack(width: 64, height: 92),
+                        child: _DuelCardBack(
+                          width: compact ? 56 : 64,
+                          height: compact ? 82 : 92,
+                        ),
                       ),
                       Positioned(
                         top: -8,
@@ -6408,18 +6431,18 @@ class _CenterArea extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 20),
+            SizedBox(width: compact ? 14 : 20),
             Column(
               children: <Widget>[
-                _FaceCard(card: discard),
+                compact ? Transform.scale(scale: 0.92, child: _FaceCard(card: discard)) : _FaceCard(card: discard),
               ],
             ),
           ],
         ),
         if (overlay.isNotEmpty)
           Container(
-            margin: const EdgeInsets.only(top: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            margin: EdgeInsets.only(top: compact ? 7 : 10),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 10, vertical: compact ? 5 : 6),
             decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
             child: _SuitOverlayText(message: overlay),
           ),
@@ -6441,6 +6464,8 @@ class _MyHandRow extends StatefulWidget {
     this.credits,
     required this.fallbackInitial,
     required this.avatarCard,
+    this.cardScale = 1,
+    this.minCardsViewportHeight = 190,
   });
 
   final List<DuelCard> cards;
@@ -6453,6 +6478,8 @@ class _MyHandRow extends StatefulWidget {
   final int? credits;
   final String fallbackInitial;
   final DuelCard avatarCard;
+  final double cardScale;
+  final double minCardsViewportHeight;
   static const int _maxCardsPerRow = 5;
   static const double _cardGap = 6;
 
@@ -6528,47 +6555,65 @@ class _MyHandRowState extends State<_MyHandRow> {
                       int newCardOrder = 0;
 
                       final double maxRowWidth =
-                          (_FaceCard.width * _MyHandRow._maxCardsPerRow) +
+                          (_FaceCard.width * widget.cardScale * _MyHandRow._maxCardsPerRow) +
                           (_MyHandRow._cardGap * (_MyHandRow._maxCardsPerRow - 1));
                       final double wrapWidth = min(
                         constraints.maxWidth - 8,
                         maxRowWidth,
                       );
+                      final double cardWidth = _FaceCard.width * widget.cardScale;
+                      final double cardsMinHeight = max(
+                        widget.minCardsViewportHeight,
+                        _FaceCard.height * widget.cardScale + 8,
+                      );
 
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.vertical,
-                        padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: SizedBox(
-                            width: wrapWidth,
-                            child: Wrap(
-                              spacing: _MyHandRow._cardGap,
-                              runSpacing: _MyHandRow._cardGap,
-                              children: List<Widget>.generate(cards.length, (int index) {
-                                final DuelCard card = cards[index];
-                                final bool isPlayable = widget.playable(card);
-                                final bool isNew = _newCardIds.contains(card.id);
-                                final int staggerIndex = isNew ? newCardOrder++ : 0;
-                                return SizedBox(
-                                  width: _FaceCard.width,
-                                  child: BouncyCardEntry(
-                                    key: ValueKey<String>('duel-my-${card.id}-$index'),
-                                    animate: isNew,
-                                    delay: Duration(milliseconds: isNew ? staggerIndex * 34 : 0),
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: widget.canInteract && isPlayable
-                                          ? () => widget.onCardTap(card)
-                                          : null,
-                                      child: Opacity(
-                                        opacity: widget.canInteract && !isPlayable ? 0.45 : 1,
-                                        child: _FaceCard(card: card),
+                      return ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: cardsMinHeight),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.vertical,
+                          padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: SizedBox(
+                              width: wrapWidth,
+                              child: Wrap(
+                                spacing: _MyHandRow._cardGap,
+                                runSpacing: _MyHandRow._cardGap,
+                                children: List<Widget>.generate(cards.length, (int index) {
+                                  final DuelCard card = cards[index];
+                                  final bool isPlayable = widget.playable(card);
+                                  final bool isNew = _newCardIds.contains(card.id);
+                                  final int staggerIndex = isNew ? newCardOrder++ : 0;
+                                  return SizedBox(
+                                    width: cardWidth,
+                                    child: BouncyCardEntry(
+                                      key: ValueKey<String>('duel-my-${card.id}-$index'),
+                                      animate: isNew,
+                                      delay: Duration(milliseconds: isNew ? staggerIndex * 34 : 0),
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: widget.canInteract && isPlayable
+                                            ? () => widget.onCardTap(card)
+                                            : null,
+                                        child: Opacity(
+                                          opacity: widget.canInteract && !isPlayable ? 0.45 : 1,
+                                          child: widget.cardScale == 1
+                                              ? _FaceCard(card: card)
+                                              : SizedBox(
+                                                  width: cardWidth,
+                                                  height: _FaceCard.height * widget.cardScale,
+                                                  child: FittedBox(
+                                                    fit: BoxFit.contain,
+                                                    alignment: Alignment.topCenter,
+                                                    child: _FaceCard(card: card),
+                                                  ),
+                                                ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              }),
+                                  );
+                                }),
+                              ),
                             ),
                           ),
                         ),
