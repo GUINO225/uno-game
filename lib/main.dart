@@ -1871,7 +1871,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     );
 
     if (_turn == PlayerTurn.bot && !_gameOver) {
-      _ensureBotTurnProgress();
+      unawaited(_ensureBotTurnProgress());
     }
   }
 
@@ -2106,7 +2106,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       // Important: _endHumanTurn() can be called while _isResolvingTurn is true,
       // which prevents _scheduleBotTurn() from starting.
       // Re-check bot progression once the resolving lock is released.
-      _ensureBotTurnProgress();
+      unawaited(_ensureBotTurnProgress());
     }
   }
 
@@ -2447,7 +2447,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     });
 
     if (_turn == PlayerTurn.bot && !_gameOver) {
-      _ensureBotTurnProgress();
+      unawaited(_ensureBotTurnProgress());
     }
   }
 
@@ -2577,11 +2577,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _status = 'Tour de l’ordi';
     });
 
-    _ensureBotTurnProgress();
+    unawaited(_ensureBotTurnProgress());
   }
 
 
-  void _scheduleBotTurn() {
+  Future<void> _scheduleBotTurn() async {
     if (_isBotTurnRunning ||
         _gameOver ||
         _turn != PlayerTurn.bot ||
@@ -2590,10 +2590,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return;
     }
 
-    unawaited(_runBotTurn());
+    await _runBotTurn();
   }
 
-  void _ensureBotTurnProgress() {
+  Future<void> _ensureBotTurnProgress() async {
     if (!mounted || _gameOver) {
       return;
     }
@@ -2606,7 +2606,45 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return;
     }
 
-    _scheduleBotTurn();
+    final int before = _botTurnStateFingerprint();
+    await _scheduleBotTurn();
+
+    if (!mounted || _gameOver || _turn != PlayerTurn.bot || _isBotTurnRunning) {
+      return;
+    }
+
+    final int after = _botTurnStateFingerprint();
+    if (before == after) {
+      debugPrint('[SoloBot] warning: no state progress detected');
+      final List<PlayingCard> fallbackDraw = _drawCards(_botHand, 1);
+      if (fallbackDraw.isNotEmpty) {
+        unawaited(_sfx.playDraw());
+        setState(() {
+          _status = 'Ordi pioche (sécurité)';
+        });
+      }
+      _switchToHuman();
+    }
+  }
+
+  int _botTurnStateFingerprint() {
+    final PlayingCard? topCard = _discardPile.isEmpty ? null : _topDiscard;
+    return Object.hashAll(<Object?>[
+      _turn,
+      _status,
+      _botHand.length,
+      _humanHand.length,
+      _drawPile.length,
+      _discardPile.length,
+      topCard?.displayLabel,
+      topCard?.suit?.name,
+      topCard?.jokerKind?.name,
+      _forcedDrawCount,
+      _forcedDrawTarget,
+      _forcedDrawSource,
+      _botMustAnswerAce,
+      _activeSuitConstraint,
+    ]);
   }
 
   Future<void> _runBotTurn({bool chained = false}) async {
@@ -2624,18 +2662,24 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         return;
       }
 
+      debugPrint('[SoloBot] turn start');
+      debugPrint('[SoloBot] pending draw count=$_forcedDrawCount');
+
       if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.bot) {
         await _runForcedDrawForBot();
+        debugPrint('[SoloBot] action completed');
         return;
       }
 
       if (_botMustAnswerAce) {
         final List<PlayingCard> aceResponses =
             _botHand.where(_isValidAceResponse).toList();
+        debugPrint('[SoloBot] playable cards=${aceResponses.length}');
 
-        final bool chooseToDraw = aceResponses.isEmpty || _random.nextBool();
+        final bool chooseToDraw = aceResponses.isEmpty;
 
         if (chooseToDraw) {
+          debugPrint('[SoloBot] no playable card, drawing');
           final int drawn = _drawCards(_botHand, 1).length;
           if (drawn > 0) {
             unawaited(_sfx.playDraw());
@@ -2647,10 +2691,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 : 'Pioche vide';
           });
           _switchToHuman();
+          debugPrint('[SoloBot] action completed');
           return;
         }
 
         final PlayingCard botAce = aceResponses.first;
+        debugPrint('[SoloBot] plays card=$botAce');
         unawaited(_sfx.playCard());
         await _playCard(
           hand: _botHand,
@@ -2684,16 +2730,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         }
 
         if (outcome.skipTurnSwitch) {
+          debugPrint('[SoloBot] action completed');
           return;
         }
 
         _switchToHuman();
+        debugPrint('[SoloBot] action completed');
         return;
       }
 
       final List<PlayingCard> playable = _botHand.where((PlayingCard card) {
         return _isCardPlayableForHand(card, _botHand);
       }).toList();
+      debugPrint('[SoloBot] playable cards=${playable.length}');
 
       PlayingCard? chosen;
 
@@ -2704,12 +2753,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
 
       if (chosen == null) {
+        debugPrint('[SoloBot] no playable card, drawing');
         final List<PlayingCard> drawn = _drawCards(_botHand, 1);
         if (drawn.isEmpty) {
           setState(() {
             _status = 'Pioche vide';
           });
           _switchToHuman();
+          debugPrint('[SoloBot] action completed');
           return;
         }
 
@@ -2723,10 +2774,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           chosen = drawnCard;
         } else {
           _switchToHuman();
+          debugPrint('[SoloBot] action completed');
           return;
         }
       }
 
+      debugPrint('[SoloBot] plays card=$chosen');
       unawaited(_sfx.playCard());
       await _playCard(
         hand: _botHand,
@@ -2754,14 +2807,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
 
       if (outcome.skipTurnSwitch) {
+        debugPrint('[SoloBot] action completed');
         return;
       }
 
       _switchToHuman();
+      debugPrint('[SoloBot] action completed');
     } finally {
       if (!chained) {
         _isBotTurnRunning = false;
-        _ensureBotTurnProgress();
+        unawaited(_ensureBotTurnProgress());
       }
     }
   }

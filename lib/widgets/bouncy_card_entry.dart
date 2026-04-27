@@ -8,10 +8,10 @@ class BouncyCardEntry extends StatefulWidget {
     required this.child,
     this.animate = false,
     this.delay = Duration.zero,
-    this.duration = const Duration(milliseconds: 260),
+    this.duration = const Duration(milliseconds: 300),
     this.curve = Curves.easeOutBack,
-    this.startScale = 0.85,
-    this.peakScale = 1.05,
+    this.startScale = 0,
+    this.peakScale = 1.08,
   });
 
   final Widget child;
@@ -30,12 +30,17 @@ class _BouncyCardEntryState extends State<BouncyCardEntry>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late Animation<double> _scale;
+  late Animation<double> _opacity;
   Timer? _startTimer;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration, value: 1);
+    _controller = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+      value: widget.animate ? 0 : 1,
+    );
     _configureAnimation();
     if (widget.animate) {
       _playBounce();
@@ -70,6 +75,10 @@ class _BouncyCardEntryState extends State<BouncyCardEntry>
         weight: 40,
       ),
     ]).animate(_controller);
+    _opacity = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, 0.65, curve: Curves.easeOut),
+    );
   }
 
   void _playBounce() {
@@ -96,6 +105,9 @@ class _BouncyCardEntryState extends State<BouncyCardEntry>
 
   @override
   Widget build(BuildContext context) {
-    return ScaleTransition(scale: _scale, child: widget.child);
+    return FadeTransition(
+      opacity: _opacity,
+      child: ScaleTransition(scale: _scale, child: widget.child),
+    );
   }
 }
