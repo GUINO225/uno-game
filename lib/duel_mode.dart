@@ -22,6 +22,8 @@ import 'user_profile_service.dart';
 import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
+import 'web_page_lifecycle_stub.dart'
+    if (dart.library.html) 'web_page_lifecycle_web.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
@@ -242,6 +244,31 @@ class DuelChatMessage {
   }
 }
 
+class DuelPlayerPresence {
+  const DuelPlayerPresence({
+    this.state = 'offline',
+    this.lastSeenAt,
+    this.leftAt,
+  });
+
+  final String state;
+  final DateTime? lastSeenAt;
+  final DateTime? leftAt;
+
+  bool get isOffline => state == 'offline';
+
+  factory DuelPlayerPresence.fromMap(Map<String, dynamic>? map) {
+    if (map == null || map.isEmpty) {
+      return const DuelPlayerPresence();
+    }
+    return DuelPlayerPresence(
+      state: map['state'] as String? ?? 'offline',
+      lastSeenAt: (map['lastSeenAt'] as Timestamp?)?.toDate(),
+      leftAt: (map['leftAt'] as Timestamp?)?.toDate(),
+    );
+  }
+}
+
 class DuelSession {
   const DuelSession({
     required this.gameId,
@@ -290,6 +317,7 @@ class DuelSession {
     this.requiredSuit,
     this.requiredColorAfterJoker,
     this.aceColorRequired = false,
+    this.presence = const <String, DuelPlayerPresence>{},
   });
 
   final String gameId;
@@ -338,6 +366,7 @@ class DuelSession {
   final String? requiredSuit;
   final String? requiredColorAfterJoker;
   final bool aceColorRequired;
+  final Map<String, DuelPlayerPresence> presence;
 
   bool get canStart => players.length == 2;
   bool get isCreditsMode => mode == DuelRoomMode.credits;
@@ -420,6 +449,20 @@ class DuelSession {
       'requiredSuit': requiredSuit,
       'requiredColorAfterJoker': requiredColorAfterJoker,
       'aceColorRequired': aceColorRequired,
+      'presence': presence.map(
+        (String playerId, DuelPlayerPresence value) => MapEntry(
+          playerId,
+          <String, dynamic>{
+            'state': value.state,
+            'lastSeenAt': value.lastSeenAt == null
+                ? null
+                : Timestamp.fromDate(value.lastSeenAt!.toUtc()),
+            'leftAt': value.leftAt == null
+                ? null
+                : Timestamp.fromDate(value.leftAt!.toUtc()),
+          },
+        ),
+      ),
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -507,6 +550,12 @@ class DuelSession {
       requiredSuit: json['requiredSuit'] as String?,
       requiredColorAfterJoker: json['requiredColorAfterJoker'] as String?,
       aceColorRequired: json['aceColorRequired'] as bool? ?? false,
+      presence: (json['presence'] as Map? ?? const <String, dynamic>{}).map(
+        (Object? key, Object? value) => MapEntry(
+          key.toString(),
+          DuelPlayerPresence.fromMap((value as Map?)?.cast<String, dynamic>()),
+        ),
+      ),
     );
   }
 }
@@ -515,7 +564,24 @@ class DuelSession {
 class GameService {
   GameService({FirebaseFirestore? firestore}) : _firestore = firestore;
 
+  static const Duration _forfeitPresenceTimeout = Duration(seconds: 25);
   final FirebaseFirestore? _firestore;
+
+  Map<String, dynamic> _presenceOnlinePatch(String playerId) {
+    return <String, dynamic>{
+      'presence.$playerId.state': 'online',
+      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.leftAt': null,
+    };
+  }
+
+  Map<String, dynamic> _presenceOfflinePatch(String playerId) {
+    return <String, dynamic>{
+      'presence.$playerId.state': 'offline',
+      'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+    };
+  }
 
   Future<void> _ensureSignedInForFirestore() async {
     if (FirebaseAuth.instance.currentUser != null) {
@@ -641,7 +707,11 @@ class GameService {
         betFlowState: mode == DuelRoomMode.credits
             ? DuelBetFlowState.initialStakeProposed
             : DuelBetFlowState.idle,
-      ).toMap(),
+        presence: <String, DuelPlayerPresence>{
+          playerId: const DuelPlayerPresence(state: 'online'),
+        },
+      ).toMap()
+        ..addAll(_presenceOnlinePatch(playerId)),
     );
     return code;
   }
@@ -715,7 +785,33 @@ class GameService {
             round: session.round,
           ),
         if (activatesNow && !session.deckInitialized) 'revision': session.revision + 1,
+        ..._presenceOnlinePatch(playerId),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
+    });
+  }
+
+  Future<void> updatePresenceHeartbeat({
+    required String gameId,
+    required String playerId,
+  }) async {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    debugPrint('[Presence] heartbeat game=$gameId player=$playerId');
+    await games.doc(gameId).update(<String, dynamic>{
+      ..._presenceOnlinePatch(playerId),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> markPlayerOffline({
+    required String gameId,
+    required String playerId,
+  }) async {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    debugPrint('[Presence] player offline game=$gameId player=$playerId');
+    await games.doc(gameId).update(<String, dynamic>{
+      ..._presenceOfflinePatch(playerId),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -932,45 +1028,75 @@ class GameService {
     required String gameId,
     required String currentUserId,
   }) async {
+    await markPlayerAbandoned(
+      gameId: gameId,
+      abandonedBy: currentUserId,
+      reportedBy: currentUserId,
+    );
+  }
+
+  Future<void> markPlayerAbandoned({
+    required String gameId,
+    required String abandonedBy,
+    required String reportedBy,
+  }) async {
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref = db.collection('duel_games').doc(gameId);
+    debugPrint('[Forfeit] requested abandonedBy=$abandonedBy reportedBy=$reportedBy');
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
         throw StateError('Partie introuvable');
       }
       final DuelSession session = DuelSession.fromDoc(snap);
-      if (!session.players.contains(currentUserId) ||
-          session.status != DuelGameStatus.inProgress) {
+      if (session.status == DuelGameStatus.finished) {
         return;
       }
+      if (!session.players.contains(abandonedBy) || !session.players.contains(reportedBy)) {
+        throw StateError('Joueur invalide pour cet abandon.');
+      }
       final String winnerId = session.players.firstWhere(
-        (String id) => id != currentUserId,
+        (String id) => id != abandonedBy,
         orElse: () => '',
       );
       if (winnerId.isEmpty) {
         return;
       }
+      if (reportedBy != abandonedBy && reportedBy != winnerId) {
+        throw StateError('Signalement non autorisé.');
+      }
+      if (reportedBy != abandonedBy) {
+        final DuelPlayerPresence abandonedPresence =
+            session.presence[abandonedBy] ?? const DuelPlayerPresence();
+        final DateTime now = DateTime.now().toUtc();
+        final DateTime? lastSeen = abandonedPresence.lastSeenAt?.toUtc();
+        final bool stale = lastSeen == null || now.difference(lastSeen) >= _forfeitPresenceTimeout;
+        final bool explicitlyOffline = abandonedPresence.isOffline;
+        if (!stale && !explicitlyOffline) {
+          debugPrint('[Forfeit] rejected: opponent still online');
+          throw StateError('L’adversaire est encore connecté.');
+        }
+      }
       final DuelAction action = DuelAction(
         type: DuelActionType.forfeit,
-        actorId: currentUserId,
+        actorId: abandonedBy,
         createdAt: DateTime.now(),
         payload: <String, dynamic>{
           'winnerId': winnerId,
-          'loserId': currentUserId,
+          'loserId': abandonedBy,
           'abandoned': true,
         },
       );
       final Map<String, dynamic> patch = <String, dynamic>{
         'status': DuelGameStatus.finished.name,
         'roundStatus': 'roundFinished',
-        'abandonedBy': currentUserId,
+        'abandonedBy': abandonedBy,
         'winnerId': winnerId,
-        'loserId': currentUserId,
-        'exitBothPlayers': true,
+        'loserId': abandonedBy,
+        'exitBothPlayers': false,
         'currentTurn': winnerId,
         'lastAction': action.toMap(),
-        'lastActionBy': currentUserId,
+        'lastActionBy': abandonedBy,
         'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
         'scores.$winnerId': FieldValue.increment(1),
         'rematchRequestBy': null,
@@ -978,6 +1104,10 @@ class GameService {
         'rematchDecision': DuelRematchDecision.pending.name,
         'rematchDecisionBy': null,
         'rematchStatus': 'none',
+        ..._presenceOfflinePatch(abandonedBy),
+        'betFlowState': session.isCreditsMode
+            ? DuelBetFlowState.matchFinished.name
+            : DuelBetFlowState.partyExited.name,
         'revision': session.revision + 1,
       };
       if (session.isCreditsMode) {
@@ -985,6 +1115,7 @@ class GameService {
         final int pot = session.activeStakeCredits;
         final int winnerCredits = session.playerCredits[winnerId] ?? 0;
         if (!session.payoutDone && offer.isAccepted && pot > 0) {
+          debugPrint('[Forfeit] payout amount=$pot winner=$winnerId');
           patch.addAll(<String, dynamic>{
             'playerCredits.$winnerId': winnerCredits + pot,
             'activeStakeCredits': 0,
@@ -1001,9 +1132,12 @@ class GameService {
             'payoutAmount': offer.amount,
             'payoutAt': FieldValue.serverTimestamp(),
           });
+        } else if (session.payoutDone) {
+          debugPrint('[Forfeit] skipped: payout already done');
         }
       }
       patch['updatedAt'] = FieldValue.serverTimestamp();
+      debugPrint('[Forfeit] accepted winner=$winnerId');
       tx.update(ref, patch);
       tx.set(ref.collection('actions').doc(), action.toMap());
     });
@@ -1055,6 +1189,7 @@ class GameService {
             : DuelBetFlowState.idle.name,
         'invitedRefusalCount': 0,
         'exitedBy': null,
+        'abandonedBy': null,
         'lastInsufficientFundsPlayerId': null,
         'payoutDone': false,
         'payoutWinnerId': null,
@@ -1667,7 +1802,11 @@ class DuelController extends ChangeNotifier {
 
   DuelSession? session;
   StreamSubscription<DuelSession>? _subscription;
+  Timer? _presenceHeartbeatTimer;
+  Timer? _presenceWatchdogTimer;
   bool _repairInFlight = false;
+  bool _forfeitReportInFlight = false;
+  String? _lastForfeitReportKey;
   bool busy = false;
   String? error;
 
@@ -1723,9 +1862,88 @@ class DuelController extends ChangeNotifier {
         return;
       }
       session = value;
+      _syncPresenceJobs(value);
       _maybeRepairSessionIntegrity(value);
       notifyListeners();
     });
+  }
+
+  bool _isActiveSession(DuelSession session) {
+    if (session.players.length < 2) {
+      return false;
+    }
+    if (session.status == DuelGameStatus.inProgress) {
+      return true;
+    }
+    return session.status == DuelGameStatus.waiting && session.isCreditsMode;
+  }
+
+  void _syncPresenceJobs(DuelSession current) {
+    if (!_isActiveSession(current)) {
+      _presenceHeartbeatTimer?.cancel();
+      _presenceHeartbeatTimer = null;
+      _presenceWatchdogTimer?.cancel();
+      _presenceWatchdogTimer = null;
+      return;
+    }
+    _presenceHeartbeatTimer ??= Timer.periodic(const Duration(seconds: 8), (_) {
+      final DuelSession? latest = session;
+      if (latest == null || !_isActiveSession(latest)) {
+        return;
+      }
+      unawaited(service.updatePresenceHeartbeat(
+        gameId: latest.gameId,
+        playerId: localPlayerId,
+      ));
+    });
+    _presenceWatchdogTimer ??= Timer.periodic(const Duration(seconds: 6), (_) {
+      unawaited(_reportOfflineOpponentIfNeeded());
+    });
+    unawaited(service.updatePresenceHeartbeat(gameId: current.gameId, playerId: localPlayerId));
+  }
+
+  Future<void> _reportOfflineOpponentIfNeeded() async {
+    if (_forfeitReportInFlight) {
+      return;
+    }
+    final DuelSession? current = session;
+    if (current == null || !_isActiveSession(current)) {
+      return;
+    }
+    final String opponentId = current.players.firstWhere(
+      (String id) => id != localPlayerId,
+      orElse: () => '',
+    );
+    if (opponentId.isEmpty) {
+      return;
+    }
+    final DuelPlayerPresence opponentPresence =
+        current.presence[opponentId] ?? const DuelPlayerPresence();
+    final DateTime now = DateTime.now().toUtc();
+    final DateTime? lastSeen = opponentPresence.lastSeenAt?.toUtc();
+    final bool stale = lastSeen == null || now.difference(lastSeen) >= const Duration(seconds: 25);
+    final bool shouldReport = opponentPresence.isOffline || stale;
+    if (!shouldReport) {
+      return;
+    }
+    final String reportKey =
+        '${current.gameId}_${current.round}_$opponentId_${opponentPresence.lastSeenAt?.millisecondsSinceEpoch ?? -1}_${opponentPresence.state}';
+    if (_lastForfeitReportKey == reportKey) {
+      return;
+    }
+    _forfeitReportInFlight = true;
+    try {
+      await service.markPlayerAbandoned(
+        gameId: current.gameId,
+        abandonedBy: opponentId,
+        reportedBy: localPlayerId,
+      );
+      _lastForfeitReportKey = reportKey;
+    } catch (_) {
+      // Opponent may still be connected or the game already completed.
+    } finally {
+      _forfeitReportInFlight = false;
+    }
   }
 
   void _maybeRepairSessionIntegrity(DuelSession value) {
@@ -1906,15 +2124,28 @@ class DuelController extends ChangeNotifier {
     if (current == null) {
       return;
     }
-    await service.handlePlayerExitGame(
+    await service.markPlayerAbandoned(
       gameId: current.gameId,
-      currentUserId: localPlayerId,
+      abandonedBy: localPlayerId,
+      reportedBy: localPlayerId,
     );
+  }
+
+  Future<void> markOffline() async {
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    try {
+      await service.markPlayerOffline(gameId: current.gameId, playerId: localPlayerId);
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    _presenceHeartbeatTimer?.cancel();
+    _presenceWatchdogTimer?.cancel();
     super.dispose();
   }
 }
@@ -2527,7 +2758,7 @@ class DuelPage extends StatefulWidget {
   State<DuelPage> createState() => _DuelPageState();
 }
 
-class _DuelPageState extends State<DuelPage> {
+class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   static const List<DuelCard> _avatarCardPool = <DuelCard>[
     DuelCard(suit: '♠', rank: 'A'),
     DuelCard(suit: '♥', rank: 'K'),
@@ -2572,6 +2803,8 @@ class _DuelPageState extends State<DuelPage> {
   DuelRematchUiState _rematchUiState = DuelRematchUiState.idle;
   String? _rematchErrorMessage;
   Timer? _rematchTimeoutTimer;
+  WebPageLifecycleBinding? _webLifecycleBinding;
+  bool _lifecycleExitTriggered = false;
   String? _rematchTimeoutRequestKey;
   String? _lastForfeitNotificationKey;
   final Queue<String> _chatPreviewQueue = Queue<String>();
@@ -2662,12 +2895,19 @@ class _DuelPageState extends State<DuelPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _webLifecycleBinding = WebPageLifecycleBinding.install((String reason) {
+      unawaited(_handleLifecycleExitSignal(reason));
+    });
     _controller.addListener(_onControllerChange);
     _onControllerChange();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_controller.markOffline());
+    _webLifecycleBinding?.dispose();
     _controller.removeListener(_onControllerChange);
     _chatSub?.cancel();
     _chatPreviewTimer?.cancel();
@@ -2675,6 +2915,50 @@ class _DuelPageState extends State<DuelPage> {
     _chatMessagesNotifier.dispose();
     FunnyGameToast.hide();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached || state == AppLifecycleState.paused) {
+      unawaited(_handleLifecycleExitSignal('app:${state.name}'));
+    } else if (state == AppLifecycleState.resumed) {
+      _lifecycleExitTriggered = false;
+      final DuelSession? current = _controller.session;
+      if (current != null) {
+        unawaited(_controller.service.updatePresenceHeartbeat(
+          gameId: current.gameId,
+          playerId: _controller.localPlayerId,
+        ));
+      }
+    }
+  }
+
+  Future<void> _handleLifecycleExitSignal(String reason) async {
+    final bool terminalSignal = reason.contains('beforeunload') ||
+        reason.contains('pagehide') ||
+        reason.contains('detached');
+    if (terminalSignal && _lifecycleExitTriggered) {
+      return;
+    }
+    if (terminalSignal) {
+      _lifecycleExitTriggered = true;
+    }
+    debugPrint('[Presence] lifecycle exit signal=$reason');
+    final DuelSession? session = _controller.session;
+    if (session == null) {
+      return;
+    }
+    try {
+      await _controller.markOffline();
+      if (!terminalSignal) {
+        return;
+      }
+      if (session.status == DuelGameStatus.inProgress && session.players.length == 2) {
+        await _controller.forfeitMatch();
+      }
+    } catch (_) {
+      // The heartbeat watchdog on opponent side will resolve eventual abandonment.
+    }
   }
 
   void _onControllerChange() {
@@ -3907,10 +4191,12 @@ class _DuelPageState extends State<DuelPage> {
         return Dialog(
           backgroundColor: Colors.transparent,
           child: GinoDecisionPopup(
-            title: 'Confirmer',
-            message: 'Si tu pars maintenant, tu perds la manche.',
+            title: 'Quitter la partie ?',
+            message: _isCreditsMode
+                ? 'Si vous quittez maintenant, vous perdez la mise.'
+                : 'Si vous quittez maintenant, vous perdez la manche.',
             primaryLabel: 'Quitter',
-            secondaryLabel: 'Annuler',
+            secondaryLabel: 'Rester',
             onPrimary: () => Navigator.of(dialogContext).pop(true),
             onSecondary: () => Navigator.of(dialogContext).pop(false),
           ),
@@ -4206,11 +4492,7 @@ class _DuelPageState extends State<DuelPage> {
         return;
       }
       if (winnerId == _controller.localPlayerId) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Votre adversaire a quitté la partie. Vous gagnez la manche.'),
-          ),
-        );
+        return;
       } else if (quitterId == _controller.localPlayerId) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Vous avez quitté la partie. Manche perdue.')),
@@ -4236,13 +4518,45 @@ class _DuelPageState extends State<DuelPage> {
       if (!mounted) {
         return;
       }
-      if (session.abandonedBy != null && session.abandonedBy != _controller.localPlayerId) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Votre adversaire a quitté la partie.')),
-        );
+      final String? abandonedBy = session.abandonedBy;
+      if (abandonedBy != null && abandonedBy != _controller.localPlayerId) {
+        _showOpponentLeftPopup(session);
+        return;
       }
       Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
     });
+  }
+
+  Future<void> _showOpponentLeftPopup(DuelSession session) async {
+    if (_winDialogOpen || _isBlockingDialogOpen()) {
+      return;
+    }
+    _winDialogOpen = true;
+    _markImportantPopupOpened();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: GinoDecisionPopup(
+            title: 'Adversaire parti',
+            message: _isCreditsMode
+                ? 'Votre adversaire a quitté la partie. Vous remportez la mise.'
+                : 'Votre adversaire a quitté la partie. Vous gagnez la manche.',
+            primaryLabel: 'Retour',
+            secondaryLabel: 'Nouvelle partie',
+            onPrimary: () => Navigator.of(dialogContext).pop(),
+            onSecondary: () => Navigator.of(dialogContext).pop(),
+          ),
+        );
+      },
+    );
+    _winDialogOpen = false;
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
   }
 
   Future<void> _showWinPopup({required int gainAmount}) async {
