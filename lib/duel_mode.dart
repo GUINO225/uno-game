@@ -329,6 +329,16 @@ class DuelSession {
   bool get isCreditsMode => mode == DuelRoomMode.credits;
   String get player1Id => players.isNotEmpty ? players.first : '';
   String get player2Id => players.length > 1 ? players[1] : '';
+  List<String> handForPlayer(String playerId) {
+    if (playerId == player1Id) {
+      return player1Hand;
+    }
+    if (playerId == player2Id) {
+      return player2Hand;
+    }
+    return const <String>[];
+  }
+
   bool get hasPendingRematchRequest =>
       rematchRequestBy != null &&
       rematchRequestBy!.isNotEmpty &&
@@ -2730,8 +2740,8 @@ class _DuelPageState extends State<DuelPage> {
       _showFunnyGameMessage(playerName: actorName, message: 'victoire confirmée.');
       return;
     }
-    final List<DuelCard>? actorHand = session.hands[action.actorId];
-    if (actorHand != null && actorHand.length == 1) {
+    final List<String> actorHand = session.handForPlayer(action.actorId);
+    if (actorHand.length == 1) {
       _showFunnyGameMessage(playerName: actorName, message: 'une seule carte, pression maximale.');
     }
   }
