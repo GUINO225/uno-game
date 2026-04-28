@@ -26,8 +26,6 @@ class PlayerSidePanel extends StatefulWidget {
 }
 
 class _PlayerSidePanelState extends State<PlayerSidePanel> {
-  static const Duration _profilePromptCooldown = Duration(days: 7);
-
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
   final LeaderboardService _leaderboardService = LeaderboardService.instance;
@@ -123,7 +121,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   ),
                 ),
                 content: Text(
-                  'Vous pouvez changer votre pseudonyme et choisir un avatar de carte pour garder votre anonymat dans le classement.',
+                  'Pour garder votre anonymat, nous vous recommandons de changer votre pseudonyme et de choisir un avatar de carte. Vous pouvez le faire maintenant ou plus tard.',
                   style: GoogleFonts.poppins(
                     color: PremiumColors.textDark.withOpacity(0.85),
                     height: 1.35,
@@ -172,25 +170,12 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     if (profile.hasCustomProfile) {
       return false;
     }
-    final DateTime? dismissedAt = profile.profilePromptDismissedAt;
-    if (dismissedAt != null &&
-        DateTime.now().toUtc().difference(dismissedAt.toUtc()) < _profilePromptCooldown) {
-      return false;
-    }
-
     final bool recentlyConnected = _justConnectedUid == profile.uid;
-    final bool looksNewProfile = _isLikelyNewProfile(profile);
-    final bool hasDefaultIdentity = _looksLikeDefaultIdentity(profile, user);
-    return recentlyConnected || looksNewProfile || hasDefaultIdentity;
-  }
-
-  bool _isLikelyNewProfile(PlayerProfile profile) {
-    final DateTime? createdAt = profile.createdAt;
-    final DateTime? lastLoginAt = profile.lastLoginAt;
-    if (createdAt == null || lastLoginAt == null) {
-      return false;
+    if (recentlyConnected) {
+      return true;
     }
-    return lastLoginAt.toUtc().difference(createdAt.toUtc()).abs() < const Duration(minutes: 2);
+    final bool hasDefaultIdentity = _looksLikeDefaultIdentity(profile, user);
+    return hasDefaultIdentity;
   }
 
   bool _looksLikeDefaultIdentity(PlayerProfile profile, User user) {
