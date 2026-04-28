@@ -75,7 +75,15 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historique de jeux'),
+        backgroundColor: PremiumColors.panel,
+        foregroundColor: PremiumColors.textDark,
+        title: Text(
+          'Historique de jeux',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            color: PremiumColors.textDark,
+          ),
+        ),
         actions: <Widget>[
           IconButton(
             onPressed: _refresh,
@@ -100,7 +108,10 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
                 child: Text(
                   'Impossible de charger l\'historique pour le moment.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: PremiumColors.textDark,
+                        ),
                 ),
               ),
             );
@@ -116,7 +127,10 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
                 child: Text(
                   'Aucune partie enregistrée pour ce compte.',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: PremiumColors.textDark,
+                        ),
                 ),
               ),
             );
@@ -163,19 +177,25 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
                       const SizedBox(height: 8),
                       Text(
                         'Partie: ${result.gameId} • Manche ${result.round}',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: PremiumColors.textDark,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Adversaire: ${result.opponentId}',
-                        style: GoogleFonts.poppins(fontSize: 13),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: PremiumColors.textDark,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         dateLabel,
                         style: GoogleFonts.poppins(
                           fontSize: 12,
-                          color: Colors.black54,
+                          color: PremiumColors.textDark.withOpacity(0.72),
                         ),
                       ),
                     ],
