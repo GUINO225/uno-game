@@ -89,7 +89,7 @@ class MyApp extends StatelessWidget {
             brightness: Brightness.dark,
           ),
           useMaterial3: true,
-          fontFamily: 'Roboto',
+          fontFamily: GoogleFonts.poppins().fontFamily,
           inputDecorationTheme: InputDecorationTheme(
             filled: true,
             fillColor: Colors.white.withOpacity(0.92),
@@ -111,7 +111,7 @@ class MyApp extends StatelessWidget {
               backgroundColor: PremiumColors.accent,
               minimumSize: const Size.fromHeight(52),
               textStyle: const TextStyle(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w500,
                 letterSpacing: 0.3,
               ),
               shape: RoundedRectangleBorder(
@@ -125,12 +125,12 @@ class MyApp extends StatelessWidget {
             titleTextStyle: const TextStyle(
               color: PremiumColors.textDark,
               fontSize: 20,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w500,
             ),
             contentTextStyle: const TextStyle(
               color: PremiumColors.textDark,
               fontSize: 16,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w400,
             ),
           ),
         ),
@@ -222,7 +222,7 @@ class _AudioWarmupErrorPage extends StatelessWidget {
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -325,7 +325,7 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.88),
                                     fontSize: 24,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w500,
                                     height: 1,
                                   ),
                                 ),
@@ -353,7 +353,7 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -1348,7 +1348,7 @@ class SelectionPlayingCard extends StatelessWidget {
                   color: cardGreen,
                   fontSize: height * 0.46,
                   height: 1,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -1433,7 +1433,7 @@ class _CardCorner extends StatelessWidget {
             color: color,
             fontSize: 14,
             height: 1,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w500,
           ),
         ),
         Text(
@@ -1442,7 +1442,7 @@ class _CardCorner extends StatelessWidget {
             color: color,
             fontSize: 13,
             height: 1,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -3228,11 +3228,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 name.isEmpty ? (isHuman ? 'Vous' : _botName) : name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
               ),
               Text(
                 'V $wins   D $losses',
-                style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w600, fontSize: 10.5),
+                style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w400, fontSize: 10.5),
               ),
             ],
           ),
@@ -3496,7 +3496,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           style: TextStyle(
             color: Colors.white.withOpacity(0.84),
             fontSize: 11,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -3525,7 +3525,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               _status,
               style: const TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w400,
               ),
             ),
             if (_activeSuitConstraint != null) ...<Widget>[
@@ -3632,7 +3632,7 @@ class _ScorePill extends StatelessWidget {
         '$label : $value',
         style: const TextStyle(
           color: Colors.white,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -3747,7 +3747,7 @@ class _EmptyCardSlot extends StatelessWidget {
           label,
           style: const TextStyle(
             color: Colors.white70,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w400,
           ),
         ),
       ),
@@ -3790,7 +3790,7 @@ class CardView extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: ink,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w500,
                   fontSize: 12,
                   letterSpacing: 0.4,
                 ),
@@ -3799,13 +3799,13 @@ class CardView extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(rank, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 16, height: 1)),
-                Text(card.suitSymbol, style: TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w700, height: 1)),
+                Text(rank, style: TextStyle(color: ink, fontWeight: FontWeight.w500, fontSize: 16, height: 1)),
+                Text(card.suitSymbol, style: TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w500, height: 1)),
                 const Spacer(),
                 Center(
                   child: Text(
                     card.suitSymbol,
-                    style: TextStyle(color: ink, fontSize: 32, fontWeight: FontWeight.w700, height: 1),
+                    style: TextStyle(color: ink, fontSize: 32, fontWeight: FontWeight.w500, height: 1),
                   ),
                 ),
               ],
@@ -3959,7 +3959,7 @@ class _SuitChoiceTile extends StatelessWidget {
               style: TextStyle(
                 color: _color,
                 fontSize: 44,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 6),
@@ -4024,7 +4024,7 @@ class _EightSuitCard extends StatelessWidget {
             style: TextStyle(
               color: _color,
               fontSize: 26,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w500,
             ),
           ),
           const Spacer(),
@@ -4035,7 +4035,7 @@ class _EightSuitCard extends StatelessWidget {
               style: TextStyle(
                 color: _color,
                 fontSize: 44,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),

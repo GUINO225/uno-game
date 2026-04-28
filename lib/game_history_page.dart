@@ -66,10 +66,10 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-                        Text('${r.myPseudo} vs ${r.opponentPseudo}', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-                        Text(r.isWin ? 'Victoire' : 'Défaite', style: GoogleFonts.poppins(color: accent, fontWeight: FontWeight.w700)),
-                        Text('Mode: ${r.modeLabel}${r.stakeCredits > 0 ? ' • Mise: ${r.stakeCredits}' : ''}'),
-                        Text('Crédits: ${r.creditDelta >= 0 ? '+' : ''}${r.creditDelta}'),
+                        Text('${r.myPseudo} vs ${r.opponentPseudo}', style: GoogleFonts.poppins(fontWeight: FontWeight.w500, fontSize: 14)),
+                        Text(r.isWin ? 'Victoire' : 'Défaite', style: GoogleFonts.poppins(color: accent, fontWeight: FontWeight.w500, fontSize: 13)),
+                        Text('Mode: ${r.modeLabel}${r.stakeCredits > 0 ? ' • Mise: ${r.stakeCredits}' : ''}', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w400)),
+                        Text('Crédits: ${r.creditDelta >= 0 ? '+' : ''}${r.creditDelta}', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w400)),
                         Text(r.dateLabel, style: GoogleFonts.poppins(fontSize: 12)),
                       ]),
                     ),
