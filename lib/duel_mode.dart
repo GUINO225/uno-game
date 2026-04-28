@@ -2278,6 +2278,22 @@ class DuelLobbyPage extends StatefulWidget {
   State<DuelLobbyPage> createState() => _DuelLobbyPageState();
 }
 
+class DuelPlayerIdentity {
+  const DuelPlayerIdentity({
+    required this.playerId,
+    required this.displayName,
+    required this.isGuest,
+    required this.pseudoSource,
+    this.photoUrl,
+  });
+
+  final String playerId;
+  final String displayName;
+  final bool isGuest;
+  final String pseudoSource;
+  final String? photoUrl;
+}
+
 class _DuelLobbyPageState extends State<DuelLobbyPage> {
   DuelController? _controller;
   final AppSfxService _sfx = AppSfxService.instance;
@@ -2291,6 +2307,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   late String _localPlayerId;
   String? _authenticatedPlayerId;
   PlayerProfile? _playerProfile;
+  DuelPlayerIdentity? _duelIdentity;
+  bool _identityResolved = false;
 
   @override
   void initState() {
@@ -2331,7 +2349,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId == null) {
       return 'Connectez-vous avec Google pour jouer en mode pari.';
     }
-    if (_authenticatedPlayerId != null) {
+    if (!_shouldAskPseudo) {
       return null;
     }
     final String cleaned = _nameController.text.trim();
@@ -2344,10 +2362,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   Future<void> _hydrateExistingAuthSession() async {
     final User? user = _authService.currentUser;
     if (user == null) {
+      debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
       return;
     }
     if (user.isAnonymous) {
       _localPlayerId = user.uid;
+      debugPrint('[DUEL_AUTH] user connecté ou invité: invité anonyme');
       return;
     }
     await _upsertProfileFromGoogle(user);
@@ -2382,6 +2402,114 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         _nameController.text = profile.publicDisplayName;
       }
     });
+  }
+
+  bool get _shouldAskPseudo =>
+      _identityResolved && _duelIdentity == null && widget.mode == DuelRoomMode.duel;
+
+  bool _isUsablePseudo(String value) {
+    final String cleaned = value.trim();
+    return cleaned.isNotEmpty && cleaned.toLowerCase() != 'joueur';
+  }
+
+  Future<DuelPlayerIdentity> resolveDuelPlayerIdentity() async {
+    final User? user = _authService.currentUser;
+    if (user == null || user.isAnonymous) {
+      final String guestPseudo = _nameController.text.trim();
+      debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $guestPseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: guest');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      return DuelPlayerIdentity(
+        playerId: _localPlayerId,
+        displayName: guestPseudo,
+        isGuest: true,
+        pseudoSource: 'guest',
+      );
+    }
+
+    final String localProfilePseudo = _playerProfile?.displayName.trim() ?? '';
+    if (_isUsablePseudo(localProfilePseudo)) {
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $localProfilePseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: local_state');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      return DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: localProfilePseudo,
+        isGuest: false,
+        pseudoSource: 'local_state',
+        photoUrl: user.photoURL,
+      );
+    }
+
+    final PlayerProfile? profile = await _profileService.getProfile(user.uid);
+    final String firestorePseudo = profile?.displayName.trim() ?? '';
+    if (_isUsablePseudo(firestorePseudo)) {
+      if (mounted) {
+        setState(() {
+          _playerProfile = profile;
+        });
+      }
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $firestorePseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: firestore');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      return DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: firestorePseudo,
+        isGuest: false,
+        pseudoSource: 'firestore',
+        photoUrl: user.photoURL,
+      );
+    }
+
+    final String authDisplayName = user.displayName?.trim() ?? '';
+    if (_isUsablePseudo(authDisplayName)) {
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $authDisplayName');
+      debugPrint('[DUEL_AUTH] source du pseudo: auth_state');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      return DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: authDisplayName,
+        isGuest: false,
+        pseudoSource: 'auth_state',
+        photoUrl: user.photoURL,
+      );
+    }
+
+    throw StateError('MISSING_CONNECTED_PSEUDO');
+  }
+
+  Future<void> _resolveIdentityIfNeeded() async {
+    if (_identityResolved || widget.mode == DuelRoomMode.credits) {
+      return;
+    }
+    try {
+      final DuelPlayerIdentity identity = await resolveDuelPlayerIdentity();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _duelIdentity = identity;
+        _identityResolved = true;
+        _authenticatedPlayerId = identity.isGuest ? null : identity.playerId;
+      });
+    } on StateError catch (error) {
+      if (error.message != 'MISSING_CONNECTED_PSEUDO') {
+        rethrow;
+      }
+      if (!mounted) {
+        return;
+      }
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté sans pseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement requis');
+      setState(() {
+        _duelIdentity = null;
+        _identityResolved = true;
+      });
+    }
   }
 
   Future<void> _continueWithGoogle() async {
@@ -2508,17 +2636,19 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   String? _resolvePlayerName() {
-    if (_authenticatedPlayerId != null) {
-      final String profileName = _playerProfile?.publicDisplayName.trim() ?? '';
+    if (_duelIdentity != null) {
+      return _duelIdentity!.displayName;
+    }
+    if (_authenticatedPlayerId != null && !_shouldAskPseudo) {
+      final String profileName = _playerProfile?.displayName.trim() ?? '';
       if (profileName.isNotEmpty) {
         return profileName;
       }
-      final String authDisplayName =
-          _authService.currentUser?.displayName?.trim() ?? '';
+      final String authDisplayName = _authService.currentUser?.displayName?.trim() ?? '';
       if (authDisplayName.isNotEmpty) {
         return authDisplayName;
       }
-      return 'Joueur';
+      return null;
     }
     return _nameController.text.trim();
   }
@@ -2540,6 +2670,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
+    await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
       unawaited(_sfx.playError());
@@ -2549,6 +2680,23 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     final String pseudo = _resolvePlayerName()!;
+    final User? user = _authService.currentUser;
+    if (_shouldAskPseudo && user != null && !user.isAnonymous) {
+      final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
+      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      _duelIdentity = DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: cleanedPseudo,
+        isGuest: false,
+        pseudoSource: 'nouvel enregistrement',
+        photoUrl: user.photoURL,
+      );
+      _authenticatedPlayerId = user.uid;
+      _playerProfile = await _profileService.getProfile(user.uid);
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+    }
     setState(() {
       _profileError = null;
     });
@@ -2576,6 +2724,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
+    await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
       unawaited(_sfx.playError());
@@ -2593,6 +2742,23 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     final String pseudo = _resolvePlayerName()!;
+    final User? user = _authService.currentUser;
+    if (_shouldAskPseudo && user != null && !user.isAnonymous) {
+      final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
+      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      _duelIdentity = DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: cleanedPseudo,
+        isGuest: false,
+        pseudoSource: 'nouvel enregistrement',
+        photoUrl: user.photoURL,
+      );
+      _authenticatedPlayerId = user.uid;
+      _playerProfile = await _profileService.getProfile(user.uid);
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+    }
     final String code = _codeController.text.trim().toUpperCase();
     setState(() {
       _profileError = null;
@@ -2670,7 +2836,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    if (!creditsMode && !isAuthenticated) ...<Widget>[
+                    if (!creditsMode && (!isAuthenticated || _shouldAskPseudo)) ...<Widget>[
                       PremiumPanel(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
