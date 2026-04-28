@@ -2959,7 +2959,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final DuelSession? session = _controller?.session;
     final bool busy = _controller?.busy ?? false;
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
-    final bool isAuthenticated = _authenticatedPlayerId != null;
     final String title = creditsMode ? 'Mode pari' : 'Duel simple';
     return Scaffold(
       endDrawer: PlayerSidePanel(
@@ -3025,29 +3024,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    if (!isAuthenticated) ...<Widget>[
-                      PremiumPanel(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            const Text(
-                              'Connexion Google requise pour continuer.',
-                              style: TextStyle(
-                                color: PremiumColors.textDark,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            ElevatedButton.icon(
-                              onPressed: _googleBusy ? null : _continueWithGoogle,
-                              icon: const Icon(Icons.g_mobiledata_rounded),
-                              label: const Text('Connexion Google'),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
                     PremiumPanel(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,

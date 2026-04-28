@@ -61,6 +61,7 @@ class StatsService {
         'winnerId': winnerId,
         'loserId': loserId,
         'playerIds': <String>[winnerId, loserId],
+        'participantUids': <String>[winnerId, loserId],
         'mode': mode,
         'stakeCredits': stakeCredits,
         'creditDeltaByPlayer': <String, int>{

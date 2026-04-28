@@ -26,14 +26,25 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null || user.isAnonymous) return const <_PlayerMatchResult>[];
 
-    final QuerySnapshot<Map<String, dynamic>> snap = await FirebaseFirestore.instance
-        .collection('match_results')
-        .where('playerIds', arrayContains: user.uid)
-        .orderBy('createdAt', descending: true)
-        .limit(100)
-        .get();
+    final CollectionReference<Map<String, dynamic>> collection =
+        FirebaseFirestore.instance.collection('match_results');
 
-    return snap.docs.map((d) => _PlayerMatchResult.fromDoc(d.data(), user.uid)).toList();
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
+      snap = await collection
+          .where('participantUids', arrayContains: user.uid)
+          .limit(150)
+          .get();
+    } on FirebaseException {
+      snap = await collection.where('playerIds', arrayContains: user.uid).limit(150).get();
+    }
+
+    final List<_PlayerMatchResult> results = snap.docs
+        .map((d) => _PlayerMatchResult.fromDoc(d.data(), user.uid))
+        .whereType<_PlayerMatchResult>()
+        .toList();
+    results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return results;
   }
 
   void _refresh() => setState(() => _historyFuture = _loadHistory());
@@ -46,8 +57,17 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
         future: _historyFuture,
         builder: (context, s) {
           if (s.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (s.hasError) {
+            return Center(
+              child: Text(
+                "Impossible de charger l'historique pour le moment.",
+                style: GoogleFonts.poppins(fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
           final List<_PlayerMatchResult> items = s.data ?? const <_PlayerMatchResult>[];
-          if (items.isEmpty) return const Center(child: Text('Aucune partie enregistrée.'));
+          if (items.isEmpty) return const Center(child: Text('Aucune partie jouée pour le moment.'));
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: items.length,
@@ -85,7 +105,7 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
 }
 
 class _PlayerMatchResult {
-  const _PlayerMatchResult({required this.myUid, required this.myPseudo, required this.opponentPseudo, required this.isWin, required this.modeLabel, required this.stakeCredits, required this.creditDelta, required this.dateLabel});
+  const _PlayerMatchResult({required this.myUid, required this.myPseudo, required this.opponentPseudo, required this.isWin, required this.modeLabel, required this.stakeCredits, required this.creditDelta, required this.dateLabel, required this.createdAt});
   final String myUid;
   final String myPseudo;
   final String opponentPseudo;
@@ -94,25 +114,39 @@ class _PlayerMatchResult {
   final int stakeCredits;
   final int creditDelta;
   final String dateLabel;
+  final DateTime createdAt;
 
-  static _PlayerMatchResult fromDoc(Map<String, dynamic> data, String uid) {
+  static _PlayerMatchResult? fromDoc(Map<String, dynamic> data, String uid) {
     final Map<String, dynamic> a = (data['playerA'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
     final Map<String, dynamic> b = (data['playerB'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-    final bool mineIsA = (a['uid'] as String? ?? '') == uid;
+    final String aUid = (a['uid'] as String? ?? '').trim();
+    final String bUid = (b['uid'] as String? ?? '').trim();
+    final bool mineIsA = aUid == uid;
+    final bool mineIsB = bUid == uid;
+    if (!mineIsA && !mineIsB) {
+      return null;
+    }
     final Map<String, dynamic> mine = mineIsA ? a : b;
     final Map<String, dynamic> other = mineIsA ? b : a;
     final Timestamp? ts = data['createdAt'] as Timestamp?;
     final DateTime dt = ts?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final String mode = (data['mode'] as String? ?? 'duel').toLowerCase();
+    final String mode = (data['mode'] as String? ?? 'partie').toLowerCase();
     return _PlayerMatchResult(
       myUid: uid,
       myPseudo: (mine['pseudo'] as String? ?? 'Joueur').trim(),
-      opponentPseudo: (other['pseudo'] as String? ?? 'Adversaire').trim(),
+      opponentPseudo: ((other['pseudo'] as String?)?.trim().isNotEmpty ?? false)
+          ? (other['pseudo'] as String).trim()
+          : 'Joueur',
       isWin: (mine['result'] as String? ?? '') == 'win',
-      modeLabel: mode == 'credits' ? 'Duel Pari' : (mode == 'solo' ? 'Solo' : 'Duel'),
-      stakeCredits: (data['stakeCredits'] as num?)?.toInt() ?? 0,
+      modeLabel: mode == 'credits' || mode == 'duel_pari'
+          ? 'Duel Pari'
+          : (mode == 'solo' ? 'Solo' : (mode == 'duel' ? 'Duel' : 'Partie')),
+      stakeCredits: (data['stakeCredits'] as num?)?.toInt() ??
+          (data['wagerAmount'] as num?)?.toInt() ??
+          0,
       creditDelta: (mine['creditDelta'] as num?)?.toInt() ?? 0,
       dateLabel: '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
+      createdAt: dt,
     );
   }
 }
