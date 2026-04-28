@@ -326,6 +326,10 @@ class DuelSession {
     this.roundStartedAt,
     this.presenceGraceUntil,
     this.presence = const <String, DuelPlayerPresence>{},
+    this.roomStatus = 'open',
+    this.closeReason,
+    this.resultProcessed = false,
+    this.endedAt,
   });
 
   final String gameId;
@@ -378,6 +382,10 @@ class DuelSession {
   final DateTime? roundStartedAt;
   final DateTime? presenceGraceUntil;
   final Map<String, DuelPlayerPresence> presence;
+  final String roomStatus;
+  final String? closeReason;
+  final bool resultProcessed;
+  final DateTime? endedAt;
 
   bool get canStart => players.length == 2;
   bool get isCreditsMode => mode == DuelRoomMode.credits;
@@ -480,6 +488,10 @@ class DuelSession {
           },
         ),
       ),
+      'roomStatus': roomStatus,
+      'closeReason': closeReason,
+      'resultProcessed': resultProcessed,
+      'endedAt': endedAt == null ? null : Timestamp.fromDate(endedAt!.toUtc()),
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -576,6 +588,10 @@ class DuelSession {
           DuelPlayerPresence.fromMap((value as Map?)?.cast<String, dynamic>()),
         ),
       ),
+      roomStatus: json['roomStatus'] as String? ?? 'open',
+      closeReason: json['closeReason'] as String?,
+      resultProcessed: json['resultProcessed'] as bool? ?? false,
+      endedAt: (json['endedAt'] as Timestamp?)?.toDate(),
     );
   }
 }
@@ -587,6 +603,37 @@ class GameService {
   final FirebaseFirestore? _firestore;
 
   DateTime _presenceGraceDeadline() => DateTime.now().toUtc().add(_presenceGracePeriod);
+
+  Future<int> _readCreditsFromProfileTx({
+    required Transaction tx,
+    required FirebaseFirestore db,
+    required String playerId,
+    String? displayName,
+  }) async {
+    final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
+    final DocumentSnapshot<Map<String, dynamic>> profileSnap = await tx.get(profileRef);
+    if (!profileSnap.exists) {
+      tx.set(profileRef, <String, dynamic>{
+        'uid': playerId,
+        if (displayName != null && displayName.trim().isNotEmpty) 'displayName': displayName,
+        'credits': 1000,
+        'wins': 0,
+        'losses': 0,
+        'gamesPlayed': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return 1000;
+    }
+    final int credits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 0;
+    if (!(profileSnap.data()?.containsKey('credits') ?? false)) {
+      tx.set(profileRef, <String, dynamic>{
+        'credits': credits,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    return credits;
+  }
 
   Map<String, dynamic> _presenceOnlinePatch(String playerId) {
     return <String, dynamic>{
@@ -707,20 +754,17 @@ class GameService {
     if (mode == DuelRoomMode.credits) {
       final FirebaseFirestore db = await _resolveDb();
       final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
-      final DocumentSnapshot<Map<String, dynamic>> profileSnap = await profileRef.get();
-      if (!profileSnap.exists) {
-        await profileRef.set(<String, dynamic>{
-          'uid': playerId,
-          'displayName': playerName,
-          'credits': 1000,
-          'wins': 0,
-          'losses': 0,
-          'gamesPlayed': 0,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+      await db.runTransaction((Transaction tx) async {
+        initialCredits = await _readCreditsFromProfileTx(
+          tx: tx,
+          db: db,
+          playerId: playerId,
+          displayName: playerName,
+        );
+      });
+      if (initialCredits <= 0) {
+        throw StateError('Crédit insuffisant pour accéder au mode Pari.');
       }
-      initialCredits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 1000;
     }
     debugPrint('[GameService] createGame requested by $playerId in mode=${mode.name}.');
     await games.doc(code).set(
@@ -744,6 +788,7 @@ class GameService {
           playerId: const DuelPlayerPresence(state: 'online'),
         },
         presenceGraceUntil: _presenceGraceDeadline(),
+        roomStatus: 'open',
       ).toMap()
         ..addAll(_presenceOnlinePatch(playerId)),
     );
@@ -776,29 +821,14 @@ class GameService {
       final bool activatesNow = players.length == 2 && !session.isCreditsMode;
       int joiningPlayerCredits = session.playerCredits[playerId] ?? 1000;
       if (session.isCreditsMode) {
-        final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
-        final DocumentSnapshot<Map<String, dynamic>> profileSnap = await tx.get(profileRef);
-        if (!profileSnap.exists) {
-          tx.set(profileRef, <String, dynamic>{
-            'uid': playerId,
-            'displayName': playerName,
-            'credits': 1000,
-            'wins': 0,
-            'losses': 0,
-            'gamesPlayed': 0,
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-          joiningPlayerCredits = 1000;
-        } else {
-          joiningPlayerCredits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 1000;
-          if (!(profileSnap.data()?.containsKey('credits') ?? false)) {
-            tx.set(profileRef, <String, dynamic>{
-              'credits': 1000,
-              'updatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
-            joiningPlayerCredits = 1000;
-          }
+        joiningPlayerCredits = await _readCreditsFromProfileTx(
+          tx: tx,
+          db: db,
+          playerId: playerId,
+          displayName: playerName,
+        );
+        if (joiningPlayerCredits <= 0) {
+          throw StateError('Crédit insuffisant pour accéder au mode Pari.');
         }
       }
       tx.update(ref, <String, dynamic>{
@@ -1178,6 +1208,10 @@ class GameService {
         'betFlowState': session.isCreditsMode
             ? DuelBetFlowState.matchFinished.name
             : DuelBetFlowState.partyExited.name,
+        'roomStatus': 'open',
+        'closeReason': null,
+        'resultProcessed': true,
+        'endedAt': FieldValue.serverTimestamp(),
         'revision': session.revision + 1,
       };
       if (session.isCreditsMode) {
@@ -1186,8 +1220,11 @@ class GameService {
         final int winnerCredits = session.playerCredits[winnerId] ?? 0;
         if (!session.payoutDone && offer.isAccepted && pot > 0) {
           debugPrint('[Forfeit] payout amount=$pot winner=$winnerId');
+          final int loserCredits = session.playerCredits[abandonedBy] ?? 0;
+          final int winnerNextCredits = winnerCredits + pot;
+          final bool loserNoCredit = loserCredits <= 0;
           patch.addAll(<String, dynamic>{
-            'playerCredits.$winnerId': winnerCredits + pot,
+            'playerCredits.$winnerId': winnerNextCredits,
             'activeStakeCredits': 0,
             'stakeOffer': DuelStakeOffer(
               proposedBy: offer.proposedBy,
@@ -1201,7 +1238,14 @@ class GameService {
             'payoutWinnerId': winnerId,
             'payoutAmount': offer.amount,
             'payoutAt': FieldValue.serverTimestamp(),
+            if (loserNoCredit) 'roomStatus': 'closed',
+            if (loserNoCredit) 'closeReason': 'opponent_no_credit',
+            if (loserNoCredit) 'endedAt': FieldValue.serverTimestamp(),
           });
+          tx.set(_userProfileRef(db, winnerId), <String, dynamic>{
+            'credits': winnerNextCredits,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
         } else if (session.payoutDone) {
           debugPrint('[Forfeit] skipped: payout already done');
         }
@@ -1269,6 +1313,10 @@ class GameService {
         'payoutWinnerId': null,
         'payoutAmount': 0,
         'payoutAt': null,
+        'roomStatus': 'open',
+        'closeReason': null,
+        'resultProcessed': false,
+        'endedAt': null,
         'roundStartedAt': FieldValue.serverTimestamp(),
         'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
         'revision': session.revision + 1,
@@ -1603,7 +1651,12 @@ class GameService {
         throw StateError('Pari invalide.');
       }
       final int balance = session.playerCredits[proposedBy] ?? 0;
-      if (amount > balance) {
+      final int proposerCredits = await _readCreditsFromProfileTx(
+        tx: tx,
+        db: db,
+        playerId: proposedBy,
+      );
+      if (proposerCredits <= 0 || amount > proposerCredits || amount > balance) {
         throw StateError('Solde insuffisant pour cette proposition.');
       }
       final String opponentId = session.players.firstWhere(
@@ -1612,11 +1665,23 @@ class GameService {
       );
       if (opponentId.isNotEmpty) {
         final int opponentBalance = session.playerCredits[opponentId] ?? 0;
-        if (amount > opponentBalance) {
+        final int opponentCredits = await _readCreditsFromProfileTx(
+          tx: tx,
+          db: db,
+          playerId: opponentId,
+        );
+        if (opponentCredits <= 0 || amount > opponentCredits || amount > opponentBalance) {
           throw StateError('Mise refusée: crédit adverse insuffisant.');
         }
       }
       tx.update(ref, <String, dynamic>{
+        'playerCredits.$proposedBy': proposerCredits,
+        if (opponentId.isNotEmpty)
+          'playerCredits.$opponentId': await _readCreditsFromProfileTx(
+            tx: tx,
+            db: db,
+            playerId: opponentId,
+          ),
         'stakeOffer': DuelStakeOffer(
           proposedBy: proposedBy,
           amount: amount,
@@ -1706,8 +1771,23 @@ class GameService {
       }
       final int responderCredits = session.playerCredits[responderId] ?? 0;
       final int proposerCredits = session.playerCredits[offer.proposedBy!] ?? 0;
-      if (offer.amount > responderCredits || offer.amount > proposerCredits) {
+      final int latestResponderCredits = await _readCreditsFromProfileTx(
+        tx: tx,
+        db: db,
+        playerId: responderId,
+      );
+      final int latestProposerCredits = await _readCreditsFromProfileTx(
+        tx: tx,
+        db: db,
+        playerId: offer.proposedBy!,
+      );
+      if (offer.amount > responderCredits ||
+          offer.amount > proposerCredits ||
+          offer.amount > latestResponderCredits ||
+          offer.amount > latestProposerCredits) {
         tx.update(ref, <String, dynamic>{
+          'playerCredits.$responderId': latestResponderCredits,
+          'playerCredits.${offer.proposedBy!}': latestProposerCredits,
           'activeStakeCredits': 0,
           'stakeOffer': DuelStakeOffer(
             proposedBy: offer.proposedBy,
@@ -1748,8 +1828,8 @@ class GameService {
           },
         );
         tx.update(ref, <String, dynamic>{
-          'playerCredits.${offer.proposedBy!}': proposerCredits - offer.amount,
-          'playerCredits.$responderId': responderCredits - offer.amount,
+          'playerCredits.${offer.proposedBy!}': latestProposerCredits - offer.amount,
+          'playerCredits.$responderId': latestResponderCredits - offer.amount,
           'activeStakeCredits': offer.amount * 2,
           'status': DuelGameStatus.inProgress.name,
           'roundStatus': 'playing',
@@ -1772,6 +1852,10 @@ class GameService {
           'payoutWinnerId': null,
           'payoutAmount': 0,
           'payoutAt': null,
+          'roomStatus': 'open',
+          'closeReason': null,
+          'resultProcessed': false,
+          'endedAt': null,
           'roundStartedAt': FieldValue.serverTimestamp(),
           'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
           'updatedAt': FieldValue.serverTimestamp(),
@@ -1782,6 +1866,14 @@ class GameService {
             round: nextRound,
           ),
         });
+        tx.set(_userProfileRef(db, offer.proposedBy!), <String, dynamic>{
+          'credits': latestProposerCredits - offer.amount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        tx.set(_userProfileRef(db, responderId), <String, dynamic>{
+          'credits': latestResponderCredits - offer.amount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
         tx.set(ref.collection('actions').doc(), action.toMap());
         debugPrint('[RematchParis] winner accepted stake');
         debugPrint('[RematchParis] starting new round=$nextRound');
@@ -1790,8 +1882,8 @@ class GameService {
         return;
       }
       tx.update(ref, <String, dynamic>{
-        'playerCredits.${offer.proposedBy!}': proposerCredits - offer.amount,
-        'playerCredits.$responderId': responderCredits - offer.amount,
+        'playerCredits.${offer.proposedBy!}': latestProposerCredits - offer.amount,
+        'playerCredits.$responderId': latestResponderCredits - offer.amount,
         'activeStakeCredits': offer.amount * 2,
         'status': DuelGameStatus.inProgress.name,
         'roundStatus': 'playing',
@@ -1802,6 +1894,10 @@ class GameService {
         'payoutWinnerId': null,
         'payoutAmount': 0,
         'payoutAt': null,
+        'roomStatus': 'open',
+        'closeReason': null,
+        'resultProcessed': false,
+        'endedAt': null,
         'roundStartedAt': FieldValue.serverTimestamp(),
         'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
         if (!session.deckInitialized)
@@ -1813,6 +1909,14 @@ class GameService {
         'updatedAt': FieldValue.serverTimestamp(),
         'revision': session.revision + 1,
       });
+      tx.set(_userProfileRef(db, offer.proposedBy!), <String, dynamic>{
+        'credits': latestProposerCredits - offer.amount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      tx.set(_userProfileRef(db, responderId), <String, dynamic>{
+        'credits': latestResponderCredits - offer.amount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     });
   }
 
@@ -1849,8 +1953,10 @@ class GameService {
       }
       final int winnerBalance = session.playerCredits[winnerId] ?? 0;
       final int loserBalance = session.playerCredits[loserId] ?? 0;
+      final int winnerNext = winnerBalance + amount;
+      final bool loserNoCredit = loserBalance <= 0;
       tx.update(ref, <String, dynamic>{
-        'playerCredits.$winnerId': winnerBalance + amount,
+        'playerCredits.$winnerId': winnerNext,
         'playerCredits.$loserId': loserBalance,
         'activeStakeCredits': 0,
         'stakeOffer': DuelStakeOffer(
@@ -1865,7 +1971,15 @@ class GameService {
         'payoutWinnerId': winnerId,
         'payoutAmount': offer.amount,
         'payoutAt': FieldValue.serverTimestamp(),
+        'resultProcessed': true,
+        'endedAt': FieldValue.serverTimestamp(),
+        if (loserNoCredit) 'roomStatus': 'closed',
+        if (loserNoCredit) 'closeReason': 'opponent_no_credit',
       });
+      tx.set(_userProfileRef(db, winnerId), <String, dynamic>{
+        'credits': winnerNext,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     });
   }
 }
@@ -2278,6 +2392,22 @@ class DuelLobbyPage extends StatefulWidget {
   State<DuelLobbyPage> createState() => _DuelLobbyPageState();
 }
 
+class DuelPlayerIdentity {
+  const DuelPlayerIdentity({
+    required this.playerId,
+    required this.displayName,
+    required this.isGuest,
+    required this.pseudoSource,
+    this.photoUrl,
+  });
+
+  final String playerId;
+  final String displayName;
+  final bool isGuest;
+  final String pseudoSource;
+  final String? photoUrl;
+}
+
 class _DuelLobbyPageState extends State<DuelLobbyPage> {
   DuelController? _controller;
   final AppSfxService _sfx = AppSfxService.instance;
@@ -2291,6 +2421,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   late String _localPlayerId;
   String? _authenticatedPlayerId;
   PlayerProfile? _playerProfile;
+  DuelPlayerIdentity? _duelIdentity;
+  bool _identityResolved = false;
 
   @override
   void initState() {
@@ -2331,7 +2463,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId == null) {
       return 'Connectez-vous avec Google pour jouer en mode pari.';
     }
-    if (_authenticatedPlayerId != null) {
+    if (!_shouldAskPseudo) {
       return null;
     }
     final String cleaned = _nameController.text.trim();
@@ -2344,10 +2476,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   Future<void> _hydrateExistingAuthSession() async {
     final User? user = _authService.currentUser;
     if (user == null) {
+      debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
       return;
     }
     if (user.isAnonymous) {
       _localPlayerId = user.uid;
+      debugPrint('[DUEL_AUTH] user connecté ou invité: invité anonyme');
       return;
     }
     await _upsertProfileFromGoogle(user);
@@ -2382,6 +2516,114 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         _nameController.text = profile.publicDisplayName;
       }
     });
+  }
+
+  bool get _shouldAskPseudo =>
+      _identityResolved && _duelIdentity == null && widget.mode == DuelRoomMode.duel;
+
+  bool _isUsablePseudo(String value) {
+    final String cleaned = value.trim();
+    return cleaned.isNotEmpty && cleaned.toLowerCase() != 'joueur';
+  }
+
+  Future<DuelPlayerIdentity> resolveDuelPlayerIdentity() async {
+    final User? user = _authService.currentUser;
+    if (user == null || user.isAnonymous) {
+      final String guestPseudo = _nameController.text.trim();
+      debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $guestPseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: guest');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      return DuelPlayerIdentity(
+        playerId: _localPlayerId,
+        displayName: guestPseudo,
+        isGuest: true,
+        pseudoSource: 'guest',
+      );
+    }
+
+    final String localProfilePseudo = _playerProfile?.displayName.trim() ?? '';
+    if (_isUsablePseudo(localProfilePseudo)) {
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $localProfilePseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: local_state');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      return DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: localProfilePseudo,
+        isGuest: false,
+        pseudoSource: 'local_state',
+        photoUrl: user.photoURL,
+      );
+    }
+
+    final PlayerProfile? profile = await _profileService.getProfile(user.uid);
+    final String firestorePseudo = profile?.displayName.trim() ?? '';
+    if (_isUsablePseudo(firestorePseudo)) {
+      if (mounted) {
+        setState(() {
+          _playerProfile = profile;
+        });
+      }
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $firestorePseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: firestore');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      return DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: firestorePseudo,
+        isGuest: false,
+        pseudoSource: 'firestore',
+        photoUrl: user.photoURL,
+      );
+    }
+
+    final String authDisplayName = user.displayName?.trim() ?? '';
+    if (_isUsablePseudo(authDisplayName)) {
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $authDisplayName');
+      debugPrint('[DUEL_AUTH] source du pseudo: auth_state');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      return DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: authDisplayName,
+        isGuest: false,
+        pseudoSource: 'auth_state',
+        photoUrl: user.photoURL,
+      );
+    }
+
+    throw StateError('MISSING_CONNECTED_PSEUDO');
+  }
+
+  Future<void> _resolveIdentityIfNeeded() async {
+    if (_identityResolved || widget.mode == DuelRoomMode.credits) {
+      return;
+    }
+    try {
+      final DuelPlayerIdentity identity = await resolveDuelPlayerIdentity();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _duelIdentity = identity;
+        _identityResolved = true;
+        _authenticatedPlayerId = identity.isGuest ? null : identity.playerId;
+      });
+    } on StateError catch (error) {
+      if (error.message != 'MISSING_CONNECTED_PSEUDO') {
+        rethrow;
+      }
+      if (!mounted) {
+        return;
+      }
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté sans pseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement requis');
+      setState(() {
+        _duelIdentity = null;
+        _identityResolved = true;
+      });
+    }
   }
 
   Future<void> _continueWithGoogle() async {
@@ -2477,7 +2719,56 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     }
     if (_authenticatedPlayerId == null) {
       Navigator.of(context).pop();
+      return;
     }
+    final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
+    if (!mounted) {
+      return;
+    }
+    if (!hasCredit) {
+      await _showInsufficientCreditDialog();
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
+  Future<bool> _hasPositiveCredit(String uid) async {
+    final DocumentSnapshot<Map<String, dynamic>> snap =
+        await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
+    final int credits = (snap.data()?['credits'] as num?)?.toInt() ?? 0;
+    return credits > 0;
+  }
+
+  Future<void> _showInsufficientCreditDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text(
+            'Crédit insuffisant',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w300),
+          ),
+          content: const Text(
+            'Votre solde est insuffisant pour accéder au mode Pari. Veuillez contacter le service client ou l’administrateur afin de recharger votre compte.',
+            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w300),
+          ),
+          actions: <Widget>[
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF13C76B),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Retour à l’accueil'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String? _validateCodePartie() {
@@ -2508,17 +2799,19 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   String? _resolvePlayerName() {
-    if (_authenticatedPlayerId != null) {
-      final String profileName = _playerProfile?.publicDisplayName.trim() ?? '';
+    if (_duelIdentity != null) {
+      return _duelIdentity!.displayName;
+    }
+    if (_authenticatedPlayerId != null && !_shouldAskPseudo) {
+      final String profileName = _playerProfile?.displayName.trim() ?? '';
       if (profileName.isNotEmpty) {
         return profileName;
       }
-      final String authDisplayName =
-          _authService.currentUser?.displayName?.trim() ?? '';
+      final String authDisplayName = _authService.currentUser?.displayName?.trim() ?? '';
       if (authDisplayName.isNotEmpty) {
         return authDisplayName;
       }
-      return 'Joueur';
+      return null;
     }
     return _nameController.text.trim();
   }
@@ -2540,6 +2833,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
+    await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
       unawaited(_sfx.playError());
@@ -2549,6 +2843,30 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     final String pseudo = _resolvePlayerName()!;
+    if (widget.mode == DuelRoomMode.credits) {
+      final String? uid = _authenticatedPlayerId;
+      if (uid == null || !(await _hasPositiveCredit(uid))) {
+        await _showInsufficientCreditDialog();
+        return;
+      }
+    }
+    final User? user = _authService.currentUser;
+    if (_shouldAskPseudo && user != null && !user.isAnonymous) {
+      final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
+      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      _duelIdentity = DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: cleanedPseudo,
+        isGuest: false,
+        pseudoSource: 'nouvel enregistrement',
+        photoUrl: user.photoURL,
+      );
+      _authenticatedPlayerId = user.uid;
+      _playerProfile = await _profileService.getProfile(user.uid);
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+    }
     setState(() {
       _profileError = null;
     });
@@ -2576,6 +2894,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
+    await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
       unawaited(_sfx.playError());
@@ -2593,6 +2912,30 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     final String pseudo = _resolvePlayerName()!;
+    if (widget.mode == DuelRoomMode.credits) {
+      final String? uid = _authenticatedPlayerId;
+      if (uid == null || !(await _hasPositiveCredit(uid))) {
+        await _showInsufficientCreditDialog();
+        return;
+      }
+    }
+    final User? user = _authService.currentUser;
+    if (_shouldAskPseudo && user != null && !user.isAnonymous) {
+      final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
+      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      _duelIdentity = DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: cleanedPseudo,
+        isGuest: false,
+        pseudoSource: 'nouvel enregistrement',
+        photoUrl: user.photoURL,
+      );
+      _authenticatedPlayerId = user.uid;
+      _playerProfile = await _profileService.getProfile(user.uid);
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+    }
     final String code = _codeController.text.trim().toUpperCase();
     setState(() {
       _profileError = null;
@@ -2670,7 +3013,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    if (!creditsMode && !isAuthenticated) ...<Widget>[
+                    if (!creditsMode && (!isAuthenticated || _shouldAskPseudo)) ...<Widget>[
                       PremiumPanel(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2934,6 +3277,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   String? _lastStatsSyncKey;
   String? _lastOpponentActionSfxKey;
   String? _lastFunnyActionKey;
+  bool _creditExitHandled = false;
   bool _funnyMessagesEnabled = true;
   final Duration comicMessageCooldown = const Duration(seconds: 8);
   DateTime? _lastComicMessageAt;
@@ -3124,6 +3468,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _maybeHandleInsufficientFunds(session);
     _maybeHandleRematchFlow(session);
     _maybeHandleForfeitNotification(session);
+    _maybeHandleNoCreditClosure(session);
     _maybeHandlePartyExit(session);
     _maybePromptMandatoryStake(session);
     _maybeShowWinPopup(session);
@@ -3747,19 +4092,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     }
     _lastStatsSyncKey = key;
     try {
-      final int winnerDelta = _isCreditsMode && session.payoutDone
-          ? session.payoutAmount
-          : 0;
-      final int loserDelta = _isCreditsMode && session.payoutDone
-          ? -session.payoutAmount
-          : 0;
       await _statsService.recordDuelResult(
         gameId: session.gameId,
         round: session.round,
         winnerId: winnerId,
         loserId: loserId,
-        winnerCreditsDelta: winnerDelta,
-        loserCreditsDelta: loserDelta,
+        winnerCreditsDelta: 0,
+        loserCreditsDelta: 0,
       );
     } catch (error) {
       debugPrint('Stats sync failed: $error');
@@ -3771,12 +4110,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     return _isCreditsMode &&
         _isRematchStakePhase(session) &&
         _controller.localPlayerId == session.rematchRequestBy &&
+        _hasEnoughCredit(session, minimum: 1) &&
         session.activeStakeCredits <= 0 &&
         !session.stakeOffer.isPending;
   }
 
   int _creditsOf(DuelSession session, String playerId) =>
       session.playerCredits[playerId] ?? 1000;
+
+  bool _hasEnoughCredit(DuelSession session, {required int minimum}) =>
+      _creditsOf(session, _controller.localPlayerId) >= minimum;
 
   DuelCard _avatarCardForPlayer(String playerId) {
     if (playerId.isEmpty) {
@@ -3988,7 +4331,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return 'Le montant doit être supérieur à 0.';
     }
     if (amount > myCredits) {
-      return 'Solde insuffisant pour ce pari.';
+      return 'Crédit insuffisant\nVous ne disposez pas d’un solde suffisant pour proposer cette mise. Veuillez recharger votre compte auprès du service client ou de l’administrateur.';
     }
     if (opponentCredits != null && amount > opponentCredits) {
       return 'Mise refusée: le crédit adverse est insuffisant.';
@@ -4029,12 +4372,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _stakeDialogOpen = false;
     if (decision == null || _stakeActionBusy) {
       if (insufficient) {
-        _showStakeRequiredMessage('Solde insuffisant');
+        _showStakeRequiredMessage(
+          'Crédit insuffisant\nVotre solde est insuffisant. Veuillez contacter le service client ou l’administrateur pour recharger votre compte.',
+        );
       }
       return;
     }
     if (decision == 'refuse' && insufficient) {
-      _showStakeRequiredMessage('Solde insuffisant');
+      _showStakeRequiredMessage(
+        'Crédit insuffisant\nVotre solde est insuffisant. Veuillez contacter le service client ou l’administrateur pour recharger votre compte.',
+      );
       await _controller.respondToStake(false, insufficientFunds: true);
       return;
     }
@@ -4184,6 +4531,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             (session.invitedRefusalCount >= 2 && _controller.localPlayerId != session.hostId));
     final bool shouldPrompt =
         shouldPromptInInitial || _requiresStake(session) || _canPromptRematchStake(session);
+    if (_isCreditsMode && !_hasEnoughCredit(session, minimum: 1)) {
+      return;
+    }
     if (!shouldPrompt ||
         _stakeActionBusy ||
         _isBlockingDialogOpen() ||
@@ -4209,6 +4559,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     }
     final DuelSession? session = _controller.session;
     if (session == null || session.status != DuelGameStatus.finished) {
+      return;
+    }
+    if (_isCreditsMode && !_hasEnoughCredit(session, minimum: 1)) {
+      await _showCreditExhaustedDialog();
+      if (mounted) {
+        Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+      }
       return;
     }
     setState(() {
@@ -4648,6 +5005,94 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       }
       Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
     });
+  }
+
+  void _maybeHandleNoCreditClosure(DuelSession session) {
+    if (!_isCreditsMode || session.roomStatus != 'closed' || _creditExitHandled) {
+      return;
+    }
+    final bool localNoCredit =
+        (session.playerCredits[_controller.localPlayerId] ?? 0) <= 0;
+    if (session.closeReason != 'opponent_no_credit' && !localNoCredit) {
+      return;
+    }
+    _creditExitHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      if (localNoCredit) {
+        await _showCreditExhaustedDialog();
+      } else {
+        await _showOpponentNoCreditDialog();
+      }
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+    });
+  }
+
+  Future<void> _showCreditExhaustedDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text(
+            'Solde épuisé',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w300),
+          ),
+          content: const Text(
+            'Votre crédit est épuisé. Vous ne pouvez plus continuer en mode Pari. Veuillez contacter le service client ou l’administrateur pour recharger votre compte.',
+            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w300),
+          ),
+          actions: <Widget>[
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF13C76B),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Retour à l’accueil'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showOpponentNoCreditDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Text(
+            'Partie terminée',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w300),
+          ),
+          content: const Text(
+            'Votre adversaire n’a plus de crédit disponible. La partie est terminée.',
+            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w300),
+          ),
+          actions: <Widget>[
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF13C76B),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Retour'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _showOpponentLeftPopup(DuelSession session) async {
@@ -5135,6 +5580,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         ),
                       if (session.status == DuelGameStatus.finished &&
                           session.rematchDecision != DuelRematchDecision.accepted &&
+                          (!_isCreditsMode || _hasEnoughCredit(session, minimum: 1)) &&
                           (_isLocalLoser(session) ||
                               (session.rematchRequestBy != null &&
                                   session.rematchRequestBy != _controller.localPlayerId)))

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -1042,6 +1043,49 @@ class _GameModePageState extends State<GameModePage>
         return;
       }
       await _profileService.createOrUpdateFromGoogleUser(result.user!);
+    }
+    if (mode == GameMode.credits) {
+      final String? uid = _authService.currentUser?.uid;
+      if (uid == null) {
+        return;
+      }
+      final DocumentSnapshot<Map<String, dynamic>> profileSnap =
+          await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
+      final int credits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 0;
+      if (credits <= 0) {
+        if (!mounted) {
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext dialogContext) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              title: const Text(
+                'Crédit insuffisant',
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.w300),
+              ),
+              content: const Text(
+                'Votre solde est insuffisant pour accéder au mode Pari. Veuillez contacter le service client ou l’administrateur afin de recharger votre compte.',
+                style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w300),
+              ),
+              actions: <Widget>[
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF13C76B),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Retour à l’accueil'),
+                ),
+              ],
+            );
+          },
+        );
+        return;
+      }
     }
     unawaited(AppSfxService.instance.playClick());
     Navigator.of(context).pushNamed(switch (mode) {
