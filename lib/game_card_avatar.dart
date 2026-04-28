@@ -83,6 +83,7 @@ class GameCardAvatar extends StatelessWidget {
     super.key,
     required this.data,
     this.size = 42,
+    this.showShadow = true,
   });
 
   factory GameCardAvatar.fromSelection({
@@ -100,6 +101,7 @@ class GameCardAvatar extends StatelessWidget {
 
   final GameCardAvatarData data;
   final double size;
+  final bool showShadow;
 
   @override
   Widget build(BuildContext context) {
@@ -111,13 +113,15 @@ class GameCardAvatar extends StatelessWidget {
           color: Colors.white,
           shape: BoxShape.circle,
           border: Border.all(color: const Color(0xFFE6EAF0), width: 1.2),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-              color: Color(0x22000000),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
+          boxShadow: showShadow
+              ? const <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x22000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Center(
           child: FittedBox(
