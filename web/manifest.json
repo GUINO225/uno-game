@@ -1,32 +1,32 @@
 {
-    "name": "gino",
-    "short_name": "gino",
+    "name": "GINO CARD — 8 Américain",
+    "short_name": "GINO CARD",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Jeu de 8 Américain en ligne avec modes Solo, Duel et Pari.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
         {
-            "src": "icons/Icon-192.png",
+            "src": "assets/assets/img/ico.png",
             "sizes": "192x192",
             "type": "image/png"
         },
         {
-            "src": "icons/Icon-512.png",
+            "src": "assets/assets/img/ico.png",
             "sizes": "512x512",
             "type": "image/png"
         },
         {
-            "src": "icons/Icon-maskable-192.png",
+            "src": "assets/assets/img/ico.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "maskable"
         },
         {
-            "src": "icons/Icon-maskable-512.png",
+            "src": "assets/assets/img/ico.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
