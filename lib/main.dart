@@ -20,6 +20,7 @@ import 'premium_ui.dart';
 import 'player_profile.dart';
 import 'game_card_avatar.dart';
 import 'game_popup_ui.dart';
+import 'game_history_page.dart';
 import 'user_profile_service.dart';
 import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
@@ -136,6 +137,7 @@ class MyApp extends StatelessWidget {
           GameModeRoutes.credits: (_) =>
               const DuelLobbyPage(mode: DuelRoomMode.credits),
           GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
+          GameModeRoutes.history: (_) => const GameHistoryPage(),
           GameModeRoutes.adminLogin: (_) => const LoginAdminPage(),
           GameModeRoutes.adminDashboard: (_) => const AdminDashboardPage(),
         },
@@ -193,6 +195,10 @@ class _AudioWarmupErrorPage extends StatelessWidget {
         onOpenLeaderboard: () {
           Navigator.of(context).pop();
           Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+        },
+        onOpenHistory: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pushNamed(GameModeRoutes.history);
         },
       ),
       body: Stack(
@@ -375,6 +381,7 @@ class GameModeRoutes {
   static const String duel = '/duel';
   static const String credits = '/credits';
   static const String leaderboard = '/leaderboard';
+  static const String history = '/history';
   static const String adminLogin = '/admin-login';
   static const String adminDashboard = '/admin-dashboard';
 }
@@ -1006,7 +1013,7 @@ class _GameModePageState extends State<GameModePage>
     if (mode == null) {
       return;
     }
-    if (mode == GameMode.credits && _authService.currentUser == null) {
+    if ((mode == GameMode.duel || mode == GameMode.credits) && _authService.currentUser == null) {
       final bool shouldLogin = await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
@@ -1036,7 +1043,9 @@ class _GameModePageState extends State<GameModePage>
           SnackBar(
             content: Text(
               result.errorMessage ??
-                  'Connectez-vous avec Google pour jouer en mode pari.',
+                  (mode == GameMode.duel
+                      ? 'Connectez-vous avec Google pour jouer en duel simple.'
+                      : 'Connectez-vous avec Google pour jouer en mode pari.'),
             ),
           ),
         );

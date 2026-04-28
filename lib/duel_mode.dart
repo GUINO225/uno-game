@@ -13,6 +13,7 @@ import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'credit_coins_icon.dart';
 import 'firebase_config.dart';
+import 'game_history_page.dart';
 import 'leaderboard_page.dart';
 import 'player_profile.dart';
 import 'player_side_panel.dart';
@@ -2429,11 +2430,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     super.initState();
     _localPlayerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
     unawaited(_hydrateExistingAuthSession());
-    if (widget.mode == DuelRoomMode.credits) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_ensureParisAccess());
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_ensureLobbyAccess());
+    });
   }
 
   @override
@@ -2460,8 +2459,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   String? _validatePseudo() {
-    if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId == null) {
-      return 'Connectez-vous avec Google pour jouer en mode pari.';
+    if (_authenticatedPlayerId == null) {
+      return widget.mode == DuelRoomMode.credits
+          ? 'Connectez-vous avec Google pour jouer en mode pari.'
+          : 'Connectez-vous avec Google pour jouer en duel simple.';
     }
     if (!_shouldAskPseudo) {
       return null;
@@ -2489,19 +2490,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _ensureFirestoreIdentity() async {
     final User? user = _authService.currentUser;
-    if (user != null) {
-      if (user.isAnonymous) {
-        _localPlayerId = user.uid;
-      } else {
-        _authenticatedPlayerId ??= user.uid;
-      }
-      return;
+    if (user == null || user.isAnonymous) {
+      throw StateError('GOOGLE_AUTH_REQUIRED');
     }
-    final UserCredential credential = await FirebaseAuth.instance.signInAnonymously();
-    final User? anonUser = credential.user;
-    if (anonUser != null) {
-      _localPlayerId = anonUser.uid;
-    }
+    _authenticatedPlayerId ??= user.uid;
   }
 
   Future<void> _upsertProfileFromGoogle(User user) async {
@@ -2518,8 +2510,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     });
   }
 
-  bool get _shouldAskPseudo =>
-      _identityResolved && _duelIdentity == null && widget.mode == DuelRoomMode.duel;
+  bool get _shouldAskPseudo => false;
 
   bool _isUsablePseudo(String value) {
     final String cleaned = value.trim();
@@ -2529,17 +2520,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   Future<DuelPlayerIdentity> resolveDuelPlayerIdentity() async {
     final User? user = _authService.currentUser;
     if (user == null || user.isAnonymous) {
-      final String guestPseudo = _nameController.text.trim();
-      debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
-      debugPrint('[DUEL_AUTH] pseudo utilisé: $guestPseudo');
-      debugPrint('[DUEL_AUTH] source du pseudo: guest');
-      debugPrint('[DUEL_AUTH] accès Duel autorisé');
-      return DuelPlayerIdentity(
-        playerId: _localPlayerId,
-        displayName: guestPseudo,
-        isGuest: true,
-        pseudoSource: 'guest',
-      );
+      throw StateError('GOOGLE_AUTH_REQUIRED');
     }
 
     final String localProfilePseudo = _playerProfile?.displayName.trim() ?? '';
@@ -2611,6 +2592,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         _authenticatedPlayerId = identity.isGuest ? null : identity.playerId;
       });
     } on StateError catch (error) {
+      if (error.message == 'GOOGLE_AUTH_REQUIRED') {
+        return;
+      }
       if (error.message != 'MISSING_CONNECTED_PSEUDO') {
         rethrow;
       }
@@ -2684,8 +2668,20 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     });
   }
 
-  Future<void> _ensureParisAccess() async {
+  Future<void> _ensureLobbyAccess() async {
     if (!mounted || _authService.currentUser != null) {
+      if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId != null) {
+        final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
+        if (!mounted) {
+          return;
+        }
+        if (!hasCredit) {
+          await _showInsufficientCreditDialog();
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      }
       return;
     }
     final bool shouldLogin = await showDialog<bool>(
@@ -2696,7 +2692,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
               backgroundColor: Colors.transparent,
               child: GinoDecisionPopup(
                 title: 'Connexion',
-                message: 'Connecte-toi avec Google pour continuer.',
+                message: widget.mode == DuelRoomMode.credits
+                    ? 'Connecte-toi avec Google pour jouer en mode pari.'
+                    : 'Connecte-toi avec Google pour jouer en duel simple.',
                 primaryLabel: 'Google',
                 secondaryLabel: 'Annuler',
                 onPrimary: () => Navigator.of(context).pop(true),
@@ -2721,14 +2719,16 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       Navigator.of(context).pop();
       return;
     }
-    final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
-    if (!mounted) {
-      return;
-    }
-    if (!hasCredit) {
-      await _showInsufficientCreditDialog();
-      if (mounted) {
-        Navigator.of(context).pop();
+    if (widget.mode == DuelRoomMode.credits) {
+      final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
+      if (!mounted) {
+        return;
+      }
+      if (!hasCredit) {
+        await _showInsufficientCreditDialog();
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
       }
     }
   }
@@ -2811,7 +2811,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       if (authDisplayName.isNotEmpty) {
         return authDisplayName;
       }
-      return null;
+      return 'Joueur-${_authenticatedPlayerId!.substring(0, 6)}';
     }
     return _nameController.text.trim();
   }
@@ -2820,12 +2820,15 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     unawaited(_sfx.playClick());
     try {
       await _ensureFirestoreIdentity();
-    } on FirebaseAuthException catch (e) {
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Connexion anonyme Firebase impossible (${e.code}).';
-      });
-      return;
+    } on StateError catch (error) {
+      if (error.message == 'GOOGLE_AUTH_REQUIRED') {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Connectez-vous avec Google pour continuer.';
+        });
+        return;
+      }
+      rethrow;
     } catch (e) {
       unawaited(_sfx.playError());
       setState(() {
@@ -2881,12 +2884,15 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     unawaited(_sfx.playClick());
     try {
       await _ensureFirestoreIdentity();
-    } on FirebaseAuthException catch (e) {
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Connexion anonyme Firebase impossible (${e.code}).';
-      });
-      return;
+    } on StateError catch (error) {
+      if (error.message == 'GOOGLE_AUTH_REQUIRED') {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Connectez-vous avec Google pour continuer.';
+        });
+        return;
+      }
+      rethrow;
     } catch (e) {
       unawaited(_sfx.playError());
       setState(() {
@@ -2963,6 +2969,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
             MaterialPageRoute<void>(builder: (_) => const LeaderboardPage()),
           );
         },
+        onOpenHistory: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const GameHistoryPage()),
+          );
+        },
       ),
       body: Stack(
         children: <Widget>[
@@ -3013,24 +3025,23 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    if (!creditsMode && (!isAuthenticated || _shouldAskPseudo)) ...<Widget>[
+                    if (!isAuthenticated) ...<Widget>[
                       PremiumPanel(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
-                            TextField(
-                              controller: _nameController,
-                              onChanged: (_) {
-                                if (_profileError != null) {
-                                  setState(() {
-                                    _profileError = null;
-                                  });
-                                }
-                              },
-                              decoration: const InputDecoration(
-                                hintText: 'Ton pseudo',
-                                prefixIcon: Icon(Icons.badge_outlined),
+                            const Text(
+                              'Connexion Google requise pour continuer.',
+                              style: TextStyle(
+                                color: PremiumColors.textDark,
+                                fontWeight: FontWeight.w700,
                               ),
+                            ),
+                            const SizedBox(height: 10),
+                            ElevatedButton.icon(
+                              onPressed: _googleBusy ? null : _continueWithGoogle,
+                              icon: const Icon(Icons.g_mobiledata_rounded),
+                              label: const Text('Connexion Google'),
                             ),
                           ],
                         ),
