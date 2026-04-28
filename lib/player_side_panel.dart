@@ -10,13 +10,16 @@ import 'player_profile.dart';
 import 'premium_ui.dart';
 import 'user_profile_service.dart';
 
+
 class PlayerSidePanel extends StatefulWidget {
   const PlayerSidePanel({
     super.key,
     this.onOpenLeaderboard,
+    this.onOpenHistory,
   });
 
   final VoidCallback? onOpenLeaderboard;
+  final VoidCallback? onOpenHistory;
 
   @override
   State<PlayerSidePanel> createState() => _PlayerSidePanelState();
@@ -343,6 +346,14 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                         icon: const Icon(Icons.leaderboard_outlined),
                         label: const Text('Voir le classement'),
                       ),
+                      if (widget.onOpenHistory != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: widget.onOpenHistory,
+                          icon: const Icon(Icons.history_rounded),
+                          label: const Text('Historique des parties'),
+                        ),
+                      ],
                     ],
                   );
                 }
@@ -416,6 +427,14 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                       icon: const Icon(Icons.leaderboard_outlined),
                       label: const Text('Voir le classement'),
                     ),
+                    if (widget.onOpenHistory != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: widget.onOpenHistory,
+                        icon: const Icon(Icons.history_rounded),
+                        label: const Text('Historique des parties'),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     TextButton.icon(
                       onPressed: _signOut,
