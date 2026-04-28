@@ -40,7 +40,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF004F2C),
       appBar: AppBar(
-        title: const Text('Classement'),
+        title: const Text('Classement', style: TextStyle(fontWeight: FontWeight.w500)),
         backgroundColor: Colors.transparent,
       ),
       body: FutureBuilder<List<PlayerProfile>>(
@@ -110,7 +110,7 @@ class _LeaderboardHeader extends StatelessWidget {
               'Joueur',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: Colors.white.withOpacity(0.88),
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w500,
                   ),
             ),
           ),
@@ -118,7 +118,7 @@ class _LeaderboardHeader extends StatelessWidget {
             'V/D',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: Colors.white.withOpacity(0.88),
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w500,
                 ),
           ),
           const SizedBox(width: 16),
@@ -126,7 +126,7 @@ class _LeaderboardHeader extends StatelessWidget {
             'Score',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: Colors.white.withOpacity(0.88),
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w500,
                 ),
           ),
           const SizedBox(width: 4),
@@ -168,7 +168,7 @@ class _LeaderboardRow extends StatelessWidget {
                     '#$rank',
                     style: const TextStyle(
                       color: PremiumColors.textDark,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
@@ -191,7 +191,7 @@ class _LeaderboardRow extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: PremiumColors.textDark,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
@@ -207,7 +207,7 @@ class _LeaderboardRow extends StatelessWidget {
                                 'Vous',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w500,
                                   fontSize: 11,
                                 ),
                               ),
@@ -233,7 +233,7 @@ class _LeaderboardRow extends StatelessWidget {
                           style: const TextStyle(
                             color: PremiumColors.textDark,
                             fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
@@ -246,7 +246,7 @@ class _LeaderboardRow extends StatelessWidget {
                     '${player.wins}/${player.losses}',
                     style: const TextStyle(
                       color: PremiumColors.textDark,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -257,7 +257,7 @@ class _LeaderboardRow extends StatelessWidget {
                       textAlign: TextAlign.right,
                       style: const TextStyle(
                         color: PremiumColors.textDark,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
