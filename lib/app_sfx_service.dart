@@ -33,6 +33,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   final Map<AppSfxEvent, String> _eventToAsset = <AppSfxEvent, String>{};
   final Set<AppSfxEvent> _readyEvents = <AppSfxEvent>{};
   final Set<String> _preloadedAssets = <String>{};
+  final Set<AppSfxEvent> _loadingEvents = <AppSfxEvent>{};
   final Random _random = Random();
 
   Set<String> _availableAssets = <String>{};
@@ -53,6 +54,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   bool _isBackgroundToggleInFlight = false;
   bool _backgroundMusicUnlocked = !kIsWeb;
   bool _lifecycleBound = false;
+  bool _progressivePreloadStarted = false;
   PlayerState? _backgroundPlayerState;
 
   bool get isEnabled => _sfxEnabled;
@@ -106,37 +108,18 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
 
     try {
       _availableAssets = await _loadSfxAssetPaths();
-      _setInitializationProgress(0.1);
+      _setInitializationProgress(0.35);
       _log('audio manifest loaded');
-      await _preloadAllAudioAssets(onProgress: (double progress) {
-        _setInitializationProgress(0.1 + (progress * 0.55));
-      });
       _buildEventMappings();
-      _setInitializationProgress(0.65);
+      _setInitializationProgress(0.6);
       _backgroundTracks = _backgroundCandidates();
-      _log('background tracks detected: ${_backgroundTracks.length}');
-      for (final String track in _backgroundTracks) {
-        _log('background track: $track');
-      }
-
-      final List<MapEntry<AppSfxEvent, String>> eventEntries = _eventToAsset.entries.toList();
-      for (int index = 0; index < eventEntries.length; index++) {
-        final MapEntry<AppSfxEvent, String> entry = eventEntries[index];
-        await _preparePlayer(entry.key, entry.value);
-        if (eventEntries.isNotEmpty) {
-          final double eventProgress = (index + 1) / eventEntries.length;
-          _setInitializationProgress(0.65 + (eventProgress * 0.25));
-        }
-      }
+      await _ensureEventReady(AppSfxEvent.click);
+      _setInitializationProgress(0.8);
       await _prepareBackgroundPlayer();
       _setInitializationProgress(0.95);
 
       _initialized = true;
       _log('audio init complete');
-
-      if (_backgroundMusicEnabled) {
-        await playDefaultBackgroundMusic();
-      }
 
       if (strict && !_hasMinimumRequiredAssetsReady()) {
         throw StateError('No minimum SFX assets available.');
@@ -192,33 +175,6 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       debugPrintStack(stackTrace: stackTrace);
       return <String>{};
     }
-  }
-
-  Future<void> _preloadAllAudioAssets({
-    void Function(double progress)? onProgress,
-  }) async {
-    final List<String> sortedAssets = _availableAssets.toList()..sort();
-    if (sortedAssets.isEmpty) {
-      onProgress?.call(1);
-      return;
-    }
-
-    int loadedCount = 0;
-    for (final String assetPath in sortedAssets) {
-      try {
-        _log('preloading track: $assetPath');
-        await rootBundle.load(assetPath);
-        _preloadedAssets.add(assetPath);
-        _log('preload success: $assetPath');
-      } catch (error, stackTrace) {
-        _log('preload failed: $assetPath - $error');
-        debugPrintStack(stackTrace: stackTrace);
-      } finally {
-        loadedCount += 1;
-        onProgress?.call(loadedCount / sortedAssets.length);
-      }
-    }
-    _log('Preloaded ${_preloadedAssets.length}/${_availableAssets.length} audio assets.');
   }
 
   void _setInitializationProgress(double value) {
@@ -332,7 +288,10 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       await initialize();
     }
     if (!_readyEvents.contains(event)) {
-      _log('Skipped SFX $event: event not ready.');
+      await _ensureEventReady(event);
+    }
+    if (!_readyEvents.contains(event)) {
+      _log('Skipped SFX $event: event unavailable.');
       return;
     }
 
@@ -350,6 +309,25 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     } catch (error, stackTrace) {
       _log('Skipped SFX $event: $error');
       debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _ensureEventReady(AppSfxEvent event) async {
+    if (_readyEvents.contains(event)) {
+      return;
+    }
+    final String? assetPath = _eventToAsset[event];
+    if (assetPath == null || assetPath.isEmpty) {
+      return;
+    }
+    if (_loadingEvents.contains(event)) {
+      return;
+    }
+    _loadingEvents.add(event);
+    try {
+      await _preparePlayer(event, assetPath);
+    } finally {
+      _loadingEvents.remove(event);
     }
   }
 
@@ -672,9 +650,6 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
         : selectedTrack;
 
     try {
-      if (!_preloadedAssets.contains(selectedTrack)) {
-        await rootBundle.load(selectedTrack);
-      }
       await player.stop();
       await player.setSource(AssetSource(sourcePath));
       await player.setVolume(_bgmVolume);
@@ -692,6 +667,50 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       _log('bgm play fail for $selectedTrack: $error');
       notifyListeners();
       debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> startProgressivePreload() async {
+    if (_progressivePreloadStarted) {
+      return;
+    }
+    _progressivePreloadStarted = true;
+    await initialize();
+    unawaited(_preloadEvents(const <AppSfxEvent>[
+      AppSfxEvent.click,
+      AppSfxEvent.notif,
+      AppSfxEvent.playCard,
+      AppSfxEvent.draw,
+    ]));
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      unawaited(_preloadEvents(const <AppSfxEvent>[
+        AppSfxEvent.win,
+        AppSfxEvent.lose,
+        AppSfxEvent.popup,
+        AppSfxEvent.chat,
+      ]));
+    });
+  }
+
+  Future<void> preloadGameSounds() async {
+    await initialize();
+    unawaited(_preloadEvents(const <AppSfxEvent>[
+      AppSfxEvent.playCard,
+      AppSfxEvent.draw,
+      AppSfxEvent.win,
+      AppSfxEvent.lose,
+      AppSfxEvent.shuffle,
+    ]));
+  }
+
+  Future<void> _preloadEvents(List<AppSfxEvent> events) async {
+    for (final AppSfxEvent event in events) {
+      try {
+        await _ensureEventReady(event);
+      } catch (error) {
+        _log('silent preload fail for $event: $error');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 40));
     }
   }
 
@@ -747,4 +766,6 @@ class AppSfxService {
       _audio.toggleBackgroundMusicFromUserGesture();
   Future<void> playRandomBackgroundTrack() => _audio.playRandomBackgroundTrack();
   Future<void> stopBackgroundMusic() => _audio.stopBackgroundMusic();
+  Future<void> startProgressivePreload() => _audio.startProgressivePreload();
+  Future<void> preloadGameSounds() => _audio.preloadGameSounds();
 }

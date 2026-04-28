@@ -135,10 +135,18 @@ class MyApp extends StatelessWidget {
           ),
         ),
         routes: <String, WidgetBuilder>{
-          GameModeRoutes.solo: (_) => const CrazyEightsPage(),
-          GameModeRoutes.duel: (_) => const DuelLobbyPage(),
-          GameModeRoutes.credits: (_) =>
-              const DuelLobbyPage(mode: DuelRoomMode.credits),
+          GameModeRoutes.solo: (_) {
+            unawaited(AudioService.instance.preloadGameSounds());
+            return const CrazyEightsPage();
+          },
+          GameModeRoutes.duel: (_) {
+            unawaited(AudioService.instance.preloadGameSounds());
+            return const DuelLobbyPage();
+          },
+          GameModeRoutes.credits: (_) {
+            unawaited(AudioService.instance.preloadGameSounds());
+            return const DuelLobbyPage(mode: DuelRoomMode.credits);
+          },
           GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
           GameModeRoutes.history: (_) => const GameHistoryPage(),
           GameModeRoutes.adminLogin: (_) => const LoginAdminPage(),
@@ -158,30 +166,19 @@ class AppBootstrapPage extends StatefulWidget {
 }
 
 class _AppBootstrapPageState extends State<AppBootstrapPage> {
-  late final Future<void> _bootFuture;
-
   @override
   void initState() {
     super.initState();
-    _bootFuture = AudioService.instance.initialize(strict: true).then((_) {
-      debugPrint('[AudioService] game launch allowed');
+    unawaited(AudioService.instance.initialize(strict: false));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(AudioService.instance.startProgressivePreload());
+      unawaited(AudioService.instance.playDefaultBackgroundMusic());
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<void>(
-      future: _bootFuture,
-      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const _AudioWarmupPage();
-        }
-        if (snapshot.hasError) {
-          return _AudioWarmupErrorPage(error: snapshot.error);
-        }
-        return const IntroLandingPage();
-      },
-    );
+    return const IntroLandingPage();
   }
 }
 
