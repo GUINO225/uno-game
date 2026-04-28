@@ -54,6 +54,7 @@ class UserProfileService {
             'email': user.email,
             'photoUrl': user.photoURL,
             'credits': 1000,
+            'welcomeCreditsGranted': true,
             'wins': 0,
             'losses': 0,
             'totalGames': 0,
@@ -76,7 +77,6 @@ class UserProfileService {
         tx.update(ref, <String, dynamic>{
           if (existingDisplayName.isEmpty && !hasCustomProfile)
             'displayName': suggestedDisplayName,
-          if (data['credits'] == null) 'credits': 1000,
           if (data['wins'] == null) 'wins': 0,
           if (data['losses'] == null) 'losses': 0,
           if (data['totalGames'] == null) 'totalGames': 0,
