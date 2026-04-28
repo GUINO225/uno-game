@@ -3290,6 +3290,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   String? _lastFunnyActionKey;
   bool _creditExitHandled = false;
   bool _funnyMessagesEnabled = true;
+  bool _isDrawingActionBusy = false;
   final Duration comicMessageCooldown = const Duration(seconds: 8);
   DateTime? _lastComicMessageAt;
   DateTime? _lastImportantPopupOpenedAt;
@@ -4017,7 +4018,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   Future<void> _onDrawTap() async {
     final DuelSession? session = _controller.session;
     final DuelBoardState? board = _board;
-    if (session == null || board == null || !_controller.isMyTurn) {
+    if (session == null || board == null || !_controller.isMyTurn || _isDrawingActionBusy) {
       return;
     }
     if (_requiresStake(session)) {
@@ -4028,12 +4029,19 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     if (!move.accepted) {
       return;
     }
-    unawaited(_sfx.playDraw());
-    await _controller.sendAction(
-      DuelActionType.drawCard,
-      payload: move.payload,
-      nextTurnOverride: move.nextTurn,
-    );
+    setState(() => _isDrawingActionBusy = true);
+    try {
+      unawaited(_sfx.playDraw());
+      await _controller.sendAction(
+        DuelActionType.drawCard,
+        payload: move.payload,
+        nextTurnOverride: move.nextTurn,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isDrawingActionBusy = false);
+      }
+    }
   }
 
   String _resolveName(DuelSession session, String playerId) {
@@ -5546,7 +5554,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                       _CenterArea(
                         discardPile: board.discardPile,
                         drawCount: board.drawPile.length,
-                        canDraw: myTurn && board.canDraw(_controller.localPlayerId),
+                        canDraw: myTurn &&
+                            board.canDraw(_controller.localPlayerId) &&
+                            !_isDrawingActionBusy,
                         onDrawTap: _onDrawTap,
                         overlay: texts.overlay,
                         requiredSuit: board.requiredSuit,
@@ -5556,7 +5566,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                       SizedBox(height: sectionGap),
                       _MyHandRow(
                         cards: board.handOf(_controller.localPlayerId),
-                        canInteract: myTurn,
+                        canInteract: myTurn && !(myTurn && board.pendingDraw > 0),
                         onCardTap: _onCardTap,
                         playable: (DuelCard card) =>
                             myTurn && board.canPlay(_controller.localPlayerId, card),

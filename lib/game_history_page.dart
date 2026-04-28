@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'game_card_avatar.dart';
 import 'premium_ui.dart';
 
 class GameHistoryPage extends StatefulWidget {
@@ -23,186 +24,59 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
 
   Future<List<_PlayerMatchResult>> _loadHistory() async {
     final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null || user.isAnonymous) {
-      return const <_PlayerMatchResult>[];
-    }
+    if (user == null || user.isAnonymous) return const <_PlayerMatchResult>[];
 
-    final CollectionReference<Map<String, dynamic>> resultsRef =
-        FirebaseFirestore.instance.collection('match_results');
+    final QuerySnapshot<Map<String, dynamic>> snap = await FirebaseFirestore.instance
+        .collection('match_results')
+        .where('playerIds', arrayContains: user.uid)
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .get();
 
-    final QuerySnapshot<Map<String, dynamic>> winsSnap =
-        await resultsRef.where('winnerId', isEqualTo: user.uid).get();
-    final QuerySnapshot<Map<String, dynamic>> lossesSnap =
-        await resultsRef.where('loserId', isEqualTo: user.uid).get();
-
-    final Map<String, _PlayerMatchResult> byResultId = <String, _PlayerMatchResult>{};
-
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in <QueryDocumentSnapshot<Map<String, dynamic>>>[
-      ...winsSnap.docs,
-      ...lossesSnap.docs,
-    ]) {
-      final Map<String, dynamic> data = doc.data();
-      final String winnerId = (data['winnerId'] as String? ?? '').trim();
-      final String loserId = (data['loserId'] as String? ?? '').trim();
-      final bool isWin = winnerId == user.uid;
-      final String opponentId = isWin ? loserId : winnerId;
-      byResultId[doc.id] = _PlayerMatchResult(
-        resultId: doc.id,
-        gameId: (data['gameId'] as String? ?? '-').trim(),
-        round: (data['round'] as num?)?.toInt() ?? 0,
-        createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
-        isWin: isWin,
-        opponentId: opponentId.isEmpty ? 'Inconnu' : opponentId,
-      );
-    }
-
-    final List<_PlayerMatchResult> results = byResultId.values.toList();
-    results.sort((_PlayerMatchResult a, _PlayerMatchResult b) {
-      final DateTime aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final DateTime bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return bDate.compareTo(aDate);
-    });
-    return results;
+    return snap.docs.map((d) => _PlayerMatchResult.fromDoc(d.data(), user.uid)).toList();
   }
 
-  void _refresh() {
-    setState(() {
-      _historyFuture = _loadHistory();
-    });
-  }
+  void _refresh() => setState(() => _historyFuture = _loadHistory());
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: PremiumColors.panel,
-        foregroundColor: PremiumColors.textDark,
-        title: Text(
-          'Historique de jeux',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            color: PremiumColors.textDark,
-          ),
-        ),
-        actions: <Widget>[
-          IconButton(
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Actualiser',
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Historique de jeux')),
       body: FutureBuilder<List<_PlayerMatchResult>>(
         future: _historyFuture,
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<_PlayerMatchResult>> snapshot,
-        ) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  'Impossible de charger l\'historique pour le moment.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          color: PremiumColors.textDark,
-                        ),
+        builder: (context, s) {
+          if (s.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          final List<_PlayerMatchResult> items = s.data ?? const <_PlayerMatchResult>[];
+          if (items.isEmpty) return const Center(child: Text('Aucune partie enregistrée.'));
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final r = items[i];
+              final Color accent = r.isWin ? PremiumColors.accentGreen : const Color(0xFFE86D6D);
+              return PremiumPanel(
+                child: Row(
+                  children: <Widget>[
+                    GameCardAvatar(
+                      data: GameCardAvatarPalette.fromSeed(r.myUid),
+                      size: 44,
+                      showShadow: false,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                        Text('${r.myPseudo} vs ${r.opponentPseudo}', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                        Text(r.isWin ? 'Victoire' : 'Défaite', style: GoogleFonts.poppins(color: accent, fontWeight: FontWeight.w700)),
+                        Text('Mode: ${r.modeLabel}${r.stakeCredits > 0 ? ' • Mise: ${r.stakeCredits}' : ''}'),
+                        Text('Crédits: ${r.creditDelta >= 0 ? '+' : ''}${r.creditDelta}'),
+                        Text(r.dateLabel, style: GoogleFonts.poppins(fontSize: 12)),
+                      ]),
+                    ),
+                  ],
                 ),
-              ),
-            );
-          }
-
-          final List<_PlayerMatchResult> results =
-              snapshot.data ?? const <_PlayerMatchResult>[];
-
-          if (results.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  'Aucune partie enregistrée pour ce compte.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          color: PremiumColors.textDark,
-                        ),
-                ),
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async => _refresh(),
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-              itemCount: results.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (BuildContext context, int index) {
-                final _PlayerMatchResult result = results[index];
-                final Color accent = result.isWin
-                    ? PremiumColors.accentGreen
-                    : const Color(0xFFE86D6D);
-                final DateTime? date = result.createdAt;
-                final String dateLabel = date == null
-                    ? 'Date inconnue'
-                    : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-                return PremiumPanel(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Icon(
-                            result.isWin
-                                ? Icons.emoji_events_rounded
-                                : Icons.cancel_rounded,
-                            color: accent,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            result.isWin ? 'Victoire' : 'Défaite',
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w700,
-                              color: accent,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Partie: ${result.gameId} • Manche ${result.round}',
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          color: PremiumColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Adversaire: ${result.opponentId}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: PremiumColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        dateLabel,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: PremiumColors.textDark.withOpacity(0.72),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+              );
+            },
           );
         },
       ),
@@ -211,19 +85,34 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
 }
 
 class _PlayerMatchResult {
-  const _PlayerMatchResult({
-    required this.resultId,
-    required this.gameId,
-    required this.round,
-    required this.createdAt,
-    required this.isWin,
-    required this.opponentId,
-  });
-
-  final String resultId;
-  final String gameId;
-  final int round;
-  final DateTime? createdAt;
+  const _PlayerMatchResult({required this.myUid, required this.myPseudo, required this.opponentPseudo, required this.isWin, required this.modeLabel, required this.stakeCredits, required this.creditDelta, required this.dateLabel});
+  final String myUid;
+  final String myPseudo;
+  final String opponentPseudo;
   final bool isWin;
-  final String opponentId;
+  final String modeLabel;
+  final int stakeCredits;
+  final int creditDelta;
+  final String dateLabel;
+
+  static _PlayerMatchResult fromDoc(Map<String, dynamic> data, String uid) {
+    final Map<String, dynamic> a = (data['playerA'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final Map<String, dynamic> b = (data['playerB'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final bool mineIsA = (a['uid'] as String? ?? '') == uid;
+    final Map<String, dynamic> mine = mineIsA ? a : b;
+    final Map<String, dynamic> other = mineIsA ? b : a;
+    final Timestamp? ts = data['createdAt'] as Timestamp?;
+    final DateTime dt = ts?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final String mode = (data['mode'] as String? ?? 'duel').toLowerCase();
+    return _PlayerMatchResult(
+      myUid: uid,
+      myPseudo: (mine['pseudo'] as String? ?? 'Joueur').trim(),
+      opponentPseudo: (other['pseudo'] as String? ?? 'Adversaire').trim(),
+      isWin: (mine['result'] as String? ?? '') == 'win',
+      modeLabel: mode == 'credits' ? 'Duel Pari' : (mode == 'solo' ? 'Solo' : 'Duel'),
+      stakeCredits: (data['stakeCredits'] as num?)?.toInt() ?? 0,
+      creditDelta: (mine['creditDelta'] as num?)?.toInt() ?? 0,
+      dateLabel: '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
+    );
+  }
 }
