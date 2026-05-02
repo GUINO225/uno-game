@@ -36,7 +36,11 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
           .limit(150)
           .get();
     } on FirebaseException {
-      snap = await collection.where('playerIds', arrayContains: user.uid).limit(150).get();
+      try {
+        snap = await collection.where('playerIds', arrayContains: user.uid).limit(150).get();
+      } on FirebaseException {
+        return const <_PlayerMatchResult>[];
+      }
     }
 
     final List<_PlayerMatchResult> results = snap.docs
