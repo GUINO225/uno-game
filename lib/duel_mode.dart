@@ -868,7 +868,25 @@ class GameService {
         presenceGraceUntil: _presenceGraceDeadline(),
         roomStatus: mode == DuelRoomMode.credits ? 'betting' : 'open',
       ).toMap()
-        ..addAll(_presenceOnlinePatch(playerId));
+        ..addAll(_presenceOnlinePatch(playerId))
+        ..addAll(<String, dynamic>{
+          'creatorId': playerId,
+          'roomCode': roomCode,
+          'code': roomCode,
+          'createdAt': FieldValue.serverTimestamp(),
+          'currentTurnUid': playerId,
+          'currentPlayerId': playerId,
+          'winnerId': null,
+          'loserId': null,
+        });
+
+      if (mode == DuelRoomMode.credits) {
+        roomData.addAll(<String, dynamic>{
+          'betStatus': roomData['betFlowState'],
+          'betAmount': roomData['activeStakeCredits'] ?? 0,
+          'stakeAmount': roomData['activeStakeCredits'] ?? 0,
+        });
+      }
 
       Future<void> verifyRoomWrite() async {
         debugPrint('[GameService] room verify start code=$roomCode');
@@ -883,19 +901,42 @@ class GameService {
           throw StateError('Room introuvable après écriture Firestore.');
         }
         final Map<String, dynamic>? verifiedData = verifySnap.data();
-        final List<String> requiredFields = <String>[
-          'creatorId',
-          'roomCode',
-          'mode',
-          'status',
-          'createdAt',
-        ];
-        final bool hasAllRequiredFields =
-            verifiedData != null &&
-            requiredFields.every((String key) => verifiedData.containsKey(key));
-        if (!hasAllRequiredFields) {
+        final Map<String, List<String>> requiredFieldAlternatives = <String, List<String>>{
+          'roomCodeOrCode': <String>['roomCode', 'code'],
+          'creatorIdOrHostId': <String>['creatorId', 'hostId'],
+          'mode': <String>['mode'],
+          'statusOrRoomStatus': <String>['status', 'roomStatus'],
+          'createdAt': <String>['createdAt'],
+          'updatedAt': <String>['updatedAt'],
+          'players': <String>['players'],
+          'currentTurn': <String>['currentTurn', 'currentTurnUid', 'currentPlayerId'],
+          'winnerId': <String>['winnerId'],
+          'loserId': <String>['loserId'],
+          'rematchStatus': <String>['rematchStatus'],
+        };
+        if (mode == DuelRoomMode.credits) {
+          requiredFieldAlternatives['betStatusOrFlow'] = <String>['betStatus', 'betFlowState'];
+          requiredFieldAlternatives['betAmountOrStakeAmount'] = <String>[
+            'betAmount',
+            'stakeAmount',
+            'activeStakeCredits',
+          ];
+        }
+
+        final Map<String, dynamic> safeData = verifiedData ?? <String, dynamic>{};
+        final List<String> missingFields = <String>[];
+        requiredFieldAlternatives.forEach((String logicalKey, List<String> alternatives) {
+          final bool exists = alternatives.any((String key) => safeData.containsKey(key));
+          if (!exists) {
+            missingFields.add(alternatives.first);
+          }
+        });
+
+        if (missingFields.isNotEmpty) {
+          debugPrint('[GameService] room verify missing fields: $missingFields');
+          debugPrint('[GameService] room verify data keys: ${safeData.keys.toList()..sort()}');
           throw StateError(
-            'Room incomplète après écriture Firestore. Champs requis manquants.',
+            'Room incomplète après écriture Firestore. Champs manquants: ${missingFields.join(', ')}',
           );
         }
       }
