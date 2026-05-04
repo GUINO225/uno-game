@@ -1148,15 +1148,51 @@ class GameService {
             if (creatorId.isNotEmpty) creatorId: creatorPseudo,
             if (opponentId != null && opponentId.isNotEmpty) opponentId: opponentPseudo,
           };
+          final String roomModeRaw = room['mode'] as String? ?? DuelRoomMode.duel.name;
+          final DuelRoomMode roomMode = DuelRoomMode.values.firstWhere(
+            (DuelRoomMode value) => value.name == roomModeRaw,
+            orElse: () => DuelRoomMode.duel,
+          );
+          final DuelGameStatus roomStatus =
+              (room['status'] == 'playing') ? DuelGameStatus.inProgress : DuelGameStatus.waiting;
+          final DuelBetFlowState betFlowState =
+              roomMode == DuelRoomMode.credits && roomStatus == DuelGameStatus.inProgress
+              ? DuelBetFlowState.readyToStart
+              : DuelBetFlowState.idle;
+          final DateTime now = DateTime.now().toUtc();
           controller.add(DuelSession(
             gameId: room['id'] as String? ?? gameId,
             hostId: creatorId,
             players: players,
             playerNames: names,
             currentTurn: creatorId,
-            status: (room['status'] == 'playing') ? DuelGameStatus.inProgress : DuelGameStatus.waiting,
+            status: roomStatus,
             scores: <String, int>{for (final String id in players) id: 0},
             round: 1,
+            mode: roomMode,
+            activeStakeCredits: 0,
+            betFlowState: betFlowState,
+            roomStatus: 'open',
+            presence: <String, DuelPlayerPresence>{
+              if (creatorId.isNotEmpty)
+                creatorId: DuelPlayerPresence(
+                  state: 'online',
+                  isOnline: true,
+                  currentScreen: 'game',
+                  lastSeenAt: now,
+                  connectionState: 'online',
+                  appState: 'active',
+                ),
+              if (opponentId != null && opponentId.isNotEmpty)
+                opponentId: DuelPlayerPresence(
+                  state: 'online',
+                  isOnline: true,
+                  currentScreen: 'game',
+                  lastSeenAt: now,
+                  connectionState: 'online',
+                  appState: 'active',
+                ),
+            },
           ));
         },
       );
@@ -2400,6 +2436,13 @@ class DuelController extends ChangeNotifier {
   }
 
   void _syncPresenceJobs(DuelSession current) {
+    if (BackendFlags.useSupabaseGameRead) {
+      _presenceHeartbeatTimer?.cancel();
+      _presenceWatchdogTimer?.cancel();
+      _presenceHeartbeatTimer = null;
+      _presenceWatchdogTimer = null;
+      return;
+    }
     if (!_isActiveSession(current)) {
       _presenceHeartbeatTimer?.cancel();
       _presenceHeartbeatTimer = null;
@@ -2432,6 +2475,9 @@ class DuelController extends ChangeNotifier {
   }
 
   Future<void> _reportOfflineOpponentIfNeeded() async {
+    if (BackendFlags.useSupabaseGameRead) {
+      return;
+    }
     if (_forfeitReportInFlight) {
       return;
     }
