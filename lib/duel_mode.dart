@@ -253,15 +253,25 @@ class DuelChatMessage {
 class DuelPlayerPresence {
   const DuelPlayerPresence({
     this.state = 'offline',
+    this.isOnline = false,
+    this.currentScreen = 'background',
     this.lastSeenAt,
+    this.lastActionAt,
     this.leftAt,
+    this.connectionState = 'offline',
+    this.appState = 'closed',
   });
 
   final String state;
+  final bool isOnline;
+  final String currentScreen;
   final DateTime? lastSeenAt;
+  final DateTime? lastActionAt;
   final DateTime? leftAt;
+  final String connectionState;
+  final String appState;
 
-  bool get isOffline => state == 'offline';
+  bool get isOffline => !isOnline || state == 'offline' || connectionState == 'offline';
 
   factory DuelPlayerPresence.fromMap(Map<String, dynamic>? map) {
     if (map == null || map.isEmpty) {
@@ -269,8 +279,13 @@ class DuelPlayerPresence {
     }
     return DuelPlayerPresence(
       state: map['state'] as String? ?? 'offline',
+      isOnline: map['isOnline'] as bool? ?? false,
+      currentScreen: map['currentScreen'] as String? ?? 'background',
       lastSeenAt: (map['lastSeenAt'] as Timestamp?)?.toDate(),
+      lastActionAt: (map['lastActionAt'] as Timestamp?)?.toDate(),
       leftAt: (map['leftAt'] as Timestamp?)?.toDate(),
+      connectionState: map['connectionState'] as String? ?? 'offline',
+      appState: map['appState'] as String? ?? 'closed',
     );
   }
 }
@@ -480,12 +495,19 @@ class DuelSession {
           playerId,
           <String, dynamic>{
             'state': value.state,
+            'isOnline': value.isOnline,
+            'currentScreen': value.currentScreen,
             'lastSeenAt': value.lastSeenAt == null
                 ? null
                 : Timestamp.fromDate(value.lastSeenAt!.toUtc()),
+            'lastActionAt': value.lastActionAt == null
+                ? null
+                : Timestamp.fromDate(value.lastActionAt!.toUtc()),
             'leftAt': value.leftAt == null
                 ? null
                 : Timestamp.fromDate(value.leftAt!.toUtc()),
+            'connectionState': value.connectionState,
+            'appState': value.appState,
           },
         ),
       ),
@@ -639,26 +661,45 @@ class GameService {
   Map<String, dynamic> _presenceOnlinePatch(String playerId) {
     return <String, dynamic>{
       'presence.$playerId.state': 'online',
+      'presence.$playerId.isOnline': true,
+      'presence.$playerId.currentScreen': 'game',
       'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.lastActionAt': FieldValue.serverTimestamp(),
       'presence.$playerId.leftAt': null,
+      'presence.$playerId.connectionState': 'online',
+      'presence.$playerId.appState': 'active',
     };
   }
 
   Map<String, dynamic> _presenceOfflinePatch(String playerId) {
     return <String, dynamic>{
       'presence.$playerId.state': 'offline',
+      'presence.$playerId.isOnline': false,
+      'presence.$playerId.currentScreen': 'background',
       'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
       'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.connectionState': 'offline',
+      'presence.$playerId.appState': 'closed',
     };
   }
 
   Map<String, dynamic> _presenceStatePatch({
     required String playerId,
     required String state,
+    String? currentScreen,
+    String? appState,
+    String? connectionState,
+    bool touchLastAction = false,
   }) {
+    final bool isOnline = state != 'offline';
     return <String, dynamic>{
       'presence.$playerId.state': state,
+      'presence.$playerId.isOnline': isOnline,
+      'presence.$playerId.currentScreen': currentScreen ?? (isOnline ? 'game' : 'background'),
       'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+      if (touchLastAction) 'presence.$playerId.lastActionAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.connectionState': connectionState ?? (isOnline ? 'online' : 'offline'),
+      'presence.$playerId.appState': appState ?? (isOnline ? 'active' : 'closed'),
       if (state != 'offline') 'presence.$playerId.leftAt': null,
       if (state == 'offline') 'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
     };
@@ -884,13 +925,24 @@ class GameService {
     required String gameId,
     required String playerId,
     required String state,
+    String? currentScreen,
+    String? appState,
+    String? connectionState,
+    bool touchLastAction = false,
   }) async {
     final CollectionReference<Map<String, dynamic>> games = await _games();
     if (state == 'maybeOffline' || state == 'leaving') {
       debugPrint('[Presence] beforeunload detected, marking maybeOffline only');
     }
     await games.doc(gameId).update(<String, dynamic>{
-      ..._presenceStatePatch(playerId: playerId, state: state),
+      ..._presenceStatePatch(
+        playerId: playerId,
+        state: state,
+        currentScreen: currentScreen,
+        appState: appState,
+        connectionState: connectionState,
+        touchLastAction: touchLastAction,
+      ),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -2214,6 +2266,18 @@ class DuelController extends ChangeNotifier {
                 orElse: () => localPlayerId,
               ));
 
+    final Map<String, dynamic> withPresence = <String, dynamic>{
+      ...sessionPatch,
+      ...service._presenceStatePatch(
+        playerId: localPlayerId,
+        state: 'online',
+        currentScreen: 'game',
+        appState: 'active',
+        connectionState: 'online',
+        touchLastAction: true,
+      ),
+    };
+
     await service.pushAction(
       gameId: current.gameId,
       action: DuelAction(
@@ -2224,7 +2288,7 @@ class DuelController extends ChangeNotifier {
       ),
       nextTurn: nextTurn,
       status: statusOverride ?? DuelGameStatus.inProgress,
-      sessionPatch: sessionPatch,
+      sessionPatch: withPresence,
     );
   }
 
@@ -3376,9 +3440,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _controller.startPresenceGracePeriod();
       final DuelSession? current = _controller.session;
       if (current != null) {
-        unawaited(_controller.service.updatePresenceHeartbeat(
+        unawaited(_controller.service.markPlayerPresenceState(
           gameId: current.gameId,
           playerId: _controller.localPlayerId,
+          state: 'online',
+          currentScreen: 'game',
+          appState: 'active',
+          connectionState: 'online',
         ));
       }
       return;
@@ -3409,7 +3477,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       await _controller.service.markPlayerPresenceState(
         gameId: session.gameId,
         playerId: _controller.localPlayerId,
-        state: terminalSignal ? 'maybeOffline' : 'away',
+        state: terminalSignal ? 'offline' : 'away',
+        currentScreen: 'background',
+        appState: terminalSignal ? 'closed' : 'background',
+        connectionState: terminalSignal ? 'offline' : 'away',
       );
     } catch (_) {
       // Heartbeat watchdog will determine actual abandonment after timeout.
@@ -5355,13 +5426,22 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     final DateTime? lastSeen = presence.lastSeenAt?.toUtc();
     final Duration elapsed = lastSeen == null ? _abandonTimeout : now.difference(lastSeen);
 
-    if (presence.state == 'online' && elapsed < _connectionWarningTimeout) {
-      return 'Adversaire en ligne';
+    if (presence.currentScreen != 'game' && presence.isOnline && elapsed < const Duration(seconds: 30)) {
+      return 'Adversaire hors du jeu';
     }
-    if (presence.state == 'offline' || elapsed >= _abandonTimeout) {
+    if (elapsed >= const Duration(seconds: 60)) {
+      return 'Adversaire inactif';
+    }
+    if (presence.isOffline || elapsed >= const Duration(seconds: 30)) {
       return 'Adversaire hors ligne';
     }
-    return 'Connexion adverse instable';
+    if (elapsed >= const Duration(seconds: 20) || presence.connectionState == 'slow') {
+      return 'Connexion faible';
+    }
+    if (elapsed >= const Duration(seconds: 10)) {
+      return 'Connexion instable';
+    }
+    return 'Adversaire dans la partie';
   }
   @override
   Widget build(BuildContext context) {
