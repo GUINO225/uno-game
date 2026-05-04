@@ -8,7 +8,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
@@ -1113,7 +1112,7 @@ class GameService {
       debugPrint('[GAME_ROUTER] listenRoom backend=supabase');
       debugPrint('[SUPABASE_GAME] listenRoom start code=$gameId');
       final StreamController<DuelSession> controller = StreamController<DuelSession>();
-      final RealtimeChannel channel = _supabaseGameService.listenRoom(
+      final channel = _supabaseGameService.listenRoom(
         roomCode: gameId,
         onRoomChanged: (Map<String, dynamic> room) {
           final String creatorId = room['creator_id'] as String? ?? '';
