@@ -2624,6 +2624,60 @@ class DuelController extends ChangeNotifier {
   }
 }
 
+
+class SimplePresenceService {
+  SimplePresenceService({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
+  DateTime? _lastWrite;
+
+  bool _canWrite() {
+    final DateTime now = DateTime.now();
+    if (_lastWrite == null) {
+      return true;
+    }
+    return now.difference(_lastWrite!).inSeconds >= 120;
+  }
+
+  Future<void> markOnline(String uid) async {
+    if (!_canWrite()) {
+      debugPrint('[PRESENCE] skipped throttle uid=$uid');
+      return;
+    }
+    _lastWrite = DateTime.now();
+    debugPrint('[PRESENCE] online write uid=$uid');
+    await _write(uid: uid, isOnline: true);
+  }
+
+  Future<void> markOffline(String uid) async {
+    if (!_canWrite()) {
+      debugPrint('[PRESENCE] skipped throttle uid=$uid');
+      return;
+    }
+    _lastWrite = DateTime.now();
+    debugPrint('[PRESENCE] offline write uid=$uid');
+    await _write(uid: uid, isOnline: false);
+  }
+
+  Future<void> _write({required String uid, required bool isOnline}) async {
+    try {
+      await _firestore.collection('users').doc(uid).set(<String, dynamic>{
+        'isOnline': isOnline,
+        'lastSeenAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      if (e.code == 'resource-exhausted' ||
+          e.code == 'permission-denied' ||
+          e.code == 'unavailable') {
+        debugPrint('[PRESENCE] ignored error=$e');
+        return;
+      }
+      rethrow;
+    }
+  }
+}
+
 class DuelLobbyPage extends StatefulWidget {
   const DuelLobbyPage({super.key, this.mode = DuelRoomMode.duel});
 
@@ -2655,6 +2709,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   final AppSfxService _sfx = AppSfxService.instance;
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
+  final SimplePresenceService _presenceService = SimplePresenceService();
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   bool _openedDuel = false;
@@ -2734,6 +2789,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         debugPrint('[DUEL_AUTH] user connecté ou invité: invité anonyme');
         return;
       }
+      unawaited(_presenceService.markOnline(user.uid).catchError((Object e) {
+        debugPrint('[PRESENCE] ignored error=$e');
+      }));
       await _upsertProfileFromGoogle(user);
     } finally {
       _isHydratingAccount = false;
@@ -2760,7 +2818,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
     }
     try {
-      debugPrint('[DUEL_ACCOUNT] account loading state=start uid=${user.uid}');
       final PlayerProfile profile = await _profileService
                   .createOrUpdateFromGoogleUser(user, force: force)
           .timeout(const Duration(seconds: 8));
@@ -2901,27 +2958,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
 
-  Future<void> _ensureProfileReady() async {
-    final User? user = _authService.currentUser;
-    if (user == null || user.isAnonymous) {
-      throw StateError('GOOGLE_AUTH_REQUIRED');
-    }
-    debugPrint('[DUEL_ACCOUNT] ensure profile uid=${user.uid}');
-    await _upsertProfileFromGoogle(user);
-  }
-
-  void _syncPresenceNonBlocking({required String uid, required String trigger}) {
-    debugPrint('[PRESENCE] sync started non-blocking trigger=$trigger uid=$uid');
-    if ((_controller?.activeGameId ?? '').isNotEmpty) {
-      debugPrint('[PRESENCE] sync ignored during active room gameId=${_controller?.activeGameId}');
-      return;
-    }
-    unawaited(_ensureProfileReady().catchError((Object e, StackTrace st) {
-      debugPrint('[PRESENCE] sync ignored error=$e');
-      debugPrint('[PRESENCE] sync stack=$st');
-    }));
-  }
-
   Future<void> _continueWithGoogle() async {
     unawaited(_sfx.playClick());
     if (_googleBusy) {
@@ -2973,6 +3009,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     }
     try {
       await _upsertProfileFromGoogle(result.user!, force: true);
+      unawaited(_presenceService.markOnline(result.user!.uid).catchError((Object e) {
+        debugPrint('[PRESENCE] ignored error=$e');
+      }));
     } finally {
       if (mounted) {
         setState(() {
@@ -2984,19 +3023,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _ensureLobbyAccess() async {
     if (!mounted || _authService.currentUser != null) {
-      if (_authService.currentUser != null) {
-        try {
-          await _ensureProfileReady();
-        } on TimeoutException {
-          if (mounted) {
-            setState(() {
-              _profileError = 'Le chargement du compte a expiré (8s).';
-            });
-          }
-        } catch (e) {
-          debugPrint('[DUEL_ACCOUNT] ensureProfileReady failed: $e');
-        }
-      }
       if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId != null) {
         final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
         if (!mounted) {
@@ -3188,8 +3214,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         });
         return;
       }
-      debugPrint('[DUEL_ROOM] createRoom does not wait for presence');
-      _syncPresenceNonBlocking(uid: uid, trigger: 'create_room');
       await _resolveIdentityIfNeeded();
       final String? pseudoError = _validatePseudo();
       if (pseudoError != null) {
@@ -3303,8 +3327,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
-    debugPrint('[DUEL_ROOM] joinRoom does not wait for presence');
-    _syncPresenceNonBlocking(uid: uid, trigger: 'join_room');
     await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
