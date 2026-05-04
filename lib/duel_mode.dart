@@ -2514,6 +2514,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   final TextEditingController _nameController = TextEditingController();
   bool _openedDuel = false;
   bool _googleBusy = false;
+  bool _isHydratingAccount = false;
+  bool _isUpsertingProfile = false;
   String? _profileError;
   late String _localPlayerId;
   String? _authenticatedPlayerId;
@@ -2571,17 +2573,26 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _hydrateExistingAuthSession() async {
-    final User? user = _authService.currentUser;
-    if (user == null) {
-      debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
+    if (_isHydratingAccount || _isUpsertingProfile) {
+      debugPrint('[DUEL_ACCOUNT] hydrate skipped (already running)');
       return;
     }
-    if (user.isAnonymous) {
-      _localPlayerId = user.uid;
-      debugPrint('[DUEL_AUTH] user connecté ou invité: invité anonyme');
-      return;
+    _isHydratingAccount = true;
+    try {
+      final User? user = _authService.currentUser;
+      if (user == null) {
+        debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
+        return;
+      }
+      if (user.isAnonymous) {
+        _localPlayerId = user.uid;
+        debugPrint('[DUEL_AUTH] user connecté ou invité: invité anonyme');
+        return;
+      }
+      await _upsertProfileFromGoogle(user);
+    } finally {
+      _isHydratingAccount = false;
     }
-    await _upsertProfileFromGoogle(user);
   }
 
   Future<void> _ensureFirestoreIdentity() async {
@@ -2592,22 +2603,56 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     _authenticatedPlayerId ??= user.uid;
   }
 
-  Future<void> _upsertProfileFromGoogle(User user) async {
-    debugPrint('[DUEL_ACCOUNT] account loading state=start uid=${user.uid}');
-    final PlayerProfile profile = await _profileService
-        .createOrUpdateFromGoogleUser(user)
-        .timeout(const Duration(seconds: 8));
-    if (!mounted) {
+  Future<void> _upsertProfileFromGoogle(User user, {bool force = false}) async {
+    if (_isUpsertingProfile) {
+      debugPrint('[DUEL_ACCOUNT] upsert skipped (already running) uid=${user.uid}');
       return;
     }
-    setState(() {
-      _authenticatedPlayerId = user.uid;
-      _playerProfile = profile;
-      if (_nameController.text.trim().isEmpty) {
-        _nameController.text = profile.publicDisplayName;
+    _isUpsertingProfile = true;
+    if (mounted) {
+      setState(() {
+        _profileError = null;
+      });
+    }
+    try {
+      debugPrint('[DUEL_ACCOUNT] account loading state=start uid=${user.uid}');
+      final PlayerProfile profile = await _profileService
+                  .createOrUpdateFromGoogleUser(user, force: force)
+          .timeout(const Duration(seconds: 8));
+      if (!mounted) {
+        return;
       }
-    });
-    debugPrint('[DUEL_ACCOUNT] userProfile loaded uid=${user.uid} pseudo=${profile.publicDisplayName}');
+      setState(() {
+        _authenticatedPlayerId = user.uid;
+        _playerProfile = profile;
+        if (_nameController.text.trim().isEmpty) {
+          _nameController.text = profile.publicDisplayName;
+        }
+      });
+      debugPrint('[DUEL_ACCOUNT] userProfile loaded uid=${user.uid} pseudo=${profile.publicDisplayName}');
+    } on TimeoutException {
+      if (mounted) {
+        setState(() {
+          _profileError = 'Le chargement du compte a expiré (8s). Réessayez.';
+        });
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        setState(() {
+          _profileError = e.code == 'resource-exhausted'
+              ? 'Connexion Firebase saturée. Réessaie dans quelques instants.'
+              : 'Erreur Firestore: ${e.code}';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _profileError = 'Impossible de charger le compte: $e';
+        });
+      }
+    } finally {
+      _isUpsertingProfile = false;
+    }
   }
 
   bool get _shouldAskPseudo => false;
@@ -2770,31 +2815,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     try {
-      await _upsertProfileFromGoogle(result.user!);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _profileError = null;
-      });
-    } on TimeoutException {
-      if (mounted) {
-        setState(() {
-          _profileError = 'Le chargement du compte a expiré (8s). Réessayez.';
-        });
-      }
-    } on FirebaseException catch (e) {
-      if (mounted) {
-        setState(() {
-          _profileError = 'Erreur Firestore: ${e.code}';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _profileError = 'Impossible de charger le compte: $e';
-        });
-      }
+      await _upsertProfileFromGoogle(result.user!, force: true);
     } finally {
       if (mounted) {
         setState(() {
