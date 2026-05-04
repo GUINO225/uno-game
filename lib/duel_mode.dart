@@ -5347,7 +5347,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
 
   String _opponentConnectionLabel(DuelSession session, String opponentId) {
     if (opponentId.isEmpty || session.players.length < 2) {
-      return 'En attente d'un adversaire';
+      return "En attente d'un adversaire";
     }
     final DuelPlayerPresence presence =
         session.presence[opponentId] ?? const DuelPlayerPresence();
