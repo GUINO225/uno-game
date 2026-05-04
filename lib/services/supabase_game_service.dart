@@ -33,11 +33,21 @@ class SupabaseGameService {
     required String opponentId,
     required String opponentPseudo,
   }) async {
-    await _client.from('duel_games').update(<String, dynamic>{
-      'opponent_id': opponentId,
-      'opponent_pseudo': opponentPseudo,
-      'status': 'playing',
-    }).eq('room_code', roomCode).eq('status', 'waiting');
+    final Map<String, dynamic> updated = await _client
+        .from('duel_games')
+        .update(<String, dynamic>{
+          'opponent_id': opponentId,
+          'opponent_pseudo': opponentPseudo,
+          'status': 'playing',
+        })
+        .eq('room_code', roomCode)
+        .eq('status', 'waiting')
+        .select()
+        .single();
+
+    debugPrint(
+      '[SUPABASE_GAME] joinRoom updated room=${updated['room_code']} status=${updated['status']}',
+    );
   }
 
   RealtimeChannel listenRoom({
@@ -55,6 +65,9 @@ class SupabaseGameService {
             .single();
 
         debugPrint('[SUPABASE_GAME] listenRoom initial fetch success code=$roomCode');
+        debugPrint('[SUPABASE_GAME] listenRoom initial creator_id=${room['creator_id']}');
+        debugPrint('[SUPABASE_GAME] listenRoom initial opponent_id=${room['opponent_id']}');
+        debugPrint('[SUPABASE_GAME] listenRoom initial status=${room['status']}');
         onRoomChanged(room);
       } catch (e) {
         debugPrint('[SUPABASE_GAME] listenRoom initial fetch failed: $e');
@@ -75,8 +88,12 @@ class SupabaseGameService {
           callback: (PostgresChangePayload payload) {
             debugPrint('[SUPABASE_GAME] listenRoom realtime event received code=$roomCode');
             final dynamic row = payload.newRecord;
-            if (row is Map<String, dynamic>) {
-              onRoomChanged(row);
+            if (row is Map) {
+              final Map<String, dynamic> room = Map<String, dynamic>.from(row);
+              debugPrint('[SUPABASE_GAME] listenRoom realtime creator_id=${room['creator_id']}');
+              debugPrint('[SUPABASE_GAME] listenRoom realtime opponent_id=${room['opponent_id']}');
+              debugPrint('[SUPABASE_GAME] listenRoom realtime status=${room['status']}');
+              onRoomChanged(room);
             }
           },
         )
