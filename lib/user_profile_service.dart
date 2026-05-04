@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 
@@ -12,11 +11,8 @@ class UserProfileService {
 
   static final UserProfileService instance = UserProfileService._();
 
-  CollectionReference<Map<String, dynamic>> get _profiles =>
-      FirebaseFirestore.instance.collection('user_profiles');
+  SupabaseClient get _client => Supabase.instance.client;
 
-  static const Duration _upsertCooldown = Duration(seconds: 30);
-  final Map<String, DateTime> _lastUpsertByUid = <String, DateTime>{};
 
   String sanitizeDisplayName(String value, {int maxLength = 18}) {
     final String singleSpaced = value.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -50,57 +46,39 @@ class UserProfileService {
   }) async {
     final String suggestedDisplayName = suggestedNameFromUser(user);
     final DateTime now = DateTime.now().toUtc();
-    final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.id);
-    final GameCardAvatarData defaultCardAvatar = defaultCardAvatarForUid(user.id);
+
     try {
-      final DocumentSnapshot<Map<String, dynamic>> snapshot = await ref.get();
-      final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
-      final DateTime? lastUpsert = _lastUpsertByUid[user.id];
-      final bool withinCooldown =
-          !force && lastUpsert != null && now.difference(lastUpsert) < _upsertCooldown;
+      final Map<String, dynamic> profilePayload = <String, dynamic>{
+        'id': user.id,
+        'email': user.email,
+        'display_name': suggestedDisplayName,
+        'photo_url': supabaseUserPhotoUrl(user),
+        'credits': 1000,
+        'wins': 0,
+        'losses': 0,
+        'games_played': 0,
+      };
 
-      final Map<String, dynamic> patch = <String, dynamic>{};
-      if (!snapshot.exists) {
-        patch.addAll(<String, dynamic>{
-          'uid': user.id,
-          'displayName': suggestedDisplayName,
-          'email': user.email,
-          'photoUrl': supabaseUserPhotoUrl(user),
-          'credits': 1000,
-          'welcomeCreditsGranted': true,
-          'wins': 0,
-          'losses': 0,
-          'totalGames': 0,
-          'score': 0,
-          'rankScore': 0,
-          'cardAvatarRank': defaultCardAvatar.rank,
-          'cardAvatarSuit': defaultCardAvatar.suit,
-          'hasCustomProfile': false,
-          'isRegistered': true,
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastLoginAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else {
-        final String existingDisplayName = (data['displayName'] as String? ?? '').trim();
-        final bool hasCustomProfile = data['hasCustomProfile'] as bool? ?? false;
-        if (existingDisplayName.isEmpty && !hasCustomProfile) {
-          patch['displayName'] = suggestedDisplayName;
-        }
-        if ((data['email'] as String?) != user.email) patch['email'] = user.email;
-        if ((data['photoUrl'] as String?) != supabaseUserPhotoUrl(user)) patch['photoUrl'] = supabaseUserPhotoUrl(user);
-        if (data['isRegistered'] != true) patch['isRegistered'] = true;
-        if (data['cardAvatarRank'] == null) patch['cardAvatarRank'] = defaultCardAvatar.rank;
-        if (data['cardAvatarSuit'] == null) patch['cardAvatarSuit'] = defaultCardAvatar.suit;
-        if (data['hasCustomProfile'] == null) patch['hasCustomProfile'] = false;
-      }
+      await _client.from('profiles').upsert(profilePayload, onConflict: 'id');
 
-      if (patch.isNotEmpty && (!withinCooldown || !snapshot.exists)) {
-        patch['lastLoginAt'] = FieldValue.serverTimestamp();
-        patch['updatedAt'] = FieldValue.serverTimestamp();
-        await ref.set(patch, SetOptions(merge: true));
-        _lastUpsertByUid[user.id] = now;
-      }
+      final Map<String, dynamic> data = await _client
+          .from('profiles')
+          .select('id, email, display_name, photo_url, credits, wins, losses, games_played')
+          .eq('id', user.id)
+          .single();
+
+      return PlayerProfile.fromMap(<String, dynamic>{
+        'uid': data['id'] ?? user.id,
+        'displayName': data['display_name'] ?? suggestedDisplayName,
+        'email': data['email'] ?? user.email,
+        'photoUrl': data['photo_url'] ?? supabaseUserPhotoUrl(user),
+        'credits': data['credits'] ?? 1000,
+        'wins': data['wins'] ?? 0,
+        'losses': data['losses'] ?? 0,
+        'totalGames': data['games_played'] ?? 0,
+        'createdAt': now,
+        'lastLoginAt': now,
+      });
     } catch (e, stackTrace) {
       debugPrint(
         '[UserProfileService] createOrUpdateFromGoogleUser failed for uid=${user.id}: $e',
@@ -108,27 +86,6 @@ class UserProfileService {
       debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
-
-    final DocumentSnapshot<Map<String, dynamic>> doc = await ref.get();
-    final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
-    return PlayerProfile.fromMap(<String, dynamic>{
-      'uid': user.id,
-      'displayName': data['displayName'] ?? suggestedDisplayName,
-      'email': data['email'] ?? user.email,
-      'photoUrl': data['photoUrl'] ?? supabaseUserPhotoUrl(user),
-      'avatarUrl': data['avatarUrl'],
-      'credits': data['credits'] ?? 1000,
-      'wins': data['wins'] ?? 0,
-      'losses': data['losses'] ?? 0,
-      'totalGames': data['totalGames'] ?? 0,
-      'rankScore': data['rankScore'] ?? data['score'] ?? 0,
-      'cardAvatarRank': data['cardAvatarRank'] ?? defaultCardAvatar.rank,
-      'cardAvatarSuit': data['cardAvatarSuit'] ?? defaultCardAvatar.suit,
-      'hasCustomProfile': data['hasCustomProfile'] ?? false,
-      'profilePromptDismissedAt': data['profilePromptDismissedAt'],
-      'createdAt': data['createdAt'] ?? Timestamp.fromDate(now),
-      'lastLoginAt': data['lastLoginAt'] ?? Timestamp.fromDate(now),
-    });
   }
 
   Future<void> updatePublicProfile({
@@ -148,18 +105,11 @@ class UserProfileService {
       throw ArgumentError('Symbole de carte invalide.');
     }
 
-    await _profiles.doc(uid).set(
-      <String, dynamic>{
-        'uid': uid,
-        'displayName': cleanedName,
-        'cardAvatarRank': cardAvatarRank,
-        'cardAvatarSuit': cardAvatarSuit,
-        'hasCustomProfile': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _client.from('profiles').upsert(<String, dynamic>{
+      'id': uid,
+      'display_name': cleanedName,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'id');
   }
 
   Future<void> updateDisplayName({
@@ -167,34 +117,40 @@ class UserProfileService {
     required String displayName,
   }) async {
     final String cleanedName = sanitizeDisplayName(displayName);
-    await _profiles.doc(uid).set(
-      <String, dynamic>{
-        'uid': uid,
-        'displayName': cleanedName,
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _client.from('profiles').upsert(<String, dynamic>{
+      'id': uid,
+      'display_name': cleanedName,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'id');
   }
 
   Future<void> dismissProfileCustomizationPrompt({
     required String uid,
   }) async {
-    await _profiles.doc(uid).set(
-      <String, dynamic>{
-        'uid': uid,
-        'profilePromptDismissedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _client.from('profiles').upsert(<String, dynamic>{
+      'id': uid,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'id');
   }
 
   Future<PlayerProfile?> getProfile(String uid) async {
-    final DocumentSnapshot<Map<String, dynamic>> doc = await _profiles.doc(uid).get();
-    if (!doc.exists) {
+    final List<Map<String, dynamic>> rows = await _client
+        .from('profiles')
+        .select('id, email, display_name, photo_url, credits, wins, losses, games_played')
+        .eq('id', uid);
+    if (rows.isEmpty) {
       return null;
     }
-    return PlayerProfile.fromMap(doc.data() ?? <String, dynamic>{});
+    final Map<String, dynamic> data = rows.first;
+    return PlayerProfile.fromMap(<String, dynamic>{
+      'uid': data['id'] ?? uid,
+      'displayName': data['display_name'] ?? 'Joueur',
+      'email': data['email'],
+      'photoUrl': data['photo_url'],
+      'credits': data['credits'] ?? 1000,
+      'wins': data['wins'] ?? 0,
+      'losses': data['losses'] ?? 0,
+      'totalGames': data['games_played'] ?? 0,
+    });
   }
 }
