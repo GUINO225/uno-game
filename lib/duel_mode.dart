@@ -40,6 +40,8 @@ const Duration _presenceGracePeriod = Duration(seconds: 20);
 const Duration _connectionWarningTimeout = Duration(seconds: 25);
 const Duration _abandonTimeout = Duration(seconds: 45);
 const Duration _presenceHeartbeatInterval = Duration(seconds: 8);
+const Duration _presenceAvailableThreshold = Duration(seconds: 20);
+const Duration _presenceUnstableThreshold = Duration(seconds: 60);
 
 enum DuelStakeStatus { none, pending, accepted, declined, resolved, insufficientFunds }
 
@@ -70,6 +72,8 @@ enum DuelRematchUiState {
   rematchRejected,
   rematchError,
 }
+
+enum DuelPresenceAvailability { available, unstable, offline }
 
 enum ComicMessageTrigger {
   mustDraw,
@@ -884,6 +888,11 @@ class GameService {
                 ? DuelGameStatus.waiting.name
                 : DuelGameStatus.inProgress.name)
             : DuelGameStatus.waiting.name,
+        if (players.length == 2 && session.isCreditsMode) ...<String, dynamic>{
+          'roomStatus': 'betting',
+          if (!session.stakeOffer.isAccepted)
+            'betFlowState': DuelBetFlowState.initialStakeProposed.name,
+        },
         if (activatesNow && !session.deckInitialized)
           ..._boardInitPatch(
             gameId: session.gameId,
@@ -3379,6 +3388,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return false;
     }
     if (_isInitialStakePhase(session)) {
+      if (session.roomStatus == 'betting' && _controller.localPlayerId == session.hostId) {
+        return true;
+      }
       if (session.invitedRefusalCount >= 2) {
         return true;
       }
@@ -3534,6 +3546,33 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _resetLocalRoundUiState();
     }
     _updateRematchUiState(session);
+    final String opponentId = session.players.firstWhere(
+      (String id) => id != _controller.localPlayerId,
+      orElse: () => '',
+    );
+    final DuelPlayerPresence opponentPresence = opponentId.isEmpty
+        ? const DuelPlayerPresence()
+        : (session.presence[opponentId] ?? const DuelPlayerPresence());
+    final DateTime nowUtc = DateTime.now().toUtc();
+    final DateTime? opponentLastSeen = opponentPresence.lastSeenAt?.toUtc();
+    final int lastSeenDiffSeconds =
+        opponentLastSeen == null ? -1 : nowUtc.difference(opponentLastSeen).inSeconds;
+    final DuelPresenceAvailability availability =
+        _opponentAvailability(opponentPresence, nowUtc);
+    final bool shouldShowBetProposal =
+        _isCreditsMode && _canSetStake(session) && !session.stakeOffer.isPending;
+    final bool shouldShowWaitingBet = _isCreditsMode &&
+        session.players.length == 2 &&
+        session.status == DuelGameStatus.waiting &&
+        !shouldShowBetProposal;
+    final bool shouldBlockGame = _isCreditsMode && _requiresStake(session);
+    debugPrint(
+      '[BetFlowDebug] roomStatus=${session.roomStatus} betStatus=${session.betFlowState.name} '
+      'creatorId=${session.hostId} currentUserId=${_controller.localPlayerId} opponentId=$opponentId '
+      'opponentPresence=${availability.name}/${opponentPresence.state}/${opponentPresence.currentScreen} '
+      'lastSeenDiff=${lastSeenDiffSeconds}s shouldShowBetProposal=$shouldShowBetProposal '
+      'shouldShowWaitingBet=$shouldShowWaitingBet shouldBlockGame=$shouldBlockGame',
+    );
     debugPrint(
       '[RematchParis] snapshot game=${session.gameId} status=${session.status.name} '
       'bet=${session.betFlowState.name} requestBy=${session.rematchRequestBy} '
@@ -5447,23 +5486,33 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     final DateTime now = DateTime.now().toUtc();
     final DateTime? lastSeen = presence.lastSeenAt?.toUtc();
     final Duration elapsed = lastSeen == null ? _abandonTimeout : now.difference(lastSeen);
+    final DuelPresenceAvailability availability = _opponentAvailability(presence, now);
 
-    if (presence.currentScreen != 'game' && presence.isOnline && elapsed < const Duration(seconds: 30)) {
-      return 'Adversaire hors du jeu';
-    }
-    if (elapsed >= const Duration(seconds: 60)) {
+    if (availability == DuelPresenceAvailability.offline) {
       return 'Adversaire inactif';
     }
-    if (presence.isOffline || elapsed >= const Duration(seconds: 30)) {
-      return 'Adversaire hors ligne';
-    }
-    if (elapsed >= const Duration(seconds: 20) || presence.connectionState == 'slow') {
-      return 'Connexion faible';
-    }
-    if (elapsed >= const Duration(seconds: 10)) {
+    if (availability == DuelPresenceAvailability.unstable) {
       return 'Connexion instable';
     }
+    if (presence.currentScreen != 'game' && presence.isOnline) {
+      return 'Adversaire connecté (hors écran jeu)';
+    }
+    if (elapsed >= const Duration(seconds: 10) || presence.connectionState == 'slow') {
+      return 'Connexion faible';
+    }
     return 'Adversaire dans la partie';
+  }
+
+  DuelPresenceAvailability _opponentAvailability(DuelPlayerPresence presence, DateTime nowUtc) {
+    final DateTime? lastSeen = presence.lastSeenAt?.toUtc();
+    final Duration elapsed = lastSeen == null ? _abandonTimeout : nowUtc.difference(lastSeen);
+    if (presence.isOffline || elapsed >= _presenceUnstableThreshold) {
+      return DuelPresenceAvailability.offline;
+    }
+    if (elapsed >= _presenceAvailableThreshold) {
+      return DuelPresenceAvailability.unstable;
+    }
+    return DuelPresenceAvailability.available;
   }
   @override
   Widget build(BuildContext context) {
