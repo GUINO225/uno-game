@@ -5344,6 +5344,25 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     }
   }
 
+
+  String _opponentConnectionLabel(DuelSession session, String opponentId) {
+    if (opponentId.isEmpty || session.players.length < 2) {
+      return 'En attente d'un adversaire';
+    }
+    final DuelPlayerPresence presence =
+        session.presence[opponentId] ?? const DuelPlayerPresence();
+    final DateTime now = DateTime.now().toUtc();
+    final DateTime? lastSeen = presence.lastSeenAt?.toUtc();
+    final Duration elapsed = lastSeen == null ? _abandonTimeout : now.difference(lastSeen);
+
+    if (presence.state == 'online' && elapsed < _connectionWarningTimeout) {
+      return 'Adversaire en ligne';
+    }
+    if (presence.state == 'offline' || elapsed >= _abandonTimeout) {
+      return 'Adversaire hors ligne';
+    }
+    return 'Connexion adverse instable';
+  }
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -5524,6 +5543,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         losses: myScore,
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
                         avatarCard: opponentAvatarCard,
+                        connectionLabel: _opponentConnectionLabel(session, opponentId),
                         compact: isCompactDuelLayout,
                       ),
                       SizedBox(height: sectionGap),
@@ -7008,6 +7028,7 @@ class _OpponentRow extends StatefulWidget {
     required this.losses,
     required this.fallbackInitial,
     required this.avatarCard,
+    required this.connectionLabel,
     this.compact = false,
   });
 
@@ -7017,6 +7038,7 @@ class _OpponentRow extends StatefulWidget {
   final int losses;
   final String fallbackInitial;
   final DuelCard avatarCard;
+  final String connectionLabel;
   final bool compact;
 
   @override
@@ -7058,6 +7080,15 @@ class _OpponentRowState extends State<_OpponentRow> {
                 fallbackInitial: widget.fallbackInitial,
                 compact: true,
                 avatarCard: widget.avatarCard,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.connectionLabel,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: widget.compact ? 11 : 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               Padding(
                 padding: EdgeInsets.only(top: widget.compact ? 6 : 8, bottom: widget.compact ? 6 : 8),
