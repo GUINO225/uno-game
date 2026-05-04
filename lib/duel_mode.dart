@@ -816,7 +816,7 @@ class GameService {
     required String playerName,
     DuelRoomMode mode = DuelRoomMode.duel,
   }) async {
-    debugPrint('[CREATE_ROOM_ENTRY] real create method reached');
+    debugPrint('[CREATE_ROOM_BACKEND_CHECK] useSupabaseGameWrite=${BackendFlags.useSupabaseGameWrite}');
     try {
       debugPrint('[GameService] createRoom start creatorId=$playerId mode=${mode.name}');
       if (BackendFlags.useSupabaseGameWrite && mode == DuelRoomMode.duel) {
@@ -978,7 +978,8 @@ class GameService {
     required String playerName,
     DuelRoomMode? expectedMode,
   }) async {
-    debugPrint('[JOIN_ROOM_ENTRY] real join method reached');
+    debugPrint('[JOIN_ROOM_ENTRY] TRUE UI ENTRY REACHED');
+    debugPrint('[JOIN_ROOM_BACKEND_CHECK] useSupabaseGameWrite=${BackendFlags.useSupabaseGameWrite}');
     if (BackendFlags.useSupabaseGameWrite && expectedMode != DuelRoomMode.credits) {
       debugPrint('[GAME_ROUTER] joinRoom backend=supabase');
       debugPrint('[SUPABASE_GAME] joinRoom start code=$gameId');
@@ -1122,6 +1123,7 @@ class GameService {
   }
 
   Stream<DuelSession> watchSession(String gameId) async* {
+    debugPrint('[LISTEN_ROOM_BACKEND_CHECK] useSupabaseGameRead=${BackendFlags.useSupabaseGameRead}');
     if (BackendFlags.useSupabaseGameRead) {
       debugPrint('[GAME_ROUTER] listenRoom backend=supabase');
       debugPrint('[SUPABASE_GAME] listenRoom start code=$gameId');
@@ -3253,6 +3255,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _createGame() async {
+    debugPrint('[CREATE_ROOM_ENTRY] TRUE UI ENTRY REACHED');
     if (_isCreatingRoom) {
       debugPrint('[DUEL_ROOM] createRoom ignored: already creating');
       return;
