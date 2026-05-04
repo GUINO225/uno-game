@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 
 import 'game_card_avatar.dart';
@@ -28,7 +28,7 @@ class UserProfileService {
   }
 
   String suggestedNameFromUser(User user) {
-    final String displayName = sanitizeDisplayName(user.displayName ?? '');
+    final String displayName = sanitizeDisplayName((user.userMetadata?['full_name'] as String?) ?? '');
     if (displayName.isNotEmpty) {
       return displayName;
     }
@@ -49,19 +49,19 @@ class UserProfileService {
   }) async {
     final String suggestedDisplayName = suggestedNameFromUser(user);
     final DateTime now = DateTime.now().toUtc();
-    final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.uid);
-    final GameCardAvatarData defaultCardAvatar = defaultCardAvatarForUid(user.uid);
+    final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.id);
+    final GameCardAvatarData defaultCardAvatar = defaultCardAvatarForUid(user.id);
     try {
       final DocumentSnapshot<Map<String, dynamic>> snapshot = await ref.get();
       final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
-      final DateTime? lastUpsert = _lastUpsertByUid[user.uid];
+      final DateTime? lastUpsert = _lastUpsertByUid[user.id];
       final bool withinCooldown =
           !force && lastUpsert != null && now.difference(lastUpsert) < _upsertCooldown;
 
       final Map<String, dynamic> patch = <String, dynamic>{};
       if (!snapshot.exists) {
         patch.addAll(<String, dynamic>{
-          'uid': user.uid,
+          'uid': user.id,
           'displayName': suggestedDisplayName,
           'email': user.email,
           'photoUrl': user.photoURL,
@@ -98,11 +98,11 @@ class UserProfileService {
         patch['lastLoginAt'] = FieldValue.serverTimestamp();
         patch['updatedAt'] = FieldValue.serverTimestamp();
         await ref.set(patch, SetOptions(merge: true));
-        _lastUpsertByUid[user.uid] = now;
+        _lastUpsertByUid[user.id] = now;
       }
     } catch (e, stackTrace) {
       debugPrint(
-        '[UserProfileService] createOrUpdateFromGoogleUser failed for uid=${user.uid}: $e',
+        '[UserProfileService] createOrUpdateFromGoogleUser failed for uid=${user.id}: $e',
       );
       debugPrintStack(stackTrace: stackTrace);
       rethrow;
@@ -111,7 +111,7 @@ class UserProfileService {
     final DocumentSnapshot<Map<String, dynamic>> doc = await ref.get();
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
     return PlayerProfile.fromMap(<String, dynamic>{
-      'uid': user.uid,
+      'uid': user.id,
       'displayName': data['displayName'] ?? suggestedDisplayName,
       'email': data['email'] ?? user.email,
       'photoUrl': data['photoUrl'] ?? user.photoURL,

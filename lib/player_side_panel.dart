@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -43,9 +43,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
     int? rank;
     try {
-      rank = await _leaderboardService.fetchPlayerRank(user.uid);
+      rank = await _leaderboardService.fetchPlayerRank(user.id);
     } catch (e) {
-      debugPrint('[PlayerSidePanel] rank unavailable for uid=${user.uid}: $e');
+      debugPrint('[PlayerSidePanel] rank unavailable for uid=${user.id}: $e');
     }
     return (profile, rank);
   }
@@ -81,7 +81,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
 
   Future<(PlayerProfile?, int?)> _panelDataForCurrentUser() {
     final User? user = _authService.currentUser;
-    final String? uid = user?.uid;
+    final String? uid = user?.id;
     if (_panelDataFuture != null && _panelDataUid == uid) {
       return _panelDataFuture!;
     }
@@ -187,7 +187,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       return true;
     }
     final String googleName = _profileService.sanitizeDisplayName(
-      user.displayName ?? '',
+      (user.userMetadata?['full_name'] as String?) ?? '',
       maxLength: 18,
     );
     if (googleName.isNotEmpty && currentPublicName.toLowerCase() == googleName.toLowerCase()) {
@@ -217,7 +217,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
         initialProfile: profile,
         onSave: (String displayName, String rank, String suit) async {
           await _profileService.updatePublicProfile(
-            uid: user.uid,
+            uid: user.id,
             displayName: displayName,
             cardAvatarRank: rank,
             cardAvatarSuit: suit,
@@ -241,7 +241,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
         child: StreamBuilder<User?>(
           stream: _authService.authStateChanges,
           builder: (BuildContext context, AsyncSnapshot<User?> snapshot) {
-            final String? authUid = snapshot.data?.uid;
+            final String? authUid = snapshot.data?.id;
             if (_lastAuthUid != authUid) {
               _justConnectedUid = _lastAuthUid == null ? authUid : null;
               _lastAuthUid = authUid;
@@ -959,12 +959,12 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                             size: 52,
                             rank: profile?.selectedCardAvatar.rank ??
                                 GameCardAvatarPalette.fromSeed(
-                                  _authService.currentUser?.uid ?? 'menu_guest',
+                                  _authService.currentUser?.id ?? 'menu_guest',
                                   salt: 5,
                                 ).rank,
                             suit: profile?.selectedCardAvatar.suit ??
                                 GameCardAvatarPalette.fromSeed(
-                                  _authService.currentUser?.uid ?? 'menu_guest',
+                                  _authService.currentUser?.id ?? 'menu_guest',
                                   salt: 5,
                                 ).suit,
                           ),

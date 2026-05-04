@@ -3,7 +3,7 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -732,15 +732,14 @@ class GameService {
   }
 
   Future<void> _ensureSignedInForFirestore() async {
-    if (FirebaseAuth.instance.currentUser != null) {
+    if (Supabase.instance.client.auth.currentUser != null) {
       return;
     }
     try {
-      await FirebaseAuth.instance.signInAnonymously();
-      debugPrint('[GameService] Anonymous sign-in created for Firestore.');
+      throw StateError('Session Supabase requise avant accès Firestore.');
     } catch (e) {
       throw StateError(
-        'Authentification Firebase requise pour le mode duel. Détail: $e',
+        'Authentification Supabase requise pour le mode duel. Détail: $e',
       );
     }
   }
@@ -2918,11 +2917,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         return;
       }
       if (user.isAnonymous) {
-        _localPlayerId = user.uid;
+        _localPlayerId = user.id;
         debugPrint('[DUEL_AUTH] user connecté ou invité: invité anonyme');
         return;
       }
-      unawaited(_presenceService.markOnline(user.uid).catchError((Object e) {
+      unawaited(_presenceService.markOnline(user.id).catchError((Object e) {
         debugPrint('[PRESENCE] ignored error=$e');
       }));
       await _upsertProfileFromGoogle(user);
@@ -2936,12 +2935,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     if (user == null || user.isAnonymous) {
       throw StateError('GOOGLE_AUTH_REQUIRED');
     }
-    _authenticatedPlayerId ??= user.uid;
+    _authenticatedPlayerId ??= user.id;
   }
 
   Future<void> _upsertProfileFromGoogle(User user, {bool force = false}) async {
     if (_isUpsertingProfile) {
-      debugPrint('[DUEL_ACCOUNT] upsert skipped (already running) uid=${user.uid}');
+      debugPrint('[DUEL_ACCOUNT] upsert skipped (already running) uid=${user.id}');
       return;
     }
     _isUpsertingProfile = true;
@@ -2958,13 +2957,13 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         return;
       }
       setState(() {
-        _authenticatedPlayerId = user.uid;
+        _authenticatedPlayerId = user.id;
         _playerProfile = profile;
         if (_nameController.text.trim().isEmpty) {
           _nameController.text = profile.publicDisplayName;
         }
       });
-      debugPrint('[DUEL_ACCOUNT] userProfile loaded uid=${user.uid} pseudo=${profile.publicDisplayName}');
+      debugPrint('[DUEL_ACCOUNT] userProfile loaded uid=${user.id} pseudo=${profile.publicDisplayName}');
     } on TimeoutException {
       if (mounted) {
         setState(() {
@@ -3005,12 +3004,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
     final String localProfilePseudo = _playerProfile?.displayName.trim() ?? '';
     if (_isUsablePseudo(localProfilePseudo)) {
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.id}');
       debugPrint('[DUEL_AUTH] pseudo utilisé: $localProfilePseudo');
       debugPrint('[DUEL_AUTH] source du pseudo: local_state');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
       return DuelPlayerIdentity(
-        playerId: user.uid,
+        playerId: user.id,
         displayName: localProfilePseudo,
         isGuest: false,
         pseudoSource: 'local_state',
@@ -3018,7 +3017,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       );
     }
 
-    final PlayerProfile? profile = await _profileService.getProfile(user.uid);
+    final PlayerProfile? profile = await _profileService.getProfile(user.id);
     final String firestorePseudo = profile?.displayName.trim() ?? '';
     if (_isUsablePseudo(firestorePseudo)) {
       if (mounted) {
@@ -3026,12 +3025,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           _playerProfile = profile;
         });
       }
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.id}');
       debugPrint('[DUEL_AUTH] pseudo utilisé: $firestorePseudo');
       debugPrint('[DUEL_AUTH] source du pseudo: firestore');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
       return DuelPlayerIdentity(
-        playerId: user.uid,
+        playerId: user.id,
         displayName: firestorePseudo,
         isGuest: false,
         pseudoSource: 'firestore',
@@ -3039,14 +3038,14 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       );
     }
 
-    final String authDisplayName = user.displayName?.trim() ?? '';
+    final String authDisplayName = ((user.userMetadata?['full_name'] as String?) ?? '').trim();
     if (_isUsablePseudo(authDisplayName)) {
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.id}');
       debugPrint('[DUEL_AUTH] pseudo utilisé: $authDisplayName');
       debugPrint('[DUEL_AUTH] source du pseudo: auth_state');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
       return DuelPlayerIdentity(
-        playerId: user.uid,
+        playerId: user.id,
         displayName: authDisplayName,
         isGuest: false,
         pseudoSource: 'auth_state',
@@ -3142,7 +3141,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     }
     try {
       await _upsertProfileFromGoogle(result.user!, force: true);
-      unawaited(_presenceService.markOnline(result.user!.uid).catchError((Object e) {
+      unawaited(_presenceService.markOnline(result.user!.id).catchError((Object e) {
         debugPrint('[PRESENCE] ignored error=$e');
       }));
     } finally {
@@ -3297,7 +3296,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       if (profileName.isNotEmpty) {
         return profileName;
       }
-      final String authDisplayName = _authService.currentUser?.displayName?.trim() ?? '';
+      final String authDisplayName = (( _authService.currentUser?.userMetadata?['full_name'] as String?) ?? '').trim();
       if (authDisplayName.isNotEmpty) {
         return authDisplayName;
       }
@@ -3326,7 +3325,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         });
         return;
       }
-      final String uid = user.uid;
+      final String uid = user.id;
       if (uid.isEmpty) {
         unawaited(_sfx.playError());
         setState(() {
@@ -3440,7 +3439,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
-    final String uid = user.uid;
+    final String uid = user.id;
     if (uid.isEmpty) {
       unawaited(_sfx.playError());
       setState(() {

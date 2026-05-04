@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 import 'game_card_avatar.dart';
@@ -36,7 +36,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final String? currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final String? currentUid = Supabase.instance.client.auth.currentUser?.id;
     return Scaffold(
       backgroundColor: const Color(0xFF004F2C),
       appBar: AppBar(
