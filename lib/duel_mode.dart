@@ -819,16 +819,18 @@ class GameService {
     debugPrint('[CREATE_ROOM_BACKEND_CHECK] useSupabaseGameWrite=${BackendFlags.useSupabaseGameWrite}');
     try {
       debugPrint('[GameService] createRoom start creatorId=$playerId mode=${mode.name}');
-      if (BackendFlags.useSupabaseGameWrite && mode == DuelRoomMode.duel) {
+      if (BackendFlags.useSupabaseGameWrite) {
         final String roomCode = _generateCode();
-        debugPrint('[GAME_ROUTER] createRoom backend=supabase');
+        debugPrint('[GAME_ROUTER] createRoom backend=supabase mode=${mode.name}');
         debugPrint('[SUPABASE_GAME] createRoom start');
         try {
           await _supabaseGameService.createRoom(
             roomCode: roomCode,
             creatorId: playerId,
             creatorPseudo: playerName,
+            mode: mode.name,
           );
+          // TODO: Supabase credits migration later.
           debugPrint('[SUPABASE_GAME] createRoom success code=$roomCode');
           return roomCode;
         } catch (e, st) {
@@ -980,8 +982,8 @@ class GameService {
   }) async {
     debugPrint('[JOIN_ROOM_ENTRY] TRUE UI ENTRY REACHED');
     debugPrint('[JOIN_ROOM_BACKEND_CHECK] useSupabaseGameWrite=${BackendFlags.useSupabaseGameWrite}');
-    if (BackendFlags.useSupabaseGameWrite && expectedMode != DuelRoomMode.credits) {
-      debugPrint('[GAME_ROUTER] joinRoom backend=supabase');
+    if (BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[GAME_ROUTER] joinRoom backend=supabase expectedMode=${expectedMode?.name ?? 'null'}');
       debugPrint('[SUPABASE_GAME] joinRoom start code=$gameId');
       try {
         await _supabaseGameService.joinRoom(
@@ -3172,6 +3174,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<bool> _hasPositiveCredit(String uid) async {
+    if (BackendFlags.useSupabaseGameWrite && !BackendFlags.useSupabaseCredits) {
+      debugPrint('[CREDITS_ROUTER] bypass Firebase credit check during Supabase room test');
+      return true;
+    }
     final DocumentSnapshot<Map<String, dynamic>> snap =
         await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
     final int credits = (snap.data()?['credits'] as num?)?.toInt() ?? 0;
