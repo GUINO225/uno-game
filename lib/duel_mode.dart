@@ -816,19 +816,26 @@ class GameService {
     required String playerName,
     DuelRoomMode mode = DuelRoomMode.duel,
   }) async {
+    debugPrint('[CREATE_ROOM_ENTRY] real create method reached');
     try {
       debugPrint('[GameService] createRoom start creatorId=$playerId mode=${mode.name}');
       if (BackendFlags.useSupabaseGameWrite && mode == DuelRoomMode.duel) {
         final String roomCode = _generateCode();
         debugPrint('[GAME_ROUTER] createRoom backend=supabase');
         debugPrint('[SUPABASE_GAME] createRoom start');
-        await _supabaseGameService.createRoom(
-          roomCode: roomCode,
-          creatorId: playerId,
-          creatorPseudo: playerName,
-        );
-        debugPrint('[SUPABASE_GAME] createRoom success code=$roomCode');
-        return roomCode;
+        try {
+          await _supabaseGameService.createRoom(
+            roomCode: roomCode,
+            creatorId: playerId,
+            creatorPseudo: playerName,
+          );
+          debugPrint('[SUPABASE_GAME] createRoom success code=$roomCode');
+          return roomCode;
+        } catch (e, st) {
+          debugPrint('[SUPABASE_GAME] error=$e');
+          debugPrint('[SUPABASE_GAME] stack=$st');
+          rethrow;
+        }
       }
       debugPrint('[GAME_ROUTER] createRoom backend=firebase');
       final CollectionReference<Map<String, dynamic>> games = await _games();
@@ -971,16 +978,23 @@ class GameService {
     required String playerName,
     DuelRoomMode? expectedMode,
   }) async {
+    debugPrint('[JOIN_ROOM_ENTRY] real join method reached');
     if (BackendFlags.useSupabaseGameWrite && expectedMode != DuelRoomMode.credits) {
       debugPrint('[GAME_ROUTER] joinRoom backend=supabase');
       debugPrint('[SUPABASE_GAME] joinRoom start code=$gameId');
-      await _supabaseGameService.joinRoom(
-        roomCode: gameId,
-        opponentId: playerId,
-        opponentPseudo: playerName,
-      );
-      debugPrint('[SUPABASE_GAME] joinRoom success code=$gameId');
-      return;
+      try {
+        await _supabaseGameService.joinRoom(
+          roomCode: gameId,
+          opponentId: playerId,
+          opponentPseudo: playerName,
+        );
+        debugPrint('[SUPABASE_GAME] joinRoom success code=$gameId');
+        return;
+      } catch (e, st) {
+        debugPrint('[SUPABASE_GAME] error=$e');
+        debugPrint('[SUPABASE_GAME] stack=$st');
+        rethrow;
+      }
     }
     debugPrint('[GAME_ROUTER] joinRoom backend=firebase');
     final FirebaseFirestore db = await _resolveDb();
