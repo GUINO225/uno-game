@@ -26,8 +26,8 @@ import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
 import 'web_page_lifecycle_stub.dart'
-import 'supabase_user_photo.dart';
     if (dart.library.html) 'web_page_lifecycle_web.dart';
+import 'supabase_user_photo.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
