@@ -869,13 +869,60 @@ class GameService {
       ).toMap()
         ..addAll(_presenceOnlinePatch(playerId));
 
+      Future<void> verifyRoomWrite() async {
+        debugPrint('[GameService] room verify start code=$roomCode');
+        final DocumentSnapshot<Map<String, dynamic>> verifySnap = await roomRef
+            .get()
+            .timeout(
+              const Duration(seconds: 12),
+              onTimeout: () => throw TimeoutException('Firestore room verification timeout'),
+            );
+        debugPrint('[GameService] room verify exists=${verifySnap.exists}');
+        if (!verifySnap.exists) {
+          throw StateError('Room introuvable après écriture Firestore.');
+        }
+        final Map<String, dynamic>? verifiedData = verifySnap.data();
+        final List<String> requiredFields = <String>[
+          'creatorId',
+          'roomCode',
+          'mode',
+          'status',
+          'createdAt',
+        ];
+        final bool hasAllRequiredFields =
+            verifiedData != null &&
+            requiredFields.every((String key) => verifiedData.containsKey(key));
+        if (!hasAllRequiredFields) {
+          throw StateError(
+            'Room incomplète après écriture Firestore. Champs requis manquants.',
+          );
+        }
+      }
+
       debugPrint('[GameService] writing room doc path=${roomRef.path}');
-      await roomRef.set(roomData).timeout(
-        const Duration(seconds: 12),
-        onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
-      );
-      debugPrint('[GameService] room doc written successfully');
-      debugPrint('[GameService] createRoom success code=$roomCode');
+      bool writeTimedOut = false;
+      try {
+        await roomRef.set(roomData).timeout(
+          const Duration(seconds: 12),
+          onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
+        );
+        debugPrint('[GameService] room write completed code=$roomCode');
+      } on TimeoutException {
+        writeTimedOut = true;
+        debugPrint('[GameService] room write timeout code=$roomCode');
+      }
+
+      try {
+        await verifyRoomWrite();
+      } catch (e) {
+        final String reason = writeTimedOut
+            ? 'timeout_and_verify_failed:${e.runtimeType}'
+            : 'verify_failed:${e.runtimeType}';
+        debugPrint('[GameService] createRoom failed reason=$reason');
+        rethrow;
+      }
+
+      debugPrint('[GameService] createRoom confirmed code=$roomCode');
       return roomCode;
     } catch (e, st) {
       if (e is FirebaseException) {
@@ -2578,6 +2625,7 @@ class DuelPlayerIdentity {
 
 class _DuelLobbyPageState extends State<DuelLobbyPage> {
   DuelController? _controller;
+  bool _isCreatingRoom = false;
   final AppSfxService _sfx = AppSfxService.instance;
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
@@ -3058,96 +3106,122 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _createGame() async {
-    unawaited(_sfx.playClick());
-    debugPrint('[CREATE_ROOM] start');
-    final User? user = _authService.currentUser;
-    if (user == null || user.isAnonymous) {
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Connecte-toi avec Google pour créer une partie.';
-      });
+    if (_isCreatingRoom) {
+      debugPrint('[DUEL_ROOM] createRoom ignored: already creating');
       return;
-    }
-    final String uid = user.uid;
-    if (uid.isEmpty) {
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Connecte-toi avec Google pour créer une partie.';
-      });
-      return;
-    }
-    debugPrint('[CREATE_ROOM] uid=$uid');
-    try {
-      await _ensureFirestoreIdentity();
-    } on FirebaseException catch (e) {
-      debugPrint('[CREATE_ROOM] firestore error: code=${e.code} message=${e.message}');
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Erreur Firestore (${e.code}).';
-      });
-      return;
-    } catch (e) {
-      debugPrint('[CREATE_ROOM] firestore error: $e');
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Impossible de préparer la connexion Firebase: $e';
-      });
-      return;
-    }
-    unawaited(() async {
-      try {
-        debugPrint('[PRESENCE] profile sync start uid=$uid');
-        await _ensureProfileReady();
-        debugPrint('[PRESENCE] profile sync ok uid=$uid');
-      } catch (e) {
-        debugPrint('[PRESENCE] error ignored: $e');
-        debugPrint('[CREATE_ROOM] presence skipped but not blocking');
-      }
-    }());
-    await _resolveIdentityIfNeeded();
-    final String? pseudoError = _validatePseudo();
-    if (pseudoError != null) {
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = pseudoError;
-      });
-      return;
-    }
-    final String pseudo = _resolvePlayerName()!;
-    if (widget.mode == DuelRoomMode.credits) {
-      final String? uid = _authenticatedPlayerId;
-      if (uid == null || !(await _hasPositiveCredit(uid))) {
-        await _showInsufficientCreditDialog();
-        return;
-      }
-    }
-    if (_shouldAskPseudo) {
-      final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
-      await _profileService.updateDisplayName(uid: uid, displayName: cleanedPseudo);
-      _duelIdentity = DuelPlayerIdentity(
-        playerId: uid,
-        displayName: cleanedPseudo,
-        isGuest: false,
-        pseudoSource: 'nouvel enregistrement',
-        photoUrl: user.photoURL,
-      );
-      _authenticatedPlayerId = uid;
-      _playerProfile = await _profileService.getProfile(uid);
-      debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
-      debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
-      debugPrint('[DUEL_AUTH] accès Duel autorisé');
     }
     setState(() {
-      _profileError = null;
+      _isCreatingRoom = true;
     });
-    debugPrint('[DUEL_ROOM] createRoom called uid=${_authenticatedPlayerId ?? 'none'} mode=${widget.mode.name}');
-    final DuelController controller = (_controller != null &&
-            _controller!.localPlayerName == pseudo)
-        ? _controller!
-        : _buildController(pseudo);
-    await controller.create();
-    debugPrint('[CREATE_ROOM] firestore create success');
-    debugPrint('[DUEL_ROOM] room created id=${controller.session?.gameId ?? 'pending'} roomStatus=${controller.session?.roomStatus ?? 'unknown'} betStatus=${controller.session?.betFlowState.name ?? 'unknown'}');
+    unawaited(_sfx.playClick());
+    debugPrint('[CREATE_ROOM] start');
+    try {
+      final User? user = _authService.currentUser;
+      if (user == null || user.isAnonymous) {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Connecte-toi avec Google pour créer une partie.';
+        });
+        return;
+      }
+      final String uid = user.uid;
+      if (uid.isEmpty) {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Connecte-toi avec Google pour créer une partie.';
+        });
+        return;
+      }
+      debugPrint('[CREATE_ROOM] uid=$uid');
+      try {
+        await _ensureFirestoreIdentity();
+      } on FirebaseException catch (e) {
+        debugPrint('[CREATE_ROOM] firestore error: code=${e.code} message=${e.message}');
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Erreur Firestore (${e.code}).';
+        });
+        return;
+      } catch (e) {
+        debugPrint('[CREATE_ROOM] firestore error: $e');
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Impossible de préparer la connexion Firebase: $e';
+        });
+        return;
+      }
+      unawaited(() async {
+        try {
+          debugPrint('[PRESENCE] profile sync start uid=$uid');
+          await _ensureProfileReady();
+          debugPrint('[PRESENCE] profile sync ok uid=$uid');
+        } catch (e) {
+          debugPrint('[PRESENCE] error ignored: $e');
+          debugPrint('[CREATE_ROOM] presence skipped but not blocking');
+        }
+      }());
+      await _resolveIdentityIfNeeded();
+      final String? pseudoError = _validatePseudo();
+      if (pseudoError != null) {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = pseudoError;
+        });
+        return;
+      }
+      final String pseudo = _resolvePlayerName()!;
+      if (widget.mode == DuelRoomMode.credits) {
+        final String? uid = _authenticatedPlayerId;
+        if (uid == null || !(await _hasPositiveCredit(uid))) {
+          await _showInsufficientCreditDialog();
+          return;
+        }
+      }
+      if (_shouldAskPseudo) {
+        final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
+        await _profileService.updateDisplayName(uid: uid, displayName: cleanedPseudo);
+        _duelIdentity = DuelPlayerIdentity(
+          playerId: uid,
+          displayName: cleanedPseudo,
+          isGuest: false,
+          pseudoSource: 'nouvel enregistrement',
+          photoUrl: user.photoURL,
+        );
+        _authenticatedPlayerId = uid;
+        _playerProfile = await _profileService.getProfile(uid);
+        debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
+        debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
+        debugPrint('[DUEL_AUTH] accès Duel autorisé');
+      }
+      setState(() {
+        _profileError = null;
+      });
+      debugPrint('[DUEL_ROOM] createRoom called uid=${_authenticatedPlayerId ?? 'none'} mode=${widget.mode.name}');
+      final DuelController controller = (_controller != null &&
+              _controller!.localPlayerName == pseudo)
+          ? _controller!
+          : _buildController(pseudo);
+      await controller.create();
+      if (controller.error != null || controller.session == null) {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = controller.error ??
+              'Connexion au serveur impossible. Vérifie ta connexion puis réessaie.';
+        });
+        debugPrint('[DUEL_ROOM] createRoom failed reason=${controller.error ?? 'session_missing'}');
+        return;
+      }
+      debugPrint('[CREATE_ROOM] firestore create success');
+      debugPrint('[DUEL_ROOM] room created id=${controller.session!.gameId} roomStatus=${controller.session!.roomStatus} betStatus=${controller.session!.betFlowState.name}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingRoom = false;
+        });
+      } else {
+        _isCreatingRoom = false;
+      }
+    }
   }
 
   Future<void> _joinGame() async {
@@ -3252,7 +3326,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   @override
   Widget build(BuildContext context) {
     final DuelSession? session = _controller?.session;
-    final bool busy = _controller?.busy ?? false;
+    final bool busy = (_controller?.busy ?? false) || _isCreatingRoom;
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
     final String title = creditsMode ? 'Mode pari' : 'Duel simple';
     return Scaffold(
