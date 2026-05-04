@@ -15,6 +15,7 @@ class SupabaseGameService {
         .from('duel_games')
         .insert(<String, dynamic>{
           'id': roomCode,
+          'room_code': roomCode,
           'creator_id': creatorId,
           'creator_pseudo': creatorPseudo,
           'status': 'waiting',
@@ -23,7 +24,7 @@ class SupabaseGameService {
         .select()
         .single();
 
-    return inserted['id'] as String;
+    return inserted['room_code'] as String;
   }
 
   Future<void> joinRoom({
