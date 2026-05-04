@@ -835,19 +835,9 @@ class GameService {
         }
       }
 
-      String? roomCode;
-      DocumentReference<Map<String, dynamic>>? resolvedRoomRef;
-      for (int attempt = 1; attempt <= 5; attempt++) {
-        debugPrint('[GameService] generating room code');
-        final String generatedCode = _generateCode();
-        debugPrint('[GameService] generated code=$generatedCode');
-        roomCode = generatedCode;
-        resolvedRoomRef = games.doc(generatedCode);
-        break;
-      }
-      if (roomCode == null || resolvedRoomRef == null) {
-        throw StateError('Impossible de générer un code de room unique après 5 essais.');
-      }
+      final FirebaseFirestore db = await _resolveDb();
+      String roomCode = _generateCode();
+
 
       debugPrint('[GameService] preparing room data');
       final Map<String, dynamic> roomData = DuelSession(
@@ -895,11 +885,14 @@ class GameService {
       bool created = false;
       for (int attempt = 1; attempt <= 5; attempt++) {
         roomCode = _generateCode();
-        resolvedRoomRef = games.doc(roomCode);
+        final DocumentReference<Map<String, dynamic>> resolvedRoomRef =
+            db.collection('duel_games').doc(roomCode);
         debugPrint('[GameService] writing room doc path=${resolvedRoomRef.path}');
         try {
           await db.runTransaction((Transaction tx) async {
-            final DocumentSnapshot<Map<String, dynamic>> existing = await tx.get(resolvedRoomRef);
+            final DocumentSnapshot<Map<String, dynamic>> existing =
+                await tx.get(resolvedRoomRef);
+
             if (existing.exists) {
               throw FirebaseException(
                 plugin: 'cloud_firestore',
@@ -907,7 +900,12 @@ class GameService {
                 message: 'Room code collision',
               );
             }
-            tx.set(resolvedRoomRef, roomData..['roomCode'] = roomCode..['code'] = roomCode);
+
+            tx.set(resolvedRoomRef, {
+              ...roomData,
+              'roomCode': roomCode,
+              'code': roomCode,
+            });
           }).timeout(
             const Duration(seconds: 12),
             onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
@@ -923,7 +921,7 @@ class GameService {
           rethrow;
         }
       }
-      if (!created || roomCode == null) {
+      if (!created) {
         throw StateError('Impossible de générer un code de room unique après 5 essais.');
       }
 
