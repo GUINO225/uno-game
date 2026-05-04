@@ -95,27 +95,44 @@ String _localizeUserError(Object error) {
 
   if (error is FirebaseException) {
     switch (error.code) {
+      case 'room_not_found':
+        return 'Code de partie introuvable.';
+      case 'cannot_join_own_room':
+        return 'Vous ne pouvez pas rejoindre votre propre partie.';
+      case 'room_full':
+        return 'Cette partie est déjà complète.';
+      case 'room_not_waiting':
+        return 'Cette partie n’est plus disponible.';
       case 'unavailable':
       case 'network-request-failed':
       case 'deadline-exceeded':
-        return 'Erreur réseau. Vérifie ta connexion et réessaie.';
+        return 'Connexion lente, réessayez.';
       case 'resource-exhausted':
         return 'Firestore saturé (quota atteint). Réessaie dans un instant.';
       case 'not-found':
-        return 'Partie introuvable.';
+        return 'Code de partie introuvable.';
       case 'permission-denied':
-        return 'Connexion échouée. Accès refusé.';
+        return 'Accès refusé par Firestore.';
       default:
         return 'Erreur Firestore (${error.code}). Réessaie dans un instant.';
     }
   }
 
   if (lowercase.contains('partie introuvable') ||
-      lowercase.contains('not found')) {
-    return 'Partie introuvable.';
+      lowercase.contains('not found') ||
+      lowercase.contains('room_not_found')) {
+    return 'Code de partie introuvable.';
   }
-  if (lowercase.contains('déjà complète') || lowercase.contains('full')) {
-    return 'Impossible de rejoindre la partie : elle est déjà complète.';
+  if (lowercase.contains('cannot_join_own_room')) {
+    return 'Vous ne pouvez pas rejoindre votre propre partie.';
+  }
+  if (lowercase.contains('déjà complète') ||
+      lowercase.contains('full') ||
+      lowercase.contains('room_full')) {
+    return 'Cette partie est déjà complète.';
+  }
+  if (lowercase.contains('room_not_waiting')) {
+    return 'Cette partie n’est plus disponible.';
   }
   if (lowercase.contains('compatible')) {
     return 'Code invalide pour ce mode de jeu.';
@@ -819,31 +836,18 @@ class GameService {
       }
 
       String? roomCode;
-      DocumentReference<Map<String, dynamic>>? roomRef;
+      DocumentReference<Map<String, dynamic>>? resolvedRoomRef;
       for (int attempt = 1; attempt <= 5; attempt++) {
         debugPrint('[GameService] generating room code');
         final String generatedCode = _generateCode();
         debugPrint('[GameService] generated code=$generatedCode');
-        debugPrint('[GameService] checking room code availability');
-        final DocumentReference<Map<String, dynamic>> candidateRef = games.doc(generatedCode);
-        final DocumentSnapshot<Map<String, dynamic>> candidateSnap = await candidateRef
-            .get()
-            .timeout(
-              const Duration(seconds: 12),
-              onTimeout: () => throw TimeoutException('Firestore room code availability timeout'),
-            );
-        if (!candidateSnap.exists) {
-          roomCode = generatedCode;
-          roomRef = candidateRef;
-          debugPrint('[GameService] room code available');
-          break;
-        }
+        roomCode = generatedCode;
+        resolvedRoomRef = games.doc(generatedCode);
+        break;
       }
-
-      if (roomCode == null || roomRef == null) {
+      if (roomCode == null || resolvedRoomRef == null) {
         throw StateError('Impossible de générer un code de room unique après 5 essais.');
       }
-      final DocumentReference<Map<String, dynamic>> resolvedRoomRef = roomRef;
 
       debugPrint('[GameService] preparing room data');
       final Map<String, dynamic> roomData = DuelSession(
@@ -888,80 +892,29 @@ class GameService {
         });
       }
 
-      Future<void> verifyRoomWrite() async {
-        debugPrint('[GameService] room verify start code=$roomCode');
-        final DocumentSnapshot<Map<String, dynamic>> verifySnap = await resolvedRoomRef
-            .get()
-            .timeout(
-              const Duration(seconds: 12),
-              onTimeout: () => throw TimeoutException('Firestore room verification timeout'),
-            );
-        debugPrint('[GameService] room verify exists=${verifySnap.exists}');
-        if (!verifySnap.exists) {
-          throw StateError('Room introuvable après écriture Firestore.');
-        }
-        final Map<String, dynamic>? verifiedData = verifySnap.data();
-        final Map<String, List<String>> requiredFieldAlternatives = <String, List<String>>{
-          'roomCodeOrCode': <String>['roomCode', 'code'],
-          'creatorIdOrHostId': <String>['creatorId', 'hostId'],
-          'mode': <String>['mode'],
-          'statusOrRoomStatus': <String>['status', 'roomStatus'],
-          'createdAt': <String>['createdAt'],
-          'updatedAt': <String>['updatedAt'],
-          'players': <String>['players'],
-          'currentTurn': <String>['currentTurn', 'currentTurnUid', 'currentPlayerId'],
-          'winnerId': <String>['winnerId'],
-          'loserId': <String>['loserId'],
-          'rematchStatus': <String>['rematchStatus'],
-        };
-        if (mode == DuelRoomMode.credits) {
-          requiredFieldAlternatives['betStatusOrFlow'] = <String>['betStatus', 'betFlowState'];
-          requiredFieldAlternatives['betAmountOrStakeAmount'] = <String>[
-            'betAmount',
-            'stakeAmount',
-            'activeStakeCredits',
-          ];
-        }
-
-        final Map<String, dynamic> safeData = verifiedData ?? <String, dynamic>{};
-        final List<String> missingFields = <String>[];
-        requiredFieldAlternatives.forEach((String logicalKey, List<String> alternatives) {
-          final bool exists = alternatives.any((String key) => safeData.containsKey(key));
-          if (!exists) {
-            missingFields.add(alternatives.first);
-          }
-        });
-
-        if (missingFields.isNotEmpty) {
-          debugPrint('[GameService] room verify missing fields: $missingFields');
-          debugPrint('[GameService] room verify data keys: ${safeData.keys.toList()..sort()}');
-          throw StateError(
-            'Room incomplète après écriture Firestore. Champs manquants: ${missingFields.join(', ')}',
+      bool created = false;
+      for (int attempt = 1; attempt <= 5; attempt++) {
+        roomCode = _generateCode();
+        resolvedRoomRef = games.doc(roomCode);
+        debugPrint('[GameService] writing room doc path=${resolvedRoomRef.path}');
+        try {
+          await resolvedRoomRef.create(roomData..['roomCode'] = roomCode..['code'] = roomCode).timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
           );
+          debugPrint('[GameService] room write completed code=$roomCode');
+          created = true;
+          break;
+        } on FirebaseException catch (e) {
+          if (e.code == 'already-exists') {
+            debugPrint('[GameService] room code collision code=$roomCode retry=$attempt');
+            continue;
+          }
+          rethrow;
         }
       }
-
-      debugPrint('[GameService] writing room doc path=${resolvedRoomRef.path}');
-      bool writeTimedOut = false;
-      try {
-        await resolvedRoomRef.set(roomData).timeout(
-          const Duration(seconds: 12),
-          onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
-        );
-        debugPrint('[GameService] room write completed code=$roomCode');
-      } on TimeoutException {
-        writeTimedOut = true;
-        debugPrint('[GameService] room write timeout code=$roomCode');
-      }
-
-      try {
-        await verifyRoomWrite();
-      } catch (e) {
-        final String reason = writeTimedOut
-            ? 'timeout_and_verify_failed:${e.runtimeType}'
-            : 'verify_failed:${e.runtimeType}';
-        debugPrint('[GameService] createRoom failed reason=$reason');
-        rethrow;
+      if (!created || roomCode == null) {
+        throw StateError('Impossible de générer un code de room unique après 5 essais.');
       }
 
       debugPrint('[GameService] createRoom confirmed code=$roomCode');
@@ -1001,14 +954,28 @@ class GameService {
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
-        throw StateError('Partie introuvable');
+        throw FirebaseException(plugin: 'cloud_firestore', code: 'room_not_found', message: 'Room not found');
       }
       final DuelSession session = DuelSession.fromDoc(snap);
       if (expectedMode != null && session.mode != expectedMode) {
-        throw StateError('Ce salon n\'est pas compatible avec ce mode.');
+        throw FirebaseException(plugin: 'cloud_firestore', code: 'room_not_found', message: 'Invalid code for this mode');
+      }
+      if (session.creatorId == playerId || session.hostId == playerId) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'cannot_join_own_room',
+          message: 'Creator cannot join own room',
+        );
+      }
+      if (session.status != DuelGameStatus.waiting) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'room_not_waiting',
+          message: 'Room is not waiting',
+        );
       }
       if (session.players.length >= 2 && !session.players.contains(playerId)) {
-        throw StateError('Partie déjà complète');
+        throw FirebaseException(plugin: 'cloud_firestore', code: 'room_full', message: 'Room is already full');
       }
       final List<String> players = <String>{...session.players, playerId}.toList();
       final bool activatesNow = players.length == 2 && !session.isCreditsMode;
@@ -2240,11 +2207,12 @@ class DuelController extends ChangeNotifier {
       debugPrint('[DUEL_ROOM] room state waiting opponent');
       await attach(id);
     } on FirebaseException catch (e, st) {
-      debugPrint('[FIRESTORE] create failed code=${e.code} message=${e.message} uid=$localPlayerId');
-      debugPrint('$st');
+      debugPrint('[DUEL_ROOM] create FirebaseException code=${e.code} message=${e.message}');
+      debugPrintStack(stackTrace: st);
       error = _localizeUserError(e);
-    } catch (e) {
-      debugPrint('[CREATE_ROOM] unexpected failure: $e');
+    } catch (e, st) {
+      debugPrint('[DUEL_ROOM] create unexpected failure type=${e.runtimeType} error=$e');
+      debugPrintStack(stackTrace: st);
       error = _localizeUserError(e);
     }
     busy = false;
@@ -2266,11 +2234,12 @@ class DuelController extends ChangeNotifier {
       debugPrint('[DUEL_ROOM] join success gameId=$gameId');
       await attach(gameId);
     } on FirebaseException catch (e, st) {
-      debugPrint('[FIRESTORE] join failed code=${e.code} message=${e.message} uid=$localPlayerId gameId=$gameId');
-      debugPrint('$st');
+      debugPrint('[DUEL_ROOM] join FirebaseException code=${e.code} message=${e.message}');
+      debugPrintStack(stackTrace: st);
       error = _localizeUserError(e);
-    } catch (e) {
-      debugPrint('[DUEL_ROOM] join unexpected failure: $e');
+    } catch (e, st) {
+      debugPrint('[DUEL_ROOM] join unexpected failure type=${e.runtimeType} error=$e');
+      debugPrintStack(stackTrace: st);
       error = _localizeUserError(e);
     }
     busy = false;
