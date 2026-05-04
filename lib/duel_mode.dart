@@ -812,7 +812,7 @@ class GameService {
         throw StateError('Crédit insuffisant pour accéder au mode Pari.');
       }
     }
-    debugPrint('[GameService] createGame requested by $playerId in mode=${mode.name}.');
+    debugPrint('[GameService] createRoom called creatorId=$playerId mode=${mode.name}');
     await games.doc(code).set(
       DuelSession(
         gameId: code,
@@ -834,10 +834,11 @@ class GameService {
           playerId: const DuelPlayerPresence(state: 'online'),
         },
         presenceGraceUntil: _presenceGraceDeadline(),
-        roomStatus: 'open',
+        roomStatus: mode == DuelRoomMode.credits ? 'betting' : 'open',
       ).toMap()
         ..addAll(_presenceOnlinePatch(playerId)),
     );
+    debugPrint('[GameService] room created id=$code roomStatus=${mode == DuelRoomMode.credits ? 'betting' : 'open'} betStatus=${mode == DuelRoomMode.credits ? DuelBetFlowState.initialStakeProposed.name : DuelBetFlowState.idle.name}');
     return code;
   }
 
@@ -2592,7 +2593,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _upsertProfileFromGoogle(User user) async {
-    final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
+    debugPrint('[DUEL_ACCOUNT] account loading state=start uid=${user.uid}');
+    final PlayerProfile profile = await _profileService
+        .createOrUpdateFromGoogleUser(user)
+        .timeout(const Duration(seconds: 8));
     if (!mounted) {
       return;
     }
@@ -2603,6 +2607,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         _nameController.text = profile.publicDisplayName;
       }
     });
+    debugPrint('[DUEL_ACCOUNT] userProfile loaded uid=${user.uid} pseudo=${profile.publicDisplayName}');
   }
 
   bool get _shouldAskPseudo => false;
@@ -2705,6 +2710,16 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     }
   }
 
+
+  Future<void> _ensureProfileReady() async {
+    final User? user = _authService.currentUser;
+    if (user == null || user.isAnonymous) {
+      throw StateError('GOOGLE_AUTH_REQUIRED');
+    }
+    debugPrint('[DUEL_ACCOUNT] ensure profile uid=${user.uid}');
+    await _upsertProfileFromGoogle(user);
+  }
+
   Future<void> _continueWithGoogle() async {
     unawaited(_sfx.playClick());
     if (_googleBusy) {
@@ -2754,17 +2769,56 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
-    await _upsertProfileFromGoogle(result.user!);
-    if (!mounted) {
-      return;
+    try {
+      await _upsertProfileFromGoogle(result.user!);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profileError = null;
+      });
+    } on TimeoutException {
+      if (mounted) {
+        setState(() {
+          _profileError = 'Le chargement du compte a expiré (8s). Réessayez.';
+        });
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        setState(() {
+          _profileError = 'Erreur Firestore: ${e.code}';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _profileError = 'Impossible de charger le compte: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _googleBusy = false;
+        });
+      }
     }
-    setState(() {
-      _googleBusy = false;
-    });
   }
 
   Future<void> _ensureLobbyAccess() async {
     if (!mounted || _authService.currentUser != null) {
+      if (_authService.currentUser != null) {
+        try {
+          await _ensureProfileReady();
+        } on TimeoutException {
+          if (mounted) {
+            setState(() {
+              _profileError = 'Le chargement du compte a expiré (8s).';
+            });
+          }
+        } catch (e) {
+          debugPrint('[DUEL_ACCOUNT] ensureProfileReady failed: $e');
+        }
+      }
       if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId != null) {
         final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
         if (!mounted) {
@@ -2915,6 +2969,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     unawaited(_sfx.playClick());
     try {
       await _ensureFirestoreIdentity();
+      await _ensureProfileReady();
     } on StateError catch (error) {
       if (error.message == 'GOOGLE_AUTH_REQUIRED') {
         unawaited(_sfx.playError());
@@ -2968,17 +3023,20 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     setState(() {
       _profileError = null;
     });
+    debugPrint('[DUEL_ROOM] createRoom called uid=${_authenticatedPlayerId ?? 'none'} mode=${widget.mode.name}');
     final DuelController controller = (_controller != null &&
             _controller!.localPlayerName == pseudo)
         ? _controller!
         : _buildController(pseudo);
     await controller.create();
+    debugPrint('[DUEL_ROOM] room created id=${controller.session?.gameId ?? 'pending'} roomStatus=${controller.session?.roomStatus ?? 'unknown'} betStatus=${controller.session?.betFlowState.name ?? 'unknown'}');
   }
 
   Future<void> _joinGame() async {
     unawaited(_sfx.playClick());
     try {
       await _ensureFirestoreIdentity();
+      await _ensureProfileReady();
     } on StateError catch (error) {
       if (error.message == 'GOOGLE_AUTH_REQUIRED') {
         unawaited(_sfx.playError());
@@ -3041,6 +3099,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     setState(() {
       _profileError = null;
     });
+    debugPrint('[DUEL_ROOM] joinRoom called uid=${_authenticatedPlayerId ?? 'none'} code=$code');
     final DuelController controller = (_controller != null &&
             _controller!.localPlayerName == pseudo)
         ? _controller!
