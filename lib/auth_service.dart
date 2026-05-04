@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'user_profile_service.dart';
+
 enum AuthFailureReason {
   cancelled,
   unavailable,
@@ -44,8 +46,6 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   GoTrueClient get _auth => Supabase.instance.client.auth;
-  SupabaseClient get _client => Supabase.instance.client;
-
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges =>
       _auth.onAuthStateChange.map((AuthState data) => data.session?.user);
@@ -101,20 +101,7 @@ class AuthService {
   }
 
   Future<void> _upsertProfile(User user) async {
-    final String displayName =
-        (user.userMetadata?['full_name'] as String?)?.trim().isNotEmpty == true
-        ? (user.userMetadata?['full_name'] as String).trim()
-        : ((user.userMetadata?['name'] as String?)?.trim().isNotEmpty == true
-              ? (user.userMetadata?['name'] as String).trim()
-              : 'Joueur');
-
-    await _client.from('profiles').upsert(<String, dynamic>{
-      'id': user.id,
-      'display_name': displayName,
-      'email': user.email,
-      'photo_url': user.userMetadata?['avatar_url'],
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    });
+    await UserProfileService.instance.createOrUpdateFromGoogleUser(user);
   }
 
   GoogleAuthResult _mapSupabaseAuthException(AuthException e) {
