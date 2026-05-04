@@ -1,6 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum AuthFailureReason {
   cancelled,
@@ -25,8 +24,7 @@ class GoogleAuthResult {
 
   bool get isSuccess => user != null;
 
-  factory GoogleAuthResult.success(User user) =>
-      GoogleAuthResult._(user: user);
+  factory GoogleAuthResult.success(User user) => GoogleAuthResult._(user: user);
 
   factory GoogleAuthResult.failure({
     required AuthFailureReason reason,
@@ -44,82 +42,45 @@ class AuthService {
   AuthService._();
 
   static final AuthService instance = AuthService._();
-  static final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
-  static bool _isGoogleSignInInitialized = false;
 
-  FirebaseAuth? get _authOrNull {
-    try {
-      return FirebaseAuth.instance;
-    } catch (e, stackTrace) {
-      debugPrint('[AuthService] FirebaseAuth unavailable: $e');
-      debugPrintStack(stackTrace: stackTrace);
-      return null;
-    }
-  }
+  GoTrueClient get _auth => Supabase.instance.client.auth;
+  SupabaseClient get _client => Supabase.instance.client;
 
-  User? get currentUser => _authOrNull?.currentUser;
+  User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges =>
-      _authOrNull?.authStateChanges() ?? const Stream<User?>.empty();
+      _auth.onAuthStateChange.map((AuthState data) => data.session?.user);
 
   Future<GoogleAuthResult> signInWithGoogle() async {
-    final FirebaseAuth? auth = _authOrNull;
-    if (auth == null) {
-      return GoogleAuthResult.failure(
-        reason: AuthFailureReason.unavailable,
-        message: 'Authentification indisponible sur cet appareil.',
-      );
-    }
-
     try {
-      if (kIsWeb) {
-        final GoogleAuthProvider provider = GoogleAuthProvider();
-        provider.setCustomParameters(<String, String>{'prompt': 'select_account'});
-        final UserCredential result = await auth.signInWithPopup(provider);
-        final User? user = result.user;
-        if (user == null) {
-          return GoogleAuthResult.failure(
-            reason: AuthFailureReason.unknown,
-            message: 'Connexion Google incomplète.',
-          );
-        }
-        debugPrint('[AuthService] Google sign-in success (web): uid=${user.uid}');
-        return GoogleAuthResult.success(user);
+      final bool started = await _auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? Uri.base.origin : null,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+      );
+
+      if (!started) {
+        return GoogleAuthResult.failure(
+          reason: AuthFailureReason.cancelled,
+          message: 'Connexion Google annulée.',
+        );
       }
 
-      await _ensureGoogleSignInInitialized();
-      final GoogleSignInAccount account = await _googleSignIn.authenticate();
-
-      final GoogleSignInAuthentication authentication = account.authentication;
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        idToken: authentication.idToken,
-      );
-      final UserCredential result = await auth.signInWithCredential(credential);
-      final User? user = result.user;
+      final User? user = _auth.currentUser;
       if (user == null) {
         return GoogleAuthResult.failure(
           reason: AuthFailureReason.unknown,
-          message: 'Connexion Google incomplète.',
-        );
-      }
-      debugPrint('[AuthService] Google sign-in success: uid=${user.uid}');
-      return GoogleAuthResult.success(user);
-    } on FirebaseAuthException catch (e) {
-      return _mapFirebaseAuthException(e);
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        return GoogleAuthResult.failure(reason: AuthFailureReason.cancelled);
-      }
-      if (e.code == GoogleSignInExceptionCode.clientConfigurationError) {
-        return GoogleAuthResult.failure(
-          reason: AuthFailureReason.invalidConfiguration,
           message:
-              'Configuration Google Sign-In invalide. Vérifiez la configuration Firebase/Google.',
+              'Connexion Google démarrée. Utilisateur non disponible immédiatement (possible redirection OAuth).',
         );
       }
-      return GoogleAuthResult.failure(
-        reason: AuthFailureReason.unknown,
-        message: e.description ?? 'Erreur Google Sign-In inconnue.',
-      );
+
+      await _upsertProfile(user);
+      debugPrint('[AuthService] Google sign-in success: uid=${user.id}');
+      return GoogleAuthResult.success(user);
+    } on AuthException catch (e) {
+      return _mapSupabaseAuthException(e);
     } catch (e) {
       return GoogleAuthResult.failure(
         reason: AuthFailureReason.unknown,
@@ -128,65 +89,72 @@ class AuthService {
     }
   }
 
-
-  Future<void> _ensureGoogleSignInInitialized() async {
-    if (_isGoogleSignInInitialized) {
-      return;
-    }
-
-    await _googleSignIn.initialize();
-    _isGoogleSignInInitialized = true;
-  }
-
   Future<void> signOut() async {
     debugPrint('[AuthService] Sign out requested.');
-    await _authOrNull?.signOut();
-    if (!kIsWeb) {
-      try {
-        await _googleSignIn.signOut();
-      } catch (_) {
-        // Ignore local provider sign-out failures.
-      }
-    }
+    await _auth.signOut();
   }
 
-  GoogleAuthResult _mapFirebaseAuthException(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'popup-closed-by-user':
-      case 'cancelled-popup-request':
-        return GoogleAuthResult.failure(reason: AuthFailureReason.cancelled);
-      case 'popup-blocked':
-        return GoogleAuthResult.failure(
-          reason: AuthFailureReason.popupBlocked,
-          message:
-              'Popup Google bloquée par le navigateur. Autorisez les popups puis réessayez.',
-        );
-      case 'network-request-failed':
-        return GoogleAuthResult.failure(
-          reason: AuthFailureReason.network,
-          message: 'Erreur réseau pendant la connexion Google.',
-        );
-      case 'operation-not-allowed':
-        return GoogleAuthResult.failure(
-          reason: AuthFailureReason.providerNotEnabled,
-          message:
-              'Google Sign-In n’est pas activé dans Firebase Authentication.',
-        );
-      case 'invalid-api-key':
-      case 'app-not-authorized':
-      case 'unauthorized-domain':
-      case 'web-storage-unsupported':
-      case 'invalid-credential':
-        return GoogleAuthResult.failure(
-          reason: AuthFailureReason.invalidConfiguration,
-          message:
-              'Configuration Firebase Web invalide. Vérifiez apiKey, authDomain et domaines autorisés.',
-        );
-      default:
-        return GoogleAuthResult.failure(
-          reason: AuthFailureReason.unknown,
-          message: e.message,
-        );
+  Future<void> ensureProfileForCurrentUser() async {
+    final User? user = currentUser;
+    if (user == null) return;
+    await _upsertProfile(user);
+  }
+
+  Future<void> _upsertProfile(User user) async {
+    final String displayName =
+        (user.userMetadata?['full_name'] as String?)?.trim().isNotEmpty == true
+        ? (user.userMetadata?['full_name'] as String).trim()
+        : ((user.userMetadata?['name'] as String?)?.trim().isNotEmpty == true
+              ? (user.userMetadata?['name'] as String).trim()
+              : 'Joueur');
+
+    await _client.from('profiles').upsert(<String, dynamic>{
+      'id': user.id,
+      'display_name': displayName,
+      'email': user.email,
+      'photo_url': user.userMetadata?['avatar_url'],
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  GoogleAuthResult _mapSupabaseAuthException(AuthException e) {
+    final String message = (e.message).toLowerCase();
+
+    if (message.contains('popup') && message.contains('closed')) {
+      return GoogleAuthResult.failure(reason: AuthFailureReason.cancelled);
     }
+    if (message.contains('popup') && message.contains('blocked')) {
+      return GoogleAuthResult.failure(
+        reason: AuthFailureReason.popupBlocked,
+        message:
+            'Popup Google bloquée par le navigateur. Autorisez les popups puis réessayez.',
+      );
+    }
+    if (message.contains('network')) {
+      return GoogleAuthResult.failure(
+        reason: AuthFailureReason.network,
+        message: 'Erreur réseau pendant la connexion Google.',
+      );
+    }
+    if (message.contains('provider') && message.contains('disabled')) {
+      return GoogleAuthResult.failure(
+        reason: AuthFailureReason.providerNotEnabled,
+        message: 'Google Sign-In n’est pas activé dans Supabase Auth.',
+      );
+    }
+    if (message.contains('redirect') ||
+        message.contains('domain') ||
+        message.contains('invalid')) {
+      return GoogleAuthResult.failure(
+        reason: AuthFailureReason.invalidConfiguration,
+        message:
+            'Configuration Supabase Auth invalide. Vérifiez Google provider, redirect URL et domaine autorisé.',
+      );
+    }
+
+    return GoogleAuthResult.failure(
+      reason: AuthFailureReason.unknown,
+      message: e.message,
+    );
   }
 }
