@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -12,6 +13,9 @@ class UserProfileService {
 
   CollectionReference<Map<String, dynamic>> get _profiles =>
       FirebaseFirestore.instance.collection('user_profiles');
+
+  static const Duration _upsertCooldown = Duration(seconds: 30);
+  final Map<String, DateTime> _lastUpsertByUid = <String, DateTime>{};
 
   String sanitizeDisplayName(String value, {int maxLength = 18}) {
     final String singleSpaced = value.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -39,58 +43,63 @@ class UserProfileService {
     return GameCardAvatarPalette.fromSeed(uid);
   }
 
-  Future<PlayerProfile> createOrUpdateFromGoogleUser(User user) async {
+  Future<PlayerProfile> createOrUpdateFromGoogleUser(
+    User user, {
+    bool force = false,
+  }) async {
     final String suggestedDisplayName = suggestedNameFromUser(user);
     final DateTime now = DateTime.now().toUtc();
     final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.uid);
     final GameCardAvatarData defaultCardAvatar = defaultCardAvatarForUid(user.uid);
     try {
-      await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
-        final DocumentSnapshot<Map<String, dynamic>> snapshot = await tx.get(ref);
-        if (!snapshot.exists) {
-          tx.set(ref, <String, dynamic>{
-            'uid': user.uid,
-            'displayName': suggestedDisplayName,
-            'email': user.email,
-            'photoUrl': user.photoURL,
-            'credits': 1000,
-            'welcomeCreditsGranted': true,
-            'wins': 0,
-            'losses': 0,
-            'totalGames': 0,
-            'score': 0,
-            'rankScore': 0,
-            'cardAvatarRank': defaultCardAvatar.rank,
-            'cardAvatarSuit': defaultCardAvatar.suit,
-            'hasCustomProfile': false,
-            'isRegistered': true,
-            'createdAt': FieldValue.serverTimestamp(),
-            'lastLoginAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-          return;
-        }
-        final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
-        final String existingDisplayName = (data['displayName'] as String? ?? '').trim();
-        final bool hasCustomProfile = data['hasCustomProfile'] as bool? ?? false;
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await ref.get();
+      final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
+      final DateTime? lastUpsert = _lastUpsertByUid[user.uid];
+      final bool withinCooldown =
+          !force && lastUpsert != null && now.difference(lastUpsert) < _upsertCooldown;
 
-        tx.update(ref, <String, dynamic>{
-          if (existingDisplayName.isEmpty && !hasCustomProfile)
-            'displayName': suggestedDisplayName,
-          if (data['wins'] == null) 'wins': 0,
-          if (data['losses'] == null) 'losses': 0,
-          if (data['totalGames'] == null) 'totalGames': 0,
-          if (data['score'] == null) 'score': 0,
-          if (data['rankScore'] == null) 'rankScore': data['score'] ?? 0,
-          if (data['cardAvatarRank'] == null) 'cardAvatarRank': defaultCardAvatar.rank,
-          if (data['cardAvatarSuit'] == null) 'cardAvatarSuit': defaultCardAvatar.suit,
-          if (data['hasCustomProfile'] == null) 'hasCustomProfile': false,
+      final Map<String, dynamic> patch = <String, dynamic>{};
+      if (!snapshot.exists) {
+        patch.addAll(<String, dynamic>{
+          'uid': user.uid,
+          'displayName': suggestedDisplayName,
           'email': user.email,
           'photoUrl': user.photoURL,
+          'credits': 1000,
+          'welcomeCreditsGranted': true,
+          'wins': 0,
+          'losses': 0,
+          'totalGames': 0,
+          'score': 0,
+          'rankScore': 0,
+          'cardAvatarRank': defaultCardAvatar.rank,
+          'cardAvatarSuit': defaultCardAvatar.suit,
+          'hasCustomProfile': false,
           'isRegistered': true,
+          'createdAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         });
-      });
+      } else {
+        final String existingDisplayName = (data['displayName'] as String? ?? '').trim();
+        final bool hasCustomProfile = data['hasCustomProfile'] as bool? ?? false;
+        if (existingDisplayName.isEmpty && !hasCustomProfile) {
+          patch['displayName'] = suggestedDisplayName;
+        }
+        if ((data['email'] as String?) != user.email) patch['email'] = user.email;
+        if ((data['photoUrl'] as String?) != user.photoURL) patch['photoUrl'] = user.photoURL;
+        if (data['isRegistered'] != true) patch['isRegistered'] = true;
+        if (data['cardAvatarRank'] == null) patch['cardAvatarRank'] = defaultCardAvatar.rank;
+        if (data['cardAvatarSuit'] == null) patch['cardAvatarSuit'] = defaultCardAvatar.suit;
+        if (data['hasCustomProfile'] == null) patch['hasCustomProfile'] = false;
+      }
+
+      if (patch.isNotEmpty && (!withinCooldown || !snapshot.exists)) {
+        patch['lastLoginAt'] = FieldValue.serverTimestamp();
+        patch['updatedAt'] = FieldValue.serverTimestamp();
+        await ref.set(patch, SetOptions(merge: true));
+        _lastUpsertByUid[user.uid] = now;
+      }
     } catch (e, stackTrace) {
       debugPrint(
         '[UserProfileService] createOrUpdateFromGoogleUser failed for uid=${user.uid}: $e',
