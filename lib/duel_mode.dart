@@ -2112,7 +2112,9 @@ class DuelController extends ChangeNotifier {
           previous.lastActionId == value.lastActionId &&
           previous.currentTurn == value.currentTurn &&
           mapEquals(previous.scores, value.scores) &&
-          mapEquals(previous.playerCredits, value.playerCredits)) {
+          mapEquals(previous.playerCredits, value.playerCredits) &&
+          previous.presenceGraceUntil == value.presenceGraceUntil &&
+          _presenceSnapshotKey(previous.presence) == _presenceSnapshotKey(value.presence)) {
         return;
       }
       session = value;
@@ -2125,6 +2127,25 @@ class DuelController extends ChangeNotifier {
       _maybeRepairSessionIntegrity(value);
       notifyListeners();
     });
+  }
+
+
+  String _presenceSnapshotKey(Map<String, DuelPlayerPresence> presence) {
+    final List<String> ids = presence.keys.toList()..sort();
+    return ids
+        .map((String id) {
+          final DuelPlayerPresence state = presence[id] ?? const DuelPlayerPresence();
+          return [
+            id,
+            state.state,
+            state.connectionState,
+            state.currentScreen,
+            state.appState,
+            state.isOnline ? '1' : '0',
+            state.lastSeenAt?.millisecondsSinceEpoch ?? -1,
+          ].join('|');
+        })
+        .join('||');
   }
 
   bool _isActiveSession(DuelSession session) {
