@@ -2910,6 +2910,18 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     await _upsertProfileFromGoogle(user);
   }
 
+  void _syncPresenceNonBlocking({required String uid, required String trigger}) {
+    debugPrint('[PRESENCE] sync started non-blocking trigger=$trigger uid=$uid');
+    if ((_controller?.activeGameId ?? '').isNotEmpty) {
+      debugPrint('[PRESENCE] sync ignored during active room gameId=${_controller?.activeGameId}');
+      return;
+    }
+    unawaited(_ensureProfileReady().catchError((Object e, StackTrace st) {
+      debugPrint('[PRESENCE] sync ignored error=$e');
+      debugPrint('[PRESENCE] sync stack=$st');
+    }));
+  }
+
   Future<void> _continueWithGoogle() async {
     unawaited(_sfx.playClick());
     if (_googleBusy) {
@@ -3176,16 +3188,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         });
         return;
       }
-      unawaited(() async {
-        try {
-          debugPrint('[PRESENCE] profile sync start uid=$uid');
-          await _ensureProfileReady();
-          debugPrint('[PRESENCE] profile sync ok uid=$uid');
-        } catch (e) {
-          debugPrint('[PRESENCE] error ignored: $e');
-          debugPrint('[CREATE_ROOM] presence skipped but not blocking');
-        }
-      }());
+      debugPrint('[DUEL_ROOM] createRoom does not wait for presence');
+      _syncPresenceNonBlocking(uid: uid, trigger: 'create_room');
       await _resolveIdentityIfNeeded();
       final String? pseudoError = _validatePseudo();
       if (pseudoError != null) {
@@ -3299,16 +3303,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
-    unawaited(() async {
-      try {
-        debugPrint('[PRESENCE] profile sync start uid=$uid');
-        await _ensureProfileReady();
-        debugPrint('[PRESENCE] profile sync ok uid=$uid');
-      } catch (e) {
-        debugPrint('[PRESENCE] error ignored: $e');
-        debugPrint('[CREATE_ROOM] presence skipped but not blocking');
-      }
-    }());
+    debugPrint('[DUEL_ROOM] joinRoom does not wait for presence');
+    _syncPresenceNonBlocking(uid: uid, trigger: 'join_room');
     await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
