@@ -2217,8 +2217,10 @@ class DuelController extends ChangeNotifier {
   String? _lastGraceCheckpointKey;
   DateTime? _localPresenceGraceUntil;
   bool _connectionWarningLogged = false;
+  String? _pendingGameId;
   bool busy = false;
   String? error;
+  String? get activeGameId => session?.gameId ?? _pendingGameId;
 
   Future<void> create() async {
     busy = true;
@@ -2231,7 +2233,11 @@ class DuelController extends ChangeNotifier {
         playerName: localPlayerName,
         mode: roomMode,
       );
+      _pendingGameId = id;
       debugPrint('[CREATE_ROOM] success gameId=$id');
+      debugPrint('[DUEL_ROOM] createRoom success gameId=$id');
+      debugPrint('[DUEL_ROOM] listening room gameId=$id');
+      debugPrint('[DUEL_ROOM] room state waiting opponent');
       await attach(id);
     } on FirebaseException catch (e, st) {
       debugPrint('[FIRESTORE] create failed code=${e.code} message=${e.message} uid=$localPlayerId');
@@ -2288,6 +2294,7 @@ class DuelController extends ChangeNotifier {
         return;
       }
       session = value;
+      _pendingGameId = value.gameId;
       final String graceCheckpoint = '${value.gameId}_${value.round}_${value.status.name}';
       if (_lastGraceCheckpointKey != graceCheckpoint) {
         _lastGraceCheckpointKey = graceCheckpoint;
@@ -3244,17 +3251,31 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           ? _controller!
           : _buildController(pseudo);
       await controller.create();
-      if (controller.error != null || controller.session == null) {
+      if (controller.error != null) {
         unawaited(_sfx.playError());
         setState(() {
           _profileError = controller.error ??
               'Connexion au serveur impossible. Vérifie ta connexion puis réessaie.';
         });
-        debugPrint('[DUEL_ROOM] createRoom failed reason=${controller.error ?? 'session_missing'}');
+        debugPrint('[DUEL_ROOM] createRoom failed reason=${controller.error}');
+        return;
+      }
+      final String? createdGameId = controller.activeGameId;
+      if (createdGameId == null || createdGameId.isEmpty) {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Code de partie introuvable après création.';
+        });
+        debugPrint('[DUEL_ROOM] createRoom failed reason=game_id_missing_after_success');
         return;
       }
       debugPrint('[CREATE_ROOM] firestore create success');
-      debugPrint('[DUEL_ROOM] room created id=${controller.session!.gameId} roomStatus=${controller.session!.roomStatus} betStatus=${controller.session!.betFlowState.name}');
+      debugPrint('[DUEL_ROOM] createRoom success gameId=$createdGameId');
+      if (controller.session != null) {
+        debugPrint('[DUEL_ROOM] room created id=${controller.session!.gameId} roomStatus=${controller.session!.roomStatus} betStatus=${controller.session!.betFlowState.name}');
+      } else {
+        debugPrint('[DUEL_ROOM] room created id=$createdGameId roomStatus=waiting betStatus=pending_snapshot');
+      }
     } finally {
       if (mounted) {
         setState(() {
