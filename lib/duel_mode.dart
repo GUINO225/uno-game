@@ -3004,28 +3004,35 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _createGame() async {
     unawaited(_sfx.playClick());
+    debugPrint('[CREATE_ROOM] start');
     final User? user = _authService.currentUser;
-    debugPrint('[AUTH] create tapped userPresent=${user != null} anonymous=${user?.isAnonymous ?? true}');
+    if (user == null || user.isAnonymous) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Connecte-toi avec Google pour créer une partie.';
+      });
+      return;
+    }
+    final String uid = user.uid;
+    if (uid.isEmpty) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Connecte-toi avec Google pour créer une partie.';
+      });
+      return;
+    }
+    debugPrint('[CREATE_ROOM] uid=$uid');
     try {
       await _ensureFirestoreIdentity();
-    } on StateError catch (error) {
-      if (error.message == 'GOOGLE_AUTH_REQUIRED') {
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = 'Connectez-vous avec Google pour continuer.';
-        });
-        return;
-      }
-      rethrow;
     } on FirebaseException catch (e) {
-      debugPrint('[FIRESTORE] auth/precheck failed code=${e.code} message=${e.message}');
+      debugPrint('[CREATE_ROOM] firestore error: code=${e.code} message=${e.message}');
       unawaited(_sfx.playError());
       setState(() {
         _profileError = 'Erreur Firestore (${e.code}).';
       });
       return;
     } catch (e) {
-      debugPrint('[AUTH] precheck failed: $e');
+      debugPrint('[CREATE_ROOM] firestore error: $e');
       unawaited(_sfx.playError());
       setState(() {
         _profileError = 'Impossible de préparer la connexion Firebase: $e';
@@ -3033,16 +3040,13 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     unawaited(() async {
-      final User? current = _authService.currentUser;
-      if (current == null || current.isAnonymous) {
-        return;
-      }
       try {
-        debugPrint('[PRESENCE] profile sync start uid=${current.uid}');
+        debugPrint('[PRESENCE] profile sync start uid=$uid');
         await _ensureProfileReady();
-        debugPrint('[PRESENCE] profile sync ok uid=${current.uid}');
+        debugPrint('[PRESENCE] profile sync ok uid=$uid');
       } catch (e) {
-        debugPrint('[PRESENCE] profile sync failed but ignored uid=${current.uid} error=$e');
+        debugPrint('[PRESENCE] error ignored: $e');
+        debugPrint('[CREATE_ROOM] presence skipped but not blocking');
       }
     }());
     await _resolveIdentityIfNeeded();
@@ -3062,19 +3066,18 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         return;
       }
     }
-    final User? user = _authService.currentUser;
-    if (_shouldAskPseudo && user != null && !user.isAnonymous) {
+    if (_shouldAskPseudo) {
       final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
-      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      await _profileService.updateDisplayName(uid: uid, displayName: cleanedPseudo);
       _duelIdentity = DuelPlayerIdentity(
-        playerId: user.uid,
+        playerId: uid,
         displayName: cleanedPseudo,
         isGuest: false,
         pseudoSource: 'nouvel enregistrement',
         photoUrl: user.photoURL,
       );
-      _authenticatedPlayerId = user.uid;
-      _playerProfile = await _profileService.getProfile(user.uid);
+      _authenticatedPlayerId = uid;
+      _playerProfile = await _profileService.getProfile(uid);
       debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
       debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
@@ -3088,33 +3091,39 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         ? _controller!
         : _buildController(pseudo);
     await controller.create();
+    debugPrint('[CREATE_ROOM] firestore create success');
     debugPrint('[DUEL_ROOM] room created id=${controller.session?.gameId ?? 'pending'} roomStatus=${controller.session?.roomStatus ?? 'unknown'} betStatus=${controller.session?.betFlowState.name ?? 'unknown'}');
   }
 
   Future<void> _joinGame() async {
     unawaited(_sfx.playClick());
     final User? user = _authService.currentUser;
-    debugPrint('[AUTH] join tapped userPresent=${user != null} anonymous=${user?.isAnonymous ?? true}');
+    if (user == null || user.isAnonymous) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Connecte-toi avec Google pour créer une partie.';
+      });
+      return;
+    }
+    final String uid = user.uid;
+    if (uid.isEmpty) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Connecte-toi avec Google pour créer une partie.';
+      });
+      return;
+    }
     try {
       await _ensureFirestoreIdentity();
-    } on StateError catch (error) {
-      if (error.message == 'GOOGLE_AUTH_REQUIRED') {
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = 'Connectez-vous avec Google pour continuer.';
-        });
-        return;
-      }
-      rethrow;
     } on FirebaseException catch (e) {
-      debugPrint('[FIRESTORE] auth/precheck failed code=${e.code} message=${e.message}');
+      debugPrint('[CREATE_ROOM] firestore error: code=${e.code} message=${e.message}');
       unawaited(_sfx.playError());
       setState(() {
         _profileError = 'Erreur Firestore (${e.code}).';
       });
       return;
     } catch (e) {
-      debugPrint('[AUTH] precheck failed: $e');
+      debugPrint('[CREATE_ROOM] firestore error: $e');
       unawaited(_sfx.playError());
       setState(() {
         _profileError = 'Impossible de préparer la connexion Firebase: $e';
@@ -3122,16 +3131,13 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     unawaited(() async {
-      final User? current = _authService.currentUser;
-      if (current == null || current.isAnonymous) {
-        return;
-      }
       try {
-        debugPrint('[PRESENCE] profile sync start uid=${current.uid}');
+        debugPrint('[PRESENCE] profile sync start uid=$uid');
         await _ensureProfileReady();
-        debugPrint('[PRESENCE] profile sync ok uid=${current.uid}');
+        debugPrint('[PRESENCE] profile sync ok uid=$uid');
       } catch (e) {
-        debugPrint('[PRESENCE] profile sync failed but ignored uid=${current.uid} error=$e');
+        debugPrint('[PRESENCE] error ignored: $e');
+        debugPrint('[CREATE_ROOM] presence skipped but not blocking');
       }
     }());
     await _resolveIdentityIfNeeded();
@@ -3159,19 +3165,18 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         return;
       }
     }
-    final User? user = _authService.currentUser;
-    if (_shouldAskPseudo && user != null && !user.isAnonymous) {
+    if (_shouldAskPseudo) {
       final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
-      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      await _profileService.updateDisplayName(uid: uid, displayName: cleanedPseudo);
       _duelIdentity = DuelPlayerIdentity(
-        playerId: user.uid,
+        playerId: uid,
         displayName: cleanedPseudo,
         isGuest: false,
         pseudoSource: 'nouvel enregistrement',
         photoUrl: user.photoURL,
       );
-      _authenticatedPlayerId = user.uid;
-      _playerProfile = await _profileService.getProfile(user.uid);
+      _authenticatedPlayerId = uid;
+      _playerProfile = await _profileService.getProfile(uid);
       debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
       debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
