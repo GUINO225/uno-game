@@ -1079,7 +1079,7 @@ class _GameModePageState extends State<GameModePage>
       await _profileService.createOrUpdateFromGoogleUser(result.user!);
     }
     if (mode == GameMode.credits) {
-      final String? uid = _authService.currentUser?.uid;
+      final String? uid = _authService.currentUser?.id;
       if (uid == null) {
         return;
       }
@@ -1887,7 +1887,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return;
     }
     try {
-      final PlayerProfile? profile = await _profileService.getProfile(user.uid);
+      final PlayerProfile? profile = await _profileService.getProfile(user.id);
       if (!mounted || profile == null) {
         return;
       }

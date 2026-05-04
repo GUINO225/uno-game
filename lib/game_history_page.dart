@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -23,7 +23,7 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
   }
 
   Future<List<_PlayerMatchResult>> _loadHistory() async {
-    final User? user = FirebaseAuth.instance.currentUser;
+    final User? user = Supabase.instance.client.auth.currentUser;
     if (user == null || user.isAnonymous) return const <_PlayerMatchResult>[];
 
     final CollectionReference<Map<String, dynamic>> collection =
@@ -32,15 +32,15 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
     QuerySnapshot<Map<String, dynamic>> snap;
     try {
       snap = await collection
-          .where('participantUids', arrayContains: user.uid)
+          .where('participantUids', arrayContains: user.id)
           .limit(150)
           .get();
     } on FirebaseException {
-      snap = await collection.where('playerIds', arrayContains: user.uid).limit(150).get();
+      snap = await collection.where('playerIds', arrayContains: user.id).limit(150).get();
     }
 
     final List<_PlayerMatchResult> results = snap.docs
-        .map((d) => _PlayerMatchResult.fromDoc(d.data(), user.uid))
+        .map((d) => _PlayerMatchResult.fromDoc(d.data(), user.id))
         .whereType<_PlayerMatchResult>()
         .toList();
     results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
