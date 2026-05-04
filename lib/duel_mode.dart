@@ -900,6 +900,7 @@ class GameService {
             .where((String id) => id != playerId)
             .fold<Map<String, dynamic>>(<String, dynamic>{}, (Map<String, dynamic> acc, String id) {
           acc['presence.$id.state'] = 'online';
+          acc['presence.$id.connectionState'] = 'online';
           acc['presence.$id.lastSeenAt'] = FieldValue.serverTimestamp();
           acc['presence.$id.leftAt'] = null;
           return acc;
