@@ -796,28 +796,57 @@ class GameService {
     required String playerName,
     DuelRoomMode mode = DuelRoomMode.duel,
   }) async {
-    final String code = _generateCode();
-    final CollectionReference<Map<String, dynamic>> games = await _games();
-    int initialCredits = 1000;
-    if (mode == DuelRoomMode.credits) {
-      final FirebaseFirestore db = await _resolveDb();
-      final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
-      await db.runTransaction((Transaction tx) async {
-        initialCredits = await _readCreditsFromProfileTx(
-          tx: tx,
-          db: db,
-          playerId: playerId,
-          displayName: playerName,
+    try {
+      debugPrint('[GameService] createRoom start creatorId=$playerId mode=${mode.name}');
+      final CollectionReference<Map<String, dynamic>> games = await _games();
+      int initialCredits = 1000;
+      if (mode == DuelRoomMode.credits) {
+        final FirebaseFirestore db = await _resolveDb();
+        await db.runTransaction((Transaction tx) async {
+          initialCredits = await _readCreditsFromProfileTx(
+            tx: tx,
+            db: db,
+            playerId: playerId,
+            displayName: playerName,
+          );
+        }).timeout(
+          const Duration(seconds: 12),
+          onTimeout: () => throw TimeoutException('Firestore credits read timeout'),
         );
-      });
-      if (initialCredits <= 0) {
-        throw StateError('Crédit insuffisant pour accéder au mode Pari.');
+        if (initialCredits <= 0) {
+          throw StateError('Crédit insuffisant pour accéder au mode Pari.');
+        }
       }
-    }
-    debugPrint('[GameService] createRoom called creatorId=$playerId mode=${mode.name}');
-    await games.doc(code).set(
-      DuelSession(
-        gameId: code,
+
+      String? roomCode;
+      DocumentReference<Map<String, dynamic>>? roomRef;
+      for (int attempt = 1; attempt <= 5; attempt++) {
+        debugPrint('[GameService] generating room code');
+        final String generatedCode = _generateCode();
+        debugPrint('[GameService] generated code=$generatedCode');
+        debugPrint('[GameService] checking room code availability');
+        final DocumentReference<Map<String, dynamic>> candidateRef = games.doc(generatedCode);
+        final DocumentSnapshot<Map<String, dynamic>> candidateSnap = await candidateRef
+            .get()
+            .timeout(
+              const Duration(seconds: 12),
+              onTimeout: () => throw TimeoutException('Firestore room code availability timeout'),
+            );
+        if (!candidateSnap.exists) {
+          roomCode = generatedCode;
+          roomRef = candidateRef;
+          debugPrint('[GameService] room code available');
+          break;
+        }
+      }
+
+      if (roomCode == null || roomRef == null) {
+        throw StateError('Impossible de générer un code de room unique après 5 essais.');
+      }
+
+      debugPrint('[GameService] preparing room data');
+      final Map<String, dynamic> roomData = DuelSession(
+        gameId: roomCode,
         hostId: playerId,
         players: <String>[playerId],
         playerNames: <String, String>{playerId: playerName},
@@ -838,10 +867,36 @@ class GameService {
         presenceGraceUntil: _presenceGraceDeadline(),
         roomStatus: mode == DuelRoomMode.credits ? 'betting' : 'open',
       ).toMap()
-        ..addAll(_presenceOnlinePatch(playerId)),
-    );
-    debugPrint('[GameService] room created id=$code roomStatus=${mode == DuelRoomMode.credits ? 'betting' : 'open'} betStatus=${mode == DuelRoomMode.credits ? DuelBetFlowState.initialStakeProposed.name : DuelBetFlowState.idle.name}');
-    return code;
+        ..addAll(_presenceOnlinePatch(playerId));
+
+      debugPrint('[GameService] writing room doc path=${roomRef.path}');
+      await roomRef.set(roomData).timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
+      );
+      debugPrint('[GameService] room doc written successfully');
+      debugPrint('[GameService] createRoom success code=$roomCode');
+      return roomCode;
+    } catch (e, st) {
+      if (e is FirebaseException) {
+        if (e.code == 'permission-denied') {
+          debugPrint('Permission Firestore refusée : vérifie les rules.');
+        } else if (e.code == 'unavailable' || e.code == 'deadline-exceeded') {
+          debugPrint('Connexion au serveur impossible. Réessaie.');
+        } else if (e.code == 'resource-exhausted') {
+          debugPrint('Quota Firebase temporairement dépassé.');
+        }
+        debugPrint('[GameService] createRoom error type=FirebaseException(${e.code}) message=${e.message ?? e.toString()}');
+      } else if (e is TimeoutException) {
+        debugPrint('Connexion au serveur impossible. Réessaie.');
+        debugPrint('[GameService] createRoom error type=TimeoutException message=${e.message ?? e.toString()}');
+      } else {
+        debugPrint('[GameService] createRoom error type=${e.runtimeType} message=$e');
+      }
+      debugPrint('[GameService] createRoom error: $e');
+      debugPrint('[GameService] createRoom stack: $st');
+      rethrow;
+    }
   }
 
   Future<void> joinGame({
