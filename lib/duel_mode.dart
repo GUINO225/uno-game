@@ -8,9 +8,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
+import 'config/backend_flags.dart';
 import 'credit_coins_icon.dart';
 import 'firebase_config.dart';
 import 'game_history_page.dart';
@@ -20,6 +22,7 @@ import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'stats_service.dart';
 import 'user_profile_service.dart';
+import 'services/supabase_game_service.dart';
 import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
@@ -647,6 +650,7 @@ class GameService {
   GameService({FirebaseFirestore? firestore}) : _firestore = firestore;
 
   final FirebaseFirestore? _firestore;
+  final SupabaseGameService _supabaseGameService = SupabaseGameService();
 
   DateTime _presenceGraceDeadline() => DateTime.now().toUtc().add(_presenceGracePeriod);
 
@@ -815,6 +819,19 @@ class GameService {
   }) async {
     try {
       debugPrint('[GameService] createRoom start creatorId=$playerId mode=${mode.name}');
+      if (BackendFlags.useSupabaseGameWrite && mode == DuelRoomMode.duel) {
+        final String roomCode = _generateCode();
+        debugPrint('[GAME_ROUTER] createRoom backend=supabase');
+        debugPrint('[SUPABASE_GAME] createRoom start');
+        await _supabaseGameService.createRoom(
+          roomCode: roomCode,
+          creatorId: playerId,
+          creatorPseudo: playerName,
+        );
+        debugPrint('[SUPABASE_GAME] createRoom success code=$roomCode');
+        return roomCode;
+      }
+      debugPrint('[GAME_ROUTER] createRoom backend=firebase');
       final CollectionReference<Map<String, dynamic>> games = await _games();
       int initialCredits = 1000;
       if (mode == DuelRoomMode.credits) {
@@ -955,6 +972,18 @@ class GameService {
     required String playerName,
     DuelRoomMode? expectedMode,
   }) async {
+    if (BackendFlags.useSupabaseGameWrite && expectedMode != DuelRoomMode.credits) {
+      debugPrint('[GAME_ROUTER] joinRoom backend=supabase');
+      debugPrint('[SUPABASE_GAME] joinRoom start code=$gameId');
+      await _supabaseGameService.joinRoom(
+        roomCode: gameId,
+        opponentId: playerId,
+        opponentPseudo: playerName,
+      );
+      debugPrint('[SUPABASE_GAME] joinRoom success code=$gameId');
+      return;
+    }
+    debugPrint('[GAME_ROUTER] joinRoom backend=firebase');
     final FirebaseFirestore db = await _resolveDb();
     debugPrint('[GameService] joinGame requested by $playerId for game=$gameId.');
     final DocumentReference<Map<String, dynamic>> ref =
@@ -1080,6 +1109,47 @@ class GameService {
   }
 
   Stream<DuelSession> watchSession(String gameId) async* {
+    if (BackendFlags.useSupabaseGameRead) {
+      debugPrint('[GAME_ROUTER] listenRoom backend=supabase');
+      debugPrint('[SUPABASE_GAME] listenRoom start code=$gameId');
+      final StreamController<DuelSession> controller = StreamController<DuelSession>();
+      final RealtimeChannel channel = _supabaseGameService.listenRoom(
+        roomCode: gameId,
+        onRoomChanged: (Map<String, dynamic> room) {
+          final String creatorId = room['creator_id'] as String? ?? '';
+          final String? opponentId = room['opponent_id'] as String?;
+          final String creatorPseudo = room['creator_pseudo'] as String? ?? 'Hôte';
+          final String opponentPseudo = room['opponent_pseudo'] as String? ?? 'Invité';
+          final List<String> players = <String>[
+            if (creatorId.isNotEmpty) creatorId,
+            if (opponentId != null && opponentId.isNotEmpty) opponentId,
+          ];
+          if (players.isEmpty) {
+            return;
+          }
+          final Map<String, String> names = <String, String>{
+            if (creatorId.isNotEmpty) creatorId: creatorPseudo,
+            if (opponentId != null && opponentId.isNotEmpty) opponentId: opponentPseudo,
+          };
+          controller.add(DuelSession(
+            gameId: room['id'] as String? ?? gameId,
+            hostId: creatorId,
+            players: players,
+            playerNames: names,
+            currentTurn: creatorId,
+            status: (room['status'] == 'playing') ? DuelGameStatus.inProgress : DuelGameStatus.waiting,
+            scores: <String, int>{for (final String id in players) id: 0},
+            round: 1,
+          ));
+        },
+      );
+      controller.onCancel = () async {
+        await channel.unsubscribe();
+      };
+      yield* controller.stream;
+      return;
+    }
+    debugPrint('[GAME_ROUTER] listenRoom backend=firebase');
     final CollectionReference<Map<String, dynamic>> games = await _games();
     yield* games
         .doc(gameId)

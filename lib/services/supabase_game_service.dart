@@ -5,11 +5,17 @@ class SupabaseGameService {
 
   final SupabaseClient _client;
 
-  Future<String> createRoom({required String hostUserId}) async {
+  Future<String> createRoom({
+    required String roomCode,
+    required String creatorId,
+    required String creatorPseudo,
+  }) async {
     final Map<String, dynamic> inserted = await _client
         .from('duel_games')
         .insert(<String, dynamic>{
-          'host_user_id': hostUserId,
+          'id': roomCode,
+          'creator_id': creatorId,
+          'creator_pseudo': creatorPseudo,
           'status': 'waiting',
         })
         .select()
@@ -18,19 +24,24 @@ class SupabaseGameService {
     return inserted['id'] as String;
   }
 
-  Future<void> joinRoom({required String roomId, required String guestUserId}) async {
+  Future<void> joinRoom({
+    required String roomCode,
+    required String opponentId,
+    required String opponentPseudo,
+  }) async {
     await _client.from('duel_games').update(<String, dynamic>{
-      'guest_user_id': guestUserId,
+      'opponent_id': opponentId,
+      'opponent_pseudo': opponentPseudo,
       'status': 'playing',
-    }).eq('id', roomId);
+    }).eq('id', roomCode).eq('status', 'waiting');
   }
 
   RealtimeChannel listenRoom({
-    required String roomId,
+    required String roomCode,
     required void Function(Map<String, dynamic> room) onRoomChanged,
   }) {
     final RealtimeChannel channel = _client
-        .channel('duel_games:$roomId')
+        .channel('duel_games:$roomCode')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -38,7 +49,7 @@ class SupabaseGameService {
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'id',
-            value: roomId,
+            value: roomCode,
           ),
           callback: (PostgresChangePayload payload) {
             final dynamic row = payload.newRecord;
