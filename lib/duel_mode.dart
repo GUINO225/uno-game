@@ -99,12 +99,14 @@ String _localizeUserError(Object error) {
       case 'network-request-failed':
       case 'deadline-exceeded':
         return 'Erreur réseau. Vérifie ta connexion et réessaie.';
+      case 'resource-exhausted':
+        return 'Firestore saturé (quota atteint). Réessaie dans un instant.';
       case 'not-found':
         return 'Partie introuvable.';
       case 'permission-denied':
         return 'Connexion échouée. Accès refusé.';
       default:
-        return 'Connexion échouée. Réessaie dans un instant.';
+        return 'Erreur Firestore (${error.code}). Réessaie dans un instant.';
     }
   }
 
@@ -2079,13 +2081,20 @@ class DuelController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
+      debugPrint('[CREATE_ROOM] start mode=${roomMode.name} uid=$localPlayerId');
       final String id = await service.createGame(
         playerId: localPlayerId,
         playerName: localPlayerName,
         mode: roomMode,
       );
+      debugPrint('[CREATE_ROOM] success gameId=$id');
       await attach(id);
+    } on FirebaseException catch (e, st) {
+      debugPrint('[FIRESTORE] create failed code=${e.code} message=${e.message} uid=$localPlayerId');
+      debugPrint('$st');
+      error = _localizeUserError(e);
     } catch (e) {
+      debugPrint('[CREATE_ROOM] unexpected failure: $e');
       error = _localizeUserError(e);
     }
     busy = false;
@@ -2097,14 +2106,21 @@ class DuelController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
+      debugPrint('[DUEL_ROOM] join start mode=${roomMode.name} uid=$localPlayerId gameId=$gameId');
       await service.joinGame(
         gameId: gameId,
         playerId: localPlayerId,
         playerName: localPlayerName,
         expectedMode: roomMode,
       );
+      debugPrint('[DUEL_ROOM] join success gameId=$gameId');
       await attach(gameId);
+    } on FirebaseException catch (e, st) {
+      debugPrint('[FIRESTORE] join failed code=${e.code} message=${e.message} uid=$localPlayerId gameId=$gameId');
+      debugPrint('$st');
+      error = _localizeUserError(e);
     } catch (e) {
+      debugPrint('[DUEL_ROOM] join unexpected failure: $e');
       error = _localizeUserError(e);
     }
     busy = false;
@@ -2988,9 +3004,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _createGame() async {
     unawaited(_sfx.playClick());
+    final User? user = _authService.currentUser;
+    debugPrint('[AUTH] create tapped userPresent=${user != null} anonymous=${user?.isAnonymous ?? true}');
     try {
       await _ensureFirestoreIdentity();
-      await _ensureProfileReady();
     } on StateError catch (error) {
       if (error.message == 'GOOGLE_AUTH_REQUIRED') {
         unawaited(_sfx.playError());
@@ -3000,13 +3017,34 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         return;
       }
       rethrow;
+    } on FirebaseException catch (e) {
+      debugPrint('[FIRESTORE] auth/precheck failed code=${e.code} message=${e.message}');
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Erreur Firestore (${e.code}).';
+      });
+      return;
     } catch (e) {
+      debugPrint('[AUTH] precheck failed: $e');
       unawaited(_sfx.playError());
       setState(() {
         _profileError = 'Impossible de préparer la connexion Firebase: $e';
       });
       return;
     }
+    unawaited(() async {
+      final User? current = _authService.currentUser;
+      if (current == null || current.isAnonymous) {
+        return;
+      }
+      try {
+        debugPrint('[PRESENCE] profile sync start uid=${current.uid}');
+        await _ensureProfileReady();
+        debugPrint('[PRESENCE] profile sync ok uid=${current.uid}');
+      } catch (e) {
+        debugPrint('[PRESENCE] profile sync failed but ignored uid=${current.uid} error=$e');
+      }
+    }());
     await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
@@ -3055,9 +3093,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _joinGame() async {
     unawaited(_sfx.playClick());
+    final User? user = _authService.currentUser;
+    debugPrint('[AUTH] join tapped userPresent=${user != null} anonymous=${user?.isAnonymous ?? true}');
     try {
       await _ensureFirestoreIdentity();
-      await _ensureProfileReady();
     } on StateError catch (error) {
       if (error.message == 'GOOGLE_AUTH_REQUIRED') {
         unawaited(_sfx.playError());
@@ -3067,13 +3106,34 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         return;
       }
       rethrow;
+    } on FirebaseException catch (e) {
+      debugPrint('[FIRESTORE] auth/precheck failed code=${e.code} message=${e.message}');
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Erreur Firestore (${e.code}).';
+      });
+      return;
     } catch (e) {
+      debugPrint('[AUTH] precheck failed: $e');
       unawaited(_sfx.playError());
       setState(() {
         _profileError = 'Impossible de préparer la connexion Firebase: $e';
       });
       return;
     }
+    unawaited(() async {
+      final User? current = _authService.currentUser;
+      if (current == null || current.isAnonymous) {
+        return;
+      }
+      try {
+        debugPrint('[PRESENCE] profile sync start uid=${current.uid}');
+        await _ensureProfileReady();
+        debugPrint('[PRESENCE] profile sync ok uid=${current.uid}');
+      } catch (e) {
+        debugPrint('[PRESENCE] profile sync failed but ignored uid=${current.uid} error=$e');
+      }
+    }());
     await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
