@@ -843,6 +843,7 @@ class GameService {
       if (roomCode == null || roomRef == null) {
         throw StateError('Impossible de générer un code de room unique après 5 essais.');
       }
+      final DocumentReference<Map<String, dynamic>> resolvedRoomRef = roomRef;
 
       debugPrint('[GameService] preparing room data');
       final Map<String, dynamic> roomData = DuelSession(
@@ -871,7 +872,7 @@ class GameService {
 
       Future<void> verifyRoomWrite() async {
         debugPrint('[GameService] room verify start code=$roomCode');
-        final DocumentSnapshot<Map<String, dynamic>> verifySnap = await roomRef
+        final DocumentSnapshot<Map<String, dynamic>> verifySnap = await resolvedRoomRef
             .get()
             .timeout(
               const Duration(seconds: 12),
@@ -899,10 +900,10 @@ class GameService {
         }
       }
 
-      debugPrint('[GameService] writing room doc path=${roomRef.path}');
+      debugPrint('[GameService] writing room doc path=${resolvedRoomRef.path}');
       bool writeTimedOut = false;
       try {
-        await roomRef.set(roomData).timeout(
+        await resolvedRoomRef.set(roomData).timeout(
           const Duration(seconds: 12),
           onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
         );
