@@ -7,11 +7,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/widgets.dart';
 
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
+import 'config/backend_flags.dart';
 import 'firebase_config.dart';
 import 'duel_mode.dart';
 import 'leaderboard_page.dart';
@@ -26,6 +28,10 @@ import 'user_profile_service.dart';
 import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
+
+const String _supabaseUrl = 'https://mtkqfqpxgabaafpnrshm.supabase.co';
+const String _supabasePublishableKey =
+    'sb_publishable_A6-ArFBntsh0BTJNEvYrqw_o6GjGvng';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,7 +49,26 @@ Future<void> main() async {
     );
   }
   await _initializeFirebaseIfConfigured();
+  await _initializeSupabaseIfConfigured();
   runApp(const MyApp());
+}
+
+
+Future<void> _initializeSupabaseIfConfigured() async {
+  if (!BackendFlags.useSupabaseAuth &&
+      !BackendFlags.useSupabaseGameRead &&
+      !BackendFlags.useSupabaseGameWrite &&
+      !BackendFlags.useSupabaseCredits &&
+      !BackendFlags.useSupabaseRanking) {
+    debugPrint('[Supabase] skipped initialization: all backend flags are disabled.');
+    return;
+  }
+
+  await Supabase.initialize(
+    url: _supabaseUrl,
+    anonKey: _supabasePublishableKey,
+  );
+  debugPrint('[Supabase] initialized with publishable key.');
 }
 
 Future<void> _initializeFirebaseIfConfigured() async {
