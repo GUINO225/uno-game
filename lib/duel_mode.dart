@@ -898,7 +898,17 @@ class GameService {
         resolvedRoomRef = games.doc(roomCode);
         debugPrint('[GameService] writing room doc path=${resolvedRoomRef.path}');
         try {
-          await resolvedRoomRef.create(roomData..['roomCode'] = roomCode..['code'] = roomCode).timeout(
+          await db.runTransaction((Transaction tx) async {
+            final DocumentSnapshot<Map<String, dynamic>> existing = await tx.get(resolvedRoomRef);
+            if (existing.exists) {
+              throw FirebaseException(
+                plugin: 'cloud_firestore',
+                code: 'already-exists',
+                message: 'Room code collision',
+              );
+            }
+            tx.set(resolvedRoomRef, roomData..['roomCode'] = roomCode..['code'] = roomCode);
+          }).timeout(
             const Duration(seconds: 12),
             onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
           );
@@ -960,7 +970,7 @@ class GameService {
       if (expectedMode != null && session.mode != expectedMode) {
         throw FirebaseException(plugin: 'cloud_firestore', code: 'room_not_found', message: 'Invalid code for this mode');
       }
-      if (session.creatorId == playerId || session.hostId == playerId) {
+      if (session.hostId == playerId) {
         throw FirebaseException(
           plugin: 'cloud_firestore',
           code: 'cannot_join_own_room',
