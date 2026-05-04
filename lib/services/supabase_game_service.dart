@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseGameService {
@@ -36,13 +37,30 @@ class SupabaseGameService {
       'opponent_id': opponentId,
       'opponent_pseudo': opponentPseudo,
       'status': 'playing',
-    }).eq('id', roomCode).eq('status', 'waiting');
+    }).eq('room_code', roomCode).eq('status', 'waiting');
   }
 
   RealtimeChannel listenRoom({
     required String roomCode,
     required void Function(Map<String, dynamic> room) onRoomChanged,
   }) {
+    Future<void>(() async {
+      try {
+        debugPrint('[SUPABASE_GAME] listenRoom initial fetch start code=$roomCode');
+
+        final Map<String, dynamic> room = await _client
+            .from('duel_games')
+            .select()
+            .eq('room_code', roomCode)
+            .single();
+
+        debugPrint('[SUPABASE_GAME] listenRoom initial fetch success code=$roomCode');
+        onRoomChanged(room);
+      } catch (e) {
+        debugPrint('[SUPABASE_GAME] listenRoom initial fetch failed: $e');
+      }
+    });
+
     final RealtimeChannel channel = _client
         .channel('duel_games:$roomCode')
         .onPostgresChanges(
@@ -51,10 +69,11 @@ class SupabaseGameService {
           table: 'duel_games',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
-            column: 'id',
+            column: 'room_code',
             value: roomCode,
           ),
           callback: (PostgresChangePayload payload) {
+            debugPrint('[SUPABASE_GAME] listenRoom realtime event received code=$roomCode');
             final dynamic row = payload.newRecord;
             if (row is Map<String, dynamic>) {
               onRoomChanged(row);
