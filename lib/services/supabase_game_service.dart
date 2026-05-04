@@ -9,6 +9,7 @@ class SupabaseGameService {
     required String roomCode,
     required String creatorId,
     required String creatorPseudo,
+    required String mode,
   }) async {
     final Map<String, dynamic> inserted = await _client
         .from('duel_games')
@@ -17,6 +18,7 @@ class SupabaseGameService {
           'creator_id': creatorId,
           'creator_pseudo': creatorPseudo,
           'status': 'waiting',
+          'mode': mode,
         })
         .select()
         .single();
