@@ -26,6 +26,7 @@ import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
 import 'web_page_lifecycle_stub.dart'
+import 'supabase_user_photo.dart';
     if (dart.library.html) 'web_page_lifecycle_web.dart';
 
 enum DuelGameStatus { waiting, inProgress, finished }
@@ -3013,7 +3014,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         displayName: localProfilePseudo,
         isGuest: false,
         pseudoSource: 'local_state',
-        photoUrl: user.photoURL,
+        photoUrl: supabaseUserPhotoUrl(user),
       );
     }
 
@@ -3034,7 +3035,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         displayName: firestorePseudo,
         isGuest: false,
         pseudoSource: 'firestore',
-        photoUrl: user.photoURL,
+        photoUrl: supabaseUserPhotoUrl(user),
       );
     }
 
@@ -3049,7 +3050,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         displayName: authDisplayName,
         isGuest: false,
         pseudoSource: 'auth_state',
-        photoUrl: user.photoURL,
+        photoUrl: supabaseUserPhotoUrl(user),
       );
     }
 
@@ -3376,7 +3377,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           displayName: cleanedPseudo,
           isGuest: false,
           pseudoSource: 'nouvel enregistrement',
-          photoUrl: user.photoURL,
+          photoUrl: supabaseUserPhotoUrl(user),
         );
         _authenticatedPlayerId = uid;
         _playerProfile = await _profileService.getProfile(uid);
@@ -3497,7 +3498,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         displayName: cleanedPseudo,
         isGuest: false,
         pseudoSource: 'nouvel enregistrement',
-        photoUrl: user.photoURL,
+        photoUrl: supabaseUserPhotoUrl(user),
       );
       _authenticatedPlayerId = uid;
       _playerProfile = await _profileService.getProfile(uid);

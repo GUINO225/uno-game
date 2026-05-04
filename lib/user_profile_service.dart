@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'game_card_avatar.dart';
 import 'player_profile.dart';
+import 'supabase_user_photo.dart';
 
 class UserProfileService {
   UserProfileService._();
@@ -64,7 +65,7 @@ class UserProfileService {
           'uid': user.id,
           'displayName': suggestedDisplayName,
           'email': user.email,
-          'photoUrl': user.photoURL,
+          'photoUrl': supabaseUserPhotoUrl(user),
           'credits': 1000,
           'welcomeCreditsGranted': true,
           'wins': 0,
@@ -87,7 +88,7 @@ class UserProfileService {
           patch['displayName'] = suggestedDisplayName;
         }
         if ((data['email'] as String?) != user.email) patch['email'] = user.email;
-        if ((data['photoUrl'] as String?) != user.photoURL) patch['photoUrl'] = user.photoURL;
+        if ((data['photoUrl'] as String?) != supabaseUserPhotoUrl(user)) patch['photoUrl'] = supabaseUserPhotoUrl(user);
         if (data['isRegistered'] != true) patch['isRegistered'] = true;
         if (data['cardAvatarRank'] == null) patch['cardAvatarRank'] = defaultCardAvatar.rank;
         if (data['cardAvatarSuit'] == null) patch['cardAvatarSuit'] = defaultCardAvatar.suit;
@@ -114,7 +115,7 @@ class UserProfileService {
       'uid': user.id,
       'displayName': data['displayName'] ?? suggestedDisplayName,
       'email': data['email'] ?? user.email,
-      'photoUrl': data['photoUrl'] ?? user.photoURL,
+      'photoUrl': data['photoUrl'] ?? supabaseUserPhotoUrl(user),
       'avatarUrl': data['avatarUrl'],
       'credits': data['credits'] ?? 1000,
       'wins': data['wins'] ?? 0,
