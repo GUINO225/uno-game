@@ -76,12 +76,35 @@ class AuthService {
         );
       }
 
-      await _upsertProfile(user);
+      try {
+        await _upsertProfile(user);
+      } on PostgrestException catch (error, stackTrace) {
+        debugPrint('[SUPABASE_PROFILE_ERROR] context=upsert_profile_after_google_signin uid=${user.id}');
+        debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
+        debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
+        debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+        debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+        debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+        rethrow;
+      } catch (error, stackTrace) {
+        debugPrint('[SUPABASE_PROFILE_ERROR] context=upsert_profile_after_google_signin uid=${user.id}');
+        debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+        debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+        debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+        rethrow;
+      }
       debugPrint('[AuthService] Google sign-in success: uid=${user.id}');
       return GoogleAuthResult.success(user);
-    } on AuthException catch (e) {
+    } on AuthException catch (e, stackTrace) {
+      debugPrint('[SUPABASE_AUTH_ERROR] AuthException.message=${e.message}');
+      debugPrint('[SUPABASE_AUTH_ERROR] error.runtimeType=${e.runtimeType}');
+      debugPrint('[SUPABASE_AUTH_ERROR] error.toString()=${e.toString()}');
+      debugPrint('[SUPABASE_AUTH_ERROR] stackTrace=$stackTrace');
       return _mapSupabaseAuthException(e);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[SUPABASE_AUTH_ERROR] error.runtimeType=${e.runtimeType}');
+      debugPrint('[SUPABASE_AUTH_ERROR] error.toString()=${e.toString()}');
+      debugPrint('[SUPABASE_AUTH_ERROR] stackTrace=$stackTrace');
       return GoogleAuthResult.failure(
         reason: AuthFailureReason.unknown,
         message: '$e',

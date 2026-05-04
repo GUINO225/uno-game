@@ -79,11 +79,19 @@ class UserProfileService {
         'createdAt': now,
         'lastLoginAt': now,
       });
-    } catch (e, stackTrace) {
-      debugPrint(
-        '[UserProfileService] createOrUpdateFromGoogleUser failed for uid=${user.id}: $e',
-      );
-      debugPrintStack(stackTrace: stackTrace);
+    } on PostgrestException catch (error, stackTrace) {
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=createOrUpdateFromGoogleUser uid=${user.id}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+      rethrow;
+    } catch (error, stackTrace) {
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=createOrUpdateFromGoogleUser uid=${user.id}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
       rethrow;
     }
   }
@@ -134,23 +142,64 @@ class UserProfileService {
   }
 
   Future<PlayerProfile?> getProfile(String uid) async {
-    final List<Map<String, dynamic>> rows = await _client
-        .from('profiles')
-        .select('id, email, display_name, photo_url, credits, wins, losses, games_played')
-        .eq('id', uid);
-    if (rows.isEmpty) {
-      return null;
+    try {
+      final List<Map<String, dynamic>> rows = await _client
+          .from('profiles')
+          .select('id, email, display_name, photo_url, credits, wins, losses, games_played')
+          .eq('id', uid);
+      if (rows.isEmpty) {
+        return null;
+      }
+      final Map<String, dynamic> data = rows.first;
+      return PlayerProfile.fromMap(<String, dynamic>{
+        'uid': data['id'] ?? uid,
+        'displayName': data['display_name'] ?? 'Joueur',
+        'email': data['email'],
+        'photoUrl': data['photo_url'],
+        'credits': data['credits'] ?? 1000,
+        'wins': data['wins'] ?? 0,
+        'losses': data['losses'] ?? 0,
+        'totalGames': data['games_played'] ?? 0,
+      });
+    } on PostgrestException catch (error, stackTrace) {
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=getProfile uid=$uid');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+      rethrow;
+    } catch (error, stackTrace) {
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=getProfile uid=$uid');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+      rethrow;
     }
-    final Map<String, dynamic> data = rows.first;
-    return PlayerProfile.fromMap(<String, dynamic>{
-      'uid': data['id'] ?? uid,
-      'displayName': data['display_name'] ?? 'Joueur',
-      'email': data['email'],
-      'photoUrl': data['photo_url'],
-      'credits': data['credits'] ?? 1000,
-      'wins': data['wins'] ?? 0,
-      'losses': data['losses'] ?? 0,
-      'totalGames': data['games_played'] ?? 0,
-    });
   }
+  Future<int> getCredits(String uid) async {
+    try {
+      final Map<String, dynamic> data = await _client
+          .from('profiles')
+          .select('credits')
+          .eq('id', uid)
+          .single();
+      return (data['credits'] as num?)?.toInt() ?? 0;
+    } on PostgrestException catch (error, stackTrace) {
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=getCredits uid=$uid');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+      rethrow;
+    } catch (error, stackTrace) {
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=getCredits uid=$uid');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+      rethrow;
+    }
+  }
+
 }

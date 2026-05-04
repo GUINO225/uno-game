@@ -1083,9 +1083,7 @@ class _GameModePageState extends State<GameModePage>
       if (uid == null) {
         return;
       }
-      final DocumentSnapshot<Map<String, dynamic>> profileSnap =
-          await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
-      final int credits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 0;
+      final int credits = await _profileService.getCredits(uid);
       if (credits <= 0) {
         if (!mounted) {
           return;
