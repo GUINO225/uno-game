@@ -7128,6 +7128,20 @@ class _OpponentRow extends StatefulWidget {
 class _OpponentRowState extends State<_OpponentRow> {
   int _animatedStartIndex = -1;
 
+  Color _connectionIndicatorColor(String label) {
+    final String normalized = label.toLowerCase();
+    if (normalized.contains('hors ligne') || normalized.contains('inactif')) {
+      return const Color(0xFFE53935);
+    }
+    if (normalized.contains('instable') ||
+        normalized.contains('faible') ||
+        normalized.contains('hors du jeu') ||
+        normalized.contains('attente')) {
+      return const Color(0xFFFFB300);
+    }
+    return const Color(0xFF43A047);
+  }
+
   @override
   void didUpdateWidget(covariant _OpponentRow oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -7162,13 +7176,28 @@ class _OpponentRowState extends State<_OpponentRow> {
                 avatarCard: widget.avatarCard,
               ),
               const SizedBox(height: 4),
-              Text(
-                widget.connectionLabel,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: widget.compact ? 11 : 12,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: _connectionIndicatorColor(widget.connectionLabel),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      widget.connectionLabel,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: widget.compact ? 11 : 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               Padding(
                 padding: EdgeInsets.only(top: widget.compact ? 6 : 8, bottom: widget.compact ? 6 : 8),
