@@ -1,0 +1,778 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+
+enum AppSfxEvent {
+  click,
+  draw,
+  playCard,
+  win,
+  lose,
+  notif,
+  chat,
+  popup,
+  joker,
+  error,
+  success,
+  shuffle,
+}
+
+class AudioService extends ChangeNotifier with WidgetsBindingObserver {
+  AudioService._();
+
+  static final AudioService instance = AudioService._();
+
+  static const double _bgmVolume = 0.28;
+  static const String _assetRoot = 'assets/sfx/';
+
+  final Map<AppSfxEvent, AudioPlayer> _players = <AppSfxEvent, AudioPlayer>{};
+  final Map<AppSfxEvent, String> _eventToAsset = <AppSfxEvent, String>{};
+  final Set<AppSfxEvent> _readyEvents = <AppSfxEvent>{};
+  final Set<String> _preloadedAssets = <String>{};
+  final Set<AppSfxEvent> _loadingEvents = <AppSfxEvent>{};
+  final Random _random = Random();
+
+  Set<String> _availableAssets = <String>{};
+  List<String> _backgroundTracks = <String>[];
+  AudioPlayer? _backgroundPlayer;
+  String? _currentBackgroundTrack;
+  StreamSubscription<void>? _backgroundCompleteSubscription;
+  StreamSubscription<PlayerState>? _backgroundStateSubscription;
+
+  bool _initialized = false;
+  bool _initializing = false;
+  double _initializationProgress = 0;
+  bool _sfxEnabled = true;
+  bool _backgroundMusicEnabled = true;
+  bool _isBackgroundPlaying = false;
+  bool _isBackgroundPaused = false;
+  bool _isTransitioningToNextTrack = false;
+  bool _isBackgroundToggleInFlight = false;
+  bool _backgroundMusicUnlocked = !kIsWeb;
+  bool _lifecycleBound = false;
+  bool _progressivePreloadStarted = false;
+  PlayerState? _backgroundPlayerState;
+
+  bool get isEnabled => _sfxEnabled;
+  bool get isAudioInitialized => _initialized;
+  bool get isAudioPreloading => _initializing;
+  double get initializationProgress => _initializationProgress;
+  bool get isReady => _initialized && _readyEvents.isNotEmpty;
+  bool get musicEnabled => _backgroundMusicEnabled;
+  bool get isAudioUnlockedForWeb => _backgroundMusicUnlocked;
+  bool get isBackgroundMusicEnabled => _backgroundMusicEnabled;
+  bool get isBackgroundMusicPlaying => _isBackgroundPlaying;
+  bool get isBackgroundMusicPaused => _isBackgroundPaused;
+  bool get isBackgroundMusicActive => _backgroundMusicEnabled && _isBackgroundPlaying;
+  bool get isBackgroundMusicUnlocked => _backgroundMusicUnlocked;
+  bool get isTransitioningToNextTrack => _isTransitioningToNextTrack;
+  String? get currentBackgroundTrack => _currentBackgroundTrack;
+  List<String> get backgroundTracks => List<String>.unmodifiable(_backgroundTracks);
+  PlayerState? get playerState => _backgroundPlayerState;
+
+  set isEnabled(bool value) {
+    _sfxEnabled = value;
+    _log('Global audio enabled = $value');
+    notifyListeners();
+    if (!value) {
+      for (final AudioPlayer player in _players.values) {
+        unawaited(player.stop());
+      }
+      _backgroundMusicEnabled = false;
+      unawaited(stopBackgroundMusic());
+      return;
+    }
+    _backgroundMusicEnabled = true;
+    unawaited(_resumeOrStartBackgroundMusic());
+  }
+
+  Future<void> initialize({bool strict = false}) async {
+    if (_initialized) {
+      return;
+    }
+    if (_initializing) {
+      while (_initializing) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+      return;
+    }
+
+    _initializing = true;
+    _setInitializationProgress(0);
+    _bindLifecycleIfNeeded();
+    _log('audio init start');
+
+    try {
+      _availableAssets = await _loadSfxAssetPaths();
+      _setInitializationProgress(0.35);
+      _log('audio manifest loaded');
+      _buildEventMappings();
+      _setInitializationProgress(0.6);
+      _backgroundTracks = _backgroundCandidates();
+      await _ensureEventReady(AppSfxEvent.click);
+      _setInitializationProgress(0.8);
+      await _prepareBackgroundPlayer();
+      _setInitializationProgress(0.95);
+
+      _initialized = true;
+      _log('audio init complete');
+
+      if (strict && !_hasMinimumRequiredAssetsReady()) {
+        throw StateError('No minimum SFX assets available.');
+      }
+      _setInitializationProgress(1);
+    } finally {
+      _initializing = false;
+    }
+  }
+
+  void registerUserGesture() {
+    if (_backgroundMusicUnlocked) {
+      return;
+    }
+    _backgroundMusicUnlocked = true;
+    _log('web audio unlocked');
+    notifyListeners();
+    if (_backgroundMusicEnabled) {
+      unawaited(playDefaultBackgroundMusic(fromUserGesture: true));
+    }
+  }
+
+  Future<Set<String>> _loadSfxAssetPaths() async {
+    try {
+      final AssetManifest manifest = await AssetManifest.loadFromAssetBundle(
+        rootBundle,
+      );
+      final Set<String> fromManifest = manifest
+          .listAssets()
+          .where((String key) => key.startsWith(_assetRoot))
+          .toSet();
+      if (fromManifest.isNotEmpty) {
+        _log('AssetManifest(listAssets) found ${fromManifest.length} sfx assets.');
+        return fromManifest;
+      }
+      _log('AssetManifest(listAssets) returned no sfx assets, trying JSON fallback.');
+    } catch (error, stackTrace) {
+      _log('AssetManifest(listAssets) load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    try {
+      final String manifestRaw = await rootBundle.loadString('AssetManifest.json');
+      final Map<String, dynamic> manifest =
+          jsonDecode(manifestRaw) as Map<String, dynamic>;
+      final Set<String> fromJson = manifest.keys
+          .where((String key) => key.startsWith(_assetRoot))
+          .toSet();
+      _log('AssetManifest.json found ${fromJson.length} sfx assets.');
+      return fromJson;
+    } catch (error, stackTrace) {
+      _log('AssetManifest.json load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return <String>{};
+    }
+  }
+
+  void _setInitializationProgress(double value) {
+    final double normalized = value.clamp(0, 1).toDouble();
+    if (_initializationProgress == normalized) {
+      return;
+    }
+    _initializationProgress = normalized;
+    notifyListeners();
+  }
+
+  void _buildEventMappings() {
+    _eventToAsset.clear();
+    _eventToAsset[AppSfxEvent.click] = _pickAsset(
+      exactBaseNames: <String>['click'],
+    );
+    _eventToAsset[AppSfxEvent.draw] = _pickAsset(
+      exactBaseNames: <String>['draw', 'pioche'],
+      contains: <String>['draw', 'pioche'],
+    );
+    _eventToAsset[AppSfxEvent.playCard] = _pickAsset(
+      exactBaseNames: <String>['play_card'],
+      contains: <String>['play', 'card'],
+    );
+    _eventToAsset[AppSfxEvent.win] = _pickAsset(
+      exactBaseNames: <String>['win', 'victory'],
+      contains: <String>['win', 'victory'],
+    );
+    _eventToAsset[AppSfxEvent.lose] = _pickAsset(
+      exactBaseNames: <String>['lose', 'loose', 'defeat'],
+      contains: <String>['lose', 'loose', 'defeat'],
+    );
+    _eventToAsset[AppSfxEvent.notif] = _pickAsset(
+      exactBaseNames: <String>['notif', 'notification'],
+      contains: <String>['notif'],
+    );
+    _eventToAsset[AppSfxEvent.chat] = _pickAsset(
+      exactBaseNames: <String>['chat', 'notif_chat'],
+      contains: <String>['chat'],
+    );
+    _eventToAsset[AppSfxEvent.popup] = _pickAsset(
+      exactBaseNames: <String>['popup', 'pop_up'],
+      contains: <String>['popup', 'pop_up'],
+    );
+    _eventToAsset[AppSfxEvent.joker] = _pickAsset(
+      exactBaseNames: <String>['pop_up_jocker', 'joker'],
+      contains: <String>['jocker', 'joker'],
+    );
+    _eventToAsset[AppSfxEvent.error] = _pickAsset(
+      exactBaseNames: <String>['error'],
+      contains: <String>['error'],
+    );
+    _eventToAsset[AppSfxEvent.success] = _pickAsset(
+      exactBaseNames: <String>['success'],
+      contains: <String>['success'],
+    );
+    _eventToAsset[AppSfxEvent.shuffle] = _pickAsset(
+      exactBaseNames: <String>['shuffle'],
+      contains: <String>['shuffle'],
+    );
+
+    _eventToAsset.removeWhere((AppSfxEvent _, String path) => path.isEmpty);
+    _log('Mapped ${_eventToAsset.length}/${AppSfxEvent.values.length} SFX events to assets.');
+  }
+
+  String _pickAsset({
+    List<String> exactBaseNames = const <String>[],
+    List<String> contains = const <String>[],
+  }) {
+    for (final String wanted in exactBaseNames) {
+      for (final String assetPath in _availableAssets) {
+        if (_basenameWithoutExtension(assetPath) == wanted) {
+          return assetPath;
+        }
+      }
+    }
+
+    for (final String wanted in contains) {
+      for (final String assetPath in _availableAssets) {
+        if (_basenameWithoutExtension(assetPath).contains(wanted)) {
+          return assetPath;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  String _basenameWithoutExtension(String path) {
+    final String fileName = path.split('/').last;
+    final int dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex <= 0) {
+      return fileName;
+    }
+    return fileName.substring(0, dotIndex);
+  }
+
+  Future<void> playClick() => _play(AppSfxEvent.click, volume: 0.8);
+  Future<void> playDraw() => _play(AppSfxEvent.draw, volume: 0.85);
+  Future<void> playCard() => _play(AppSfxEvent.playCard, volume: 0.85);
+  Future<void> playWin() => _play(AppSfxEvent.win, volume: 0.95);
+  Future<void> playLose() => _play(AppSfxEvent.lose, volume: 0.9);
+  Future<void> playNotif() => _play(AppSfxEvent.notif, volume: 0.75);
+  Future<void> playChat() => _play(AppSfxEvent.chat, volume: 0.78);
+  Future<void> playPopup() => _play(AppSfxEvent.popup, volume: 0.72);
+  Future<void> playJoker() => _play(AppSfxEvent.joker, volume: 0.88);
+  Future<void> playError() => _play(AppSfxEvent.error, volume: 0.75);
+  Future<void> playSuccess() => _play(AppSfxEvent.success, volume: 0.78);
+  Future<void> playShuffle() => _play(AppSfxEvent.shuffle, volume: 0.82);
+
+  Future<void> _play(AppSfxEvent event, {double volume = 1}) async {
+    if (!_sfxEnabled) {
+      return;
+    }
+    if (!_initialized) {
+      await initialize();
+    }
+    if (!_readyEvents.contains(event)) {
+      await _ensureEventReady(event);
+    }
+    if (!_readyEvents.contains(event)) {
+      _log('Skipped SFX $event: event unavailable.');
+      return;
+    }
+
+    final AudioPlayer? player = _players[event];
+    if (player == null) {
+      _log('Skipped SFX $event: no player available.');
+      return;
+    }
+
+    try {
+      final double safeVolume = volume.clamp(0, 1).toDouble();
+      await player.setVolume(safeVolume);
+      await player.seek(Duration.zero);
+      await player.resume();
+    } catch (error, stackTrace) {
+      _log('Skipped SFX $event: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _ensureEventReady(AppSfxEvent event) async {
+    if (_readyEvents.contains(event)) {
+      return;
+    }
+    final String? assetPath = _eventToAsset[event];
+    if (assetPath == null || assetPath.isEmpty) {
+      return;
+    }
+    if (_loadingEvents.contains(event)) {
+      return;
+    }
+    _loadingEvents.add(event);
+    try {
+      await _preparePlayer(event, assetPath);
+    } finally {
+      _loadingEvents.remove(event);
+    }
+  }
+
+  bool _hasMinimumRequiredAssetsReady() {
+    const Set<AppSfxEvent> priorities = <AppSfxEvent>{
+      AppSfxEvent.click,
+      AppSfxEvent.draw,
+      AppSfxEvent.playCard,
+      AppSfxEvent.notif,
+      AppSfxEvent.chat,
+      AppSfxEvent.win,
+      AppSfxEvent.lose,
+    };
+    return _readyEvents.any(priorities.contains);
+  }
+
+  Future<void> _preparePlayer(AppSfxEvent event, String assetPath) async {
+    final String sourcePath = assetPath.startsWith('assets/')
+        ? assetPath.substring('assets/'.length)
+        : assetPath;
+
+    final AudioPlayer player = AudioPlayer();
+    try {
+      await player.setReleaseMode(ReleaseMode.stop);
+      await player.setPlayerMode(PlayerMode.lowLatency);
+    } catch (_) {
+      // Best effort for unsupported platforms.
+    }
+
+    try {
+      if (!_preloadedAssets.contains(assetPath)) {
+        await rootBundle.load(assetPath);
+      }
+      await player.setSource(AssetSource(sourcePath));
+      _players[event] = player;
+      _readyEvents.add(event);
+      _log('SFX ready: $event => $assetPath');
+    } catch (error, stackTrace) {
+      _log('SFX unavailable for $event ($assetPath): $error');
+      debugPrintStack(stackTrace: stackTrace);
+      await player.dispose();
+    }
+  }
+
+  Future<void> _prepareBackgroundPlayer() async {
+    if (_backgroundPlayer != null) {
+      return;
+    }
+    final AudioPlayer player = AudioPlayer();
+    try {
+      await player.setReleaseMode(ReleaseMode.stop);
+      try {
+        await player.setPlayerMode(PlayerMode.mediaPlayer);
+      } catch (_) {
+        // Best effort for unsupported platforms.
+      }
+      await player.setVolume(_bgmVolume);
+    } catch (error, stackTrace) {
+      _log('BGM player configuration failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    _backgroundPlayer = player;
+    _backgroundCompleteSubscription = player.onPlayerComplete.listen((_) {
+      unawaited(_handleBackgroundTrackCompleted());
+    });
+    _backgroundStateSubscription = player.onPlayerStateChanged.listen((PlayerState state) {
+      _backgroundPlayerState = state;
+      _log('playerState changed => $state');
+      if (state == PlayerState.playing) {
+        _isBackgroundPlaying = true;
+        _isBackgroundPaused = false;
+      } else if (state == PlayerState.paused) {
+        _isBackgroundPlaying = false;
+        _isBackgroundPaused = true;
+      } else if (state == PlayerState.stopped || state == PlayerState.completed) {
+        _isBackgroundPlaying = false;
+        _isBackgroundPaused = false;
+      }
+      notifyListeners();
+    });
+    _log('bgm init');
+  }
+
+  Future<void> _resumeOrStartBackgroundMusic() async {
+    if (!_backgroundMusicEnabled || !_canPlayBackgroundMusic) {
+      return;
+    }
+    final AudioPlayer? player = _backgroundPlayer;
+    if (player == null) {
+      return;
+    }
+
+    if (_isBackgroundPaused && _currentBackgroundTrack != null) {
+      try {
+        await player.setVolume(_bgmVolume);
+        await player.resume();
+        _isBackgroundPlaying = true;
+        _isBackgroundPaused = false;
+        _backgroundPlayerState = PlayerState.playing;
+        _log('bgm resumed: $_currentBackgroundTrack');
+        notifyListeners();
+        return;
+      } catch (error) {
+        _log('BGM resume skipped: $error');
+      }
+    }
+
+    await _playRandomBackgroundTrack(trigger: 'resume_or_start');
+  }
+
+  Future<void> _pauseBackgroundMusic() async {
+    final AudioPlayer? player = _backgroundPlayer;
+    if (player == null) {
+      return;
+    }
+
+    try {
+      await player.pause();
+      _isBackgroundPlaying = false;
+      _isBackgroundPaused = true;
+      _backgroundPlayerState = PlayerState.paused;
+      _log('bgm paused');
+      notifyListeners();
+    } catch (error) {
+      _log('BGM pause skipped: $error');
+    }
+  }
+
+  Future<void> enableBackgroundMusic() async {
+    _backgroundMusicEnabled = true;
+    await playDefaultBackgroundMusic();
+  }
+
+  bool get _canPlayBackgroundMusic => !kIsWeb || _backgroundMusicUnlocked;
+
+  Future<void> playDefaultBackgroundMusic({bool fromUserGesture = false}) async {
+    if (!_initialized) {
+      await initialize();
+    }
+    if (fromUserGesture) {
+      _backgroundMusicUnlocked = true;
+      notifyListeners();
+    }
+
+    final AudioPlayer? player = _backgroundPlayer;
+    if (player == null || !_backgroundMusicEnabled) {
+      _log('BGM play skipped: disabled or player missing.');
+      return;
+    }
+    if (!_canPlayBackgroundMusic) {
+      _isBackgroundPlaying = false;
+      _log('BGM waiting for first user gesture (web).');
+      return;
+    }
+
+    await _resumeOrStartBackgroundMusic();
+  }
+
+  List<String> _backgroundCandidates() {
+    final List<String> allBackgroundTracks = _availableAssets
+        .where(
+          (String path) =>
+              _basenameWithoutExtension(path).startsWith('sound_background'),
+        )
+        .toList()
+      ..sort();
+    if (allBackgroundTracks.isEmpty) {
+      return const <String>[];
+    }
+    return allBackgroundTracks;
+  }
+
+  Future<void> toggleBackgroundMusic() async {
+    if (_isBackgroundToggleInFlight) {
+      _log('toggle pressed but guard locked');
+      return;
+    }
+    _log('toggle pressed');
+    _isBackgroundToggleInFlight = true;
+    _log('guard locked');
+    notifyListeners();
+    try {
+      final bool beforeEnabled = _backgroundMusicEnabled;
+      final PlayerState? beforeState = _backgroundPlayerState;
+      _log('musicEnabled before=$beforeEnabled, playerState before=$beforeState');
+
+      if (_backgroundMusicEnabled) {
+        _backgroundMusicEnabled = false;
+        _log('musicEnabled after=$_backgroundMusicEnabled');
+        notifyListeners();
+        await _pauseBackgroundMusic();
+      } else {
+        _backgroundMusicEnabled = true;
+        _log('musicEnabled after=$_backgroundMusicEnabled');
+        notifyListeners();
+        if (!_backgroundMusicUnlocked) {
+          _log('toggle on requires web unlock before playback');
+        }
+        await playDefaultBackgroundMusic();
+      }
+      _log('playerState after=${_backgroundPlayerState}');
+    } catch (error, stackTrace) {
+      _log('toggleMusic error: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      _isBackgroundToggleInFlight = false;
+      _log('guard released');
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleBackgroundMusicFromUserGesture() async {
+    registerUserGesture();
+    await toggleBackgroundMusic();
+  }
+
+  @Deprecated('Use playDefaultBackgroundMusic() for deterministic background music.')
+  Future<void> playRandomBackgroundTrack() => playDefaultBackgroundMusic();
+
+  Future<void> stopBackgroundMusic() async {
+    _backgroundMusicEnabled = false;
+    notifyListeners();
+    final AudioPlayer? player = _backgroundPlayer;
+    if (player == null) {
+      return;
+    }
+    try {
+      await player.stop();
+      _isBackgroundPlaying = false;
+      _isBackgroundPaused = false;
+      _backgroundPlayerState = PlayerState.stopped;
+      _log('BGM stopped.');
+      notifyListeners();
+    } catch (error) {
+      _log('BGM stop skipped: $error');
+    }
+  }
+
+  void _bindLifecycleIfNeeded() {
+    if (_lifecycleBound) {
+      return;
+    }
+    WidgetsBinding.instance.addObserver(this);
+    _lifecycleBound = true;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_initialized) {
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      _log('Lifecycle -> $state, pausing BGM.');
+      unawaited(_pauseBackgroundMusic());
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      _log('Lifecycle -> resumed, restoring BGM if enabled.');
+      unawaited(_resumeOrStartBackgroundMusic());
+    }
+  }
+
+  Future<void> _handleBackgroundTrackCompleted() async {
+    _log('completed received for: $_currentBackgroundTrack');
+    _isBackgroundPlaying = false;
+    _isBackgroundPaused = false;
+    _backgroundPlayerState = PlayerState.completed;
+    notifyListeners();
+    if (!_backgroundMusicEnabled || !_canPlayBackgroundMusic) {
+      return;
+    }
+    if (_isTransitioningToNextTrack) {
+      return;
+    }
+    _isTransitioningToNextTrack = true;
+    notifyListeners();
+    try {
+      await _playRandomBackgroundTrack(trigger: 'completed');
+    } catch (error, stackTrace) {
+      _log('bgm transition failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      _isTransitioningToNextTrack = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _playRandomBackgroundTrack({required String trigger}) async {
+    final AudioPlayer? player = _backgroundPlayer;
+    if (player == null) {
+      return;
+    }
+
+    if (_backgroundTracks.isEmpty) {
+      _backgroundTracks = _backgroundCandidates();
+    }
+    if (_backgroundTracks.isEmpty) {
+      _log('missing asset: no sound_background* track found in assets/sfx');
+      _isBackgroundPlaying = false;
+      _isBackgroundPaused = false;
+      return;
+    }
+
+    final String? previousTrack = _currentBackgroundTrack;
+    String selectedTrack = _backgroundTracks[_random.nextInt(_backgroundTracks.length)];
+    if (_backgroundTracks.length > 1 && previousTrack != null) {
+      int attempts = 0;
+      while (selectedTrack == previousTrack && attempts < 6) {
+        selectedTrack = _backgroundTracks[_random.nextInt(_backgroundTracks.length)];
+        attempts += 1;
+      }
+    }
+    _log('random bgm selected: $selectedTrack (trigger=$trigger)');
+
+    final String sourcePath = selectedTrack.startsWith('assets/')
+        ? selectedTrack.substring('assets/'.length)
+        : selectedTrack;
+
+    try {
+      await player.stop();
+      await player.setSource(AssetSource(sourcePath));
+      await player.setVolume(_bgmVolume);
+      await player.resume();
+      _currentBackgroundTrack = selectedTrack;
+      _isBackgroundPlaying = true;
+      _isBackgroundPaused = false;
+      _backgroundPlayerState = PlayerState.playing;
+      _log('bgm play success: $selectedTrack');
+      notifyListeners();
+    } catch (error, stackTrace) {
+      _isBackgroundPlaying = false;
+      _isBackgroundPaused = false;
+      _backgroundPlayerState = PlayerState.stopped;
+      _log('bgm play fail for $selectedTrack: $error');
+      notifyListeners();
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> startProgressivePreload() async {
+    if (_progressivePreloadStarted) {
+      return;
+    }
+    _progressivePreloadStarted = true;
+    await initialize();
+    unawaited(_preloadEvents(const <AppSfxEvent>[
+      AppSfxEvent.click,
+      AppSfxEvent.notif,
+      AppSfxEvent.playCard,
+      AppSfxEvent.draw,
+    ]));
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      unawaited(_preloadEvents(const <AppSfxEvent>[
+        AppSfxEvent.win,
+        AppSfxEvent.lose,
+        AppSfxEvent.popup,
+        AppSfxEvent.chat,
+      ]));
+    });
+  }
+
+  Future<void> preloadGameSounds() async {
+    await initialize();
+    unawaited(_preloadEvents(const <AppSfxEvent>[
+      AppSfxEvent.playCard,
+      AppSfxEvent.draw,
+      AppSfxEvent.win,
+      AppSfxEvent.lose,
+      AppSfxEvent.shuffle,
+    ]));
+  }
+
+  Future<void> _preloadEvents(List<AppSfxEvent> events) async {
+    for (final AppSfxEvent event in events) {
+      try {
+        await _ensureEventReady(event);
+      } catch (error) {
+        _log('silent preload fail for $event: $error');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    }
+  }
+
+  void _log(String message) {
+    debugPrint('[AudioService] $message');
+  }
+}
+
+class AppSfxService {
+  AppSfxService._();
+
+  static final AppSfxService instance = AppSfxService._();
+
+  AudioService get _audio => AudioService.instance;
+
+  bool get isEnabled => _audio.isEnabled;
+  set isEnabled(bool value) => _audio.isEnabled = value;
+
+  bool get isAudioInitialized => _audio.isAudioInitialized;
+  bool get isAudioPreloading => _audio.isAudioPreloading;
+  bool get musicEnabled => _audio.musicEnabled;
+  bool get isAudioUnlockedForWeb => _audio.isAudioUnlockedForWeb;
+  bool get isReady => _audio.isReady;
+  bool get isBackgroundMusicEnabled => _audio.isBackgroundMusicEnabled;
+  bool get isBackgroundMusicPlaying => _audio.isBackgroundMusicPlaying;
+  bool get isBackgroundMusicPaused => _audio.isBackgroundMusicPaused;
+  bool get isBackgroundMusicActive => _audio.isBackgroundMusicActive;
+  bool get isBackgroundMusicUnlocked => _audio.isBackgroundMusicUnlocked;
+  bool get isTransitioningToNextTrack => _audio.isTransitioningToNextTrack;
+  String? get currentBackgroundTrack => _audio.currentBackgroundTrack;
+  List<String> get backgroundTracks => _audio.backgroundTracks;
+
+  Future<void> initialize({bool strict = false}) => _audio.initialize(strict: strict);
+  void registerUserGesture() => _audio.registerUserGesture();
+
+  Future<void> playClick() => _audio.playClick();
+  Future<void> playDraw() => _audio.playDraw();
+  Future<void> playCard() => _audio.playCard();
+  Future<void> playWin() => _audio.playWin();
+  Future<void> playLose() => _audio.playLose();
+  Future<void> playNotif() => _audio.playNotif();
+  Future<void> playChat() => _audio.playChat();
+  Future<void> playPopup() => _audio.playPopup();
+  Future<void> playJoker() => _audio.playJoker();
+  Future<void> playError() => _audio.playError();
+  Future<void> playSuccess() => _audio.playSuccess();
+  Future<void> playShuffle() => _audio.playShuffle();
+
+  Future<void> enableBackgroundMusic() => _audio.enableBackgroundMusic();
+  Future<void> playDefaultBackgroundMusic({bool fromUserGesture = false}) =>
+      _audio.playDefaultBackgroundMusic(fromUserGesture: fromUserGesture);
+  Future<void> toggleBackgroundMusic() => _audio.toggleBackgroundMusic();
+  Future<void> toggleBackgroundMusicFromUserGesture() =>
+      _audio.toggleBackgroundMusicFromUserGesture();
+  Future<void> playRandomBackgroundTrack() => _audio.playRandomBackgroundTrack();
+  Future<void> stopBackgroundMusic() => _audio.stopBackgroundMusic();
+  Future<void> startProgressivePreload() => _audio.startProgressivePreload();
+  Future<void> preloadGameSounds() => _audio.preloadGameSounds();
+}

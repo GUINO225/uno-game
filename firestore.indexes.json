@@ -1,0 +1,23 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "user_profiles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isRegistered",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rankScore",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "wins",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

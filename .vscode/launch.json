@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "GINO (normal)",
+      "request": "launch",
+      "type": "dart"
+    },
+    {
+      "name": "GINO + Admin Dashboard",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=ADMIN_LOGIN=GINO",
+        "--dart-define=ADMIN_PASSWORD=GINO89"
+      ]
+    },
+    {
+      "name": "GINO + Admin (release)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "release",
+      "args": [
+        "--dart-define=ADMIN_LOGIN=GINO",
+        "--dart-define=ADMIN_PASSWORD=GINO89"
+      ]
+    }
+  ]
+}

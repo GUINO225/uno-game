@@ -1,0 +1,156 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'game_card_avatar.dart';
+import 'premium_ui.dart';
+
+class GameHistoryPage extends StatefulWidget {
+  const GameHistoryPage({super.key});
+
+  @override
+  State<GameHistoryPage> createState() => _GameHistoryPageState();
+}
+
+class _GameHistoryPageState extends State<GameHistoryPage> {
+  Future<List<_PlayerMatchResult>>? _historyFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _historyFuture = _loadHistory();
+  }
+
+  Future<List<_PlayerMatchResult>> _loadHistory() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.isAnonymous) return const <_PlayerMatchResult>[];
+
+    final CollectionReference<Map<String, dynamic>> collection =
+        FirebaseFirestore.instance.collection('match_results');
+
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
+      snap = await collection
+          .where('participantUids', arrayContains: user.uid)
+          .limit(150)
+          .get();
+    } on FirebaseException {
+      try {
+        snap = await collection.where('playerIds', arrayContains: user.uid).limit(150).get();
+      } on FirebaseException {
+        return const <_PlayerMatchResult>[];
+      }
+    }
+
+    final List<_PlayerMatchResult> results = snap.docs
+        .map((d) => _PlayerMatchResult.fromDoc(d.data(), user.uid))
+        .whereType<_PlayerMatchResult>()
+        .toList();
+    results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return results;
+  }
+
+  void _refresh() => setState(() => _historyFuture = _loadHistory());
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Historique de jeux')),
+      body: FutureBuilder<List<_PlayerMatchResult>>(
+        future: _historyFuture,
+        builder: (context, s) {
+          if (s.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (s.hasError) {
+            return Center(
+              child: Text(
+                "Impossible de charger l'historique pour le moment.",
+                style: GoogleFonts.poppins(fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+          final List<_PlayerMatchResult> items = s.data ?? const <_PlayerMatchResult>[];
+          if (items.isEmpty) return const Center(child: Text('Aucune partie jouée pour le moment.'));
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final r = items[i];
+              final Color accent = r.isWin ? PremiumColors.accentGreen : const Color(0xFFE86D6D);
+              return PremiumPanel(
+                child: Row(
+                  children: <Widget>[
+                    GameCardAvatar(
+                      data: GameCardAvatarPalette.fromSeed(r.myUid),
+                      size: 44,
+                      showShadow: false,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                        Text('${r.myPseudo} vs ${r.opponentPseudo}', style: GoogleFonts.poppins(fontWeight: FontWeight.w500, fontSize: 14)),
+                        Text(r.isWin ? 'Victoire' : 'Défaite', style: GoogleFonts.poppins(color: accent, fontWeight: FontWeight.w500, fontSize: 13)),
+                        Text('Mode: ${r.modeLabel}${r.stakeCredits > 0 ? ' • Mise: ${r.stakeCredits}' : ''}', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w400)),
+                        Text('Crédits: ${r.creditDelta >= 0 ? '+' : ''}${r.creditDelta}', style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w400)),
+                        Text(r.dateLabel, style: GoogleFonts.poppins(fontSize: 12)),
+                      ]),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PlayerMatchResult {
+  const _PlayerMatchResult({required this.myUid, required this.myPseudo, required this.opponentPseudo, required this.isWin, required this.modeLabel, required this.stakeCredits, required this.creditDelta, required this.dateLabel, required this.createdAt});
+  final String myUid;
+  final String myPseudo;
+  final String opponentPseudo;
+  final bool isWin;
+  final String modeLabel;
+  final int stakeCredits;
+  final int creditDelta;
+  final String dateLabel;
+  final DateTime createdAt;
+
+  static _PlayerMatchResult? fromDoc(Map<String, dynamic> data, String uid) {
+    final Map<String, dynamic> a = (data['playerA'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final Map<String, dynamic> b = (data['playerB'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final String aUid = (a['uid'] as String? ?? '').trim();
+    final String bUid = (b['uid'] as String? ?? '').trim();
+    final bool mineIsA = aUid == uid;
+    final bool mineIsB = bUid == uid;
+    if (!mineIsA && !mineIsB) {
+      return null;
+    }
+    final Map<String, dynamic> mine = mineIsA ? a : b;
+    final Map<String, dynamic> other = mineIsA ? b : a;
+    final Timestamp? ts = data['createdAt'] as Timestamp?;
+    final DateTime dt = ts?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final String mode = (data['mode'] as String? ?? 'partie').toLowerCase();
+    return _PlayerMatchResult(
+      myUid: uid,
+      myPseudo: (mine['pseudo'] as String? ?? 'Joueur').trim(),
+      opponentPseudo: ((other['pseudo'] as String?)?.trim().isNotEmpty ?? false)
+          ? (other['pseudo'] as String).trim()
+          : 'Joueur',
+      isWin: (mine['result'] as String? ?? '') == 'win',
+      modeLabel: mode == 'credits' || mode == 'duel_pari'
+          ? 'Duel Pari'
+          : (mode == 'solo' ? 'Solo' : (mode == 'duel' ? 'Duel' : 'Partie')),
+      stakeCredits: (data['stakeCredits'] as num?)?.toInt() ??
+          (data['wagerAmount'] as num?)?.toInt() ??
+          0,
+      creditDelta: (mine['creditDelta'] as num?)?.toInt() ?? 0,
+      dateLabel: '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
+      createdAt: dt,
+    );
+  }
+}
