@@ -114,10 +114,7 @@ class UserProfileService {
       throw ArgumentError('Symbole de carte invalide.');
     }
 
-    await _client.from('profiles').update(<String, dynamic>{
-      'display_name': cleanedName,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', uid);
+    await _updateDisplayNameRow(uid: uid, cleanedName: cleanedName, context: 'updatePublicProfile');
   }
 
   Future<void> updateDisplayName({
@@ -125,10 +122,41 @@ class UserProfileService {
     required String displayName,
   }) async {
     final String cleanedName = sanitizeDisplayName(displayName);
-    await _client.from('profiles').update(<String, dynamic>{
-      'display_name': cleanedName,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', uid);
+    if (cleanedName.isEmpty) {
+      throw ArgumentError('Le pseudo ne peut pas être vide.');
+    }
+    await _updateDisplayNameRow(uid: uid, cleanedName: cleanedName, context: 'updateDisplayName');
+  }
+
+  Future<void> _updateDisplayNameRow({
+    required String uid,
+    required String cleanedName,
+    required String context,
+  }) async {
+    debugPrint('[SUPABASE_PROFILE_UPDATE] context=$context uid=$uid cleanedName=$cleanedName');
+    try {
+      final Map<String, dynamic> row = await _client
+          .from('profiles')
+          .update(<String, dynamic>{
+            'display_name': cleanedName,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', uid)
+          .select()
+          .single();
+      debugPrint('[SUPABASE_PROFILE_UPDATE] context=$context row=$row');
+    } on PostgrestException catch (error, stackTrace) {
+      if (error.code == 'PGRST116') {
+        throw StateError('Profil introuvable ou non autorisé.');
+      }
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=$context uid=$uid');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+      rethrow;
+    }
   }
 
   Future<void> dismissProfileCustomizationPrompt({
