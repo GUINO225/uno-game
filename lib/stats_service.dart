@@ -1,14 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StatsService {
   StatsService._();
 
   static final StatsService instance = StatsService._();
 
-  CollectionReference<Map<String, dynamic>> get _profiles =>
-      FirebaseFirestore.instance.collection('user_profiles');
-  CollectionReference<Map<String, dynamic>> get _results =>
-      FirebaseFirestore.instance.collection('match_results');
+  SupabaseClient get _client => Supabase.instance.client;
 
   Future<void> recordDuelResult({
     required String gameId,
@@ -22,93 +19,155 @@ class StatsService {
     int stakeCredits = 0,
   }) async {
     final String resultId = '${gameId}_$round';
-    final DocumentReference<Map<String, dynamic>> resultRef = _results.doc(resultId);
-    final DocumentReference<Map<String, dynamic>> winnerRef = _profiles.doc(winnerId);
-    final DocumentReference<Map<String, dynamic>> loserRef = _profiles.doc(loserId);
 
-    await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
-      final DocumentSnapshot<Map<String, dynamic>> resultDoc = await tx.get(resultRef);
-      if (resultDoc.exists) {
-        return;
+    final bool rpcApplied = await _tryRecordDuelResultRpc(
+      resultId: resultId,
+      gameId: gameId,
+      round: round,
+      winnerId: winnerId,
+      loserId: loserId,
+      winnerCreditsDelta: winnerCreditsDelta,
+      loserCreditsDelta: loserCreditsDelta,
+      preventNegativeCredits: preventNegativeCredits,
+      mode: mode,
+      stakeCredits: stakeCredits,
+    );
+
+    if (rpcApplied) {
+      return;
+    }
+
+    await _recordDuelResultFallback(
+      resultId: resultId,
+      gameId: gameId,
+      winnerId: winnerId,
+      loserId: loserId,
+      winnerCreditsDelta: winnerCreditsDelta,
+      loserCreditsDelta: loserCreditsDelta,
+      preventNegativeCredits: preventNegativeCredits,
+      mode: mode,
+      stakeCredits: stakeCredits,
+    );
+  }
+
+  Future<bool> _tryRecordDuelResultRpc({
+    required String resultId,
+    required String gameId,
+    required int round,
+    required String winnerId,
+    required String loserId,
+    required int winnerCreditsDelta,
+    required int loserCreditsDelta,
+    required bool preventNegativeCredits,
+    required String mode,
+    required int stakeCredits,
+  }) async {
+    try {
+      await _client.rpc(
+        'record_duel_result',
+        params: <String, dynamic>{
+          'p_result_id': resultId,
+          'p_game_id': gameId,
+          'p_round': round,
+          'p_winner_id': winnerId,
+          'p_loser_id': loserId,
+          'p_winner_credits_delta': winnerCreditsDelta,
+          'p_loser_credits_delta': loserCreditsDelta,
+          'p_prevent_negative_credits': preventNegativeCredits,
+          'p_mode': mode,
+          'p_stake_credits': stakeCredits,
+        },
+      );
+      return true;
+    } on PostgrestException catch (e) {
+      if (e.code == '42883') {
+        return false;
       }
-      final DocumentSnapshot<Map<String, dynamic>> winnerDoc = await tx.get(winnerRef);
-      final DocumentSnapshot<Map<String, dynamic>> loserDoc = await tx.get(loserRef);
-      final int winnerCurrentCredits =
-          (winnerDoc.data()?['credits'] as num?)?.toInt() ?? 1000;
-      final int loserCurrentCredits = (loserDoc.data()?['credits'] as num?)?.toInt() ?? 1000;
-      final Map<String, dynamic> winnerData = winnerDoc.data() ?? <String, dynamic>{};
-      final Map<String, dynamic> loserData = loserDoc.data() ?? <String, dynamic>{};
-      int winnerNextCredits = winnerCurrentCredits + winnerCreditsDelta;
-      int loserNextCredits = loserCurrentCredits + loserCreditsDelta;
-      if (preventNegativeCredits) {
-        winnerNextCredits = winnerNextCredits < 0 ? 0 : winnerNextCredits;
-        loserNextCredits = loserNextCredits < 0 ? 0 : loserNextCredits;
+      rethrow;
+    }
+  }
+
+  Future<void> _recordDuelResultFallback({
+    required String resultId,
+    required String gameId,
+    required String winnerId,
+    required String loserId,
+    required int winnerCreditsDelta,
+    required int loserCreditsDelta,
+    required bool preventNegativeCredits,
+    required String mode,
+    required int stakeCredits,
+  }) async {
+    final List<Map<String, dynamic>> existing = await _client
+        .from('game_history')
+        .select('id')
+        .eq('id', resultId)
+        .limit(1);
+
+    if (existing.isNotEmpty) {
+      return;
+    }
+
+    final List<Map<String, dynamic>> winnerRows = await _client
+        .from('profiles')
+        .select('id, credits, wins, losses, games_played')
+        .eq('id', winnerId)
+        .limit(1);
+
+    final List<Map<String, dynamic>> loserRows = await _client
+        .from('profiles')
+        .select('id, credits, wins, losses, games_played')
+        .eq('id', loserId)
+        .limit(1);
+
+    final Map<String, dynamic> winner =
+        winnerRows.isEmpty ? <String, dynamic>{} : winnerRows.first;
+    final Map<String, dynamic> loser =
+        loserRows.isEmpty ? <String, dynamic>{} : loserRows.first;
+
+    final int winnerCreditsCurrent = (winner['credits'] as num?)?.toInt() ?? 1000;
+    final int loserCreditsCurrent = (loser['credits'] as num?)?.toInt() ?? 1000;
+
+    int winnerCreditsNext = winnerCreditsCurrent + winnerCreditsDelta;
+    int loserCreditsNext = loserCreditsCurrent + loserCreditsDelta;
+
+    if (preventNegativeCredits) {
+      if (winnerCreditsNext < 0) {
+        winnerCreditsNext = 0;
       }
+      if (loserCreditsNext < 0) {
+        loserCreditsNext = 0;
+      }
+    }
 
-      final String winnerPseudo =
-          (winnerData['displayName'] as String? ?? '').trim().isEmpty
-              ? 'Joueur'
-              : (winnerData['displayName'] as String).trim();
-      final String loserPseudo =
-          (loserData['displayName'] as String? ?? '').trim().isEmpty
-              ? 'Joueur'
-              : (loserData['displayName'] as String).trim();
-
-      tx.set(resultRef, <String, dynamic>{
-        'resultId': resultId,
-        'gameId': gameId,
-        'round': round,
-        'winnerId': winnerId,
-        'loserId': loserId,
-        'playerIds': <String>[winnerId, loserId],
-        'participantUids': <String>[winnerId, loserId],
+    await _client.from('game_history').insert(<String, dynamic>{
+      'id': resultId,
+      'game_id': gameId,
+      'player_id': winnerId,
+      'opponent_id': loserId,
+      'result': 'win',
+      'stake': stakeCredits,
+      'metadata': <String, dynamic>{
         'mode': mode,
-        'stakeCredits': stakeCredits,
-        'creditDeltaByPlayer': <String, int>{
-          winnerId: winnerCreditsDelta,
-          loserId: loserCreditsDelta,
-        },
-        'playerA': <String, dynamic>{
-          'uid': winnerId,
-          'pseudo': winnerPseudo,
-          'avatarCard': winnerData['cardAvatar'] ?? winnerData['avatarUrl'],
-          'result': 'win',
-          'creditDelta': winnerCreditsDelta,
-        },
-        'playerB': <String, dynamic>{
-          'uid': loserId,
-          'pseudo': loserPseudo,
-          'avatarCard': loserData['cardAvatar'] ?? loserData['avatarUrl'],
-          'result': 'loss',
-          'creditDelta': loserCreditsDelta,
-        },
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+        'winner_credits_delta': winnerCreditsDelta,
+        'loser_credits_delta': loserCreditsDelta,
+      },
+    });
 
-      tx.set(winnerRef, <String, dynamic>{
-        'uid': winnerId,
-        'credits': winnerNextCredits,
-        'wins': FieldValue.increment(1),
-        'totalGames': FieldValue.increment(1),
-        'gamesPlayed': FieldValue.increment(1),
-        'score': FieldValue.increment(3),
-        'rankScore': FieldValue.increment(3),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+    await _client.from('profiles').upsert(<String, dynamic>{
+      'id': winnerId,
+      'credits': winnerCreditsNext,
+      'wins': ((winner['wins'] as num?)?.toInt() ?? 0) + 1,
+      'games_played': ((winner['games_played'] as num?)?.toInt() ?? 0) + 1,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    });
 
-      tx.set(loserRef, <String, dynamic>{
-        'uid': loserId,
-        'credits': loserNextCredits,
-        'losses': FieldValue.increment(1),
-        'totalGames': FieldValue.increment(1),
-        'gamesPlayed': FieldValue.increment(1),
-        'score': FieldValue.increment(-1),
-        'rankScore': FieldValue.increment(-1),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
+    await _client.from('profiles').upsert(<String, dynamic>{
+      'id': loserId,
+      'credits': loserCreditsNext,
+      'losses': ((loser['losses'] as num?)?.toInt() ?? 0) + 1,
+      'games_played': ((loser['games_played'] as num?)?.toInt() ?? 0) + 1,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     });
   }
 }
