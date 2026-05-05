@@ -156,8 +156,6 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
         return fromManifest;
       }
       _log('AssetManifest(listAssets) returned no sfx assets, trying JSON fallback.');
-    } on TimeoutException catch (error) {
-      _log('Skipped SFX operation (timeout): $error');
     } catch (error, stackTrace) {
       _log('AssetManifest(listAssets) load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -172,15 +170,11 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
           .toSet();
       _log('AssetManifest.json found ${fromJson.length} sfx assets.');
       return fromJson;
-    } on TimeoutException catch (error) {
-      _log('Skipped SFX operation (timeout): $error');
-      return <String>{};
     } catch (error, stackTrace) {
       _log('AssetManifest.json load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       return <String>{};
     }
-    return <String>{};
   }
 
   void _setInitializationProgress(double value) {
@@ -309,11 +303,9 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
 
     try {
       final double safeVolume = volume.clamp(0, 1).toDouble();
-      await player.setVolume(safeVolume).timeout(const Duration(seconds: 2));
-      await player.seek(Duration.zero).timeout(const Duration(milliseconds: 800));
-      await player.resume().timeout(const Duration(seconds: 2));
-    } on TimeoutException catch (error) {
-      _log('Skipped SFX operation (timeout): $error');
+      await player.setVolume(safeVolume);
+      await player.seek(Duration.zero);
+      await player.resume();
     } catch (error, stackTrace) {
       _log('Skipped SFX $event: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -373,8 +365,6 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       _players[event] = player;
       _readyEvents.add(event);
       _log('SFX ready: $event => $assetPath');
-    } on TimeoutException catch (error) {
-      _log('Skipped SFX operation (timeout): $error');
     } catch (error, stackTrace) {
       _log('SFX unavailable for $event ($assetPath): $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -395,8 +385,6 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
         // Best effort for unsupported platforms.
       }
       await player.setVolume(_bgmVolume);
-    } on TimeoutException catch (error) {
-      _log('Skipped SFX operation (timeout): $error');
     } catch (error, stackTrace) {
       _log('BGM player configuration failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -542,8 +530,6 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
         await playDefaultBackgroundMusic();
       }
       _log('playerState after=${_backgroundPlayerState}');
-    } on TimeoutException catch (error) {
-      _log('Skipped SFX operation (timeout): $error');
     } catch (error, stackTrace) {
       _log('toggleMusic error: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -623,8 +609,6 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     try {
       await _playRandomBackgroundTrack(trigger: 'completed');
-    } on TimeoutException catch (error) {
-      _log('Skipped SFX operation (timeout): $error');
     } catch (error, stackTrace) {
       _log('bgm transition failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -676,8 +660,6 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       _backgroundPlayerState = PlayerState.playing;
       _log('bgm play success: $selectedTrack');
       notifyListeners();
-    } on TimeoutException catch (error) {
-      _log('Skipped SFX operation (timeout): $error');
     } catch (error, stackTrace) {
       _isBackgroundPlaying = false;
       _isBackgroundPaused = false;

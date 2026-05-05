@@ -1,19 +1,17 @@
-import 'dart:async';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import 'game_card_avatar.dart';
 import 'player_profile.dart';
-import 'supabase_user_photo.dart';
 
 class UserProfileService {
   UserProfileService._();
 
   static final UserProfileService instance = UserProfileService._();
 
-  SupabaseClient get _client => Supabase.instance.client;
-
-  bool? _hasProfilesUpdatedAtColumn;
+  CollectionReference<Map<String, dynamic>> get _profiles =>
+      FirebaseFirestore.instance.collection('user_profiles');
 
   String sanitizeDisplayName(String value, {int maxLength = 18}) {
     final String singleSpaced = value.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -26,7 +24,7 @@ class UserProfileService {
   }
 
   String suggestedNameFromUser(User user) {
-    final String displayName = sanitizeDisplayName((user.userMetadata?['full_name'] as String?) ?? '');
+    final String displayName = sanitizeDisplayName(user.displayName ?? '');
     if (displayName.isNotEmpty) {
       return displayName;
     }
@@ -41,94 +39,89 @@ class UserProfileService {
     return GameCardAvatarPalette.fromSeed(uid);
   }
 
-
-  Future<bool> _profilesHasUpdatedAtColumn() async {
-    if (_hasProfilesUpdatedAtColumn != null) {
-      return _hasProfilesUpdatedAtColumn!;
-    }
-    try {
-      await _client.from('profiles').select('updated_at').limit(1);
-      _hasProfilesUpdatedAtColumn = true;
-    } on PostgrestException catch (_) {
-      _hasProfilesUpdatedAtColumn = false;
-    }
-    return _hasProfilesUpdatedAtColumn!;
-  }
-
-  Future<Map<String, dynamic>> _timestampPatch({
-    bool includeLastLoginAt = false,
-  }) async {
-    final DateTime now = DateTime.now().toUtc();
-    final Map<String, dynamic> patch = <String, dynamic>{
-      if (includeLastLoginAt) 'last_login_at': now.toIso8601String(),
-    };
-    if (await _profilesHasUpdatedAtColumn()) {
-      patch['updated_at'] = now.toIso8601String();
-    }
-    return patch;
-  }
-
-  Future<PlayerProfile> createOrUpdateFromGoogleUser(
-    User user, {
-    bool force = false,
-  }) async {
+  Future<PlayerProfile> createOrUpdateFromGoogleUser(User user) async {
     final String suggestedDisplayName = suggestedNameFromUser(user);
     final DateTime now = DateTime.now().toUtc();
-
+    final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.uid);
+    final GameCardAvatarData defaultCardAvatar = defaultCardAvatarForUid(user.uid);
     try {
-      final Map<String, dynamic>? existing = await _client
-          .from('profiles')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
+      await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
+        final DocumentSnapshot<Map<String, dynamic>> snapshot = await tx.get(ref);
+        if (!snapshot.exists) {
+          tx.set(ref, <String, dynamic>{
+            'uid': user.uid,
+            'displayName': suggestedDisplayName,
+            'email': user.email,
+            'photoUrl': user.photoURL,
+            'credits': 1000,
+            'welcomeCreditsGranted': true,
+            'wins': 0,
+            'losses': 0,
+            'totalGames': 0,
+            'score': 0,
+            'rankScore': 0,
+            'cardAvatarRank': defaultCardAvatar.rank,
+            'cardAvatarSuit': defaultCardAvatar.suit,
+            'hasCustomProfile': false,
+            'isRegistered': true,
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastLoginAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          return;
+        }
+        final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
+        final String existingDisplayName = (data['displayName'] as String? ?? '').trim();
+        final bool hasCustomProfile = data['hasCustomProfile'] as bool? ?? false;
 
-      if (existing != null) {
-        final Map<String, dynamic> updatePayload = <String, dynamic>{
+        tx.update(ref, <String, dynamic>{
+          if (existingDisplayName.isEmpty && !hasCustomProfile)
+            'displayName': suggestedDisplayName,
+          if (data['wins'] == null) 'wins': 0,
+          if (data['losses'] == null) 'losses': 0,
+          if (data['totalGames'] == null) 'totalGames': 0,
+          if (data['score'] == null) 'score': 0,
+          if (data['rankScore'] == null) 'rankScore': data['score'] ?? 0,
+          if (data['cardAvatarRank'] == null) 'cardAvatarRank': defaultCardAvatar.rank,
+          if (data['cardAvatarSuit'] == null) 'cardAvatarSuit': defaultCardAvatar.suit,
+          if (data['hasCustomProfile'] == null) 'hasCustomProfile': false,
           'email': user.email,
-          'photo_url': supabaseUserPhotoUrl(user),
-          ...(await _timestampPatch(includeLastLoginAt: true)),
-        };
-        await _client
-            .from('profiles')
-            .update(updatePayload)
-            .eq('id', user.id);
-      } else {
-        final Map<String, dynamic> profilePayload = <String, dynamic>{
-          'id': user.id,
-          'email': user.email,
-          'display_name': suggestedDisplayName,
-          'photo_url': supabaseUserPhotoUrl(user),
-          ...(await _timestampPatch(includeLastLoginAt: true)),
-          'credits': 1000,
-          'wins': 0,
-          'losses': 0,
-          'games_played': 0,
-        };
-        await _client.from('profiles').insert(profilePayload);
-      }
-
-      final Map<String, dynamic> data = await _fetchProfileRow(user.id);
-      debugPrint('[SUPABASE_PROFILE] final display_name=${data['display_name']}');
-
-      return PlayerProfile.fromMap(data);
-    } on PostgrestException catch (error, stackTrace) {
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=createOrUpdateFromGoogleUser uid=${user.id}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
-      rethrow;
-    } catch (error, stackTrace) {
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=createOrUpdateFromGoogleUser uid=${user.id}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+          'photoUrl': user.photoURL,
+          'isRegistered': true,
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (e, stackTrace) {
+      debugPrint(
+        '[UserProfileService] createOrUpdateFromGoogleUser failed for uid=${user.uid}: $e',
+      );
+      debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
+
+    final DocumentSnapshot<Map<String, dynamic>> doc = await ref.get();
+    final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
+    return PlayerProfile.fromMap(<String, dynamic>{
+      'uid': user.uid,
+      'displayName': data['displayName'] ?? suggestedDisplayName,
+      'email': data['email'] ?? user.email,
+      'photoUrl': data['photoUrl'] ?? user.photoURL,
+      'avatarUrl': data['avatarUrl'],
+      'credits': data['credits'] ?? 1000,
+      'wins': data['wins'] ?? 0,
+      'losses': data['losses'] ?? 0,
+      'totalGames': data['totalGames'] ?? 0,
+      'rankScore': data['rankScore'] ?? data['score'] ?? 0,
+      'cardAvatarRank': data['cardAvatarRank'] ?? defaultCardAvatar.rank,
+      'cardAvatarSuit': data['cardAvatarSuit'] ?? defaultCardAvatar.suit,
+      'hasCustomProfile': data['hasCustomProfile'] ?? false,
+      'profilePromptDismissedAt': data['profilePromptDismissedAt'],
+      'createdAt': data['createdAt'] ?? Timestamp.fromDate(now),
+      'lastLoginAt': data['lastLoginAt'] ?? Timestamp.fromDate(now),
+    });
   }
 
-  Future<PlayerProfile> updatePublicProfile({
+  Future<void> updatePublicProfile({
     required String uid,
     required String displayName,
     required String cardAvatarRank,
@@ -145,28 +138,18 @@ class UserProfileService {
       throw ArgumentError('Symbole de carte invalide.');
     }
 
-    debugPrint('[SUPABASE_PROFILE] update pseudo uid=$uid newName=$cleanedName');
-    try {
-      await _client
-          .from('profiles')
-          .update(<String, dynamic>{
-            'display_name': cleanedName,
-            'card_avatar_rank': cardAvatarRank,
-            'card_avatar_suit': cardAvatarSuit,
-            ...(await _timestampPatch()),
-          })
-          .eq('id', uid);
-      debugPrint('[SUPABASE_PROFILE] update pseudo success');
-      final PlayerProfile updatedProfile =
-          await getProfile(uid) ?? PlayerProfile.fromMap(await _fetchProfileRow(uid));
-      debugPrint('[SUPABASE_PROFILE] reloaded display_name=${updatedProfile.displayName}');
-      return updatedProfile;
-    } on PostgrestException catch (error, stackTrace) {
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=updatePublicProfile uid=$uid');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code} message=${error.message} details=${error.details} hint=${error.hint}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
-      rethrow;
-    }
+    await _profiles.doc(uid).set(
+      <String, dynamic>{
+        'uid': uid,
+        'displayName': cleanedName,
+        'cardAvatarRank': cardAvatarRank,
+        'cardAvatarSuit': cardAvatarSuit,
+        'hasCustomProfile': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 
   Future<void> updateDisplayName({
@@ -174,96 +157,34 @@ class UserProfileService {
     required String displayName,
   }) async {
     final String cleanedName = sanitizeDisplayName(displayName);
-    if (cleanedName.isEmpty) {
-      throw ArgumentError('Le pseudo ne peut pas être vide.');
-    }
-    debugPrint('[SUPABASE_PROFILE] update pseudo uid=$uid newName=$cleanedName');
-    try {
-      await _client
-          .from('profiles')
-          .update(<String, dynamic>{
-            'display_name': cleanedName,
-            ...(await _timestampPatch()),
-          })
-          .eq('id', uid);
-      debugPrint('[SUPABASE_PROFILE] update pseudo success');
-      final Map<String, dynamic> data = await _fetchProfileRow(uid);
-      debugPrint('[SUPABASE_PROFILE] reloaded display_name=${data['display_name']}');
-    } on PostgrestException catch (error, stackTrace) {
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=updateDisplayName uid=$uid');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code} message=${error.message} details=${error.details} hint=${error.hint}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
-      rethrow;
-    }
+    await _profiles.doc(uid).set(
+      <String, dynamic>{
+        'uid': uid,
+        'displayName': cleanedName,
+        'lastLoginAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 
   Future<void> dismissProfileCustomizationPrompt({
     required String uid,
   }) async {
-    await _client.from('profiles').upsert(<String, dynamic>{
-      'id': uid,
-      ...(await _timestampPatch()),
-    }, onConflict: 'id');
+    await _profiles.doc(uid).set(
+      <String, dynamic>{
+        'uid': uid,
+        'profilePromptDismissedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 
   Future<PlayerProfile?> getProfile(String uid) async {
-    try {
-      final List<Map<String, dynamic>> rows = await _client
-          .from('profiles')
-          .select('id, email, display_name, photo_url, credits, wins, losses, games_played, card_avatar_rank, card_avatar_suit, created_at, last_login_at, profile_prompt_dismissed_at')
-          .eq('id', uid);
-      if (rows.isEmpty) {
-        return null;
-      }
-      return PlayerProfile.fromMap(rows.first);
-    } on PostgrestException catch (error, stackTrace) {
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=getProfile uid=$uid');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
-      rethrow;
-    } catch (error, stackTrace) {
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=getProfile uid=$uid');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
-      rethrow;
+    final DocumentSnapshot<Map<String, dynamic>> doc = await _profiles.doc(uid).get();
+    if (!doc.exists) {
+      return null;
     }
+    return PlayerProfile.fromMap(doc.data() ?? <String, dynamic>{});
   }
-  Future<int> getCredits(String uid) async {
-    try {
-      final Map<String, dynamic> data = await _client
-          .from('profiles')
-          .select('credits')
-          .eq('id', uid)
-          .single();
-      return (data['credits'] as num?)?.toInt() ?? 0;
-    } on PostgrestException catch (error, stackTrace) {
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=getCredits uid=$uid');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
-      rethrow;
-    } catch (error, stackTrace) {
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=getCredits uid=$uid');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
-      rethrow;
-    }
-  }
-
-
-  Future<Map<String, dynamic>> _fetchProfileRow(String uid) async {
-    return await _client
-        .from('profiles')
-        .select('id, email, display_name, photo_url, credits, wins, losses, games_played, card_avatar_rank, card_avatar_suit, created_at, last_login_at, profile_prompt_dismissed_at')
-        .eq('id', uid)
-        .single();
-  }
-
 }

@@ -1,5 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'game_card_avatar.dart';
-import 'supabase_date_parser.dart';
 
 class PlayerProfile {
   const PlayerProfile({
@@ -75,27 +76,29 @@ class PlayerProfile {
       'cardAvatarRank': cardAvatarRank,
       'cardAvatarSuit': cardAvatarSuit,
       'hasCustomProfile': hasCustomProfile,
-      'profilePromptDismissedAt': profilePromptDismissedAt?.toUtc().toIso8601String(),
-      'createdAt': createdAt?.toUtc().toIso8601String(),
-      'lastLoginAt': lastLoginAt?.toUtc().toIso8601String(),
+      'profilePromptDismissedAt': profilePromptDismissedAt == null
+          ? null
+          : Timestamp.fromDate(profilePromptDismissedAt!.toUtc()),
+      'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
+      'lastLoginAt': lastLoginAt == null ? null : Timestamp.fromDate(lastLoginAt!.toUtc()),
     };
   }
 
   factory PlayerProfile.fromMap(Map<String, dynamic> map) {
-    final String uid = (map['id'] as String?) ?? '';
-    final String rank = (map['card_avatar_rank'] ?? map['cardAvatarRank']) as String? ?? '';
-    final String suit = (map['card_avatar_suit'] ?? map['cardAvatarSuit']) as String? ?? '';
+    final String uid = map['uid'] as String? ?? '';
+    final String rank = map['cardAvatarRank'] as String? ?? '';
+    final String suit = map['cardAvatarSuit'] as String? ?? '';
     final GameCardAvatarData fallback = GameCardAvatarPalette.fromSeed(uid);
     return PlayerProfile(
       uid: uid,
-      displayName: (map['display_name'] ?? map['displayName']) as String? ?? 'Joueur',
+      displayName: map['displayName'] as String? ?? 'Joueur',
       email: map['email'] as String?,
-      photoUrl: (map['photo_url'] ?? map['photoUrl']) as String?,
-      avatarUrl: (map['avatar_url'] ?? map['avatarUrl']) as String? ?? (map['photo_url'] ?? map['photoUrl']) as String?,
+      photoUrl: map['photoUrl'] as String?,
+      avatarUrl: map['avatarUrl'] as String? ?? map['photoUrl'] as String?,
       credits: (map['credits'] as num?)?.toInt() ?? 0,
       wins: (map['wins'] as num?)?.toInt() ?? 0,
       losses: (map['losses'] as num?)?.toInt() ?? 0,
-      totalGamesValue: ((map['games_played'] ?? map['totalGames']) as num?)?.toInt(),
+      totalGamesValue: (map['totalGames'] as num?)?.toInt(),
       rankScore:
           (map['rankScore'] as num?)?.toInt() ??
           (map['score'] as num?)?.toInt() ??
@@ -106,11 +109,9 @@ class PlayerProfile {
       cardAvatarSuit:
           GameCardAvatarPalette.suits.contains(suit) ? suit : fallback.suit,
       hasCustomProfile: map['hasCustomProfile'] as bool? ?? false,
-      profilePromptDismissedAt: parseSupabaseDate(
-        map['profilePromptDismissedAt'] ?? map['profile_prompt_dismissed_at'],
-      ),
-      createdAt: parseSupabaseDate(map['createdAt'] ?? map['created_at']),
-      lastLoginAt: parseSupabaseDate(map['lastLoginAt'] ?? map['last_login_at']),
+      profilePromptDismissedAt: (map['profilePromptDismissedAt'] as Timestamp?)?.toDate(),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
+      lastLoginAt: (map['lastLoginAt'] as Timestamp?)?.toDate(),
     );
   }
 }

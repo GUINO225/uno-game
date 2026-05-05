@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/widgets.dart';
 
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
-import 'config/backend_flags.dart';
+import 'firebase_config.dart';
 import 'duel_mode.dart';
 import 'leaderboard_page.dart';
 import 'admin_dashboard.dart';
@@ -25,10 +26,6 @@ import 'user_profile_service.dart';
 import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
-
-const String _supabaseUrl = 'https://mtkqfqpxgabaafpnrshm.supabase.co';
-const String _supabasePublishableKey =
-    'sb_publishable_A6-ArFBntsh0BTJNEvYrqw_o6GjGvng';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,26 +42,34 @@ Future<void> main() async {
       ),
     );
   }
-  await _initializeSupabaseIfConfigured();
+  await _initializeFirebaseIfConfigured();
   runApp(const MyApp());
 }
 
-
-Future<void> _initializeSupabaseIfConfigured() async {
-  if (!BackendFlags.useSupabaseAuth &&
-      !BackendFlags.useSupabaseGameRead &&
-      !BackendFlags.useSupabaseGameWrite &&
-      !BackendFlags.useSupabaseCredits &&
-      !BackendFlags.useSupabaseRanking) {
-    debugPrint('[Supabase] skipped initialization: all backend flags are disabled.');
+Future<void> _initializeFirebaseIfConfigured() async {
+  if (Firebase.apps.isNotEmpty) {
+    final FirebaseApp app = Firebase.app();
+    debugPrint(
+      '[Firebase] already initialized: app=${app.name}, projectId=${app.options.projectId}, appId=${app.options.appId}',
+    );
     return;
   }
 
-  await Supabase.initialize(
-    url: _supabaseUrl,
-    anonKey: _supabasePublishableKey,
-  );
-  debugPrint('[Supabase] initialized with publishable key.');
+  try {
+    final FirebaseOptions? options = FirebaseConfig.optionsForCurrentPlatform();
+    if (options != null) {
+      await Firebase.initializeApp(options: options);
+      final FirebaseApp app = Firebase.app();
+      debugPrint(
+        '[Firebase] initialized: app=${app.name}, projectId=${app.options.projectId}, appId=${app.options.appId}',
+      );
+    } else {
+      debugPrint('[Firebase] skipped initialization: missing options for platform.');
+    }
+  } catch (e, stackTrace) {
+    debugPrint('[Firebase] initialization failed: $e');
+    debugPrintStack(stackTrace: stackTrace);
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -138,9 +143,9 @@ class MyApp extends StatelessWidget {
             unawaited(AudioService.instance.preloadGameSounds());
             return const DuelLobbyPage();
           },
-          GameModeRoutes.duelPari: (_) {
+          GameModeRoutes.credits: (_) {
             unawaited(AudioService.instance.preloadGameSounds());
-            return const DuelLobbyPage(mode: DuelRoomMode.duel_pari);
+            return const DuelLobbyPage(mode: DuelRoomMode.credits);
           },
           GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
           GameModeRoutes.history: (_) => const GameHistoryPage(),
@@ -369,12 +374,12 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
 
 
 
-enum GameMode { solo, duel, duel_pari }
+enum GameMode { solo, duel, credits }
 
 class GameModeRoutes {
   static const String solo = '/solo';
   static const String duel = '/duel';
-  static const String duelPari = '/duel-pari';
+  static const String credits = '/credits';
   static const String leaderboard = '/leaderboard';
   static const String history = '/history';
   static const String adminLogin = '/admin-login';
@@ -834,9 +839,9 @@ class _GameModePageState extends State<GameModePage>
                                                           milliseconds: 220,
                                                         ),
                                                     isSelected: _selectedMode ==
-                                                        GameMode.duel_pari,
+                                                        GameMode.credits,
                                                     onTap: () => _selectMode(
-                                                      GameMode.duel_pari,
+                                                      GameMode.credits,
                                                     ),
                                                   ),
                                                 ),
@@ -1008,7 +1013,7 @@ class _GameModePageState extends State<GameModePage>
     if (mode == null) {
       return;
     }
-    if ((mode == GameMode.duel || mode == GameMode.duel_pari) && _authService.currentUser == null) {
+    if ((mode == GameMode.duel || mode == GameMode.credits) && _authService.currentUser == null) {
       final bool shouldLogin = await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
@@ -1048,12 +1053,14 @@ class _GameModePageState extends State<GameModePage>
       }
       await _profileService.createOrUpdateFromGoogleUser(result.user!);
     }
-    if (mode == GameMode.duel_pari) {
-      final String? uid = _authService.currentUser?.id;
+    if (mode == GameMode.credits) {
+      final String? uid = _authService.currentUser?.uid;
       if (uid == null) {
         return;
       }
-      final int credits = await _profileService.getCredits(uid);
+      final DocumentSnapshot<Map<String, dynamic>> profileSnap =
+          await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
+      final int credits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 0;
       if (credits <= 0) {
         if (!mounted) {
           return;
@@ -1093,7 +1100,7 @@ class _GameModePageState extends State<GameModePage>
     Navigator.of(context).pushNamed(switch (mode) {
       GameMode.solo => GameModeRoutes.solo,
       GameMode.duel => GameModeRoutes.duel,
-      GameMode.duel_pari => GameModeRoutes.duelPari,
+      GameMode.credits => GameModeRoutes.credits,
     });
   }
 }
@@ -1855,7 +1862,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return;
     }
     try {
-      final PlayerProfile? profile = await _profileService.getProfile(user.id);
+      final PlayerProfile? profile = await _profileService.getProfile(user.uid);
       if (!mounted || profile == null) {
         return;
       }

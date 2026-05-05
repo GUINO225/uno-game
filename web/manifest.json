@@ -1,11 +1,11 @@
 {
-    "name": "GINO",
-    "short_name": "GINO",
+    "name": "GINO — 8 Américain",
+    "short_name": "GINO  — 8 Américain",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Jeu de 8 Américain ",
+    "description": "Jeu de 8 Américain en ligne version ivoirienne.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

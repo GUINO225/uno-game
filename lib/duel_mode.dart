@@ -2,15 +2,17 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:math';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
-import 'config/backend_flags.dart';
 import 'credit_coins_icon.dart';
+import 'firebase_config.dart';
 import 'game_history_page.dart';
 import 'leaderboard_page.dart';
 import 'player_profile.dart';
@@ -18,23 +20,11 @@ import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'stats_service.dart';
 import 'user_profile_service.dart';
-import 'services/supabase_game_service.dart';
 import 'widgets/bouncy_card_entry.dart';
 import 'widgets/funny_game_toast.dart';
 import 'widgets/gino_popups.dart';
 import 'web_page_lifecycle_stub.dart'
     if (dart.library.html) 'web_page_lifecycle_web.dart';
-import 'supabase_user_photo.dart';
-
-
-String _toIsoDateTimeString(DateTime value) => value.toUtc().toIso8601String();
-
-DateTime? _parseDateTime(Object? value) {
-  if (value == null) return null;
-  if (value is DateTime) return value;
-  if (value is String) return DateTime.tryParse(value)?.toLocal() ?? DateTime.tryParse(value);
-  return null;
-}
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
@@ -44,14 +34,12 @@ enum DuelRematchDecision { pending, accepted, declined }
 
 enum DuelChatDelivery { sending, sent, failed }
 
-enum DuelRoomMode { duel, duel_pari }
+enum DuelRoomMode { duel, credits }
 
 const Duration _presenceGracePeriod = Duration(seconds: 20);
 const Duration _connectionWarningTimeout = Duration(seconds: 25);
 const Duration _abandonTimeout = Duration(seconds: 45);
 const Duration _presenceHeartbeatInterval = Duration(seconds: 8);
-const Duration _presenceAvailableThreshold = Duration(seconds: 20);
-const Duration _presenceUnstableThreshold = Duration(seconds: 60);
 
 enum DuelStakeStatus { none, pending, accepted, declined, resolved, insufficientFunds }
 
@@ -83,8 +71,6 @@ enum DuelRematchUiState {
   rematchError,
 }
 
-enum DuelPresenceAvailability { available, unstable, offline }
-
 enum ComicMessageTrigger {
   mustDraw,
   strongActionAgainstPlayer,
@@ -103,46 +89,27 @@ String _localizeUserError(Object error) {
       .replaceFirst(RegExp(r'^Exception:\s*'), '');
   final String lowercase = message.toLowerCase();
 
-  if (error is PostgrestException) {
+  if (error is FirebaseException) {
     switch (error.code) {
-      case 'room_not_found':
-        return 'Code de partie introuvable.';
-      case 'cannot_join_own_room':
-        return 'Vous ne pouvez pas rejoindre votre propre partie.';
-      case 'room_full':
-        return 'Cette partie est déjà complète.';
-      case 'room_not_waiting':
-        return 'Cette partie n’est plus disponible.';
       case 'unavailable':
       case 'network-request-failed':
       case 'deadline-exceeded':
-        return 'Connexion lente, réessayez.';
-      case 'resource-exhausted':
-        return 'service backend saturé (quota atteint). Réessaie dans un instant.';
+        return 'Erreur réseau. Vérifie ta connexion et réessaie.';
       case 'not-found':
-        return 'Code de partie introuvable.';
+        return 'Partie introuvable.';
       case 'permission-denied':
-        return 'Accès refusé par service backend.';
+        return 'Connexion échouée. Accès refusé.';
       default:
-        return 'Erreur service backend (${error.code}). Réessaie dans un instant.';
+        return 'Connexion échouée. Réessaie dans un instant.';
     }
   }
 
   if (lowercase.contains('partie introuvable') ||
-      lowercase.contains('not found') ||
-      lowercase.contains('room_not_found')) {
-    return 'Code de partie introuvable.';
+      lowercase.contains('not found')) {
+    return 'Partie introuvable.';
   }
-  if (lowercase.contains('cannot_join_own_room')) {
-    return 'Vous ne pouvez pas rejoindre votre propre partie.';
-  }
-  if (lowercase.contains('déjà complète') ||
-      lowercase.contains('full') ||
-      lowercase.contains('room_full')) {
-    return 'Cette partie est déjà complète.';
-  }
-  if (lowercase.contains('room_not_waiting')) {
-    return 'Cette partie n’est plus disponible.';
+  if (lowercase.contains('déjà complète') || lowercase.contains('full')) {
+    return 'Impossible de rejoindre la partie : elle est déjà complète.';
   }
   if (lowercase.contains('compatible')) {
     return 'Code invalide pour ce mode de jeu.';
@@ -187,7 +154,7 @@ class DuelStakeOffer {
       'acceptedBy': acceptedBy,
       'amount': amount,
       'status': status.name,
-      'createdAt': createdAt == null ? null : _toIsoDateTimeString(createdAt!.toUtc()),
+      'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
     };
   }
 
@@ -204,7 +171,7 @@ class DuelStakeOffer {
             value.name == (map['status'] as String? ?? DuelStakeStatus.none.name),
         orElse: () => DuelStakeStatus.none,
       ),
-      createdAt: _parseDateTime(map['createdAt']),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
     );
   }
 }
@@ -226,7 +193,7 @@ class DuelAction {
     return <String, dynamic>{
       'type': type.name,
       'actorId': actorId,
-      'createdAt': _toIsoDateTimeString(createdAt.toUtc()),
+      'createdAt': Timestamp.fromDate(createdAt.toUtc()),
       'payload': payload,
     };
   }
@@ -237,7 +204,7 @@ class DuelAction {
         (DuelActionType element) => element.name == json['type'],
       ),
       actorId: json['actorId'] as String,
-      createdAt: _parseDateTime(json['createdAt']) ?? DateTime.now(),
+      createdAt: (json['createdAt'] as Timestamp).toDate(),
       payload: Map<String, dynamic>.from(json['payload'] as Map? ?? <String, dynamic>{}),
     );
   }
@@ -265,17 +232,20 @@ class DuelChatMessage {
       'senderId': senderId,
       'senderName': senderName,
       'text': text,
-      'createdAt': DateTime.now().toUtc().toIso8601String(),
+      'createdAt': FieldValue.serverTimestamp(),
     };
   }
 
-  factory DuelChatMessage.fromMap(Map<String, dynamic> data) {
+  factory DuelChatMessage.fromDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final Map<String, dynamic> data = doc.data();
     return DuelChatMessage(
-      id: data['id'] as String? ?? '',
+      id: doc.id,
       senderId: data['senderId'] as String? ?? '',
       senderName: data['senderName'] as String? ?? '',
       text: data['text'] as String? ?? '',
-      createdAt: _parseDateTime(data['createdAt']) ?? DateTime.now(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 }
@@ -283,25 +253,15 @@ class DuelChatMessage {
 class DuelPlayerPresence {
   const DuelPlayerPresence({
     this.state = 'offline',
-    this.isOnline = false,
-    this.currentScreen = 'background',
     this.lastSeenAt,
-    this.lastActionAt,
     this.leftAt,
-    this.connectionState = 'offline',
-    this.appState = 'closed',
   });
 
   final String state;
-  final bool isOnline;
-  final String currentScreen;
   final DateTime? lastSeenAt;
-  final DateTime? lastActionAt;
   final DateTime? leftAt;
-  final String connectionState;
-  final String appState;
 
-  bool get isOffline => !isOnline || state == 'offline' || connectionState == 'offline';
+  bool get isOffline => state == 'offline';
 
   factory DuelPlayerPresence.fromMap(Map<String, dynamic>? map) {
     if (map == null || map.isEmpty) {
@@ -309,13 +269,8 @@ class DuelPlayerPresence {
     }
     return DuelPlayerPresence(
       state: map['state'] as String? ?? 'offline',
-      isOnline: map['isOnline'] as bool? ?? false,
-      currentScreen: map['currentScreen'] as String? ?? 'background',
-      lastSeenAt: _parseDateTime(map['lastSeenAt']),
-      lastActionAt: _parseDateTime(map['lastActionAt']),
-      leftAt: _parseDateTime(map['leftAt']),
-      connectionState: map['connectionState'] as String? ?? 'offline',
-      appState: map['appState'] as String? ?? 'closed',
+      lastSeenAt: (map['lastSeenAt'] as Timestamp?)?.toDate(),
+      leftAt: (map['leftAt'] as Timestamp?)?.toDate(),
     );
   }
 }
@@ -434,7 +389,7 @@ class DuelSession {
   final DateTime? endedAt;
 
   bool get canStart => players.length == 2;
-  bool get isCreditsMode => mode == DuelRoomMode.duel_pari;
+  bool get isCreditsMode => mode == DuelRoomMode.credits;
   String get player1Id => players.isNotEmpty ? players.first : '';
   String get player2Id => players.length > 1 ? players[1] : '';
   List<String> handForPlayer(String playerId) {
@@ -481,7 +436,7 @@ class DuelSession {
       'rematchRequestBy': rematchRequestBy,
       'rematchRequestedAt': rematchRequestedAt == null
           ? null
-          : _toIsoDateTimeString(rematchRequestedAt!.toUtc()),
+          : Timestamp.fromDate(rematchRequestedAt!.toUtc()),
       'rematchDecision': rematchDecision.name,
       'rematchStatus': rematchRequestBy == null ? 'none' : 'requested',
       'rematchDecisionBy': rematchDecisionBy,
@@ -494,7 +449,7 @@ class DuelSession {
       'exitBothPlayers': exitBothPlayers,
       'payoutWinnerId': payoutWinnerId,
       'payoutAmount': payoutAmount,
-      'payoutAt': payoutAt == null ? null : _toIsoDateTimeString(payoutAt!.toUtc()),
+      'payoutAt': payoutAt == null ? null : Timestamp.fromDate(payoutAt!.toUtc()),
       'player1Hand': player1Hand,
       'player2Hand': player2Hand,
       'drawPile': drawPile,
@@ -514,69 +469,253 @@ class DuelSession {
       'requiredSuit': requiredSuit,
       'requiredColorAfterJoker': requiredColorAfterJoker,
       'aceColorRequired': aceColorRequired,
-      'gameStartedAt': gameStartedAt == null ? null : _toIsoDateTimeString(gameStartedAt!.toUtc()),
+      'gameStartedAt': gameStartedAt == null ? null : Timestamp.fromDate(gameStartedAt!.toUtc()),
       'roundStartedAt':
-          roundStartedAt == null ? null : _toIsoDateTimeString(roundStartedAt!.toUtc()),
+          roundStartedAt == null ? null : Timestamp.fromDate(roundStartedAt!.toUtc()),
       'presenceGraceUntil': presenceGraceUntil == null
           ? null
-          : _toIsoDateTimeString(presenceGraceUntil!.toUtc()),
+          : Timestamp.fromDate(presenceGraceUntil!.toUtc()),
       'presence': presence.map(
         (String playerId, DuelPlayerPresence value) => MapEntry(
           playerId,
           <String, dynamic>{
             'state': value.state,
-            'isOnline': value.isOnline,
-            'currentScreen': value.currentScreen,
             'lastSeenAt': value.lastSeenAt == null
                 ? null
-                : _toIsoDateTimeString(value.lastSeenAt!.toUtc()),
-            'lastActionAt': value.lastActionAt == null
-                ? null
-                : _toIsoDateTimeString(value.lastActionAt!.toUtc()),
+                : Timestamp.fromDate(value.lastSeenAt!.toUtc()),
             'leftAt': value.leftAt == null
                 ? null
-                : _toIsoDateTimeString(value.leftAt!.toUtc()),
-            'connectionState': value.connectionState,
-            'appState': value.appState,
+                : Timestamp.fromDate(value.leftAt!.toUtc()),
           },
         ),
       ),
       'roomStatus': roomStatus,
       'closeReason': closeReason,
       'resultProcessed': resultProcessed,
-      'endedAt': endedAt == null ? null : _toIsoDateTimeString(endedAt!.toUtc()),
-      'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      'endedAt': endedAt == null ? null : Timestamp.fromDate(endedAt!.toUtc()),
+      'updatedAt': FieldValue.serverTimestamp(),
     };
   }
 
+  factory DuelSession.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final Map<String, dynamic> json = doc.data() ?? <String, dynamic>{};
+    return DuelSession(
+      gameId: doc.id,
+      hostId: json['hostId'] as String? ?? '',
+      players: List<String>.from(json['players'] as List? ?? const <String>[]),
+      playerNames: Map<String, String>.from(
+        json['playerNames'] as Map? ?? const <String, String>{},
+      ),
+      currentTurn: json['currentTurn'] as String? ?? '',
+      status: DuelGameStatus.values.firstWhere(
+        (DuelGameStatus s) => s.name == (json['status'] as String? ?? DuelGameStatus.waiting.name),
+      ),
+      scores: Map<String, int>.from(
+        (json['scores'] as Map? ?? const <String, int>{}).map(
+          (Object? key, Object? value) => MapEntry(
+            key.toString(),
+            (value as num?)?.toInt() ?? 0,
+          ),
+        ),
+      ),
+      round: (json['round'] as num?)?.toInt() ?? 1,
+      mode: DuelRoomMode.values.firstWhere(
+        (DuelRoomMode value) =>
+            value.name == (json['mode'] as String? ?? DuelRoomMode.duel.name),
+        orElse: () => DuelRoomMode.duel,
+      ),
+      playerCredits: Map<String, int>.from(
+        (json['playerCredits'] as Map? ?? const <String, int>{}).map(
+          (Object? key, Object? value) => MapEntry(
+            key.toString(),
+            (value as num?)?.toInt() ?? 0,
+          ),
+        ),
+      ),
+      activeStakeCredits: (json['activeStakeCredits'] as num?)?.toInt() ?? 0,
+      stakeOffer: DuelStakeOffer.fromMap(
+        (json['stakeOffer'] as Map?)?.cast<String, dynamic>(),
+      ),
+      lastAction: json['lastAction'] == null
+          ? null
+          : DuelAction.fromMap(Map<String, dynamic>.from(json['lastAction'] as Map)),
+      rematchRequestBy: json['rematchRequestBy'] as String?,
+      rematchRequestedAt: (json['rematchRequestedAt'] as Timestamp?)?.toDate(),
+      rematchDecision: DuelRematchDecision.values.firstWhere(
+        (DuelRematchDecision d) =>
+            d.name == (json['rematchDecision'] as String? ?? DuelRematchDecision.pending.name),
+        orElse: () => DuelRematchDecision.pending,
+      ),
+      rematchDecisionBy: json['rematchDecisionBy'] as String?,
+      betFlowState: DuelBetFlowState.values.firstWhere(
+        (DuelBetFlowState state) =>
+            state.name == (json['betFlowState'] as String? ?? DuelBetFlowState.idle.name),
+        orElse: () => DuelBetFlowState.idle,
+      ),
+      invitedRefusalCount: (json['invitedRefusalCount'] as num?)?.toInt() ?? 0,
+      exitedBy: json['exitedBy'] as String?,
+      lastInsufficientFundsPlayerId: json['lastInsufficientFundsPlayerId'] as String?,
+      payoutDone: json['payoutDone'] as bool? ?? false,
+      abandonedBy: json['abandonedBy'] as String?,
+      exitBothPlayers: json['exitBothPlayers'] as bool? ?? false,
+      payoutWinnerId: json['payoutWinnerId'] as String?,
+      payoutAmount: (json['payoutAmount'] as num?)?.toInt() ?? 0,
+      payoutAt: (json['payoutAt'] as Timestamp?)?.toDate(),
+      player1Hand: List<String>.from(json['player1Hand'] as List? ?? const <String>[]),
+      player2Hand: List<String>.from(json['player2Hand'] as List? ?? const <String>[]),
+      drawPile: List<String>.from(json['drawPile'] as List? ?? const <String>[]),
+      discardPile: List<String>.from(json['discardPile'] as List? ?? const <String>[]),
+      topDiscard: json['topDiscard'] as String?,
+      player1CardCount: (json['player1CardCount'] as num?)?.toInt() ?? 0,
+      player2CardCount: (json['player2CardCount'] as num?)?.toInt() ?? 0,
+      deckSeed: json['deckSeed'] as String?,
+      revision: (json['revision'] as num?)?.toInt() ?? 0,
+      lastActionId: json['lastActionId'] as String?,
+      lastActionBy: json['lastActionBy'] as String?,
+      deckInitialized: json['deckInitialized'] as bool? ?? false,
+      integrityError: (json['integrityError'] as Map?)?.cast<String, dynamic>(),
+      repairLock: (json['repairLock'] as Map?)?.cast<String, dynamic>(),
+      pendingDrawCount: (json['pendingDrawCount'] as num?)?.toInt() ?? 0,
+      forcedDrawInitial: (json['forcedDrawInitial'] as num?)?.toInt() ?? 0,
+      requiredSuit: json['requiredSuit'] as String?,
+      requiredColorAfterJoker: json['requiredColorAfterJoker'] as String?,
+      aceColorRequired: json['aceColorRequired'] as bool? ?? false,
+      gameStartedAt: (json['gameStartedAt'] as Timestamp?)?.toDate(),
+      roundStartedAt: (json['roundStartedAt'] as Timestamp?)?.toDate(),
+      presenceGraceUntil: (json['presenceGraceUntil'] as Timestamp?)?.toDate(),
+      presence: (json['presence'] as Map? ?? const <String, dynamic>{}).map(
+        (Object? key, Object? value) => MapEntry(
+          key.toString(),
+          DuelPlayerPresence.fromMap((value as Map?)?.cast<String, dynamic>()),
+        ),
+      ),
+      roomStatus: json['roomStatus'] as String? ?? 'open',
+      closeReason: json['closeReason'] as String?,
+      resultProcessed: json['resultProcessed'] as bool? ?? false,
+      endedAt: (json['endedAt'] as Timestamp?)?.toDate(),
+    );
+  }
 }
 
 /// Multiplayer transport only: game rules stay in existing GameEngine.
 class GameService {
-  GameService();
+  GameService({FirebaseFirestore? firestore}) : _firestore = firestore;
 
-  final SupabaseGameService _supabaseGameService = SupabaseGameService();
+  final FirebaseFirestore? _firestore;
+
+  DateTime _presenceGraceDeadline() => DateTime.now().toUtc().add(_presenceGracePeriod);
+
+  Future<int> _readCreditsFromProfileTx({
+    required Transaction tx,
+    required FirebaseFirestore db,
+    required String playerId,
+    String? displayName,
+  }) async {
+    final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
+    final DocumentSnapshot<Map<String, dynamic>> profileSnap = await tx.get(profileRef);
+    if (!profileSnap.exists) {
+      tx.set(profileRef, <String, dynamic>{
+        'uid': playerId,
+        if (displayName != null && displayName.trim().isNotEmpty) 'displayName': displayName,
+        'credits': 1000,
+        'wins': 0,
+        'losses': 0,
+        'gamesPlayed': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return 1000;
+    }
+    final int credits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 0;
+    if (!(profileSnap.data()?.containsKey('credits') ?? false)) {
+      tx.set(profileRef, <String, dynamic>{
+        'credits': credits,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    return credits;
+  }
+
+  Map<String, dynamic> _presenceOnlinePatch(String playerId) {
+    return <String, dynamic>{
+      'presence.$playerId.state': 'online',
+      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.leftAt': null,
+    };
+  }
+
+  Map<String, dynamic> _presenceOfflinePatch(String playerId) {
+    return <String, dynamic>{
+      'presence.$playerId.state': 'offline',
+      'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+    };
+  }
 
   Map<String, dynamic> _presenceStatePatch({
     required String playerId,
     required String state,
-    String? currentScreen,
-    String? appState,
-    String? connectionState,
-    bool touchLastAction = false,
   }) {
-    final bool isOnline = state != 'offline';
     return <String, dynamic>{
       'presence.$playerId.state': state,
-      'presence.$playerId.isOnline': isOnline,
-      'presence.$playerId.currentScreen': currentScreen ?? (isOnline ? 'game' : 'background'),
-      'presence.$playerId.lastSeenAt': DateTime.now().toUtc().toIso8601String(),
-      if (touchLastAction) 'presence.$playerId.lastActionAt': DateTime.now().toUtc().toIso8601String(),
-      'presence.$playerId.connectionState': connectionState ?? (isOnline ? 'online' : 'offline'),
-      'presence.$playerId.appState': appState ?? (isOnline ? 'active' : 'closed'),
+      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
       if (state != 'offline') 'presence.$playerId.leftAt': null,
-      if (state == 'offline') 'presence.$playerId.leftAt': DateTime.now().toUtc().toIso8601String(),
+      if (state == 'offline') 'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
     };
+  }
+
+  Future<void> _ensureSignedInForFirestore() async {
+    if (FirebaseAuth.instance.currentUser != null) {
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+      debugPrint('[GameService] Anonymous sign-in created for Firestore.');
+    } catch (e) {
+      throw StateError(
+        'Authentification Firebase requise pour le mode duel. Détail: $e',
+      );
+    }
+  }
+
+  Future<FirebaseFirestore> _resolveDb() async {
+    if (_firestore != null) {
+      return _firestore!;
+    }
+
+    if (Firebase.apps.isEmpty) {
+      try {
+        final FirebaseOptions? options =
+            FirebaseConfig.optionsForCurrentPlatform();
+        if (options != null) {
+          await Firebase.initializeApp(options: options);
+          debugPrint(
+            '[GameService] Firebase initialized in duel mode: projectId=${options.projectId}, appId=${options.appId}',
+          );
+        } else {
+          throw StateError(
+            'FirebaseOptions manquantes pour cette plateforme.',
+          );
+        }
+      } catch (e) {
+        throw StateError(
+          'Firebase non configuré. Le mode duel nécessite Firebase.initializeApp(). Détail: $e',
+        );
+      }
+    }
+
+    await _ensureSignedInForFirestore();
+    return FirebaseFirestore.instance;
+  }
+
+  Future<CollectionReference<Map<String, dynamic>>> _games() async =>
+      (await _resolveDb()).collection('duel_games');
+
+  DocumentReference<Map<String, dynamic>> _userProfileRef(
+    FirebaseFirestore db,
+    String uid,
+  ) {
+    return db.collection('user_profiles').doc(uid);
   }
 
   String _generateCode() {
@@ -585,101 +724,1265 @@ class GameService {
     return List<String>.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
-  Future<String> createGame({required String playerId, required String playerName, DuelRoomMode mode = DuelRoomMode.duel}) async {
-    final String roomCode = _generateCode();
-    await _supabaseGameService.createRoom(roomCode: roomCode, creatorId: playerId, creatorPseudo: playerName, mode: mode.name);
-    return roomCode;
-  }
+  String _buildDeckSeed(String gameId, int round) => '$gameId-$round';
 
-  Future<void> joinGame({required String gameId, required String playerId, required String playerName, DuelRoomMode? expectedMode}) async {
-    await _supabaseGameService.joinRoom(roomCode: gameId, opponentId: playerId, opponentPseudo: playerName);
-  }
-
-  Stream<DuelSession> watchSession(String gameId) {
-    debugPrint('[GAME_ROUTER] listenRoom backend=supabase');
-    return _supabaseGameService.watchRoom(gameId).map(_mapRoomToSession);
-  }
-
-  DuelSession _mapRoomToSession(Map<String, dynamic> room) {
-    final List<String> players = <String>[if (room['creator_id'] != null) room['creator_id'] as String, if (room['opponent_id'] != null) room['opponent_id'] as String];
-    final Map<String, dynamic> gs = Map<String, dynamic>.from(room['game_state'] as Map? ?? <String, dynamic>{});
-    debugPrint('[SESSION_MAP] localHand=${(gs['hands'] is Map ? (gs['hands'] as Map)[localPlayerId] : null)} discard=${gs['discardPile']}');
-    final Map<String, dynamic>? roomLastAction = room['last_action'] is Map ? Map<String, dynamic>.from(room['last_action'] as Map) : null;
-    final Map<String, dynamic>? stateLastAction = gs['lastAction'] is Map ? Map<String, dynamic>.from(gs['lastAction'] as Map) : null;
-    final Map<String, dynamic>? resolvedLastAction = roomLastAction ?? stateLastAction;
-    debugPrint('[GAME_STATE] revision=${room['revision'] ?? gs['revision'] ?? 0} currentTurn=${room['current_turn'] ?? gs['currentTurn']}');
-    final Map<String, dynamic> names = <String, dynamic>{if (room['creator_id'] != null) room['creator_id']: room['creator_pseudo'] ?? 'Joueur 1', if (room['opponent_id'] != null) room['opponent_id']: room['opponent_pseudo'] ?? 'Joueur 2'};
-    final String statusRaw = (room['status'] ?? 'waiting').toString();
-    debugPrint('[DUEL_SIMPLE] watch status=$statusRaw');
-    debugPrint('[DUEL_SIMPLE] players=${players.length}');
-    debugPrint('[DUEL_SIMPLE] deckInitialized=${gs['deckInitialized'] as bool? ?? false}');
-    debugPrint('[DUEL_SIMPLE] currentTurn=${room['current_turn'] ?? gs['currentTurn']}');
-    return DuelSession(
-      gameId: (room['room_code'] ?? room['id']) as String,
-      hostId: room['creator_id'] as String? ?? '',
+  Map<String, dynamic> _boardInitPatch({
+    required String gameId,
+    required List<String> players,
+    required int round,
+  }) {
+    final DuelBoardState board = DuelBoardState.initial(
+      gameId: gameId,
       players: players,
-      playerNames: names.map((k,v)=>MapEntry(k.toString(), v.toString())),
-      currentTurn: (room['current_turn'] ?? gs['currentTurn'] ?? (players.isNotEmpty ? players.first : '')).toString(),
-      status: statusRaw == 'finished' ? DuelGameStatus.finished : (statusRaw == 'round' ? DuelGameStatus.inProgress : DuelGameStatus.waiting),
-      scores: Map<String, int>.from((gs['scores'] as Map? ?? <String, dynamic>{}).map((k, v) => MapEntry(k.toString(), (v as num).toInt()))),
-      round: (gs['round'] as num?)?.toInt() ?? 1,
-      mode: DuelRoomMode.values.firstWhere((m)=>m.name==(room['mode'] ?? 'duel'), orElse: ()=>DuelRoomMode.duel),
-      playerCredits: Map<String, int>.from((gs['playerCredits'] as Map? ?? <String, dynamic>{}).map((k, v) => MapEntry(k.toString(), (v as num).toInt()))),
-      activeStakeCredits: (room['active_stake_credits'] as num?)?.toInt() ?? 0,
-      stakeOffer: DuelStakeOffer(proposedBy: room['stake_proposed_by'] as String?, acceptedBy: room['stake_accepted_by'] as String?, amount: (room['stake_amount'] as num?)?.toInt() ?? 0, status: DuelStakeStatus.values.firstWhere((e)=>e.name==(room['stake_status'] ?? 'none'), orElse: ()=>DuelStakeStatus.none)),
-      betFlowState: DuelBetFlowState.values.firstWhere((e)=>e.name==(room['bet_flow_state'] ?? 'idle'), orElse: ()=>DuelBetFlowState.idle),
-      lastAction: resolvedLastAction != null ? DuelAction.fromMap(resolvedLastAction) : null,
-      revision: (room['revision'] as num?)?.toInt() ?? (gs['revision'] as num?)?.toInt() ?? 0,
-      player1Hand: List<String>.from((gs['hands'] is Map ? (gs['hands'] as Map)['player1'] : gs['player1Hand']) as List? ?? const <String>[]),
-      player2Hand: List<String>.from((gs['hands'] is Map ? (gs['hands'] as Map)['player2'] : gs['player2Hand']) as List? ?? const <String>[]),
-      drawPile: List<String>.from(gs['drawPile'] as List? ?? (gs['deck'] as List? ?? const <String>[])),
-      discardPile: List<String>.from(gs['discardPile'] as List? ?? const <String>[]),
-      topDiscard: gs['topDiscard'] as String?,
-      player1CardCount: (gs['player1CardCount'] as num?)?.toInt() ?? 0,
-      player2CardCount: (gs['player2CardCount'] as num?)?.toInt() ?? 0,
-      pendingDrawCount: (gs['pendingDrawCount'] as num?)?.toInt() ?? 0,
-      requiredSuit: gs['requiredSuit'] as String?,
-      requiredColorAfterJoker: gs['requiredColorAfterJoker'] as String?,
-      aceColorRequired: gs['aceColorRequired'] as bool? ?? false,
-      deckInitialized: gs['deckInitialized'] as bool? ?? false,
-      roomStatus: (room['room_status'] ?? 'open').toString(),
+      round: round,
     );
+    return <String, dynamic>{
+      ...board.toFirestoreFields(),
+      'deckSeed': _buildDeckSeed(gameId, round),
+      'integrityError': null,
+      'repairLock': null,
+    };
   }
 
-  Future<void> updatePresenceHeartbeat({required String gameId, required String playerId}) async { return; }
-  Future<void> markPlayerPresenceState({required String gameId, required String playerId, required String state, String? currentScreen, String? appState, String? connectionState, bool touchLastAction = false}) async { return; }
+  Future<String> createGame({
+    required String playerId,
+    required String playerName,
+    DuelRoomMode mode = DuelRoomMode.duel,
+  }) async {
+    final String code = _generateCode();
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    int initialCredits = 1000;
+    if (mode == DuelRoomMode.credits) {
+      final FirebaseFirestore db = await _resolveDb();
+      final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
+      await db.runTransaction((Transaction tx) async {
+        initialCredits = await _readCreditsFromProfileTx(
+          tx: tx,
+          db: db,
+          playerId: playerId,
+          displayName: playerName,
+        );
+      });
+      if (initialCredits <= 0) {
+        throw StateError('Crédit insuffisant pour accéder au mode Pari.');
+      }
+    }
+    debugPrint('[GameService] createGame requested by $playerId in mode=${mode.name}.');
+    await games.doc(code).set(
+      DuelSession(
+        gameId: code,
+        hostId: playerId,
+        players: <String>[playerId],
+        playerNames: <String, String>{playerId: playerName},
+        currentTurn: playerId,
+        status: DuelGameStatus.waiting,
+        scores: <String, int>{playerId: 0},
+        round: 1,
+        mode: mode,
+        playerCredits: mode == DuelRoomMode.credits
+            ? <String, int>{playerId: initialCredits}
+            : const <String, int>{},
+        betFlowState: mode == DuelRoomMode.credits
+            ? DuelBetFlowState.initialStakeProposed
+            : DuelBetFlowState.idle,
+        presence: <String, DuelPlayerPresence>{
+          playerId: const DuelPlayerPresence(state: 'online'),
+        },
+        presenceGraceUntil: _presenceGraceDeadline(),
+        roomStatus: 'open',
+      ).toMap()
+        ..addAll(_presenceOnlinePatch(playerId)),
+    );
+    return code;
+  }
+
+  Future<void> joinGame({
+    required String gameId,
+    required String playerId,
+    required String playerName,
+    DuelRoomMode? expectedMode,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    debugPrint('[GameService] joinGame requested by $playerId for game=$gameId.');
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (expectedMode != null && session.mode != expectedMode) {
+        throw StateError('Ce salon n\'est pas compatible avec ce mode.');
+      }
+      if (session.players.length >= 2 && !session.players.contains(playerId)) {
+        throw StateError('Partie déjà complète');
+      }
+      final List<String> players = <String>{...session.players, playerId}.toList();
+      final bool activatesNow = players.length == 2 && !session.isCreditsMode;
+      int joiningPlayerCredits = session.playerCredits[playerId] ?? 1000;
+      if (session.isCreditsMode) {
+        joiningPlayerCredits = await _readCreditsFromProfileTx(
+          tx: tx,
+          db: db,
+          playerId: playerId,
+          displayName: playerName,
+        );
+        if (joiningPlayerCredits <= 0) {
+          throw StateError('Crédit insuffisant pour accéder au mode Pari.');
+        }
+      }
+      tx.update(ref, <String, dynamic>{
+        'players': players,
+        'playerNames.$playerId': playerName,
+        'scores.$playerId': session.scores[playerId] ?? 0,
+        if (session.isCreditsMode)
+          'playerCredits.$playerId': joiningPlayerCredits,
+        'status': players.length == 2
+            ? (session.isCreditsMode
+                ? DuelGameStatus.waiting.name
+                : DuelGameStatus.inProgress.name)
+            : DuelGameStatus.waiting.name,
+        if (activatesNow && !session.deckInitialized)
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: players,
+            round: session.round,
+          ),
+        if (players.length == 2 && session.gameStartedAt == null)
+          'gameStartedAt': FieldValue.serverTimestamp(),
+        if (players.length == 2) 'roundStartedAt': FieldValue.serverTimestamp(),
+        if (players.length == 2) 'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+        if (activatesNow && !session.deckInitialized) 'revision': session.revision + 1,
+        ..._presenceOnlinePatch(playerId),
+        ...players
+            .where((String id) => id != playerId)
+            .fold<Map<String, dynamic>>(<String, dynamic>{}, (Map<String, dynamic> acc, String id) {
+          acc['presence.$id.state'] = 'online';
+          acc['presence.$id.lastSeenAt'] = FieldValue.serverTimestamp();
+          acc['presence.$id.leftAt'] = null;
+          return acc;
+        }),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  Future<void> updatePresenceHeartbeat({
+    required String gameId,
+    required String playerId,
+  }) async {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    debugPrint('[Presence] heartbeat sent player=$playerId');
+    await games.doc(gameId).update(<String, dynamic>{
+      ..._presenceOnlinePatch(playerId),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> markPlayerPresenceState({
+    required String gameId,
+    required String playerId,
+    required String state,
+  }) async {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    if (state == 'maybeOffline' || state == 'leaving') {
+      debugPrint('[Presence] beforeunload detected, marking maybeOffline only');
+    }
+    await games.doc(gameId).update(<String, dynamic>{
+      ..._presenceStatePatch(playerId: playerId, state: state),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<DuelSession> watchSession(String gameId) async* {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    yield* games
+        .doc(gameId)
+        .snapshots()
+        .where((DocumentSnapshot<Map<String, dynamic>> doc) => doc.exists)
+        .map(DuelSession.fromDoc);
+  }
+
   Future<void> repairGameStateIfNeeded({
     required String gameId,
     required String requestedBy,
   }) async {
-    debugPrint('[SUPABASE_ONLY] repairGameStateIfNeeded not implemented yet game=$gameId requestedBy=$requestedBy');
-    return;
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        return;
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.hostId != requestedBy || !session.deckInitialized) {
+        return;
+      }
+      final DuelGameStateValidationResult validation = validateGameState(session);
+      if (validation.isValid) {
+        return;
+      }
+      final DateTime now = DateTime.now().toUtc();
+      final Timestamp? lockAtTs = session.repairLock?['lockedAt'] as Timestamp?;
+      final DateTime? lockAt = lockAtTs?.toDate().toUtc();
+      final bool lockExpired = lockAt == null || now.difference(lockAt).inSeconds > 15;
+      final String? lockBy = session.repairLock?['lockedBy'] as String?;
+      if (!lockExpired && lockBy != requestedBy) {
+        return;
+      }
+      if (validation.integrityError != null) {
+        tx.update(ref, <String, dynamic>{
+          'status': DuelGameStatus.finished.name,
+          'integrityError': validation.integrityError,
+          'revision': session.revision + 1,
+          'repairLock': <String, dynamic>{
+            'lockedBy': requestedBy,
+            'lockedAt': FieldValue.serverTimestamp(),
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+      if (validation.autoCorrectPatch.isNotEmpty) {
+        tx.update(ref, <String, dynamic>{
+          ...validation.autoCorrectPatch,
+          'revision': session.revision + 1,
+          'repairLock': <String, dynamic>{
+            'lockedBy': requestedBy,
+            'lockedAt': FieldValue.serverTimestamp(),
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    });
   }
-  Future<void> pushAction({required String gameId, required DuelAction action, required String nextTurn, DuelGameStatus status = DuelGameStatus.inProgress, Map<String, dynamic> sessionPatch = const <String, dynamic>{}}) async {
-    final Map<String, dynamic> patch = <String, dynamic>{
-      'current_turn': nextTurn,
-      'last_action': action.toMap(),
-      'last_action_by': action.actorId,
-      'status': status == DuelGameStatus.finished ? 'finished' : (status == DuelGameStatus.inProgress ? 'round' : 'waiting'),
-      if (sessionPatch.isNotEmpty) 'game_state': sessionPatch,
-    };
-    await _supabaseGameService.pushAction(roomCode: gameId, patch: patch);
-  }
-  Future<void> requestRematch({required String gameId, required String requestedBy}) async { debugPrint('[SUPABASE_ONLY] requestRematch not implemented yet'); return; }
-  Future<void> cancelRematchRequest({required String gameId, required String requestedBy}) async { debugPrint('[SUPABASE_ONLY] cancelRematchRequest not implemented yet'); return; }
-  Future<void> acceptRematch({required String gameId, required String acceptedBy}) async { debugPrint('[SUPABASE_ONLY] acceptRematch not implemented yet'); return; }
-  Future<void> declineRematch({required String gameId, required String declinedBy}) async { debugPrint('[SUPABASE_ONLY] declineRematch not implemented yet'); return; }
-  Future<void> cleanupExpiredRematchRequest({required String gameId}) async { debugPrint('[SUPABASE_ONLY] cleanupExpiredRematchRequest not implemented yet'); return; }
-  Future<void> pushChatMessage({required String gameId, required String senderId, required String senderName, required String text}) async { await _supabaseGameService.pushChatMessage(roomCode: gameId, senderId: senderId, senderName: senderName, text: text); }
 
-  Stream<List<DuelChatMessage>> watchChatMessages(String gameId) {
-    return _supabaseGameService.watchChatMessages(gameId).map((rows) => rows.map((row) => DuelChatMessage(id: (row['id'] ?? '').toString(), senderId: (row['sender_id'] ?? '').toString(), senderName: (row['sender_name'] ?? '').toString(), text: (row['text'] ?? '').toString(), createdAt: _parseDateTime(row['created_at']) ?? DateTime.now())).toList());
+
+  Stream<List<DuelAction>> watchActions(String gameId) async* {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    yield* games
+        .doc(gameId)
+        .collection('actions')
+        .orderBy('createdAt')
+        .snapshots()
+        .map(
+          (QuerySnapshot<Map<String, dynamic>> snap) => snap.docs
+              .map(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    DuelAction.fromMap(doc.data()),
+              )
+              .toList(),
+        );
   }
-  Future<void> proposeStake({required DuelSession current, required String proposedBy, required int amount}) async { await _supabaseGameService.proposeStake(roomCode: current.gameId, proposedBy: proposedBy, amount: amount); }
-  Future<void> respondToStake({required DuelSession current, required String responderId, required bool accept, bool insufficientFunds = false}) async { await _supabaseGameService.respondToStake(roomCode: current.gameId, responderId: responderId, accept: accept, insufficientFunds: insufficientFunds); }
-  Future<void> exitBetParty({required String gameId, required String playerId}) async { debugPrint('[SUPABASE_ONLY] exitBetParty not implemented yet'); return; }
-  Future<void> resolveStakeAfterRound({required DuelSession current, required String winnerId}) async { await _supabaseGameService.resolveStakeAfterRound(roomCode: current.gameId, winnerId: winnerId); }
-  Future<void> markPlayerAbandoned({required String gameId, required String abandonedBy, required String reportedBy}) async { debugPrint('[SUPABASE_ONLY] markPlayerAbandoned not implemented yet'); return; }
+
+  Stream<List<DuelChatMessage>> watchChatMessages(String gameId) async* {
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    yield* games
+        .doc(gameId)
+        .collection('chat_messages')
+        .orderBy('createdAt')
+        .snapshots()
+        .map(
+          (QuerySnapshot<Map<String, dynamic>> snap) => snap.docs
+              .map(DuelChatMessage.fromDoc)
+              .where((DuelChatMessage message) => message.text.trim().isNotEmpty)
+              .toList(),
+        );
+  }
+
+  Future<void> pushChatMessage({
+    required String gameId,
+    required String senderId,
+    required String senderName,
+    required String text,
+  }) async {
+    final String cleaned = text.trim();
+    if (cleaned.isEmpty) {
+      return;
+    }
+    final CollectionReference<Map<String, dynamic>> games = await _games();
+    await games.doc(gameId).collection('chat_messages').add(
+      DuelChatMessage(
+        id: '',
+        senderId: senderId,
+        senderName: senderName,
+        text: cleaned,
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+  }
+
+  Future<void> pushAction({
+    required String gameId,
+    required DuelAction action,
+    required String nextTurn,
+    DuelGameStatus status = DuelGameStatus.inProgress,
+    Map<String, dynamic> sessionPatch = const <String, dynamic>{},
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> gameRef =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(gameRef);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.status != DuelGameStatus.inProgress) {
+        throw StateError('La partie n’est pas active.');
+      }
+      if (session.currentTurn != action.actorId) {
+        throw StateError('Ce n’est pas votre tour.');
+      }
+      if (!session.players.contains(action.actorId)) {
+        throw StateError('Action invalide.');
+      }
+      if (!session.deckInitialized) {
+        throw StateError('Deck non initialisé.');
+      }
+      final DuelGameStateValidationResult preValidation = validateGameState(session);
+      if (preValidation.integrityError != null) {
+        tx.update(gameRef, <String, dynamic>{
+          'status': DuelGameStatus.finished.name,
+          'integrityError': preValidation.integrityError,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        throw StateError('Partie corrompue: cartes dupliquées détectées.');
+      }
+      DuelBoardState board = DuelBoardState.fromSession(session);
+
+      DuelMoveResult move;
+      if (action.type == DuelActionType.playCard) {
+        final String? cardId = action.payload['cardId'] as String?;
+        if (cardId == null || cardId.isEmpty) {
+          throw StateError('Carte invalide.');
+        }
+        final DuelCard card = DuelCard.fromId(cardId);
+        move = board.tryPlay(
+          actorId: action.actorId,
+          card: card,
+          chosenSuit: action.payload['chosenSuit'] as String?,
+        );
+      } else if (action.type == DuelActionType.drawCard) {
+        move = board.tryDraw(actorId: action.actorId);
+      } else {
+        throw StateError('Action non supportée.');
+      }
+      if (!move.accepted || move.nextTurn == null) {
+        if (move.rejectionMessage != null && move.rejectionMessage!.trim().isNotEmpty) {
+          throw StateError(move.rejectionMessage!);
+        }
+        throw StateError('Action refusée par la logique de jeu.');
+      }
+      final DuelAction validatedAction = DuelAction(
+        type: action.type,
+        actorId: action.actorId,
+        createdAt: action.createdAt,
+        payload: move.payload,
+      );
+      final DuelBoardState nextBoard = board.applyValidatedAction(validatedAction);
+      final DuelGameStatus nextStatus = move.payload.containsKey('winnerId')
+          ? DuelGameStatus.finished
+          : status;
+      final String actionId = gameRef.collection('actions').doc().id;
+      tx.update(gameRef, <String, dynamic>{
+        'currentTurn': move.nextTurn!,
+        'lastAction': validatedAction.toMap(),
+        'lastActionId': actionId,
+        'lastActionBy': action.actorId,
+        'status': nextStatus.name,
+        'roundStatus': move.payload.containsKey('winnerId') ? 'roundFinished' : 'playing',
+        if (move.payload.containsKey('winnerId')) 'rematchStatus': 'none',
+        'revision': session.revision + 1,
+        ...nextBoard.toFirestoreFields(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        ...sessionPatch,
+      });
+      tx.set(gameRef.collection('actions').doc(actionId), validatedAction.toMap());
+    });
+  }
+
+  Future<void> handlePlayerExitGame({
+    required String gameId,
+    required String currentUserId,
+  }) async {
+    await markPlayerAbandoned(
+      gameId: gameId,
+      abandonedBy: currentUserId,
+      reportedBy: currentUserId,
+    );
+  }
+
+  Future<void> markPlayerAbandoned({
+    required String gameId,
+    required String abandonedBy,
+    required String reportedBy,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref = db.collection('duel_games').doc(gameId);
+    debugPrint('[Forfeit] requested abandonedBy=$abandonedBy reportedBy=$reportedBy');
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.status == DuelGameStatus.finished) {
+        return;
+      }
+      if (!session.players.contains(abandonedBy) || !session.players.contains(reportedBy)) {
+        throw StateError('Joueur invalide pour cet abandon.');
+      }
+      final String winnerId = session.players.firstWhere(
+        (String id) => id != abandonedBy,
+        orElse: () => '',
+      );
+      if (winnerId.isEmpty) {
+        return;
+      }
+      if (reportedBy != abandonedBy && reportedBy != winnerId) {
+        throw StateError('Signalement non autorisé.');
+      }
+      final bool voluntaryQuit = reportedBy == abandonedBy;
+      final DateTime now = DateTime.now().toUtc();
+      if (reportedBy != abandonedBy) {
+        final DuelPlayerPresence abandonedPresence =
+            session.presence[abandonedBy] ?? const DuelPlayerPresence();
+        final DateTime? graceUntil = session.presenceGraceUntil?.toUtc();
+        if (graceUntil != null && now.isBefore(graceUntil)) {
+          debugPrint('[Presence] abandon check skipped: grace period');
+          throw StateError('Période de grâce active.');
+        }
+        final DateTime? gameStartedAt = session.gameStartedAt?.toUtc();
+        if (gameStartedAt == null || now.difference(gameStartedAt) < _presenceGracePeriod) {
+          debugPrint('[Presence] abandon check skipped: grace period');
+          throw StateError('Partie trop récente pour valider un abandon.');
+        }
+        if (session.status != DuelGameStatus.inProgress) {
+          throw StateError('La partie n’a pas encore commencé.');
+        }
+        if (session.isCreditsMode && !session.stakeOffer.isAccepted) {
+          throw StateError('La mise n’est pas acceptée.');
+        }
+        final DateTime? lastSeen = abandonedPresence.lastSeenAt?.toUtc();
+        final bool heartbeatExpired =
+            lastSeen == null || now.difference(lastSeen) >= _abandonTimeout;
+        if (abandonedPresence.state == 'online') {
+          debugPrint('[Presence] abandon check skipped: heartbeat still recent');
+          throw StateError('L’adversaire est encore connecté.');
+        }
+        if (!heartbeatExpired) {
+          debugPrint('[Presence] abandon check skipped: heartbeat still recent');
+          throw StateError('L’adversaire est encore connecté.');
+        }
+      }
+      final DuelAction action = DuelAction(
+        type: DuelActionType.forfeit,
+        actorId: abandonedBy,
+        createdAt: DateTime.now(),
+        payload: <String, dynamic>{
+          'winnerId': winnerId,
+          'loserId': abandonedBy,
+          'abandoned': true,
+        },
+      );
+      final Map<String, dynamic> patch = <String, dynamic>{
+        'status': DuelGameStatus.finished.name,
+        'roundStatus': 'roundFinished',
+        'abandonedBy': abandonedBy,
+        'winnerId': winnerId,
+        'loserId': abandonedBy,
+        'exitBothPlayers': false,
+        'currentTurn': winnerId,
+        'lastAction': action.toMap(),
+        'lastActionBy': abandonedBy,
+        'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
+        'scores.$winnerId': FieldValue.increment(1),
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+        'rematchStatus': 'none',
+        ..._presenceOfflinePatch(abandonedBy),
+        'betFlowState': session.isCreditsMode
+            ? DuelBetFlowState.matchFinished.name
+            : DuelBetFlowState.partyExited.name,
+        'roomStatus': 'open',
+        'closeReason': null,
+        'resultProcessed': true,
+        'endedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+      };
+      if (session.isCreditsMode) {
+        final DuelStakeOffer offer = session.stakeOffer;
+        final int pot = session.activeStakeCredits;
+        final int winnerCredits = session.playerCredits[winnerId] ?? 0;
+        if (!session.payoutDone && offer.isAccepted && pot > 0) {
+          debugPrint('[Forfeit] payout amount=$pot winner=$winnerId');
+          final int loserCredits = session.playerCredits[abandonedBy] ?? 0;
+          final int winnerNextCredits = winnerCredits + pot;
+          final bool loserNoCredit = loserCredits <= 0;
+          patch.addAll(<String, dynamic>{
+            'playerCredits.$winnerId': winnerNextCredits,
+            'activeStakeCredits': 0,
+            'stakeOffer': DuelStakeOffer(
+              proposedBy: offer.proposedBy,
+              acceptedBy: offer.acceptedBy,
+              amount: offer.amount,
+              status: DuelStakeStatus.resolved,
+              createdAt: offer.createdAt,
+            ).toMap(),
+            'betFlowState': DuelBetFlowState.matchFinished.name,
+            'payoutDone': true,
+            'payoutWinnerId': winnerId,
+            'payoutAmount': offer.amount,
+            'payoutAt': FieldValue.serverTimestamp(),
+            if (loserNoCredit) 'roomStatus': 'closed',
+            if (loserNoCredit) 'closeReason': 'opponent_no_credit',
+            if (loserNoCredit) 'endedAt': FieldValue.serverTimestamp(),
+          });
+          tx.set(_userProfileRef(db, winnerId), <String, dynamic>{
+            'credits': winnerNextCredits,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } else if (session.payoutDone) {
+          debugPrint('[Forfeit] skipped: payout already done');
+        }
+      }
+      patch['updatedAt'] = FieldValue.serverTimestamp();
+      debugPrint(
+        voluntaryQuit
+            ? '[Forfeit] voluntary quit confirmed'
+            : '[Forfeit] detected absence confirmed after timeout',
+      );
+      tx.update(ref, patch);
+      tx.set(ref.collection('actions').doc(), action.toMap());
+    });
+  }
+
+  Future<void> startNewRound({
+    required DuelSession current,
+    required String requestedBy,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      final int nextRound = session.round + 1;
+      final String starter = session.players.contains(requestedBy)
+          ? requestedBy
+          : session.hostId;
+      final DuelAction action = DuelAction(
+        type: DuelActionType.resetRound,
+        actorId: requestedBy,
+        createdAt: DateTime.now(),
+        payload: <String, dynamic>{
+          'round': nextRound,
+          'startingPlayerId': starter,
+        },
+      );
+      tx.update(ref, <String, dynamic>{
+        'status': session.isCreditsMode ? DuelGameStatus.waiting.name : DuelGameStatus.inProgress.name,
+        'roundStatus': session.isCreditsMode ? 'roundFinished' : 'playing',
+        'round': nextRound,
+        'currentTurn': starter,
+        'lastAction': action.toMap(),
+        'lastActionBy': requestedBy,
+        'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
+        'activeStakeCredits': 0,
+        'stakeOffer': const DuelStakeOffer().toMap(),
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+        'rematchStatus': 'none',
+        'betFlowState': session.isCreditsMode
+            ? DuelBetFlowState.initialStakeProposed.name
+            : DuelBetFlowState.idle.name,
+        'invitedRefusalCount': 0,
+        'exitedBy': null,
+        'abandonedBy': null,
+        'lastInsufficientFundsPlayerId': null,
+        'payoutDone': false,
+        'payoutWinnerId': null,
+        'payoutAmount': 0,
+        'payoutAt': null,
+        'roomStatus': 'open',
+        'closeReason': null,
+        'resultProcessed': false,
+        'endedAt': null,
+        'roundStartedAt': FieldValue.serverTimestamp(),
+        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+        'revision': session.revision + 1,
+        if (!session.isCreditsMode)
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: session.players,
+            round: nextRound,
+          ),
+      });
+      tx.set(ref.collection('actions').doc(), action.toMap());
+    });
+  }
+
+  Future<void> requestRematch({
+    required String gameId,
+    required String requestedBy,
+  }) async {
+    debugPrint('[RematchParis] loser requested rematch: $requestedBy');
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      final String? winnerId = session.lastAction?.payload['winnerId'] as String?;
+      final String loserId = session.players.firstWhere(
+        (String id) => id != winnerId,
+        orElse: () => '',
+      );
+      final bool canOverrideExpiredRequest = session.isRematchRequestExpired();
+      if (session.status != DuelGameStatus.finished ||
+          winnerId == null ||
+          winnerId.isEmpty ||
+          !session.players.contains(requestedBy) ||
+          (session.isCreditsMode && requestedBy != loserId) ||
+          (session.hasPendingRematchRequest && !canOverrideExpiredRequest)) {
+        return;
+      }
+      tx.update(ref, <String, dynamic>{
+        'rematchRequestBy': requestedBy,
+        'rematchRequestedAt': FieldValue.serverTimestamp(),
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+        'status': DuelGameStatus.finished.name,
+        'roundStatus': 'rematchProposalPending',
+        'rematchStatus': 'requested',
+        'betFlowState': DuelBetFlowState.rematchPendingFromLoser.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+        if (session.isCreditsMode) ...<String, dynamic>{
+          'stakeOffer': const DuelStakeOffer().toMap(),
+          'activeStakeCredits': 0,
+        },
+      });
+      debugPrint('[RematchParis] rematch request saved');
+    });
+  }
+
+  Future<void> cancelRematchRequest({
+    required String gameId,
+    required String requestedBy,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.status != DuelGameStatus.finished ||
+          session.rematchRequestBy != requestedBy ||
+          session.rematchDecision != DuelRematchDecision.pending) {
+        return;
+      }
+      tx.update(ref, <String, dynamic>{
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+        'roundStatus': 'roundFinished',
+        'rematchStatus': 'none',
+        if (session.isCreditsMode) ...<String, dynamic>{
+          'betFlowState': DuelBetFlowState.matchFinished.name,
+          'stakeOffer': const DuelStakeOffer().toMap(),
+          'activeStakeCredits': 0,
+        },
+      });
+    });
+  }
+
+  Future<void> exitBetParty({
+    required String gameId,
+    required String playerId,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await ref.update(<String, dynamic>{
+      'betFlowState': DuelBetFlowState.partyExited.name,
+      'exitedBy': playerId,
+      'stakeOffer': const DuelStakeOffer().toMap(),
+      'activeStakeCredits': 0,
+    });
+  }
+
+  Future<void> respondToRematch({
+    required DuelSession current,
+    required String responderId,
+    required bool accept,
+  }) async {
+    if (accept) {
+      await acceptRematch(gameId: current.gameId, acceptedBy: responderId);
+      return;
+    }
+    await declineRematch(gameId: current.gameId, declinedBy: responderId);
+  }
+
+  Future<void> acceptRematch({
+    required String gameId,
+    required String acceptedBy,
+  }) async {
+    debugPrint('[RematchParis] rematch request accepted by opponent: $acceptedBy');
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.rematchRequestBy == null ||
+          session.rematchRequestBy == acceptedBy ||
+          session.status != DuelGameStatus.finished ||
+          session.rematchDecision != DuelRematchDecision.pending) {
+        return;
+      }
+      final String requesterId = session.rematchRequestBy!;
+      if (session.isCreditsMode) {
+        tx.update(ref, <String, dynamic>{
+          'status': DuelGameStatus.finished.name,
+          'roundStatus': 'roundFinished',
+          'rematchDecision': DuelRematchDecision.pending.name,
+          'rematchDecisionBy': acceptedBy,
+          'rematchStatus': 'accepted',
+          'betFlowState': DuelBetFlowState.rematchStakePendingWinnerResponse.name,
+          'activeStakeCredits': 0,
+          'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'revision': session.revision + 1,
+        });
+        return;
+      }
+      final int nextRound = session.round + 1;
+      final String starter = requesterId;
+      final DuelAction action = DuelAction(
+        type: DuelActionType.resetRound,
+        actorId: acceptedBy,
+        createdAt: DateTime.now(),
+        payload: <String, dynamic>{
+          'round': nextRound,
+          'startingPlayerId': starter,
+        },
+      );
+      tx.update(ref, <String, dynamic>{
+        'status': DuelGameStatus.inProgress.name,
+        'roundStatus': 'playing',
+        'round': nextRound,
+        'currentTurn': starter,
+        'lastAction': action.toMap(),
+        'lastActionBy': acceptedBy,
+        'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
+        'activeStakeCredits': session.isCreditsMode ? session.activeStakeCredits : 0,
+        'stakeOffer': session.isCreditsMode
+            ? session.stakeOffer.toMap()
+            : const DuelStakeOffer().toMap(),
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+        'rematchStatus': 'none',
+        'pendingDrawCount': 0,
+        'forcedDrawInitial': 0,
+        'requiredSuit': null,
+        'requiredColorAfterJoker': null,
+        'aceColorRequired': false,
+        'abandonedBy': null,
+        'exitBothPlayers': false,
+        'integrityError': null,
+        'repairLock': null,
+        'betFlowState': DuelBetFlowState.rematchAccepted.name,
+        'payoutDone': false,
+        'payoutWinnerId': null,
+        'payoutAmount': 0,
+        'payoutAt': null,
+        'roundStartedAt': FieldValue.serverTimestamp(),
+        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+        ..._boardInitPatch(
+          gameId: session.gameId,
+          players: session.players,
+          round: nextRound,
+        ),
+      });
+      tx.set(ref.collection('actions').doc(), action.toMap());
+      debugPrint('[RematchParis] starting new round=$nextRound');
+      debugPrint('[RematchParis] board reset applied');
+    });
+  }
+
+  Future<void> declineRematch({
+    required String gameId,
+    required String declinedBy,
+  }) async {
+    debugPrint('[RematchParis] decline requested by=$declinedBy game=$gameId');
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (session.rematchRequestBy == null ||
+          session.status != DuelGameStatus.finished ||
+          session.rematchDecision != DuelRematchDecision.pending) {
+        return;
+      }
+      tx.update(ref, <String, dynamic>{
+        'status': DuelGameStatus.finished.name,
+        'roundStatus': 'rematchDeclined',
+        'rematchDecision': DuelRematchDecision.declined.name,
+        'rematchDecisionBy': declinedBy,
+        'rematchStatus': 'refused',
+        'betFlowState': DuelBetFlowState.rematchRejected.name,
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+      });
+    });
+  }
+
+  Future<void> cleanupExpiredRematchRequest({
+    required String gameId,
+  }) async {
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        return;
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (!session.isRematchRequestExpired()) {
+        return;
+      }
+      tx.update(ref, <String, dynamic>{
+        'rematchRequestBy': null,
+        'rematchRequestedAt': null,
+        'rematchDecision': DuelRematchDecision.pending.name,
+        'rematchDecisionBy': null,
+        'rematchStatus': 'none',
+        'roundStatus': 'roundFinished',
+        'betFlowState': DuelBetFlowState.matchFinished.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+      });
+    });
+  }
+
+  Future<void> proposeStake({
+    required DuelSession current,
+    required String proposedBy,
+    required int amount,
+  }) async {
+    if (!current.isCreditsMode) {
+      return;
+    }
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      if (!session.isCreditsMode ||
+          session.players.length < 2 ||
+          session.status == DuelGameStatus.inProgress) {
+        return;
+      }
+      final bool isInitialStakeFlow =
+          session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
+      final bool isRematchStakeFlow =
+          session.status == DuelGameStatus.finished && session.rematchRequestBy != null;
+      if (!isInitialStakeFlow && !isRematchStakeFlow) {
+        return;
+      }
+      final String invitedId = session.players.firstWhere(
+        (String id) => id != session.hostId,
+        orElse: () => '',
+      );
+      if (isInitialStakeFlow &&
+          session.invitedRefusalCount < 2 &&
+          proposedBy != session.hostId) {
+        throw StateError('Seul le créateur peut proposer la première mise.');
+      }
+      if (isInitialStakeFlow &&
+          session.invitedRefusalCount >= 2 &&
+          proposedBy != session.hostId &&
+          proposedBy != invitedId) {
+        throw StateError('Proposition invalide.');
+      }
+      if (isRematchStakeFlow && proposedBy != session.rematchRequestBy) {
+        throw StateError('Seul le perdant peut proposer la mise de revanche.');
+      }
+      if (session.stakeOffer.isPending) {
+        throw StateError('Une proposition est déjà en attente.');
+      }
+      if (amount <= 0) {
+        throw StateError('Pari invalide.');
+      }
+      final int balance = session.playerCredits[proposedBy] ?? 0;
+      final int proposerCredits = await _readCreditsFromProfileTx(
+        tx: tx,
+        db: db,
+        playerId: proposedBy,
+      );
+      if (proposerCredits <= 0 || amount > proposerCredits || amount > balance) {
+        throw StateError('Solde insuffisant pour cette proposition.');
+      }
+      final String opponentId = session.players.firstWhere(
+        (String id) => id != proposedBy,
+        orElse: () => '',
+      );
+      if (opponentId.isNotEmpty) {
+        final int opponentBalance = session.playerCredits[opponentId] ?? 0;
+        final int opponentCredits = await _readCreditsFromProfileTx(
+          tx: tx,
+          db: db,
+          playerId: opponentId,
+        );
+        if (opponentCredits <= 0 || amount > opponentCredits || amount > opponentBalance) {
+          throw StateError('Mise refusée: crédit adverse insuffisant.');
+        }
+      }
+      tx.update(ref, <String, dynamic>{
+        'playerCredits.$proposedBy': proposerCredits,
+        if (opponentId.isNotEmpty)
+          'playerCredits.$opponentId': await _readCreditsFromProfileTx(
+            tx: tx,
+            db: db,
+            playerId: opponentId,
+          ),
+        'stakeOffer': DuelStakeOffer(
+          proposedBy: proposedBy,
+          amount: amount,
+          status: DuelStakeStatus.pending,
+          createdAt: DateTime.now(),
+        ).toMap(),
+        'betFlowState': isRematchStakeFlow
+            ? DuelBetFlowState.rematchStakePendingWinnerResponse.name
+            : (session.invitedRefusalCount >= 2 && proposedBy != session.hostId
+                ? DuelBetFlowState.counterStakePendingResponse.name
+                : DuelBetFlowState.initialStakePendingResponse.name),
+        'lastInsufficientFundsPlayerId': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+      });
+      if (isRematchStakeFlow) {
+        debugPrint('[RematchParis] loser proposed stake: $amount');
+      }
+    });
+  }
+
+  Future<void> respondToStake({
+    required DuelSession current,
+    required String responderId,
+    required bool accept,
+    bool insufficientFunds = false,
+  }) async {
+    if (!current.isCreditsMode) {
+      return;
+    }
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      final DuelStakeOffer offer = session.stakeOffer;
+      if (!offer.isPending ||
+          offer.proposedBy == null ||
+          offer.proposedBy == responderId ||
+          !session.players.contains(responderId)) {
+        return;
+      }
+      if (!accept) {
+        final String invitedId = session.players.firstWhere(
+          (String id) => id != session.hostId,
+          orElse: () => '',
+        );
+        final bool invitedDeclinedHostInitial = session.rematchRequestBy == null &&
+            offer.proposedBy == session.hostId &&
+            responderId == invitedId;
+        final int nextRefusalCount = invitedDeclinedHostInitial
+            ? session.invitedRefusalCount + 1
+            : session.invitedRefusalCount;
+        tx.update(ref, <String, dynamic>{
+          'activeStakeCredits': 0,
+          'stakeOffer': DuelStakeOffer(
+            proposedBy: offer.proposedBy,
+            acceptedBy: responderId,
+            amount: offer.amount,
+            status: insufficientFunds
+                ? DuelStakeStatus.insufficientFunds
+                : DuelStakeStatus.declined,
+            createdAt: offer.createdAt,
+          ).toMap(),
+          'invitedRefusalCount': nextRefusalCount,
+          'betFlowState': insufficientFunds
+              ? DuelBetFlowState.awaitingFundsValidation.name
+              : (nextRefusalCount >= 2
+                  ? DuelBetFlowState.invitedPlayerCanCounterPropose.name
+                  : DuelBetFlowState.initialStakeRejected.name),
+          'lastInsufficientFundsPlayerId': insufficientFunds ? responderId : null,
+          if (session.status == DuelGameStatus.finished) ...<String, dynamic>{
+            'rematchDecision': DuelRematchDecision.declined.name,
+            'rematchDecisionBy': responderId,
+            'betFlowState': DuelBetFlowState.rematchRejected.name,
+            'rematchRequestBy': null,
+            'rematchRequestedAt': null,
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+          'revision': session.revision + 1,
+        });
+        return;
+      }
+      final int responderCredits = session.playerCredits[responderId] ?? 0;
+      final int proposerCredits = session.playerCredits[offer.proposedBy!] ?? 0;
+      final int latestResponderCredits = await _readCreditsFromProfileTx(
+        tx: tx,
+        db: db,
+        playerId: responderId,
+      );
+      final int latestProposerCredits = await _readCreditsFromProfileTx(
+        tx: tx,
+        db: db,
+        playerId: offer.proposedBy!,
+      );
+      if (offer.amount > responderCredits ||
+          offer.amount > proposerCredits ||
+          offer.amount > latestResponderCredits ||
+          offer.amount > latestProposerCredits) {
+        tx.update(ref, <String, dynamic>{
+          'playerCredits.$responderId': latestResponderCredits,
+          'playerCredits.${offer.proposedBy!}': latestProposerCredits,
+          'activeStakeCredits': 0,
+          'stakeOffer': DuelStakeOffer(
+            proposedBy: offer.proposedBy,
+            acceptedBy: responderId,
+            amount: offer.amount,
+            status: DuelStakeStatus.insufficientFunds,
+            createdAt: offer.createdAt,
+          ).toMap(),
+          'betFlowState': DuelBetFlowState.awaitingFundsValidation.name,
+          'lastInsufficientFundsPlayerId': responderId,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'revision': session.revision + 1,
+        });
+        return;
+      }
+      final DuelStakeOffer acceptedOffer = DuelStakeOffer(
+        proposedBy: offer.proposedBy,
+        acceptedBy: responderId,
+        amount: offer.amount,
+        status: DuelStakeStatus.accepted,
+        createdAt: offer.createdAt ?? DateTime.now(),
+      );
+      if (session.status == DuelGameStatus.finished) {
+        if (session.rematchRequestBy == null || responderId == session.rematchRequestBy) {
+          throw StateError('Réponse de mise invalide pour la revanche.');
+        }
+        final int nextRound = session.round + 1;
+        final String starter = session.players.contains(session.rematchRequestBy)
+            ? session.rematchRequestBy!
+            : (offer.proposedBy ?? session.hostId);
+        final DuelAction action = DuelAction(
+          type: DuelActionType.resetRound,
+          actorId: responderId,
+          createdAt: DateTime.now(),
+          payload: <String, dynamic>{
+            'round': nextRound,
+            'startingPlayerId': starter,
+          },
+        );
+        tx.update(ref, <String, dynamic>{
+          'playerCredits.${offer.proposedBy!}': latestProposerCredits - offer.amount,
+          'playerCredits.$responderId': latestResponderCredits - offer.amount,
+          'activeStakeCredits': offer.amount * 2,
+          'status': DuelGameStatus.inProgress.name,
+          'roundStatus': 'playing',
+          'round': nextRound,
+          'currentTurn': starter,
+          'lastAction': action.toMap(),
+          'lastActionBy': responderId,
+          'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
+          'stakeOffer': acceptedOffer.toMap(),
+          'rematchRequestBy': null,
+          'rematchRequestedAt': null,
+          'rematchDecision': DuelRematchDecision.pending.name,
+          'rematchDecisionBy': null,
+          'rematchStatus': 'none',
+          'betFlowState': DuelBetFlowState.rematchAccepted.name,
+          'invitedRefusalCount': 0,
+          'exitedBy': null,
+          'lastInsufficientFundsPlayerId': null,
+          'payoutDone': false,
+          'payoutWinnerId': null,
+          'payoutAmount': 0,
+          'payoutAt': null,
+          'roomStatus': 'open',
+          'closeReason': null,
+          'resultProcessed': false,
+          'endedAt': null,
+          'roundStartedAt': FieldValue.serverTimestamp(),
+          'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'revision': session.revision + 1,
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: session.players,
+            round: nextRound,
+          ),
+        });
+        tx.set(_userProfileRef(db, offer.proposedBy!), <String, dynamic>{
+          'credits': latestProposerCredits - offer.amount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        tx.set(_userProfileRef(db, responderId), <String, dynamic>{
+          'credits': latestResponderCredits - offer.amount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        tx.set(ref.collection('actions').doc(), action.toMap());
+        debugPrint('[RematchParis] winner accepted stake');
+        debugPrint('[RematchParis] starting new round=$nextRound');
+        debugPrint('[RematchParis] board reset applied');
+        debugPrint('[RematchParis] status=inProgress');
+        return;
+      }
+      tx.update(ref, <String, dynamic>{
+        'playerCredits.${offer.proposedBy!}': latestProposerCredits - offer.amount,
+        'playerCredits.$responderId': latestResponderCredits - offer.amount,
+        'activeStakeCredits': offer.amount * 2,
+        'status': DuelGameStatus.inProgress.name,
+        'roundStatus': 'playing',
+        'stakeOffer': acceptedOffer.toMap(),
+        'betFlowState': DuelBetFlowState.readyToStart.name,
+        'lastInsufficientFundsPlayerId': null,
+        'payoutDone': false,
+        'payoutWinnerId': null,
+        'payoutAmount': 0,
+        'payoutAt': null,
+        'roomStatus': 'open',
+        'closeReason': null,
+        'resultProcessed': false,
+        'endedAt': null,
+        'roundStartedAt': FieldValue.serverTimestamp(),
+        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+        if (!session.deckInitialized)
+          ..._boardInitPatch(
+            gameId: session.gameId,
+            players: session.players,
+            round: session.round,
+          ),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'revision': session.revision + 1,
+      });
+      tx.set(_userProfileRef(db, offer.proposedBy!), <String, dynamic>{
+        'credits': latestProposerCredits - offer.amount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      tx.set(_userProfileRef(db, responderId), <String, dynamic>{
+        'credits': latestResponderCredits - offer.amount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> resolveStakeAfterRound({
+    required DuelSession current,
+    required String winnerId,
+  }) async {
+    if (!current.isCreditsMode) {
+      return;
+    }
+    final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> ref =
+        db.collection('duel_games').doc(current.gameId);
+    await db.runTransaction((Transaction tx) async {
+      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
+      if (!snap.exists) {
+        throw StateError('Partie introuvable');
+      }
+      final DuelSession session = DuelSession.fromDoc(snap);
+      final DuelStakeOffer offer = session.stakeOffer;
+      final int amount = session.activeStakeCredits;
+      if (session.payoutDone ||
+          !offer.isAccepted ||
+          amount <= 0 ||
+          !session.players.contains(winnerId)) {
+        return;
+      }
+      final String loserId = session.players.firstWhere(
+        (String id) => id != winnerId,
+        orElse: () => '',
+      );
+      if (loserId.isEmpty) {
+        return;
+      }
+      final int winnerBalance = session.playerCredits[winnerId] ?? 0;
+      final int loserBalance = session.playerCredits[loserId] ?? 0;
+      final int winnerNext = winnerBalance + amount;
+      final bool loserNoCredit = loserBalance <= 0;
+      tx.update(ref, <String, dynamic>{
+        'playerCredits.$winnerId': winnerNext,
+        'playerCredits.$loserId': loserBalance,
+        'activeStakeCredits': 0,
+        'stakeOffer': DuelStakeOffer(
+          proposedBy: offer.proposedBy,
+          acceptedBy: offer.acceptedBy,
+          amount: offer.amount,
+          status: DuelStakeStatus.resolved,
+          createdAt: offer.createdAt,
+        ).toMap(),
+        'betFlowState': DuelBetFlowState.matchFinished.name,
+        'payoutDone': true,
+        'payoutWinnerId': winnerId,
+        'payoutAmount': offer.amount,
+        'payoutAt': FieldValue.serverTimestamp(),
+        'resultProcessed': true,
+        'endedAt': FieldValue.serverTimestamp(),
+        if (loserNoCredit) 'roomStatus': 'closed',
+        if (loserNoCredit) 'closeReason': 'opponent_no_credit',
+      });
+      tx.set(_userProfileRef(db, winnerId), <String, dynamic>{
+        'credits': winnerNext,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
 }
 
 class DuelController extends ChangeNotifier {
@@ -705,35 +2008,21 @@ class DuelController extends ChangeNotifier {
   String? _lastGraceCheckpointKey;
   DateTime? _localPresenceGraceUntil;
   bool _connectionWarningLogged = false;
-  String? _pendingGameId;
   bool busy = false;
   String? error;
-  String? get activeGameId => session?.gameId ?? _pendingGameId;
 
   Future<void> create() async {
     busy = true;
     error = null;
     notifyListeners();
     try {
-      debugPrint('[CREATE_ROOM] start mode=${roomMode.name} uid=$localPlayerId');
       final String id = await service.createGame(
         playerId: localPlayerId,
         playerName: localPlayerName,
         mode: roomMode,
       );
-      _pendingGameId = id;
-      debugPrint('[CREATE_ROOM] success gameId=$id');
-      debugPrint('[DUEL_ROOM] createRoom success gameId=$id');
-      debugPrint('[DUEL_ROOM] listening room gameId=$id');
-      debugPrint('[DUEL_ROOM] room state waiting opponent');
       await attach(id);
-    } on PostgrestException catch (e, st) {
-      debugPrint('[DUEL_ROOM] create PostgrestException code=${e.code} message=${e.message}');
-      debugPrintStack(stackTrace: st);
-      error = _localizeUserError(e);
-    } catch (e, st) {
-      debugPrint('[DUEL_ROOM] create unexpected failure type=${e.runtimeType} error=$e');
-      debugPrintStack(stackTrace: st);
+    } catch (e) {
       error = _localizeUserError(e);
     }
     busy = false;
@@ -745,22 +2034,14 @@ class DuelController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      debugPrint('[DUEL_ROOM] join start mode=${roomMode.name} uid=$localPlayerId gameId=$gameId');
       await service.joinGame(
         gameId: gameId,
         playerId: localPlayerId,
         playerName: localPlayerName,
         expectedMode: roomMode,
       );
-      debugPrint('[DUEL_ROOM] join success gameId=$gameId');
       await attach(gameId);
-    } on PostgrestException catch (e, st) {
-      debugPrint('[DUEL_ROOM] join PostgrestException code=${e.code} message=${e.message}');
-      debugPrintStack(stackTrace: st);
-      error = _localizeUserError(e);
-    } catch (e, st) {
-      debugPrint('[DUEL_ROOM] join unexpected failure type=${e.runtimeType} error=$e');
-      debugPrintStack(stackTrace: st);
+    } catch (e) {
       error = _localizeUserError(e);
     }
     busy = false;
@@ -778,13 +2059,10 @@ class DuelController extends ChangeNotifier {
           previous.lastActionId == value.lastActionId &&
           previous.currentTurn == value.currentTurn &&
           mapEquals(previous.scores, value.scores) &&
-          mapEquals(previous.playerCredits, value.playerCredits) &&
-          previous.presenceGraceUntil == value.presenceGraceUntil &&
-          _presenceSnapshotKey(previous.presence) == _presenceSnapshotKey(value.presence)) {
+          mapEquals(previous.playerCredits, value.playerCredits)) {
         return;
       }
       session = value;
-      _pendingGameId = value.gameId;
       final String graceCheckpoint = '${value.gameId}_${value.round}_${value.status.name}';
       if (_lastGraceCheckpointKey != graceCheckpoint) {
         _lastGraceCheckpointKey = graceCheckpoint;
@@ -794,25 +2072,6 @@ class DuelController extends ChangeNotifier {
       _maybeRepairSessionIntegrity(value);
       notifyListeners();
     });
-  }
-
-
-  String _presenceSnapshotKey(Map<String, DuelPlayerPresence> presence) {
-    final List<String> ids = presence.keys.toList()..sort();
-    return ids
-        .map((String id) {
-          final DuelPlayerPresence state = presence[id] ?? const DuelPlayerPresence();
-          return [
-            id,
-            state.state,
-            state.connectionState,
-            state.currentScreen,
-            state.appState,
-            state.isOnline ? '1' : '0',
-            state.lastSeenAt?.millisecondsSinceEpoch ?? -1,
-          ].join('|');
-        })
-        .join('||');
   }
 
   bool _isActiveSession(DuelSession session) {
@@ -826,13 +2085,6 @@ class DuelController extends ChangeNotifier {
   }
 
   void _syncPresenceJobs(DuelSession current) {
-    if (BackendFlags.useSupabaseGameRead) {
-      _presenceHeartbeatTimer?.cancel();
-      _presenceWatchdogTimer?.cancel();
-      _presenceHeartbeatTimer = null;
-      _presenceWatchdogTimer = null;
-      return;
-    }
     if (!_isActiveSession(current)) {
       _presenceHeartbeatTimer?.cancel();
       _presenceHeartbeatTimer = null;
@@ -865,9 +2117,6 @@ class DuelController extends ChangeNotifier {
   }
 
   Future<void> _reportOfflineOpponentIfNeeded() async {
-    if (BackendFlags.useSupabaseGameRead) {
-      return;
-    }
     if (_forfeitReportInFlight) {
       return;
     }
@@ -965,19 +2214,6 @@ class DuelController extends ChangeNotifier {
                 orElse: () => localPlayerId,
               ));
 
-    final Map<String, dynamic> withPresence = <String, dynamic>{
-      ...sessionPatch,
-      if (!(BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite))
-        ...service._presenceStatePatch(
-          playerId: localPlayerId,
-          state: 'online',
-          currentScreen: 'game',
-          appState: 'active',
-          connectionState: 'online',
-          touchLastAction: true,
-        ),
-    };
-
     await service.pushAction(
       gameId: current.gameId,
       action: DuelAction(
@@ -988,13 +2224,16 @@ class DuelController extends ChangeNotifier {
       ),
       nextTurn: nextTurn,
       status: statusOverride ?? DuelGameStatus.inProgress,
-      sessionPatch: withPresence,
+      sessionPatch: sessionPatch,
     );
   }
 
   Future<void> startNewRound() async {
-    debugPrint('[SUPABASE_ONLY] startNewRound not implemented yet');
-    return;
+    final DuelSession? current = session;
+    if (current == null) {
+      return;
+    }
+    await service.startNewRound(current: current, requestedBy: localPlayerId);
   }
 
   Future<void> requestRematch() async {
@@ -1145,19 +2384,6 @@ class DuelController extends ChangeNotifier {
   }
 }
 
-
-class SimplePresenceService {
-  SimplePresenceService();
-
-  Future<void> markOnline(String uid) async {
-    debugPrint('[PRESENCE] skipped service backend presence write (Supabase-only mode) uid=$uid');
-  }
-
-  Future<void> markOffline(String uid) async {
-    debugPrint('[PRESENCE] skipped service backend presence write (Supabase-only mode) uid=$uid');
-  }
-}
-
 class DuelLobbyPage extends StatefulWidget {
   const DuelLobbyPage({super.key, this.mode = DuelRoomMode.duel});
 
@@ -1185,17 +2411,13 @@ class DuelPlayerIdentity {
 
 class _DuelLobbyPageState extends State<DuelLobbyPage> {
   DuelController? _controller;
-  bool _isCreatingRoom = false;
   final AppSfxService _sfx = AppSfxService.instance;
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
-  final SimplePresenceService _presenceService = SimplePresenceService();
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   bool _openedDuel = false;
   bool _googleBusy = false;
-  bool _isHydratingAccount = false;
-  bool _isUpsertingProfile = false;
   String? _profileError;
   late String _localPlayerId;
   String? _authenticatedPlayerId;
@@ -1238,7 +2460,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   String? _validatePseudo() {
     if (_authenticatedPlayerId == null) {
-      return widget.mode == DuelRoomMode.duel_pari
+      return widget.mode == DuelRoomMode.credits
           ? 'Connectez-vous avec Google pour jouer en mode pari.'
           : 'Connectez-vous avec Google pour jouer en duel simple.';
     }
@@ -1253,88 +2475,39 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _hydrateExistingAuthSession() async {
-    if (_isHydratingAccount || _isUpsertingProfile) {
-      debugPrint('[DUEL_ACCOUNT] hydrate skipped (already running)');
+    final User? user = _authService.currentUser;
+    if (user == null) {
+      debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
       return;
     }
-    _isHydratingAccount = true;
-    try {
-      final User? user = _authService.currentUser;
-      if (user == null) {
-        debugPrint('[DUEL_AUTH] user connecté ou invité: invité');
-        return;
-      }
-      if (user.isAnonymous) {
-        _localPlayerId = user.id;
-        debugPrint('[DUEL_AUTH] user connecté ou invité: invité anonyme');
-        return;
-      }
-      unawaited(_presenceService.markOnline(user.id).catchError((Object e) {
-        debugPrint('[PRESENCE] ignored error=$e');
-      }));
-      await _upsertProfileFromGoogle(user);
-    } finally {
-      _isHydratingAccount = false;
+    if (user.isAnonymous) {
+      _localPlayerId = user.uid;
+      debugPrint('[DUEL_AUTH] user connecté ou invité: invité anonyme');
+      return;
     }
+    await _upsertProfileFromGoogle(user);
   }
 
-  Future<void> _ensureBackendIdentity() async {
+  Future<void> _ensureFirestoreIdentity() async {
     final User? user = _authService.currentUser;
     if (user == null || user.isAnonymous) {
       throw StateError('GOOGLE_AUTH_REQUIRED');
     }
-    _authenticatedPlayerId ??= user.id;
+    _authenticatedPlayerId ??= user.uid;
   }
 
-  Future<void> _upsertProfileFromGoogle(User user, {bool force = false}) async {
-    if (_isUpsertingProfile) {
-      debugPrint('[DUEL_ACCOUNT] upsert skipped (already running) uid=${user.id}');
+  Future<void> _upsertProfileFromGoogle(User user) async {
+    final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
+    if (!mounted) {
       return;
     }
-    _isUpsertingProfile = true;
-    if (mounted) {
-      setState(() {
-        _profileError = null;
-      });
-    }
-    try {
-      final PlayerProfile profile = await _profileService
-                  .createOrUpdateFromGoogleUser(user, force: force)
-          .timeout(const Duration(seconds: 8));
-      if (!mounted) {
-        return;
+    setState(() {
+      _authenticatedPlayerId = user.uid;
+      _playerProfile = profile;
+      if (_nameController.text.trim().isEmpty) {
+        _nameController.text = profile.publicDisplayName;
       }
-      setState(() {
-        _authenticatedPlayerId = user.id;
-        _playerProfile = profile;
-        if (_nameController.text.trim().isEmpty) {
-          _nameController.text = profile.publicDisplayName;
-        }
-      });
-      debugPrint('[DUEL_ACCOUNT] userProfile loaded uid=${user.id} pseudo=${profile.publicDisplayName}');
-    } on TimeoutException {
-      if (mounted) {
-        setState(() {
-          _profileError = 'Le chargement du compte a expiré (8s). Réessayez.';
-        });
-      }
-    } on PostgrestException catch (e) {
-      if (mounted) {
-        setState(() {
-          _profileError = e.code == 'resource-exhausted'
-              ? 'Connexion service backend saturée. Réessaie dans quelques instants.'
-              : 'Erreur service backend: ${e.code}';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _profileError = 'Impossible de charger le compte: $e';
-        });
-      }
-    } finally {
-      _isUpsertingProfile = false;
-    }
+    });
   }
 
   bool get _shouldAskPseudo => false;
@@ -1352,52 +2525,52 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
     final String localProfilePseudo = _playerProfile?.displayName.trim() ?? '';
     if (_isUsablePseudo(localProfilePseudo)) {
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.id}');
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
       debugPrint('[DUEL_AUTH] pseudo utilisé: $localProfilePseudo');
       debugPrint('[DUEL_AUTH] source du pseudo: local_state');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
       return DuelPlayerIdentity(
-        playerId: user.id,
+        playerId: user.uid,
         displayName: localProfilePseudo,
         isGuest: false,
         pseudoSource: 'local_state',
-        photoUrl: supabaseUserPhotoUrl(user),
+        photoUrl: user.photoURL,
       );
     }
 
-    final PlayerProfile? profile = await _profileService.getProfile(user.id);
-    final String backendPseudo = profile?.displayName.trim() ?? '';
-    if (_isUsablePseudo(backendPseudo)) {
+    final PlayerProfile? profile = await _profileService.getProfile(user.uid);
+    final String firestorePseudo = profile?.displayName.trim() ?? '';
+    if (_isUsablePseudo(firestorePseudo)) {
       if (mounted) {
         setState(() {
           _playerProfile = profile;
         });
       }
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.id}');
-      debugPrint('[DUEL_AUTH] pseudo utilisé: $backendPseudo');
-      debugPrint('[DUEL_AUTH] source du pseudo: backend');
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $firestorePseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: firestore');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
       return DuelPlayerIdentity(
-        playerId: user.id,
-        displayName: backendPseudo,
+        playerId: user.uid,
+        displayName: firestorePseudo,
         isGuest: false,
-        pseudoSource: 'backend',
-        photoUrl: supabaseUserPhotoUrl(user),
+        pseudoSource: 'firestore',
+        photoUrl: user.photoURL,
       );
     }
 
-    final String authDisplayName = ((user.userMetadata?['full_name'] as String?) ?? '').trim();
+    final String authDisplayName = user.displayName?.trim() ?? '';
     if (_isUsablePseudo(authDisplayName)) {
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.id}');
+      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
       debugPrint('[DUEL_AUTH] pseudo utilisé: $authDisplayName');
       debugPrint('[DUEL_AUTH] source du pseudo: auth_state');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
       return DuelPlayerIdentity(
-        playerId: user.id,
+        playerId: user.uid,
         displayName: authDisplayName,
         isGuest: false,
         pseudoSource: 'auth_state',
-        photoUrl: supabaseUserPhotoUrl(user),
+        photoUrl: user.photoURL,
       );
     }
 
@@ -1405,7 +2578,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _resolveIdentityIfNeeded() async {
-    if (_identityResolved || widget.mode == DuelRoomMode.duel_pari) {
+    if (_identityResolved || widget.mode == DuelRoomMode.credits) {
       return;
     }
     try {
@@ -1436,7 +2609,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
     }
   }
-
 
   Future<void> _continueWithGoogle() async {
     unawaited(_sfx.playClick());
@@ -1471,12 +2643,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           case AuthFailureReason.providerNotEnabled:
             _profileError =
                 result.errorMessage ??
-                'Google Sign-In doit être activé dans service backend Authentication.';
+                'Google Sign-In doit être activé dans Firebase Authentication.';
             break;
           case AuthFailureReason.invalidConfiguration:
             _profileError =
                 result.errorMessage ??
-                'Configuration service backend/Google invalide.';
+                'Configuration Firebase/Google invalide.';
             break;
           case AuthFailureReason.unavailable:
           case AuthFailureReason.unknown:
@@ -1487,23 +2659,18 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
-    try {
-      await _upsertProfileFromGoogle(result.user!, force: true);
-      unawaited(_presenceService.markOnline(result.user!.id).catchError((Object e) {
-        debugPrint('[PRESENCE] ignored error=$e');
-      }));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _googleBusy = false;
-        });
-      }
+    await _upsertProfileFromGoogle(result.user!);
+    if (!mounted) {
+      return;
     }
+    setState(() {
+      _googleBusy = false;
+    });
   }
 
   Future<void> _ensureLobbyAccess() async {
     if (!mounted || _authService.currentUser != null) {
-      if (widget.mode == DuelRoomMode.duel_pari && _authenticatedPlayerId != null) {
+      if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId != null) {
         final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
         if (!mounted) {
           return;
@@ -1525,7 +2692,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
               backgroundColor: Colors.transparent,
               child: GinoDecisionPopup(
                 title: 'Connexion',
-                message: widget.mode == DuelRoomMode.duel_pari
+                message: widget.mode == DuelRoomMode.credits
                     ? 'Connecte-toi avec Google pour jouer en mode pari.'
                     : 'Connecte-toi avec Google pour jouer en duel simple.',
                 primaryLabel: 'Google',
@@ -1552,7 +2719,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       Navigator.of(context).pop();
       return;
     }
-    if (widget.mode == DuelRoomMode.duel_pari) {
+    if (widget.mode == DuelRoomMode.credits) {
       final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
       if (!mounted) {
         return;
@@ -1567,13 +2734,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<bool> _hasPositiveCredit(String uid) async {
-    final Map<String, dynamic> profile = await Supabase.instance.client
-        .schema('public')
-        .from('profiles')
-        .select('credits')
-        .eq('id', uid)
-        .single();
-    final int credits = (profile['credits'] as num?)?.toInt() ?? 0;
+    final DocumentSnapshot<Map<String, dynamic>> snap =
+        await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
+    final int credits = (snap.data()?['credits'] as num?)?.toInt() ?? 0;
     return credits > 0;
   }
 
@@ -1644,7 +2807,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       if (profileName.isNotEmpty) {
         return profileName;
       }
-      final String authDisplayName = (( _authService.currentUser?.userMetadata?['full_name'] as String?) ?? '').trim();
+      final String authDisplayName = _authService.currentUser?.displayName?.trim() ?? '';
       if (authDisplayName.isNotEmpty) {
         return authDisplayName;
       }
@@ -1654,132 +2817,89 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _createGame() async {
-    debugPrint('[CREATE_ROOM_ENTRY] TRUE UI ENTRY REACHED');
-    if (_isCreatingRoom) {
-      debugPrint('[DUEL_ROOM] createRoom ignored: already creating');
+    unawaited(_sfx.playClick());
+    try {
+      await _ensureFirestoreIdentity();
+    } on StateError catch (error) {
+      if (error.message == 'GOOGLE_AUTH_REQUIRED') {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Connectez-vous avec Google pour continuer.';
+        });
+        return;
+      }
+      rethrow;
+    } catch (e) {
+      unawaited(_sfx.playError());
+      setState(() {
+        _profileError = 'Impossible de préparer la connexion Firebase: $e';
+      });
       return;
     }
-    setState(() {
-      _isCreatingRoom = true;
-    });
-    unawaited(_sfx.playClick());
-    debugPrint('[CREATE_ROOM] start');
-    try {
-      final User? user = _authService.currentUser;
-      if (user == null || user.isAnonymous) {
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = 'Connecte-toi avec Google pour créer une partie.';
-        });
-        return;
-      }
-      final String uid = user.id;
-      if (uid.isEmpty) {
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = 'Connecte-toi avec Google pour créer une partie.';
-        });
-        return;
-      }
-      debugPrint('[CREATE_ROOM] uid=$uid');
-      _authenticatedPlayerId = uid;
-      await _resolveIdentityIfNeeded();
-      final String? pseudoError = _validatePseudo();
-      if (pseudoError != null) {
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = pseudoError;
-        });
-        return;
-      }
-      final String pseudo = _resolvePlayerName()!;
-      if (widget.mode == DuelRoomMode.duel_pari) {
-        final String? uid = _authenticatedPlayerId;
-        if (uid == null || !(await _hasPositiveCredit(uid))) {
-          await _showInsufficientCreditDialog();
-          return;
-        }
-      }
-      if (_shouldAskPseudo) {
-        final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
-        await _profileService.updateDisplayName(uid: uid, displayName: cleanedPseudo);
-        _duelIdentity = DuelPlayerIdentity(
-          playerId: uid,
-          displayName: cleanedPseudo,
-          isGuest: false,
-          pseudoSource: 'nouvel enregistrement',
-          photoUrl: supabaseUserPhotoUrl(user),
-        );
-        _authenticatedPlayerId = uid;
-        _playerProfile = await _profileService.getProfile(uid);
-        debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
-        debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
-        debugPrint('[DUEL_AUTH] accès Duel autorisé');
-      }
+    await _resolveIdentityIfNeeded();
+    final String? pseudoError = _validatePseudo();
+    if (pseudoError != null) {
+      unawaited(_sfx.playError());
       setState(() {
-        _profileError = null;
+        _profileError = pseudoError;
       });
-      debugPrint('[DUEL_ROOM] createRoom called uid=${_authenticatedPlayerId ?? 'none'} mode=${widget.mode.name}');
-      final DuelController controller = (_controller != null &&
-              _controller!.localPlayerName == pseudo)
-          ? _controller!
-          : _buildController(pseudo);
-      await controller.create();
-      if (controller.error != null) {
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = controller.error ??
-              'Connexion au serveur impossible. Vérifie ta connexion puis réessaie.';
-        });
-        debugPrint('[DUEL_ROOM] createRoom failed reason=${controller.error}');
+      return;
+    }
+    final String pseudo = _resolvePlayerName()!;
+    if (widget.mode == DuelRoomMode.credits) {
+      final String? uid = _authenticatedPlayerId;
+      if (uid == null || !(await _hasPositiveCredit(uid))) {
+        await _showInsufficientCreditDialog();
         return;
-      }
-      final String? createdGameId = controller.activeGameId;
-      if (createdGameId == null || createdGameId.isEmpty) {
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = 'Code de partie introuvable après création.';
-        });
-        debugPrint('[DUEL_ROOM] createRoom failed reason=game_id_missing_after_success');
-        return;
-      }
-      debugPrint('[CREATE_ROOM] supabase create success');
-      debugPrint('[DUEL_ROOM] createRoom success gameId=$createdGameId');
-      if (controller.session != null) {
-        debugPrint('[DUEL_ROOM] room created id=${controller.session!.gameId} roomStatus=${controller.session!.roomStatus} betStatus=${controller.session!.betFlowState.name}');
-      } else {
-        debugPrint('[DUEL_ROOM] room created id=$createdGameId roomStatus=waiting betStatus=pending_snapshot');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCreatingRoom = false;
-        });
-      } else {
-        _isCreatingRoom = false;
       }
     }
+    final User? user = _authService.currentUser;
+    if (_shouldAskPseudo && user != null && !user.isAnonymous) {
+      final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
+      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      _duelIdentity = DuelPlayerIdentity(
+        playerId: user.uid,
+        displayName: cleanedPseudo,
+        isGuest: false,
+        pseudoSource: 'nouvel enregistrement',
+        photoUrl: user.photoURL,
+      );
+      _authenticatedPlayerId = user.uid;
+      _playerProfile = await _profileService.getProfile(user.uid);
+      debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
+      debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
+      debugPrint('[DUEL_AUTH] accès Duel autorisé');
+    }
+    setState(() {
+      _profileError = null;
+    });
+    final DuelController controller = (_controller != null &&
+            _controller!.localPlayerName == pseudo)
+        ? _controller!
+        : _buildController(pseudo);
+    await controller.create();
   }
 
   Future<void> _joinGame() async {
     unawaited(_sfx.playClick());
-    final User? user = _authService.currentUser;
-    if (user == null || user.isAnonymous) {
+    try {
+      await _ensureFirestoreIdentity();
+    } on StateError catch (error) {
+      if (error.message == 'GOOGLE_AUTH_REQUIRED') {
+        unawaited(_sfx.playError());
+        setState(() {
+          _profileError = 'Connectez-vous avec Google pour continuer.';
+        });
+        return;
+      }
+      rethrow;
+    } catch (e) {
       unawaited(_sfx.playError());
       setState(() {
-        _profileError = 'Connecte-toi avec Google pour créer une partie.';
+        _profileError = 'Impossible de préparer la connexion Firebase: $e';
       });
       return;
     }
-    final String uid = user.id;
-    if (uid.isEmpty) {
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Connecte-toi avec Google pour créer une partie.';
-      });
-      return;
-    }
-    _authenticatedPlayerId = uid;
     await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
@@ -1798,25 +2918,26 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     final String pseudo = _resolvePlayerName()!;
-    if (widget.mode == DuelRoomMode.duel_pari) {
+    if (widget.mode == DuelRoomMode.credits) {
       final String? uid = _authenticatedPlayerId;
       if (uid == null || !(await _hasPositiveCredit(uid))) {
         await _showInsufficientCreditDialog();
         return;
       }
     }
-    if (_shouldAskPseudo) {
+    final User? user = _authService.currentUser;
+    if (_shouldAskPseudo && user != null && !user.isAnonymous) {
       final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
-      await _profileService.updateDisplayName(uid: uid, displayName: cleanedPseudo);
+      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
       _duelIdentity = DuelPlayerIdentity(
-        playerId: uid,
+        playerId: user.uid,
         displayName: cleanedPseudo,
         isGuest: false,
         pseudoSource: 'nouvel enregistrement',
-        photoUrl: supabaseUserPhotoUrl(user),
+        photoUrl: user.photoURL,
       );
-      _authenticatedPlayerId = uid;
-      _playerProfile = await _profileService.getProfile(uid);
+      _authenticatedPlayerId = user.uid;
+      _playerProfile = await _profileService.getProfile(user.uid);
       debugPrint('[DUEL_AUTH] pseudo utilisé: $cleanedPseudo');
       debugPrint('[DUEL_AUTH] source du pseudo: nouvel enregistrement');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
@@ -1825,7 +2946,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     setState(() {
       _profileError = null;
     });
-    debugPrint('[DUEL_ROOM] joinRoom called uid=${_authenticatedPlayerId ?? 'none'} code=$code');
     final DuelController controller = (_controller != null &&
             _controller!.localPlayerName == pseudo)
         ? _controller!
@@ -1837,8 +2957,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   @override
   Widget build(BuildContext context) {
     final DuelSession? session = _controller?.session;
-    final bool busy = (_controller?.busy ?? false) || _isCreatingRoom;
-    final bool creditsMode = widget.mode == DuelRoomMode.duel_pari;
+    final bool busy = _controller?.busy ?? false;
+    final bool creditsMode = widget.mode == DuelRoomMode.credits;
     final String title = creditsMode ? 'Mode pari' : 'Duel simple';
     return Scaffold(
       endDrawer: PlayerSidePanel(
@@ -2163,7 +3283,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   ];
 
   DuelController get _controller => widget.controller;
-  bool get _isCreditsMode => widget.mode == DuelRoomMode.duel_pari;
+  bool get _isCreditsMode => widget.mode == DuelRoomMode.credits;
   bool _isInitialStakePhase(DuelSession session) =>
       session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
   bool _isRematchStakePhase(DuelSession session) =>
@@ -2173,9 +3293,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return false;
     }
     if (_isInitialStakePhase(session)) {
-      if (session.roomStatus == 'betting' && _controller.localPlayerId == session.hostId) {
-        return true;
-      }
       if (session.invitedRefusalCount >= 2) {
         return true;
       }
@@ -2258,15 +3375,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _lifecycleExitTriggered = false;
       _controller.startPresenceGracePeriod();
       final DuelSession? current = _controller.session;
-      if (current != null &&
-          !(BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite)) {
-        unawaited(_controller.service.markPlayerPresenceState(
+      if (current != null) {
+        unawaited(_controller.service.updatePresenceHeartbeat(
           gameId: current.gameId,
           playerId: _controller.localPlayerId,
-          state: 'online',
-          currentScreen: 'game',
-          appState: 'active',
-          connectionState: 'online',
         ));
       }
       return;
@@ -2293,17 +3405,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     if (session == null) {
       return;
     }
-    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
-      return;
-    }
     try {
       await _controller.service.markPlayerPresenceState(
         gameId: session.gameId,
         playerId: _controller.localPlayerId,
-        state: terminalSignal ? 'offline' : 'away',
-        currentScreen: 'background',
-        appState: terminalSignal ? 'closed' : 'background',
-        connectionState: terminalSignal ? 'offline' : 'away',
+        state: terminalSignal ? 'maybeOffline' : 'away',
       );
     } catch (_) {
       // Heartbeat watchdog will determine actual abandonment after timeout.
@@ -2323,13 +3429,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _lastSessionUiKey = sessionUiKey;
 
     final DuelBoardState snapshotBoard = DuelBoardState.fromSession(session);
-    final String opponentIdForLog = session.players.firstWhere((String id) => id != _controller.localPlayerId, orElse: () => '');
-    debugPrint('[SESSION_MAP] localHand=${snapshotBoard.handOf(_controller.localPlayerId).length} opponentHand=${opponentIdForLog.isEmpty ? 0 : snapshotBoard.handOf(opponentIdForLog).length} discard=${snapshotBoard.discardPile.length} currentTurn=${session.currentTurn}');
     if (_board != snapshotBoard) {
       setState(() {
         _board = snapshotBoard;
       });
-      debugPrint('[UI_REBUILD] localHand=${snapshotBoard.handOf(_controller.localPlayerId).length} discard=${snapshotBoard.discardPile.length}');
     }
     if (session.status == DuelGameStatus.inProgress &&
         (session.betFlowState == DuelBetFlowState.readyToStart ||
@@ -2338,33 +3441,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _resetLocalRoundUiState();
     }
     _updateRematchUiState(session);
-    final String opponentId = session.players.firstWhere(
-      (String id) => id != _controller.localPlayerId,
-      orElse: () => '',
-    );
-    final DuelPlayerPresence opponentPresence = opponentId.isEmpty
-        ? const DuelPlayerPresence()
-        : (session.presence[opponentId] ?? const DuelPlayerPresence());
-    final DateTime nowUtc = DateTime.now().toUtc();
-    final DateTime? opponentLastSeen = opponentPresence.lastSeenAt?.toUtc();
-    final int lastSeenDiffSeconds =
-        opponentLastSeen == null ? -1 : nowUtc.difference(opponentLastSeen).inSeconds;
-    final DuelPresenceAvailability availability =
-        _opponentAvailability(opponentPresence, nowUtc);
-    final bool shouldShowBetProposal =
-        _isCreditsMode && _canSetStake(session) && !session.stakeOffer.isPending;
-    final bool shouldShowWaitingBet = _isCreditsMode &&
-        session.players.length == 2 &&
-        session.status == DuelGameStatus.waiting &&
-        !shouldShowBetProposal;
-    final bool shouldBlockGame = _isCreditsMode && _requiresStake(session);
-    debugPrint(
-      '[BetFlowDebug] roomStatus=${session.roomStatus} betStatus=${session.betFlowState.name} '
-      'creatorId=${session.hostId} currentUserId=${_controller.localPlayerId} opponentId=$opponentId '
-      'opponentPresence=${availability.name}/${opponentPresence.state}/${opponentPresence.currentScreen} '
-      'lastSeenDiff=${lastSeenDiffSeconds}s shouldShowBetProposal=$shouldShowBetProposal '
-      'shouldShowWaitingBet=$shouldShowWaitingBet shouldBlockGame=$shouldBlockGame',
-    );
     debugPrint(
       '[RematchParis] snapshot game=${session.gameId} status=${session.status.name} '
       'bet=${session.betFlowState.name} requestBy=${session.rematchRequestBy} '
@@ -2742,16 +3818,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       }
       return;
     }
-    debugPrint('[ACTION_CLICK] type=playCard card=${card.id}');
-    final DuelAction action = DuelAction(
-      type: DuelActionType.playCard,
-      actorId: _controller.localPlayerId,
-      createdAt: DateTime.now(),
-      payload: move.payload,
-    );
-    final DuelBoardState nextBoard = board.applyAction(action);
-    final Map<String, dynamic> boardPatch = nextBoard.toBackendFields();
-    debugPrint('[ACTION_PUSH] game_state updated handCount=${nextBoard.handOf(_controller.localPlayerId).length}');
     unawaited(_sfx.playCard());
     await _controller.sendAction(
       DuelActionType.playCard,
@@ -2760,10 +3826,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       statusOverride: move.payload.containsKey('winnerId')
           ? DuelGameStatus.finished
           : DuelGameStatus.inProgress,
-      sessionPatch: <String, dynamic>{
-        ...boardPatch,
-        if (action.payload.containsKey('winnerId')) 'scores.${_controller.localPlayerId}': 1,
-      },
+      sessionPatch: move.payload.containsKey('winnerId')
+          ? <String, dynamic>{
+              'scores.${_controller.localPlayerId}': FieldValue.increment(1),
+            }
+          : const <String, dynamic>{},
     );
     final String? winnerId = move.payload['winnerId'] as String?;
     if (_isCreditsMode && winnerId != null && winnerId.isNotEmpty) {
@@ -2938,24 +4005,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     if (!move.accepted) {
       return;
     }
-    debugPrint('[ACTION_CLICK] type=drawCard');
-    final DuelAction action = DuelAction(
-      type: DuelActionType.drawCard,
-      actorId: _controller.localPlayerId,
-      createdAt: DateTime.now(),
-      payload: move.payload,
-    );
-    final DuelBoardState nextBoard = board.applyAction(action);
-    final Map<String, dynamic> boardPatch = nextBoard.toBackendFields();
-    debugPrint('[ACTION_PUSH] game_state updated handCount=${nextBoard.handOf(_controller.localPlayerId).length}');
     setState(() => _isDrawingActionBusy = true);
     try {
       unawaited(_sfx.playDraw());
       await _controller.sendAction(
         DuelActionType.drawCard,
-        payload: action.payload,
+        payload: move.payload,
         nextTurnOverride: move.nextTurn,
-        sessionPatch: boardPatch,
       );
     } finally {
       if (mounted) {
@@ -3463,7 +4519,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   }
 
   void _maybePromptMandatoryStake(DuelSession session) {
-    final bool shouldPromptInInitial = session.betFlowState == DuelBetFlowState.initialStakeProposed &&
+    final bool shouldPromptInInitial = session.status == DuelGameStatus.waiting &&
         session.activeStakeCredits <= 0 &&
         !session.stakeOffer.isPending &&
         ((session.invitedRefusalCount < 2 && _controller.localPlayerId == session.hostId) ||
@@ -4288,44 +5344,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     }
   }
 
-
-  String _opponentConnectionLabel(DuelSession session, String opponentId) {
-    if (opponentId.isEmpty || session.players.length < 2) {
-      return "En attente d'un adversaire";
-    }
-    final DuelPlayerPresence presence =
-        session.presence[opponentId] ?? const DuelPlayerPresence();
-    final DateTime now = DateTime.now().toUtc();
-    final DateTime? lastSeen = presence.lastSeenAt?.toUtc();
-    final Duration elapsed = lastSeen == null ? _abandonTimeout : now.difference(lastSeen);
-    final DuelPresenceAvailability availability = _opponentAvailability(presence, now);
-
-    if (availability == DuelPresenceAvailability.offline) {
-      return 'Adversaire inactif';
-    }
-    if (availability == DuelPresenceAvailability.unstable) {
-      return 'Connexion instable';
-    }
-    if (presence.currentScreen != 'game' && presence.isOnline) {
-      return 'Adversaire connecté (hors écran jeu)';
-    }
-    if (elapsed >= const Duration(seconds: 10) || presence.connectionState == 'slow') {
-      return 'Connexion faible';
-    }
-    return 'Adversaire dans la partie';
-  }
-
-  DuelPresenceAvailability _opponentAvailability(DuelPlayerPresence presence, DateTime nowUtc) {
-    final DateTime? lastSeen = presence.lastSeenAt?.toUtc();
-    final Duration elapsed = lastSeen == null ? _abandonTimeout : nowUtc.difference(lastSeen);
-    if (presence.isOffline || elapsed >= _presenceUnstableThreshold) {
-      return DuelPresenceAvailability.offline;
-    }
-    if (elapsed >= _presenceAvailableThreshold) {
-      return DuelPresenceAvailability.unstable;
-    }
-    return DuelPresenceAvailability.available;
-  }
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -4506,7 +5524,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         losses: myScore,
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
                         avatarCard: opponentAvatarCard,
-                        connectionLabel: _opponentConnectionLabel(session, opponentId),
                         compact: isCompactDuelLayout,
                       ),
                       SizedBox(height: sectionGap),
@@ -5266,7 +6283,7 @@ class DuelBoardState {
     );
   }
 
-  Map<String, dynamic> toBackendFields() {
+  Map<String, dynamic> toFirestoreFields() {
     final String p1 = players.isNotEmpty ? players.first : '';
     final String p2 = players.length > 1 ? players[1] : '';
     final List<String> p1Hand = p1.isEmpty
@@ -5450,8 +6467,6 @@ class DuelBoardState {
     );
   }
 
-
-  DuelBoardState applyAction(DuelAction action) => _apply(action);
   DuelBoardState _apply(DuelAction action) {
     final Map<String, List<DuelCard>> newHands = <String, List<DuelCard>>{
       for (final MapEntry<String, List<DuelCard>> e in hands.entries)
@@ -5726,7 +6741,7 @@ DuelGameStateValidationResult validateGameState(DuelSession session) {
         'type': 'duplicate_card',
         'cardId': entry.key,
         'locations': entry.value,
-        'detectedAt': DateTime.now().toUtc().toIso8601String(),
+        'detectedAt': FieldValue.serverTimestamp(),
       };
       errors.add('Carte dupliquée ${entry.key} dans ${entry.value.join(', ')}');
       return DuelGameStateValidationResult(
@@ -5993,7 +7008,6 @@ class _OpponentRow extends StatefulWidget {
     required this.losses,
     required this.fallbackInitial,
     required this.avatarCard,
-    required this.connectionLabel,
     this.compact = false,
   });
 
@@ -6003,7 +7017,6 @@ class _OpponentRow extends StatefulWidget {
   final int losses;
   final String fallbackInitial;
   final DuelCard avatarCard;
-  final String connectionLabel;
   final bool compact;
 
   @override
@@ -6012,20 +7025,6 @@ class _OpponentRow extends StatefulWidget {
 
 class _OpponentRowState extends State<_OpponentRow> {
   int _animatedStartIndex = -1;
-
-  Color _connectionIndicatorColor(String label) {
-    final String normalized = label.toLowerCase();
-    if (normalized.contains('hors ligne') || normalized.contains('inactif')) {
-      return const Color(0xFFE53935);
-    }
-    if (normalized.contains('instable') ||
-        normalized.contains('faible') ||
-        normalized.contains('hors du jeu') ||
-        normalized.contains('attente')) {
-      return const Color(0xFFFFB300);
-    }
-    return const Color(0xFF43A047);
-  }
 
   @override
   void didUpdateWidget(covariant _OpponentRow oldWidget) {
@@ -6059,30 +7058,6 @@ class _OpponentRowState extends State<_OpponentRow> {
                 fallbackInitial: widget.fallbackInitial,
                 compact: true,
                 avatarCard: widget.avatarCard,
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: <Widget>[
-                  Container(
-                    width: 8,
-                    height: 8,
-                    margin: const EdgeInsets.only(right: 6),
-                    decoration: BoxDecoration(
-                      color: _connectionIndicatorColor(widget.connectionLabel),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      widget.connectionLabel,
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: widget.compact ? 11 : 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
               ),
               Padding(
                 padding: EdgeInsets.only(top: widget.compact ? 6 : 8, bottom: widget.compact ? 6 : 8),
