@@ -3029,6 +3029,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<bool> _hasPositiveCredit(String uid) async {
     final Map<String, dynamic> profile = await Supabase.instance.client
+        .schema('public')
         .from('profiles')
         .select('credits')
         .eq('id', uid)
@@ -3203,7 +3204,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         debugPrint('[DUEL_ROOM] createRoom failed reason=game_id_missing_after_success');
         return;
       }
-      debugPrint('[CREATE_ROOM] firestore create success');
+      debugPrint('[CREATE_ROOM] supabase create success');
       debugPrint('[DUEL_ROOM] createRoom success gameId=$createdGameId');
       if (controller.session != null) {
         debugPrint('[DUEL_ROOM] room created id=${controller.session!.gameId} roomStatus=${controller.session!.roomStatus} betStatus=${controller.session!.betFlowState.name}');
