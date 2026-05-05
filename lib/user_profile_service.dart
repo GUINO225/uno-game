@@ -48,20 +48,40 @@ class UserProfileService {
     final DateTime now = DateTime.now().toUtc();
 
     try {
-      final Map<String, dynamic> profilePayload = <String, dynamic>{
-        'id': user.id,
-        'email': user.email,
-        'display_name': suggestedDisplayName,
-        'photo_url': supabaseUserPhotoUrl(user),
-        'credits': 1000,
-        'wins': 0,
-        'losses': 0,
-        'games_played': 0,
-      };
+      final Map<String, dynamic>? existing = await _client
+          .from('profiles')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
 
-      await _client.from('profiles').upsert(profilePayload, onConflict: 'id');
+      if (existing != null) {
+        await _client
+            .from('profiles')
+            .update(<String, dynamic>{
+              'email': user.email,
+              'photo_url': supabaseUserPhotoUrl(user),
+              'last_login_at': now.toIso8601String(),
+              'updated_at': now.toIso8601String(),
+            })
+            .eq('id', user.id);
+      } else {
+        final Map<String, dynamic> profilePayload = <String, dynamic>{
+          'id': user.id,
+          'email': user.email,
+          'display_name': suggestedDisplayName,
+          'photo_url': supabaseUserPhotoUrl(user),
+          'last_login_at': now.toIso8601String(),
+          'updated_at': now.toIso8601String(),
+          'credits': 1000,
+          'wins': 0,
+          'losses': 0,
+          'games_played': 0,
+        };
+        await _client.from('profiles').insert(profilePayload);
+      }
 
       final Map<String, dynamic> data = await _fetchProfileRow(user.id);
+      debugPrint('[SUPABASE_PROFILE] final display_name=${data['display_name']}');
 
       return PlayerProfile.fromMap(data);
     } on PostgrestException catch (error, stackTrace) {
