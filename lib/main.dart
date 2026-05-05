@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,7 +12,6 @@ import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'config/backend_flags.dart';
-import 'firebase_config.dart';
 import 'duel_mode.dart';
 import 'leaderboard_page.dart';
 import 'admin_dashboard.dart';
@@ -48,7 +45,6 @@ Future<void> main() async {
       ),
     );
   }
-  await _initializeFirebaseIfConfigured();
   await _initializeSupabaseIfConfigured();
   runApp(const MyApp());
 }
@@ -69,32 +65,6 @@ Future<void> _initializeSupabaseIfConfigured() async {
     anonKey: _supabasePublishableKey,
   );
   debugPrint('[Supabase] initialized with publishable key.');
-}
-
-Future<void> _initializeFirebaseIfConfigured() async {
-  if (Firebase.apps.isNotEmpty) {
-    final FirebaseApp app = Firebase.app();
-    debugPrint(
-      '[Firebase] already initialized: app=${app.name}, projectId=${app.options.projectId}, appId=${app.options.appId}',
-    );
-    return;
-  }
-
-  try {
-    final FirebaseOptions? options = FirebaseConfig.optionsForCurrentPlatform();
-    if (options != null) {
-      await Firebase.initializeApp(options: options);
-      final FirebaseApp app = Firebase.app();
-      debugPrint(
-        '[Firebase] initialized: app=${app.name}, projectId=${app.options.projectId}, appId=${app.options.appId}',
-      );
-    } else {
-      debugPrint('[Firebase] skipped initialization: missing options for platform.');
-    }
-  } catch (e, stackTrace) {
-    debugPrint('[Firebase] initialization failed: $e');
-    debugPrintStack(stackTrace: stackTrace);
-  }
 }
 
 class MyApp extends StatelessWidget {
