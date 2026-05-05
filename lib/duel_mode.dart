@@ -816,158 +816,21 @@ class GameService {
     required String playerName,
     DuelRoomMode mode = DuelRoomMode.duel,
   }) async {
-    debugPrint('[CREATE_ROOM_BACKEND_CHECK] useSupabaseGameWrite=${BackendFlags.useSupabaseGameWrite}');
     try {
       debugPrint('[GameService] createRoom start creatorId=$playerId mode=${mode.name}');
-      if (BackendFlags.useSupabaseGameWrite) {
-        final String roomCode = _generateCode();
-        debugPrint('[GAME_ROUTER] createRoom backend=supabase mode=${mode.name}');
-        debugPrint('[SUPABASE_GAME] createRoom start');
-        try {
-          await _supabaseGameService.createRoom(
-            roomCode: roomCode,
-            creatorId: playerId,
-            creatorPseudo: playerName,
-            mode: mode.name,
-          );
-          // TODO: Supabase credits migration later.
-          debugPrint('[SUPABASE_GAME] createRoom success code=$roomCode');
-          return roomCode;
-        } catch (e, st) {
-          debugPrint('[SUPABASE_GAME] error=$e');
-          debugPrint('[SUPABASE_GAME] stack=$st');
-          rethrow;
-        }
-      }
-      debugPrint('[GAME_ROUTER] createRoom backend=firebase');
-      final CollectionReference<Map<String, dynamic>> games = await _games();
-      int initialCredits = 1000;
-      if (mode == DuelRoomMode.credits) {
-        final FirebaseFirestore db = await _resolveDb();
-        await db.runTransaction((Transaction tx) async {
-          initialCredits = await _readCreditsFromProfileTx(
-            tx: tx,
-            db: db,
-            playerId: playerId,
-            displayName: playerName,
-          );
-        }).timeout(
-          const Duration(seconds: 12),
-          onTimeout: () => throw TimeoutException('Firestore credits read timeout'),
-        );
-        if (initialCredits <= 0) {
-          throw StateError('Crédit insuffisant pour accéder au mode Pari.');
-        }
-      }
-
-      final FirebaseFirestore db = await _resolveDb();
-      String roomCode = _generateCode();
-
-
-      debugPrint('[GameService] preparing room data');
-      final Map<String, dynamic> roomData = DuelSession(
-        gameId: roomCode,
-        hostId: playerId,
-        players: <String>[playerId],
-        playerNames: <String, String>{playerId: playerName},
-        currentTurn: playerId,
-        status: DuelGameStatus.waiting,
-        scores: <String, int>{playerId: 0},
-        round: 1,
-        mode: mode,
-        playerCredits: mode == DuelRoomMode.credits
-            ? <String, int>{playerId: initialCredits}
-            : const <String, int>{},
-        betFlowState: mode == DuelRoomMode.credits
-            ? DuelBetFlowState.initialStakeProposed
-            : DuelBetFlowState.idle,
-        presence: <String, DuelPlayerPresence>{
-          playerId: const DuelPlayerPresence(state: 'online'),
-        },
-        presenceGraceUntil: _presenceGraceDeadline(),
-        roomStatus: mode == DuelRoomMode.credits ? 'betting' : 'open',
-      ).toMap()
-        ..addAll(_presenceOnlinePatch(playerId))
-        ..addAll(<String, dynamic>{
-          'creatorId': playerId,
-          'roomCode': roomCode,
-          'code': roomCode,
-          'createdAt': FieldValue.serverTimestamp(),
-          'currentTurnUid': playerId,
-          'currentPlayerId': playerId,
-          'winnerId': null,
-          'loserId': null,
-        });
-
-      if (mode == DuelRoomMode.credits) {
-        roomData.addAll(<String, dynamic>{
-          'betStatus': roomData['betFlowState'],
-          'betAmount': roomData['activeStakeCredits'] ?? 0,
-          'stakeAmount': roomData['activeStakeCredits'] ?? 0,
-        });
-      }
-
-      bool created = false;
-      for (int attempt = 1; attempt <= 5; attempt++) {
-        roomCode = _generateCode();
-        final DocumentReference<Map<String, dynamic>> resolvedRoomRef =
-            db.collection('duel_games').doc(roomCode);
-        debugPrint('[GameService] writing room doc path=${resolvedRoomRef.path}');
-        try {
-          await db.runTransaction((Transaction tx) async {
-            final DocumentSnapshot<Map<String, dynamic>> existing =
-                await tx.get(resolvedRoomRef);
-
-            if (existing.exists) {
-              throw FirebaseException(
-                plugin: 'cloud_firestore',
-                code: 'already-exists',
-                message: 'Room code collision',
-              );
-            }
-
-            tx.set(resolvedRoomRef, {
-              ...roomData,
-              'roomCode': roomCode,
-              'code': roomCode,
-            });
-          }).timeout(
-            const Duration(seconds: 12),
-            onTimeout: () => throw TimeoutException('Firestore room creation timeout'),
-          );
-          debugPrint('[GameService] room write completed code=$roomCode');
-          created = true;
-          break;
-        } on FirebaseException catch (e) {
-          if (e.code == 'already-exists') {
-            debugPrint('[GameService] room code collision code=$roomCode retry=$attempt');
-            continue;
-          }
-          rethrow;
-        }
-      }
-      if (!created) {
-        throw StateError('Impossible de générer un code de room unique après 5 essais.');
-      }
-
-      debugPrint('[GameService] createRoom confirmed code=$roomCode');
+      final String roomCode = _generateCode();
+      debugPrint('[GAME_ROUTER] createRoom backend=supabase mode=${mode.name}');
+      debugPrint('[SUPABASE_GAME] createRoom start');
+      await _supabaseGameService.createRoom(
+        roomCode: roomCode,
+        creatorId: playerId,
+        creatorPseudo: playerName,
+        mode: mode.name,
+      );
+      debugPrint('[SUPABASE_GAME] createRoom success code=$roomCode');
       return roomCode;
     } catch (e, st) {
-      if (e is FirebaseException) {
-        if (e.code == 'permission-denied') {
-          debugPrint('Permission Firestore refusée : vérifie les rules.');
-        } else if (e.code == 'unavailable' || e.code == 'deadline-exceeded') {
-          debugPrint('Connexion au serveur impossible. Réessaie.');
-        } else if (e.code == 'resource-exhausted') {
-          debugPrint('Quota Firebase temporairement dépassé.');
-        }
-        debugPrint('[GameService] createRoom error type=FirebaseException(${e.code}) message=${e.message ?? e.toString()}');
-      } else if (e is TimeoutException) {
-        debugPrint('Connexion au serveur impossible. Réessaie.');
-        debugPrint('[GameService] createRoom error type=TimeoutException message=${e.message ?? e.toString()}');
-      } else {
-        debugPrint('[GameService] createRoom error type=${e.runtimeType} message=$e');
-      }
+      debugPrint('[GameService] createRoom error type=${e.runtimeType} message=$e');
       debugPrint('[GameService] createRoom error: $e');
       debugPrint('[GameService] createRoom stack: $st');
       rethrow;
@@ -1125,12 +988,10 @@ class GameService {
   }
 
   Stream<DuelSession> watchSession(String gameId) async* {
-    debugPrint('[LISTEN_ROOM_BACKEND_CHECK] useSupabaseGameRead=${BackendFlags.useSupabaseGameRead}');
-    if (BackendFlags.useSupabaseGameRead) {
-      debugPrint('[GAME_ROUTER] listenRoom backend=supabase');
-      debugPrint('[SUPABASE_GAME] listenRoom start code=$gameId');
-      final StreamController<DuelSession> controller = StreamController<DuelSession>();
-      final channel = _supabaseGameService.listenRoom(
+    debugPrint('[GAME_ROUTER] listenRoom backend=supabase');
+    debugPrint('[SUPABASE_GAME] listenRoom start code=$gameId');
+    final StreamController<DuelSession> controller = StreamController<DuelSession>();
+    final channel = _supabaseGameService.listenRoom(
         roomCode: gameId,
         onRoomChanged: (Map<String, dynamic> room) {
           final String creatorId = room['creator_id'] as String? ?? '';
@@ -1196,19 +1057,10 @@ class GameService {
           ));
         },
       );
-      controller.onCancel = () async {
-        await channel.unsubscribe();
-      };
-      yield* controller.stream;
-      return;
-    }
-    debugPrint('[GAME_ROUTER] listenRoom backend=firebase');
-    final CollectionReference<Map<String, dynamic>> games = await _games();
-    yield* games
-        .doc(gameId)
-        .snapshots()
-        .where((DocumentSnapshot<Map<String, dynamic>> doc) => doc.exists)
-        .map(DuelSession.fromDoc);
+    controller.onCancel = () async {
+      await channel.unsubscribe();
+    };
+    yield* controller.stream;
   }
 
   Future<void> repairGameStateIfNeeded({
@@ -2759,55 +2611,14 @@ class DuelController extends ChangeNotifier {
 
 
 class SimplePresenceService {
-  SimplePresenceService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
-
-  final FirebaseFirestore _firestore;
-  DateTime? _lastWrite;
-
-  bool _canWrite() {
-    final DateTime now = DateTime.now();
-    if (_lastWrite == null) {
-      return true;
-    }
-    return now.difference(_lastWrite!).inSeconds >= 120;
-  }
+  SimplePresenceService();
 
   Future<void> markOnline(String uid) async {
-    if (!_canWrite()) {
-      debugPrint('[PRESENCE] skipped throttle uid=$uid');
-      return;
-    }
-    _lastWrite = DateTime.now();
-    debugPrint('[PRESENCE] online write uid=$uid');
-    await _write(uid: uid, isOnline: true);
+    debugPrint('[PRESENCE] skipped Firebase presence write (Supabase-only mode) uid=$uid');
   }
 
   Future<void> markOffline(String uid) async {
-    if (!_canWrite()) {
-      debugPrint('[PRESENCE] skipped throttle uid=$uid');
-      return;
-    }
-    _lastWrite = DateTime.now();
-    debugPrint('[PRESENCE] offline write uid=$uid');
-    await _write(uid: uid, isOnline: false);
-  }
-
-  Future<void> _write({required String uid, required bool isOnline}) async {
-    try {
-      await _firestore.collection('users').doc(uid).set(<String, dynamic>{
-        'isOnline': isOnline,
-        'lastSeenAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } on FirebaseException catch (e) {
-      if (e.code == 'resource-exhausted' ||
-          e.code == 'permission-denied' ||
-          e.code == 'unavailable') {
-        debugPrint('[PRESENCE] ignored error=$e');
-        return;
-      }
-      rethrow;
-    }
+    debugPrint('[PRESENCE] skipped Firebase presence write (Supabase-only mode) uid=$uid');
   }
 }
 
