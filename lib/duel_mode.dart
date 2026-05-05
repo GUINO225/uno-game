@@ -2322,10 +2322,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _lastSessionUiKey = sessionUiKey;
 
     final DuelBoardState snapshotBoard = DuelBoardState.fromSession(session);
+    final String opponentIdForLog = session.players.firstWhere((String id) => id != _controller.localPlayerId, orElse: () => '');
+    debugPrint('[SESSION_MAP] localHand=${snapshotBoard.handOf(_controller.localPlayerId).length} opponentHand=${opponentIdForLog.isEmpty ? 0 : snapshotBoard.handOf(opponentIdForLog).length} discard=${snapshotBoard.discardPile.length} currentTurn=${session.currentTurn}');
     if (_board != snapshotBoard) {
       setState(() {
         _board = snapshotBoard;
       });
+      debugPrint('[UI_REBUILD] localHand=${snapshotBoard.handOf(_controller.localPlayerId).length} discard=${snapshotBoard.discardPile.length}');
     }
     if (session.status == DuelGameStatus.inProgress &&
         (session.betFlowState == DuelBetFlowState.readyToStart ||
@@ -2738,6 +2741,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       }
       return;
     }
+    debugPrint('[ACTION_CLICK] type=playCard card=${card.id}');
+    final DuelAction action = DuelAction(
+      type: DuelActionType.playCard,
+      actorId: _controller.localPlayerId,
+      createdAt: DateTime.now(),
+      payload: move.payload,
+    );
+    final DuelBoardState nextBoard = board.applyAction(action);
+    final Map<String, dynamic> boardPatch = nextBoard.toBackendFields();
+    debugPrint('[ACTION_PUSH] game_state updated handCount=${nextBoard.handOf(_controller.localPlayerId).length}');
     unawaited(_sfx.playCard());
     await _controller.sendAction(
       DuelActionType.playCard,
@@ -2746,11 +2759,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       statusOverride: move.payload.containsKey('winnerId')
           ? DuelGameStatus.finished
           : DuelGameStatus.inProgress,
-      sessionPatch: move.payload.containsKey('winnerId')
-          ? <String, dynamic>{
-              'scores.${_controller.localPlayerId}': 1,
-            }
-          : const <String, dynamic>{},
+      sessionPatch: <String, dynamic>{
+        ...boardPatch,
+        if (action.payload.containsKey('winnerId')) 'scores.${_controller.localPlayerId}': 1,
+      },
     );
     final String? winnerId = move.payload['winnerId'] as String?;
     if (_isCreditsMode && winnerId != null && winnerId.isNotEmpty) {
@@ -2925,13 +2937,24 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     if (!move.accepted) {
       return;
     }
+    debugPrint('[ACTION_CLICK] type=drawCard');
+    final DuelAction action = DuelAction(
+      type: DuelActionType.drawCard,
+      actorId: _controller.localPlayerId,
+      createdAt: DateTime.now(),
+      payload: move.payload,
+    );
+    final DuelBoardState nextBoard = board.applyAction(action);
+    final Map<String, dynamic> boardPatch = nextBoard.toBackendFields();
+    debugPrint('[ACTION_PUSH] game_state updated handCount=${nextBoard.handOf(_controller.localPlayerId).length}');
     setState(() => _isDrawingActionBusy = true);
     try {
       unawaited(_sfx.playDraw());
       await _controller.sendAction(
         DuelActionType.drawCard,
-        payload: move.payload,
+        payload: action.payload,
         nextTurnOverride: move.nextTurn,
+        sessionPatch: boardPatch,
       );
     } finally {
       if (mounted) {
@@ -5426,6 +5449,8 @@ class DuelBoardState {
     );
   }
 
+
+  DuelBoardState applyAction(DuelAction action) => _apply(action);
   DuelBoardState _apply(DuelAction action) {
     final Map<String, List<DuelCard>> newHands = <String, List<DuelCard>>{
       for (final MapEntry<String, List<DuelCard>> e in hands.entries)
