@@ -595,24 +595,74 @@ class GameService {
     await _supabaseGameService.joinRoom(roomCode: gameId, opponentId: playerId, opponentPseudo: playerName);
   }
 
-  Stream<DuelSession> watchSession(String gameId) async* {
+  Stream<DuelSession> watchSession(String gameId) {
     debugPrint('[GAME_ROUTER] listenRoom backend=supabase');
-    yield* Stream.empty();
+    return _supabaseGameService.watchRoom(gameId).map(_mapRoomToSession);
   }
 
-  Future<void> updatePresenceHeartbeat({required String gameId, required String playerId}) async { debugPrint('[SUPABASE_ONLY] updatePresenceHeartbeat not implemented yet'); return; }
-  Future<void> markPlayerPresenceState({required String gameId, required String playerId, required String state, String? currentScreen, String? appState, String? connectionState, bool touchLastAction = false}) async { debugPrint('[SUPABASE_ONLY] markPlayerPresenceState not implemented yet'); return; }
-  Future<void> pushAction({required String gameId, required DuelAction action, required String nextTurn, DuelGameStatus status = DuelGameStatus.inProgress, Map<String, dynamic> sessionPatch = const <String, dynamic>{}}) async { debugPrint('[SUPABASE_ONLY] pushAction not implemented yet'); return; }
+  DuelSession _mapRoomToSession(Map<String, dynamic> room) {
+    final List<String> players = <String>[if (room['creator_id'] != null) room['creator_id'] as String, if (room['opponent_id'] != null) room['opponent_id'] as String];
+    final Map<String, dynamic> gs = Map<String, dynamic>.from(room['game_state'] as Map? ?? <String, dynamic>{});
+    final Map<String, dynamic> names = <String, dynamic>{if (room['creator_id'] != null) room['creator_id']: room['creator_pseudo'] ?? 'Joueur 1', if (room['opponent_id'] != null) room['opponent_id']: room['opponent_pseudo'] ?? 'Joueur 2'};
+    final String statusRaw = (room['status'] ?? 'waiting').toString();
+    return DuelSession(
+      gameId: (room['room_code'] ?? room['id']) as String,
+      hostId: room['creator_id'] as String? ?? '',
+      players: players,
+      playerNames: names.map((k,v)=>MapEntry(k.toString(), v.toString())),
+      currentTurn: (room['current_turn'] ?? gs['currentTurn'] ?? (players.isNotEmpty ? players.first : '')).toString(),
+      status: statusRaw == 'finished' ? DuelGameStatus.finished : (statusRaw == 'playing' ? DuelGameStatus.inProgress : DuelGameStatus.waiting),
+      scores: Map<String, int>.from((gs['scores'] as Map? ?? <String, dynamic>{}).map((k, v) => MapEntry(k.toString(), (v as num).toInt()))),
+      round: (gs['round'] as num?)?.toInt() ?? 1,
+      mode: DuelRoomMode.values.firstWhere((m)=>m.name==(room['mode'] ?? 'duel'), orElse: ()=>DuelRoomMode.duel),
+      playerCredits: Map<String, int>.from((gs['playerCredits'] as Map? ?? <String, dynamic>{}).map((k, v) => MapEntry(k.toString(), (v as num).toInt()))),
+      activeStakeCredits: (room['active_stake_credits'] as num?)?.toInt() ?? 0,
+      stakeOffer: DuelStakeOffer(proposedBy: room['stake_proposed_by'] as String?, acceptedBy: room['stake_accepted_by'] as String?, amount: (room['stake_amount'] as num?)?.toInt() ?? 0, status: DuelStakeStatus.values.firstWhere((e)=>e.name==(room['stake_status'] ?? 'none'), orElse: ()=>DuelStakeStatus.none)),
+      betFlowState: DuelBetFlowState.values.firstWhere((e)=>e.name==(room['bet_flow_state'] ?? 'idle'), orElse: ()=>DuelBetFlowState.idle),
+      lastAction: gs['lastAction'] is Map<String,dynamic> ? DuelAction.fromMap(gs['lastAction'] as Map<String,dynamic>) : null,
+      revision: (room['revision'] as num?)?.toInt() ?? (gs['revision'] as num?)?.toInt() ?? 0,
+      player1Hand: List<String>.from(gs['player1Hand'] as List? ?? const <String>[]),
+      player2Hand: List<String>.from(gs['player2Hand'] as List? ?? const <String>[]),
+      drawPile: List<String>.from(gs['drawPile'] as List? ?? const <String>[]),
+      discardPile: List<String>.from(gs['discardPile'] as List? ?? const <String>[]),
+      topDiscard: gs['topDiscard'] as String?,
+      player1CardCount: (gs['player1CardCount'] as num?)?.toInt() ?? 0,
+      player2CardCount: (gs['player2CardCount'] as num?)?.toInt() ?? 0,
+      pendingDrawCount: (gs['pendingDrawCount'] as num?)?.toInt() ?? 0,
+      requiredSuit: gs['requiredSuit'] as String?,
+      requiredColorAfterJoker: gs['requiredColorAfterJoker'] as String?,
+      aceColorRequired: gs['aceColorRequired'] as bool? ?? false,
+      deckInitialized: gs['deckInitialized'] as bool? ?? false,
+      roomStatus: (room['room_status'] ?? 'open').toString(),
+    );
+  }
+
+  Future<void> updatePresenceHeartbeat({required String gameId, required String playerId}) async { return; }
+  Future<void> markPlayerPresenceState({required String gameId, required String playerId, required String state, String? currentScreen, String? appState, String? connectionState, bool touchLastAction = false}) async { return; }
+  Future<void> pushAction({required String gameId, required DuelAction action, required String nextTurn, DuelGameStatus status = DuelGameStatus.inProgress, Map<String, dynamic> sessionPatch = const <String, dynamic>{}}) async {
+    final Map<String, dynamic> patch = <String, dynamic>{
+      'current_turn': nextTurn,
+      'last_action': action.toMap(),
+      'revision': ((sessionPatch['revision'] as num?)?.toInt() ?? 0) + 1,
+      'status': status == DuelGameStatus.finished ? 'finished' : (status == DuelGameStatus.inProgress ? 'playing' : 'waiting'),
+      if (sessionPatch.isNotEmpty) 'game_state': sessionPatch,
+    };
+    await _supabaseGameService.pushAction(roomCode: gameId, patch: patch);
+  }
   Future<void> requestRematch({required String gameId, required String requestedBy}) async { debugPrint('[SUPABASE_ONLY] requestRematch not implemented yet'); return; }
   Future<void> cancelRematchRequest({required String gameId, required String requestedBy}) async { debugPrint('[SUPABASE_ONLY] cancelRematchRequest not implemented yet'); return; }
   Future<void> acceptRematch({required String gameId, required String acceptedBy}) async { debugPrint('[SUPABASE_ONLY] acceptRematch not implemented yet'); return; }
   Future<void> declineRematch({required String gameId, required String declinedBy}) async { debugPrint('[SUPABASE_ONLY] declineRematch not implemented yet'); return; }
   Future<void> cleanupExpiredRematchRequest({required String gameId}) async { debugPrint('[SUPABASE_ONLY] cleanupExpiredRematchRequest not implemented yet'); return; }
-  Future<void> pushChatMessage({required String gameId, required String senderId, required String senderName, required String text}) async { debugPrint('[SUPABASE_ONLY] pushChatMessage not implemented yet'); return; }
-  Future<void> proposeStake({required DuelSession current, required String proposedBy, required int amount}) async { debugPrint('[SUPABASE_ONLY] proposeStake not implemented yet'); return; }
-  Future<void> respondToStake({required DuelSession current, required String responderId, required bool accept, bool insufficientFunds = false}) async { debugPrint('[SUPABASE_ONLY] respondToStake not implemented yet'); return; }
+  Future<void> pushChatMessage({required String gameId, required String senderId, required String senderName, required String text}) async { await _supabaseGameService.pushChatMessage(roomCode: gameId, senderId: senderId, senderName: senderName, text: text); }
+
+  Stream<List<DuelChatMessage>> watchChatMessages(String gameId) {
+    return _supabaseGameService.watchChatMessages(gameId).map((rows) => rows.map((row) => DuelChatMessage(id: (row['id'] ?? '').toString(), senderId: (row['sender_id'] ?? '').toString(), senderName: (row['sender_name'] ?? '').toString(), text: (row['text'] ?? '').toString(), createdAt: _parseDateTime(row['created_at']) ?? DateTime.now())).toList());
+  }
+  Future<void> proposeStake({required DuelSession current, required String proposedBy, required int amount}) async { await _supabaseGameService.proposeStake(roomCode: current.gameId, proposedBy: proposedBy, amount: amount); }
+  Future<void> respondToStake({required DuelSession current, required String responderId, required bool accept, bool insufficientFunds = false}) async { await _supabaseGameService.respondToStake(roomCode: current.gameId, responderId: responderId, accept: accept, insufficientFunds: insufficientFunds); }
   Future<void> exitBetParty({required String gameId, required String playerId}) async { debugPrint('[SUPABASE_ONLY] exitBetParty not implemented yet'); return; }
-  Future<void> resolveStakeAfterRound({required DuelSession current, required String winnerId}) async { debugPrint('[SUPABASE_ONLY] resolveStakeAfterRound not implemented yet'); return; }
+  Future<void> resolveStakeAfterRound({required DuelSession current, required String winnerId}) async { await _supabaseGameService.resolveStakeAfterRound(roomCode: current.gameId, winnerId: winnerId); }
   Future<void> markPlayerAbandoned({required String gameId, required String abandonedBy, required String reportedBy}) async { debugPrint('[SUPABASE_ONLY] markPlayerAbandoned not implemented yet'); return; }
 }
 
