@@ -140,7 +140,20 @@ class SupabaseGameService {
   }
 
   Future<void> pushAction({required String roomCode, required Map<String, dynamic> patch}) async {
-    await _client.from('duel_games').update(patch).eq('room_code', roomCode);
+    final Map<String, dynamic> room = await fetchRoom(roomCode);
+    final int currentRevision = (room['revision'] as num?)?.toInt() ?? 0;
+    final Map<String, dynamic> gameState = Map<String, dynamic>.from(
+      room['game_state'] as Map? ?? <String, dynamic>{},
+    );
+    if (patch['game_state'] is Map<String, dynamic>) {
+      gameState.addAll(Map<String, dynamic>.from(patch['game_state'] as Map));
+    }
+    final Map<String, dynamic> nextPatch = <String, dynamic>{
+      ...patch,
+      'revision': currentRevision + 1,
+      'game_state': gameState,
+    };
+    await _client.from('duel_games').update(nextPatch).eq('room_code', roomCode);
   }
 
   Future<void> proposeStake({required String roomCode, required String proposedBy, required int amount}) async {
@@ -184,6 +197,22 @@ class SupabaseGameService {
         .eq('game_id', roomCode)
         .order('created_at')
         .map((rows) => rows.map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
+  Stream<List<Map<String, dynamic>>> watchActions(String roomCode) {
+    return _client
+        .from('duel_games')
+        .stream(primaryKey: ['id'])
+        .eq('room_code', roomCode)
+        .map((rows) {
+          if (rows.isEmpty) return <Map<String, dynamic>>[];
+          final Map<String, dynamic> game = Map<String, dynamic>.from(rows.first);
+          final dynamic lastAction = game['last_action'];
+          if (lastAction is Map) {
+            return <Map<String, dynamic>>[Map<String, dynamic>.from(lastAction)];
+          }
+          return <Map<String, dynamic>>[];
+        });
   }
 
   Future<void> pushChatMessage({required String roomCode, required String senderId, required String senderName, required String text}) async {
