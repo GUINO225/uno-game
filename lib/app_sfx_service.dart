@@ -16,10 +16,7 @@ enum AppSfxEvent {
   notif,
   chat,
   popup,
-<<<<<<< HEAD
   joker,
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   error,
   success,
   shuffle,
@@ -223,13 +220,10 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       exactBaseNames: <String>['popup', 'pop_up'],
       contains: <String>['popup', 'pop_up'],
     );
-<<<<<<< HEAD
     _eventToAsset[AppSfxEvent.joker] = _pickAsset(
       exactBaseNames: <String>['pop_up_jocker', 'joker'],
       contains: <String>['jocker', 'joker'],
     );
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     _eventToAsset[AppSfxEvent.error] = _pickAsset(
       exactBaseNames: <String>['error'],
       contains: <String>['error'],
@@ -287,10 +281,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> playNotif() => _play(AppSfxEvent.notif, volume: 0.75);
   Future<void> playChat() => _play(AppSfxEvent.chat, volume: 0.78);
   Future<void> playPopup() => _play(AppSfxEvent.popup, volume: 0.72);
-<<<<<<< HEAD
   Future<void> playJoker() => _play(AppSfxEvent.joker, volume: 0.88);
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   Future<void> playError() => _play(AppSfxEvent.error, volume: 0.75);
   Future<void> playSuccess() => _play(AppSfxEvent.success, volume: 0.78);
   Future<void> playShuffle() => _play(AppSfxEvent.shuffle, volume: 0.82);
@@ -769,10 +760,7 @@ class AppSfxService {
   Future<void> playNotif() => _audio.playNotif();
   Future<void> playChat() => _audio.playChat();
   Future<void> playPopup() => _audio.playPopup();
-<<<<<<< HEAD
   Future<void> playJoker() => _audio.playJoker();
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   Future<void> playError() => _audio.playError();
   Future<void> playSuccess() => _audio.playSuccess();
   Future<void> playShuffle() => _audio.playShuffle();

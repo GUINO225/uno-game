@@ -1843,10 +1843,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   DateTime? _lastFunnyMessageAt;
   bool _isImportantPopupOpen = false;
   int _roundNumber = 0;
-<<<<<<< HEAD
   int _lastRoundCreditDelta = 0;
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   String _humanDisplayName = 'Vous';
   int _humanWins = 0;
   int _humanLosses = 0;
@@ -2292,15 +2289,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _status = 'Vous piochez';
     });
     unawaited(_sfx.playDraw());
-<<<<<<< HEAD
 
     // After drawing voluntarily, turn always passes to the bot
     await Future<void>.delayed(const Duration(milliseconds: 500));
     if (!_gameOver && _turn == PlayerTurn.human) {
       _endHumanTurn();
     }
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   }
 
   List<PlayingCard> _drawCards(List<PlayingCard> destination, int count) {
@@ -2418,20 +2412,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           announcement: '$_botName joue un 2.',
         );
         _showFunnyGameMessage(playerName: 'Vous', message: 'Petit cadeau du quartier.');
-<<<<<<< HEAD
         return const _PlayResolution(
           extraTurn: false,
           skipTurnSwitch: false,
         );
       }
-=======
-      }
-
-      return const _PlayResolution(
-        extraTurn: true,
-        skipTurnSwitch: false,
-      );
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     }
 
     if (card.isJoker) {
@@ -2455,20 +2440,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           announcement: '$_botName joue un joker.',
         );
         _showFunnyGameMessage(playerName: 'Vous', message: 'Le joker a parlé.');
-<<<<<<< HEAD
         return const _PlayResolution(
           extraTurn: false,
           skipTurnSwitch: false,
         );
       }
-=======
-      }
-
-      return const _PlayResolution(
-        extraTurn: true,
-        skipTurnSwitch: false,
-      );
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     }
 
     if (card.rank == 8) {
@@ -2740,13 +2716,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     try {
-<<<<<<< HEAD
       await Future<void>.delayed(
         Duration(milliseconds: 900 + _random.nextInt(1200)),
       );
-=======
-      await Future<void>.delayed(const Duration(milliseconds: 700));
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 
       if (!mounted || _gameOver || _turn != PlayerTurn.bot || _isInitialDealRunning) {
         return;
@@ -2837,13 +2809,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       PlayingCard? chosen;
 
       if (playable.isNotEmpty) {
-<<<<<<< HEAD
         chosen = _chooseBestBotCard(playable);
-=======
-        final List<PlayingCard> nonEight =
-            playable.where((PlayingCard card) => card.rank != 8).toList();
-        chosen = nonEight.isNotEmpty ? nonEight.first : playable.first;
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       }
 
       if (chosen == null) {
@@ -2895,13 +2861,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
 
       if (outcome.extraTurn) {
-<<<<<<< HEAD
         await Future<void>.delayed(
           Duration(milliseconds: 500 + _random.nextInt(700)),
         );
-=======
-        await Future<void>.delayed(const Duration(milliseconds: 600));
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         await _runBotTurn(chained: true);
         return;
       }
@@ -2921,7 +2883,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
   }
 
-<<<<<<< HEAD
   int _computeRoundCreditDelta({
     required PlayerTurn winner,
     required PlayingCard lastPlayed,
@@ -2997,8 +2958,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return playable.first;
   }
 
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   bool _checkVictory({
     required PlayerTurn winner,
     required List<PlayingCard> hand,
@@ -3012,15 +2971,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return false;
     }
 
-<<<<<<< HEAD
     final int creditDelta = _computeRoundCreditDelta(
       winner: winner,
       lastPlayed: lastPlayed,
     );
     unawaited(_applyRoundCredits(creditDelta));
 
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     setState(() {
       if (winner == PlayerTurn.human) {
         _humanScore++;
@@ -3030,16 +2986,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         unawaited(_sfx.playLose());
       }
       _gameOver = true;
-<<<<<<< HEAD
       _lastRoundCreditDelta = creditDelta;
       _status = '${_turnLabel(winner)} a gagné !';
     });
     unawaited(_showRoundResultPopup(winner: winner, creditDelta: creditDelta, lastPlayed: lastPlayed));
-=======
-      _status = '${_turnLabel(winner)} a gagné !';
-    });
-    unawaited(_showRoundResultPopup(winner: winner));
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 
     _showFunnyGameMessage(
       playerName: _turnLabel(winner),
@@ -3073,15 +3023,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     );
   }
 
-<<<<<<< HEAD
   Future<void> _showRoundResultPopup({
     required PlayerTurn winner,
     required int creditDelta,
     required PlayingCard lastPlayed,
   }) async {
-=======
-  Future<void> _showRoundResultPopup({required PlayerTurn winner}) async {
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     if (!mounted) {
       return;
     }
@@ -3091,7 +3037,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       barrierDismissible: false,
       builder: (BuildContext context) {
         final bool humanWon = winner == PlayerTurn.human;
-<<<<<<< HEAD
         final bool isConnected = AuthService.instance.currentUser != null;
         final String creditLabel = creditDelta >= 0
             ? '+$creditDelta crédits'
@@ -3119,8 +3064,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
         final bool isSpecialCard = lastPlayed.isJoker || lastPlayed.rank == 2 || lastPlayed.rank == 8;
 
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         return Dialog(
           backgroundColor: Colors.transparent,
           child: GinoPopupFrame(
@@ -3141,7 +3084,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                   textAlign: TextAlign.center,
                   style: GinoPopupStyle.baseText(fontSize: 16),
                 ),
-<<<<<<< HEAD
                 if (isConnected) ...<Widget>[
                   const SizedBox(height: 14),
                   Container(
@@ -3216,8 +3158,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                     ),
                   ),
                 ],
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
                 const SizedBox(height: 14),
                 Row(
                   children: <Widget>[
@@ -3311,12 +3251,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     if (_turn != PlayerTurn.human ||
         _gameOver ||
         _isResolvingTurn ||
-<<<<<<< HEAD
         _isInitialDealRunning ||
         _humanDidVoluntaryDrawThisTurn) {
-=======
-        _isInitialDealRunning) {
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       return false;
     }
 
@@ -3336,12 +3272,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       return true;
     }
 
-<<<<<<< HEAD
     // Highlight draw pile only when no card is playable (not after drawing, turn auto-passes)
     return !_humanHasPlayableCard() && !_humanDidVoluntaryDrawThisTurn;
-=======
-    return !_humanHasPlayableCard() || _humanDidVoluntaryDrawThisTurn;
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   }
 
   void _refreshHandEntryAnimations() {
@@ -3626,11 +3558,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         final int cardRef = identityHashCode(card);
                         final bool isNew = _newBotCardRefs.contains(cardRef);
                         return Padding(
-<<<<<<< HEAD
                           padding: const EdgeInsets.only(left: 12),
-=======
-                          padding: EdgeInsets.only(left: index == _botHand.length - 1 ? 0 : 8),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
                           child: BouncyCardEntry(
                             key: ValueKey<int>(cardRef),
                             animate: isNew,
@@ -3727,14 +3655,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         clipBehavior: Clip.none,
                         children: <Widget>[
                           _drawPile.isNotEmpty
-<<<<<<< HEAD
                               ? _DrawPileView(
                                   highlight: shouldHighlightDraw,
                                   count: _drawPile.length,
                                 )
-=======
-                              ? _DrawPileView(highlight: shouldHighlightDraw)
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
                               : const _EmptyCardSlot(label: '0'),
                           Positioned(
                             right: -8,
@@ -3843,11 +3767,7 @@ class CardBackView extends StatelessWidget {
       width: width,
       height: height,
       decoration: PremiumCardEffects.bevelBack(
-<<<<<<< HEAD
         borderRadius: BorderRadius.circular(6),
-=======
-        borderRadius: BorderRadius.circular(10),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         image: const DecorationImage(
           image: AssetImage('assets/img/card_back.jpeg'),
           fit: BoxFit.cover,
@@ -3919,16 +3839,10 @@ class _ScorePill extends StatelessWidget {
 }
 
 class _DrawPileView extends StatefulWidget {
-<<<<<<< HEAD
   const _DrawPileView({required this.highlight, required this.count});
 
   final bool highlight;
   final int count;
-=======
-  const _DrawPileView({required this.highlight});
-
-  final bool highlight;
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 
   @override
   State<_DrawPileView> createState() => _DrawPileViewState();
@@ -3993,7 +3907,6 @@ class _DrawPileViewState extends State<_DrawPileView>
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
-<<<<<<< HEAD
           if (widget.count > 1)
             Transform.translate(
               offset: const Offset(-2, 1),
@@ -4006,22 +3919,6 @@ class _DrawPileViewState extends State<_DrawPileView>
               ),
             ),
           const CardBackView(width: 64, height: 92),
-=======
-          Transform.translate(
-            offset: const Offset(-4, 4),
-            child: Transform.rotate(
-              angle: -0.08,
-              child: Opacity(
-                opacity: 0.88,
-                child: const CardBackView(width: 64, height: 92),
-              ),
-            ),
-          ),
-          Transform.rotate(
-            angle: 0.05,
-            child: const CardBackView(width: 64, height: 92),
-          ),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         ],
       ),
     );
@@ -4078,11 +3975,7 @@ class CardView extends StatelessWidget {
       width: _CrazyEightsPageState._handCardWidth,
       height: _CrazyEightsPageState._handCardHeight,
       decoration: PremiumCardEffects.bevelFace(
-<<<<<<< HEAD
         borderRadius: BorderRadius.circular(6),
-=======
-        borderRadius: BorderRadius.circular(10),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         color: Colors.white,
       ).copyWith(
         border: Border.all(color: Colors.black26, width: 1),
@@ -4155,19 +4048,11 @@ class _DiscardPileView extends StatelessWidget {
         children: <Widget>[
           for (int index = 0; index < underCards.length; index++)
             Transform.translate(
-<<<<<<< HEAD
               offset: Offset(-2.0 + (index * 2), -1.0 + (index * 1)),
               child: Transform.rotate(
                 angle: index == 0 ? -0.02 : 0.02,
                 child: Opacity(
                   opacity: 0.65 - (index * 0.15),
-=======
-              offset: Offset(-4.0 + (index * 4), -2.0 + (index * 3)),
-              child: Transform.rotate(
-                angle: index == 0 ? -0.087 : 0.070,
-                child: Opacity(
-                  opacity: 0.92 - (index * 0.15),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
                   child: CardView(card: underCards[index]),
                 ),
               ),

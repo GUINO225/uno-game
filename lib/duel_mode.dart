@@ -61,10 +61,7 @@ enum DuelBetFlowState {
 }
 
 const Duration _kRematchRequestTimeout = Duration(seconds: 45);
-<<<<<<< HEAD
 const int _kMaxStakeAmount = 10000;
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 
 enum DuelRematchUiState {
   idle,
@@ -85,7 +82,6 @@ enum ComicMessageTrigger {
   aceForced,
 }
 
-<<<<<<< HEAD
 /// Statut de connexion visible de l'adversaire pendant la partie.
 enum OpponentConnectionStatus {
   /// Heartbeat récent, l'adversaire est sur l'écran de jeu.
@@ -98,8 +94,6 @@ enum OpponentConnectionStatus {
   disconnected,
 }
 
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 String _localizeUserError(Object error) {
   String message = error.toString().trim();
   message = message
@@ -221,10 +215,7 @@ class DuelAction {
     return DuelAction(
       type: DuelActionType.values.firstWhere(
         (DuelActionType element) => element.name == json['type'],
-<<<<<<< HEAD
         orElse: () => DuelActionType.drawCard,
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       ),
       actorId: json['actorId'] as String,
       createdAt: (json['createdAt'] as Timestamp).toDate(),
@@ -691,20 +682,9 @@ class GameService {
     if (FirebaseAuth.instance.currentUser != null) {
       return;
     }
-<<<<<<< HEAD
     throw StateError(
       'Connexion requise pour le mode duel. Veuillez vous connecter avec Google.',
     );
-=======
-    try {
-      await FirebaseAuth.instance.signInAnonymously();
-      debugPrint('[GameService] Anonymous sign-in created for Firestore.');
-    } catch (e) {
-      throw StateError(
-        'Authentification Firebase requise pour le mode duel. Détail: $e',
-      );
-    }
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   }
 
   Future<FirebaseFirestore> _resolveDb() async {
@@ -749,11 +729,7 @@ class GameService {
 
   String _generateCode() {
     const String chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-<<<<<<< HEAD
     final Random random = Random.secure();
-=======
-    final Random random = Random();
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     return List<String>.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
@@ -924,10 +900,7 @@ class GameService {
     }
     await games.doc(gameId).update(<String, dynamic>{
       ..._presenceStatePatch(playerId: playerId, state: state),
-<<<<<<< HEAD
       'revision': FieldValue.increment(1),
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -1039,24 +1012,17 @@ class GameService {
     if (cleaned.isEmpty) {
       return;
     }
-<<<<<<< HEAD
     const int _maxChatLength = 280;
     final String safeText = cleaned.length > _maxChatLength
         ? cleaned.substring(0, _maxChatLength)
         : cleaned;
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     final CollectionReference<Map<String, dynamic>> games = await _games();
     await games.doc(gameId).collection('chat_messages').add(
       DuelChatMessage(
         id: '',
         senderId: senderId,
         senderName: senderName,
-<<<<<<< HEAD
         text: safeText,
-=======
-        text: cleaned,
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         createdAt: DateTime.now(),
       ).toMap(),
     );
@@ -1458,11 +1424,8 @@ class GameService {
           'stakeOffer': const DuelStakeOffer().toMap(),
           'activeStakeCredits': 0,
         },
-<<<<<<< HEAD
         'updatedAt': FieldValue.serverTimestamp(),
         'revision': session.revision + 1,
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       });
     });
   }
@@ -1474,7 +1437,6 @@ class GameService {
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
-<<<<<<< HEAD
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) return;
@@ -1488,13 +1450,6 @@ class GameService {
         'updatedAt': FieldValue.serverTimestamp(),
         'revision': session.revision + 1,
       });
-=======
-    await ref.update(<String, dynamic>{
-      'betFlowState': DuelBetFlowState.partyExited.name,
-      'exitedBy': playerId,
-      'stakeOffer': const DuelStakeOffer().toMap(),
-      'activeStakeCredits': 0,
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     });
   }
 
@@ -1717,13 +1672,8 @@ class GameService {
       if (session.stakeOffer.isPending) {
         throw StateError('Une proposition est déjà en attente.');
       }
-<<<<<<< HEAD
       if (amount <= 0 || amount > _kMaxStakeAmount) {
         throw StateError('Mise invalide (entre 1 et $_kMaxStakeAmount crédits).');
-=======
-      if (amount <= 0) {
-        throw StateError('Pari invalide.');
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       }
       final int balance = session.playerCredits[proposedBy] ?? 0;
       final int proposerCredits = await _readCreditsFromProfileTx(
@@ -1738,16 +1688,10 @@ class GameService {
         (String id) => id != proposedBy,
         orElse: () => '',
       );
-<<<<<<< HEAD
       int opponentCredits = 0;
       if (opponentId.isNotEmpty) {
         final int opponentBalance = session.playerCredits[opponentId] ?? 0;
         opponentCredits = await _readCreditsFromProfileTx(
-=======
-      if (opponentId.isNotEmpty) {
-        final int opponentBalance = session.playerCredits[opponentId] ?? 0;
-        final int opponentCredits = await _readCreditsFromProfileTx(
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
           tx: tx,
           db: db,
           playerId: opponentId,
@@ -1759,15 +1703,7 @@ class GameService {
       tx.update(ref, <String, dynamic>{
         'playerCredits.$proposedBy': proposerCredits,
         if (opponentId.isNotEmpty)
-<<<<<<< HEAD
           'playerCredits.$opponentId': opponentCredits,
-=======
-          'playerCredits.$opponentId': await _readCreditsFromProfileTx(
-            tx: tx,
-            db: db,
-            playerId: opponentId,
-          ),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         'stakeOffer': DuelStakeOffer(
           proposedBy: proposedBy,
           amount: amount,
@@ -2066,7 +2002,6 @@ class GameService {
         'credits': winnerNext,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-<<<<<<< HEAD
       tx.set(_userProfileRef(db, loserId), <String, dynamic>{
         'credits': loserBalance,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -2112,10 +2047,6 @@ class GameService {
       debugPrint('[Duel] loser credit update failed: $e');
     }
   }
-=======
-    });
-  }
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 }
 
 class DuelController extends ChangeNotifier {
@@ -2326,7 +2257,6 @@ class DuelController extends ChangeNotifier {
 
   bool get isMyTurn => session?.currentTurn == localPlayerId;
 
-<<<<<<< HEAD
   /// Calcule le statut de connexion visible de l'adversaire
   /// en combinant le champ [state] Firestore et l'âge du dernier heartbeat.
   OpponentConnectionStatus get opponentConnectionStatus {
@@ -2364,8 +2294,6 @@ class DuelController extends ChangeNotifier {
     return OpponentConnectionStatus.online;
   }
 
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   Future<void> sendAction(
     DuelActionType type, {
     Map<String, dynamic> payload = const <String, dynamic>{},
@@ -2521,7 +2449,6 @@ class DuelController extends ChangeNotifier {
     await service.resolveStakeAfterRound(current: current, winnerId: winnerId);
   }
 
-<<<<<<< HEAD
   Future<void> applyCardBonusCredits({
     required String winnerId,
     required DuelCard winnerCard,
@@ -2535,8 +2462,6 @@ class DuelController extends ChangeNotifier {
     );
   }
 
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   Future<void> forfeitMatch() async {
     final DuelSession? current = session;
     if (current == null) {
@@ -3460,11 +3385,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   DateTime? _lastComicMessageAt;
   DateTime? _lastImportantPopupOpenedAt;
   final AppSfxService _sfx = AppSfxService.instance;
-<<<<<<< HEAD
   OpponentConnectionStatus? _lastOpponentStatus;
   Timer? _presenceStatusTimer;
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 
   static const List<String> _quickMessages = <String>[
     'Bien joué',
@@ -3548,7 +3470,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     });
     _controller.addListener(_onControllerChange);
     _onControllerChange();
-<<<<<<< HEAD
     // Rafraîchit l'indicateur de présence toutes les 6s (calcul temps réel).
     _presenceStatusTimer = Timer.periodic(const Duration(seconds: 6), (_) {
       if (!mounted) return;
@@ -3558,13 +3479,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         setState(() {});
       }
     });
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   }
 
   @override
   void dispose() {
-<<<<<<< HEAD
     // Signale à l'adversaire que ce joueur a quitté l'écran de jeu.
     final DuelSession? current = _controller.session;
     if (current != null) {
@@ -3575,8 +3493,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       ).ignore();
     }
     _presenceStatusTimer?.cancel();
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     WidgetsBinding.instance.removeObserver(this);
     _webLifecycleBinding?.dispose();
     _controller.removeListener(_onControllerChange);
@@ -3680,7 +3596,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _maybePromptMandatoryStake(session);
     _maybeShowWinPopup(session);
     _maybePlayRoundOutcomeSfx(session);
-<<<<<<< HEAD
     _maybeNotifyPresenceChange(session);
   }
 
@@ -3737,8 +3652,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           duration: const Duration(seconds: 3),
         );
     }
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   }
 
   double _defaultProbabilityForTrigger(ComicMessageTrigger trigger) {
@@ -3988,7 +3901,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
               }
               _knownMessageIds.add(message.id);
               if (_chatBootstrapped &&
-<<<<<<< HEAD
                   message.senderId != _controller.localPlayerId) {
                 if (_isChatOpen) {
                   unawaited(_sfx.playChat());
@@ -3996,12 +3908,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                   unreadDelta += 1;
                   previews.add(message.text);
                 }
-=======
-                  !_isChatOpen &&
-                  message.senderId != _controller.localPlayerId) {
-                unreadDelta += 1;
-                previews.add(message.text);
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
               }
             }
             _chatMessagesNotifier.value = List<DuelChatMessage>.unmodifiable(ordered);
@@ -4121,16 +4027,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           : const <String, dynamic>{},
     );
     final String? winnerId = move.payload['winnerId'] as String?;
-<<<<<<< HEAD
     if (winnerId != null && winnerId.isNotEmpty) {
       if (_isCreditsMode) {
         await _controller.resolveStakeAfterRound(winnerId);
       }
       unawaited(_controller.applyCardBonusCredits(winnerId: winnerId, winnerCard: card));
-=======
-    if (_isCreditsMode && winnerId != null && winnerId.isNotEmpty) {
-      await _controller.resolveStakeAfterRound(winnerId);
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     }
   }
 
@@ -4284,7 +4185,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       unawaited(_sfx.playCard());
       return;
     }
-<<<<<<< HEAD
     final bool isForcedEight = action.payload['forcedDraw'] == true &&
         (action.payload['forcedTotal'] as num? ?? 0) >= 8;
     if (isForcedEight) {
@@ -4292,9 +4192,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     } else {
       unawaited(_sfx.playDraw());
     }
-=======
-    unawaited(_sfx.playDraw());
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   }
 
   Future<void> _onDrawTap() async {
@@ -4312,7 +4209,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return;
     }
     setState(() => _isDrawingActionBusy = true);
-<<<<<<< HEAD
     final bool isJokerForcedDraw =
         move.payload['forcedDraw'] == true && board.forcedDrawInitial >= 8;
     try {
@@ -4321,10 +4217,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       } else {
         unawaited(_sfx.playDraw());
       }
-=======
-    try {
-      unawaited(_sfx.playDraw());
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       await _controller.sendAction(
         DuelActionType.drawCard,
         payload: move.payload,
@@ -5842,10 +5734,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
                         avatarCard: opponentAvatarCard,
                         compact: isCompactDuelLayout,
-<<<<<<< HEAD
                         connectionStatus: _controller.opponentConnectionStatus,
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
                       ),
                       SizedBox(height: sectionGap),
                       _CenterArea(
@@ -7329,10 +7218,7 @@ class _OpponentRow extends StatefulWidget {
     required this.losses,
     required this.fallbackInitial,
     required this.avatarCard,
-<<<<<<< HEAD
     required this.connectionStatus,
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     this.compact = false,
   });
 
@@ -7342,10 +7228,7 @@ class _OpponentRow extends StatefulWidget {
   final int losses;
   final String fallbackInitial;
   final DuelCard avatarCard;
-<<<<<<< HEAD
   final OpponentConnectionStatus connectionStatus;
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
   final bool compact;
 
   @override
@@ -7388,11 +7271,8 @@ class _OpponentRowState extends State<_OpponentRow> {
                 compact: true,
                 avatarCard: widget.avatarCard,
               ),
-<<<<<<< HEAD
               const SizedBox(height: 4),
               _OpponentPresenceBadge(status: widget.connectionStatus),
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
               Padding(
                 padding: EdgeInsets.only(top: widget.compact ? 6 : 8, bottom: widget.compact ? 6 : 8),
                 child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
@@ -7410,11 +7290,7 @@ class _OpponentRowState extends State<_OpponentRow> {
                         final bool isNewCard = _animatedStartIndex >= 0 && index >= _animatedStartIndex;
                         final int staggerStep = isNewCard ? index - _animatedStartIndex : 0;
                         return Padding(
-<<<<<<< HEAD
                           padding: const EdgeInsets.only(left: 12),
-=======
-                          padding: EdgeInsets.only(left: index == widget.count - 1 ? 0 : 8),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
                           child: BouncyCardEntry(
                             key: ValueKey<String>('duel-opponent-$index'),
                             animate: isNewCard,
@@ -7443,7 +7319,6 @@ class _OpponentRowState extends State<_OpponentRow> {
   }
 }
 
-<<<<<<< HEAD
 /// Pastille de présence affichée sous le nom de l'adversaire.
 class _OpponentPresenceBadge extends StatefulWidget {
   const _OpponentPresenceBadge({required this.status});
@@ -7563,8 +7438,6 @@ class _OpponentPresenceBadgeState extends State<_OpponentPresenceBadge>
   }
 }
 
-=======
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 class _ProfileBlock extends StatelessWidget {
   const _ProfileBlock({
     required this.name,
@@ -7739,19 +7612,11 @@ class _CenterArea extends StatelessWidget {
                     clipBehavior: Clip.none,
                     children: <Widget>[
                       Transform.translate(
-<<<<<<< HEAD
                         offset: const Offset(-2, 1),
                         child: Transform.rotate(
                           angle: -0.02,
                           child: Opacity(
                             opacity: 0.6,
-=======
-                        offset: const Offset(-4, 3),
-                        child: Transform.rotate(
-                          angle: -0.08,
-                          child: Opacity(
-                            opacity: 0.9,
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
                             child: _DuelCardBack(
                               width: compact ? 56 : 64,
                               height: compact ? 82 : 92,
@@ -7759,18 +7624,9 @@ class _CenterArea extends StatelessWidget {
                           ),
                         ),
                       ),
-<<<<<<< HEAD
                       _DuelCardBack(
                         width: compact ? 56 : 64,
                         height: compact ? 82 : 92,
-=======
-                      Transform.rotate(
-                        angle: 0.05,
-                        child: _DuelCardBack(
-                          width: compact ? 56 : 64,
-                          height: compact ? 82 : 92,
-                        ),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
                       ),
                       Positioned(
                         top: -8,
@@ -7909,11 +7765,7 @@ class _MyHandRow extends StatefulWidget {
   final double cardScale;
   final double minCardsViewportHeight;
   static const int _maxCardsPerRow = 6;
-<<<<<<< HEAD
   static const double _cardGap = 10;
-=======
-  static const double _cardGap = 6;
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 
   @override
   State<_MyHandRow> createState() => _MyHandRowState();
@@ -8341,11 +8193,7 @@ class _FaceCard extends StatelessWidget {
       height: height,
       child: DecoratedBox(
         decoration: PremiumCardEffects.bevelFace(
-<<<<<<< HEAD
           borderRadius: BorderRadius.circular(6),
-=======
-          borderRadius: BorderRadius.circular(10),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
           color: Colors.white,
         ),
         child: Padding(
@@ -8513,11 +8361,7 @@ class _DuelCardBack extends StatelessWidget {
       width: width,
       height: height,
       decoration: PremiumCardEffects.bevelBack(
-<<<<<<< HEAD
         borderRadius: BorderRadius.circular(6),
-=======
-        borderRadius: BorderRadius.circular(10),
->>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         image: const DecorationImage(
           image: AssetImage('assets/img/card_back.jpeg'),
           fit: BoxFit.cover,
