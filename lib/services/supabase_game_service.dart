@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -6,6 +7,56 @@ class SupabaseGameService {
   SupabaseGameService({SupabaseClient? client}) : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
+
+  Map<String, dynamic> _buildInitialDuelState({
+    required String roomCode,
+    required String creatorId,
+    required String opponentId,
+  }) {
+    final List<String> suits = <String>['♥', '♠', '♦', '♣'];
+    final List<String> ranks = <String>['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    final Random random = Random(roomCode.hashCode);
+    final List<String> deck = <String>[
+      for (final String suit in suits)
+        for (final String rank in ranks) '$rank$suit',
+      'JK♦',
+      'JK♣',
+    ]..shuffle(random);
+
+    final List<String> player1Hand = <String>[];
+    final List<String> player2Hand = <String>[];
+    for (int i = 0; i < 7; i++) {
+      player1Hand.add(deck.removeLast());
+      player2Hand.add(deck.removeLast());
+    }
+
+    String top = deck.removeLast();
+    while (top.startsWith('JK') || top.startsWith('8')) {
+      deck.insert(0, top);
+      top = deck.removeLast();
+    }
+
+    return <String, dynamic>{
+      'player1Hand': player1Hand,
+      'player2Hand': player2Hand,
+      'drawPile': deck,
+      'discardPile': <String>[top],
+      'topDiscard': top,
+      'deckInitialized': true,
+      'revision': 1,
+      'round': 1,
+      'hands': <String, dynamic>{'player1': player1Hand, 'player2': player2Hand},
+      'player1CardCount': player1Hand.length,
+      'player2CardCount': player2Hand.length,
+      'currentTurn': creatorId,
+      'pendingDrawCount': 0,
+      'forcedDrawInitial': 0,
+      'requiredSuit': null,
+      'requiredColorAfterJoker': null,
+      'aceColorRequired': false,
+      'players': <String>[creatorId, opponentId],
+    };
+  }
 
   Future<String> createRoom({
     required String roomCode,
@@ -25,6 +76,7 @@ class SupabaseGameService {
         })
         .select()
         .single();
+    debugPrint('[DUEL_SIMPLE] create room row=$inserted');
 
     return inserted['room_code'] as String;
   }
@@ -42,12 +94,27 @@ class SupabaseGameService {
 
     final String updatedRoomMode = (room['mode'] ?? 'duel').toString();
     final bool requiresBetting = updatedRoomMode == 'duel_pari';
+    Map<String, dynamic>? initialDuelState;
+    if (!requiresBetting) {
+      final Map<String, dynamic> fullRoom = await _client
+          .from('duel_games')
+          .select('creator_id')
+          .eq('room_code', roomCode)
+          .single();
+      final String creatorId = (fullRoom['creator_id'] ?? '').toString();
+      debugPrint('[DUEL_SIMPLE] init board start');
+      initialDuelState = _buildInitialDuelState(roomCode: roomCode, creatorId: creatorId, opponentId: opponentId);
+    }
+
     final Map<String, dynamic> updated = await _client
         .from('duel_games')
         .update(<String, dynamic>{
           'opponent_id': opponentId,
           'opponent_pseudo': opponentPseudo,
           'status': requiresBetting ? 'betting' : 'round',
+          if (!requiresBetting) 'current_turn': initialDuelState?['currentTurn'],
+          if (!requiresBetting) 'game_state': initialDuelState,
+          if (!requiresBetting) 'revision': 1,
           if (requiresBetting) 'stake_status': 'pending',
           if (requiresBetting) 'bet_flow_state': 'initialStakeProposed',
           'updated_at': DateTime.now().toUtc().toIso8601String(),
@@ -56,6 +123,10 @@ class SupabaseGameService {
         .eq('status', 'waiting')
         .select()
         .single();
+    debugPrint('[DUEL_SIMPLE] join room row=$updated');
+    if (!requiresBetting) {
+      debugPrint('[DUEL_SIMPLE] init board success');
+    }
 
     debugPrint(
       '[SUPABASE_GAME] joinRoom updated room=${updated['room_code']} status=${updated['status']} mode=$updatedRoomMode bet_flow_state=${updated['bet_flow_state']}',

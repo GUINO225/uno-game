@@ -609,6 +609,10 @@ class GameService {
     debugPrint('[GAME_STATE] revision=${room['revision'] ?? gs['revision'] ?? 0} currentTurn=${room['current_turn'] ?? gs['currentTurn']}');
     final Map<String, dynamic> names = <String, dynamic>{if (room['creator_id'] != null) room['creator_id']: room['creator_pseudo'] ?? 'Joueur 1', if (room['opponent_id'] != null) room['opponent_id']: room['opponent_pseudo'] ?? 'Joueur 2'};
     final String statusRaw = (room['status'] ?? 'waiting').toString();
+    debugPrint('[DUEL_SIMPLE] watch status=$statusRaw');
+    debugPrint('[DUEL_SIMPLE] players=${players.length}');
+    debugPrint('[DUEL_SIMPLE] deckInitialized=${gs['deckInitialized'] as bool? ?? false}');
+    debugPrint('[DUEL_SIMPLE] currentTurn=${room['current_turn'] ?? gs['currentTurn']}');
     return DuelSession(
       gameId: (room['room_code'] ?? room['id']) as String,
       hostId: room['creator_id'] as String? ?? '',
