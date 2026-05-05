@@ -1,6 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'game_card_avatar.dart';
+import 'supabase_date_parser.dart';
 
 class PlayerProfile {
   const PlayerProfile({
@@ -76,11 +75,9 @@ class PlayerProfile {
       'cardAvatarRank': cardAvatarRank,
       'cardAvatarSuit': cardAvatarSuit,
       'hasCustomProfile': hasCustomProfile,
-      'profilePromptDismissedAt': profilePromptDismissedAt == null
-          ? null
-          : Timestamp.fromDate(profilePromptDismissedAt!.toUtc()),
-      'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
-      'lastLoginAt': lastLoginAt == null ? null : Timestamp.fromDate(lastLoginAt!.toUtc()),
+      'profilePromptDismissedAt': profilePromptDismissedAt?.toUtc().toIso8601String(),
+      'createdAt': createdAt?.toUtc().toIso8601String(),
+      'lastLoginAt': lastLoginAt?.toUtc().toIso8601String(),
     };
   }
 
@@ -109,9 +106,11 @@ class PlayerProfile {
       cardAvatarSuit:
           GameCardAvatarPalette.suits.contains(suit) ? suit : fallback.suit,
       hasCustomProfile: map['hasCustomProfile'] as bool? ?? false,
-      profilePromptDismissedAt: (map['profilePromptDismissedAt'] as Timestamp?)?.toDate(),
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
-      lastLoginAt: (map['lastLoginAt'] as Timestamp?)?.toDate(),
+      profilePromptDismissedAt: parseSupabaseDate(
+        map['profilePromptDismissedAt'] ?? map['profile_prompt_dismissed_at'],
+      ),
+      createdAt: parseSupabaseDate(map['createdAt'] ?? map['created_at']),
+      lastLoginAt: parseSupabaseDate(map['lastLoginAt'] ?? map['last_login_at']),
     );
   }
 }

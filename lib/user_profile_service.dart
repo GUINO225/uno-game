@@ -63,7 +63,7 @@ class UserProfileService {
 
       final Map<String, dynamic> data = await _client
           .from('profiles')
-          .select('id, email, display_name, photo_url, credits, wins, losses, games_played')
+          .select('id, email, display_name, photo_url, credits, wins, losses, games_played, created_at, last_login_at, profile_prompt_dismissed_at')
           .eq('id', user.id)
           .single();
 
@@ -76,8 +76,9 @@ class UserProfileService {
         'wins': data['wins'] ?? 0,
         'losses': data['losses'] ?? 0,
         'totalGames': data['games_played'] ?? 0,
-        'createdAt': now,
-        'lastLoginAt': now,
+        'created_at': data['created_at'] ?? now.toIso8601String(),
+        'last_login_at': data['last_login_at'] ?? now.toIso8601String(),
+        'profile_prompt_dismissed_at': data['profile_prompt_dismissed_at'],
       });
     } on PostgrestException catch (error, stackTrace) {
       debugPrint('[SUPABASE_PROFILE_ERROR] context=createOrUpdateFromGoogleUser uid=${user.id}');
@@ -145,7 +146,7 @@ class UserProfileService {
     try {
       final List<Map<String, dynamic>> rows = await _client
           .from('profiles')
-          .select('id, email, display_name, photo_url, credits, wins, losses, games_played')
+          .select('id, email, display_name, photo_url, credits, wins, losses, games_played, created_at, last_login_at, profile_prompt_dismissed_at')
           .eq('id', uid);
       if (rows.isEmpty) {
         return null;
@@ -160,6 +161,9 @@ class UserProfileService {
         'wins': data['wins'] ?? 0,
         'losses': data['losses'] ?? 0,
         'totalGames': data['games_played'] ?? 0,
+        'created_at': data['created_at'],
+        'last_login_at': data['last_login_at'],
+        'profile_prompt_dismissed_at': data['profile_prompt_dismissed_at'],
       });
     } on PostgrestException catch (error, stackTrace) {
       debugPrint('[SUPABASE_PROFILE_ERROR] context=getProfile uid=$uid');
