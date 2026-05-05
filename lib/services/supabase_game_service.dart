@@ -212,7 +212,7 @@ class SupabaseGameService {
               ),
               callback: (PostgresChangePayload payload) {
                 final Map<String, dynamic> room = Map<String, dynamic>.from(payload.newRecord);
-                debugPrint('[REALTIME] event received room=$roomCode source=watchSession status=${room['status']} mode=${room['mode']} creator_id=${room['creator_id']} opponent_id=${room['opponent_id']} stake_status=${room['stake_status']} bet_flow_state=${room['bet_flow_state']} active_stake_credits=${room['active_stake_credits']}');
+                debugPrint('[REALTIME] event received revision=${room['revision']} room=$roomCode source=watchSession status=${room['status']} mode=${room['mode']} creator_id=${room['creator_id']} opponent_id=${room['opponent_id']} stake_status=${room['stake_status']} bet_flow_state=${room['bet_flow_state']} active_stake_credits=${room['active_stake_credits']}');
                 debugPrint('[GAME_STATE] revision=${room['revision']} currentTurn=${room['current_turn'] ?? (room['game_state'] is Map ? (room['game_state'] as Map)['currentTurn'] : null)}');
                 debugPrint('[GAME_FLOW] status=${room['status']} stakeStatus=${room['stake_status']} betFlowState=${room['bet_flow_state']} creator=${room['creator_id']} opponent=${room['opponent_id']} stake=${room['stake_amount']} proposedBy=${room['stake_proposed_by']} acceptedBy=${room['stake_accepted_by']} activeStake=${room['active_stake_credits']}');
                 controller.add(room);
@@ -231,6 +231,7 @@ class SupabaseGameService {
     debugPrint('[ACTION] push start room=$roomCode');
     final Map<String, dynamic> room = await fetchRoom(roomCode);
     final int currentRevision = (room['revision'] as num?)?.toInt() ?? 0;
+    debugPrint('[ACTION_PUSH] oldRevision=$currentRevision');
     final Map<String, dynamic> gameState = Map<String, dynamic>.from(
       room['game_state'] as Map? ?? <String, dynamic>{},
     );
@@ -254,6 +255,9 @@ class SupabaseGameService {
     };
 
     await _client.from('duel_games').update(updatePayload).eq('room_code', roomCode);
+    final int localHandCount = (gameState['player1Hand'] as List?)?.length ?? ((gameState['hands'] is Map && (gameState['hands'] as Map)['player1'] is List) ? ((gameState['hands'] as Map)['player1'] as List).length : -1);
+    debugPrint('[ACTION_PUSH] newRevision=${currentRevision + 1}');
+    debugPrint('[ACTION_PUSH] game_state updated handCount=$localHandCount');
     debugPrint('[ACTION] push success room=$roomCode revision=${currentRevision + 1} currentTurn=${updatePayload['current_turn']}');
   }
 
