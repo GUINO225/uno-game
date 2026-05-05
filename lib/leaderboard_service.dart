@@ -56,11 +56,12 @@ class LeaderboardService {
 
   Future<int?> fetchRegisteredUsersCount() async {
     try {
-      final int count = await Supabase.instance.client
+      final PostgrestResponse<List<Map<String, dynamic>>> response =
+          await Supabase.instance.client
           .from('profiles')
           .select('id')
           .count(CountOption.exact);
-      return count;
+      return response.count ?? 0;
     } catch (e, stackTrace) {
       debugPrint('[LeaderboardService] fetchRegisteredUsersCount failed: $e');
       debugPrintStack(stackTrace: stackTrace);
