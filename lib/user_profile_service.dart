@@ -13,6 +13,7 @@ class UserProfileService {
 
   SupabaseClient get _client => Supabase.instance.client;
 
+  bool? _hasProfilesUpdatedAtColumn;
 
   String sanitizeDisplayName(String value, {int maxLength = 18}) {
     final String singleSpaced = value.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -40,6 +41,33 @@ class UserProfileService {
     return GameCardAvatarPalette.fromSeed(uid);
   }
 
+
+  Future<bool> _profilesHasUpdatedAtColumn() async {
+    if (_hasProfilesUpdatedAtColumn != null) {
+      return _hasProfilesUpdatedAtColumn!;
+    }
+    try {
+      await _client.from('profiles').select('updated_at').limit(1);
+      _hasProfilesUpdatedAtColumn = true;
+    } on PostgrestException catch (_) {
+      _hasProfilesUpdatedAtColumn = false;
+    }
+    return _hasProfilesUpdatedAtColumn!;
+  }
+
+  Future<Map<String, dynamic>> _timestampPatch({
+    bool includeLastLoginAt = false,
+  }) async {
+    final DateTime now = DateTime.now().toUtc();
+    final Map<String, dynamic> patch = <String, dynamic>{
+      if (includeLastLoginAt) 'last_login_at': now.toIso8601String(),
+    };
+    if (await _profilesHasUpdatedAtColumn()) {
+      patch['updated_at'] = now.toIso8601String();
+    }
+    return patch;
+  }
+
   Future<PlayerProfile> createOrUpdateFromGoogleUser(
     User user, {
     bool force = false,
@@ -55,14 +83,14 @@ class UserProfileService {
           .maybeSingle();
 
       if (existing != null) {
+        final Map<String, dynamic> updatePayload = <String, dynamic>{
+          'email': user.email,
+          'photo_url': supabaseUserPhotoUrl(user),
+          ...(await _timestampPatch(includeLastLoginAt: true)),
+        };
         await _client
             .from('profiles')
-            .update(<String, dynamic>{
-              'email': user.email,
-              'photo_url': supabaseUserPhotoUrl(user),
-              'last_login_at': now.toIso8601String(),
-              'updated_at': now.toIso8601String(),
-            })
+            .update(updatePayload)
             .eq('id', user.id);
       } else {
         final Map<String, dynamic> profilePayload = <String, dynamic>{
@@ -70,8 +98,7 @@ class UserProfileService {
           'email': user.email,
           'display_name': suggestedDisplayName,
           'photo_url': supabaseUserPhotoUrl(user),
-          'last_login_at': now.toIso8601String(),
-          'updated_at': now.toIso8601String(),
+          ...(await _timestampPatch(includeLastLoginAt: true)),
           'credits': 1000,
           'wins': 0,
           'losses': 0,
@@ -126,7 +153,7 @@ class UserProfileService {
             'display_name': cleanedName,
             'card_avatar_rank': cardAvatarRank,
             'card_avatar_suit': cardAvatarSuit,
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
+            ...(await _timestampPatch()),
           })
           .eq('id', uid);
       debugPrint('[SUPABASE_PROFILE] update pseudo success');
@@ -156,7 +183,7 @@ class UserProfileService {
           .from('profiles')
           .update(<String, dynamic>{
             'display_name': cleanedName,
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
+            ...(await _timestampPatch()),
           })
           .eq('id', uid);
       debugPrint('[SUPABASE_PROFILE] update pseudo success');
@@ -175,7 +202,7 @@ class UserProfileService {
   }) async {
     await _client.from('profiles').upsert(<String, dynamic>{
       'id': uid,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
+      ...(await _timestampPatch()),
     }, onConflict: 'id');
   }
 
