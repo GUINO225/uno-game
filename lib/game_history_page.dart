@@ -1,10 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'game_card_avatar.dart';
 import 'premium_ui.dart';
+import 'supabase_date_parser.dart';
 
 class GameHistoryPage extends StatefulWidget {
   const GameHistoryPage({super.key});
@@ -26,21 +26,36 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
     final User? user = Supabase.instance.client.auth.currentUser;
     if (user == null || user.isAnonymous) return const <_PlayerMatchResult>[];
 
-    final CollectionReference<Map<String, dynamic>> collection =
-        FirebaseFirestore.instance.collection('match_results');
+    final SupabaseClient client = Supabase.instance.client;
+    final List<Map<String, dynamic>> rows = await client
+        .from('game_history')
+        .select('id, player_id, opponent_id, result, stake, metadata, created_at')
+        .or('player_id.eq.${user.id},opponent_id.eq.${user.id}')
+        .order('created_at', ascending: false)
+        .limit(150);
 
-    QuerySnapshot<Map<String, dynamic>> snap;
-    try {
-      snap = await collection
-          .where('participantUids', arrayContains: user.id)
-          .limit(150)
-          .get();
-    } on FirebaseException {
-      snap = await collection.where('playerIds', arrayContains: user.id).limit(150).get();
+    final Set<String> profileIds = <String>{user.id};
+    for (final Map<String, dynamic> row in rows) {
+      final String playerId = (row['player_id'] as String? ?? '').trim();
+      final String opponentId = (row['opponent_id'] as String? ?? '').trim();
+      if (playerId.isNotEmpty) profileIds.add(playerId);
+      if (opponentId.isNotEmpty) profileIds.add(opponentId);
     }
 
-    final List<_PlayerMatchResult> results = snap.docs
-        .map((d) => _PlayerMatchResult.fromDoc(d.data(), user.id))
+    final List<Map<String, dynamic>> profiles = profileIds.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : await client
+            .from('profiles')
+            .select('id, display_name')
+            .inFilter('id', profileIds.toList());
+
+    final Map<String, String> pseudoById = <String, String>{
+      for (final Map<String, dynamic> p in profiles)
+        (p['id'] as String? ?? '').trim(): (p['display_name'] as String? ?? 'Joueur').trim(),
+    };
+
+    final List<_PlayerMatchResult> results = rows
+        .map((d) => _PlayerMatchResult.fromDoc(d, user.id, pseudoById))
         .whereType<_PlayerMatchResult>()
         .toList();
     results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -116,35 +131,50 @@ class _PlayerMatchResult {
   final String dateLabel;
   final DateTime createdAt;
 
-  static _PlayerMatchResult? fromDoc(Map<String, dynamic> data, String uid) {
-    final Map<String, dynamic> a = (data['playerA'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-    final Map<String, dynamic> b = (data['playerB'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-    final String aUid = (a['uid'] as String? ?? '').trim();
-    final String bUid = (b['uid'] as String? ?? '').trim();
-    final bool mineIsA = aUid == uid;
-    final bool mineIsB = bUid == uid;
-    if (!mineIsA && !mineIsB) {
+  static _PlayerMatchResult? fromDoc(
+    Map<String, dynamic> data,
+    String uid,
+    Map<String, String> pseudoById,
+  ) {
+    final String playerId = (data['player_id'] as String? ?? '').trim();
+    final String opponentId = (data['opponent_id'] as String? ?? '').trim();
+    final bool mineIsPlayer = playerId == uid;
+    final bool mineIsOpponent = opponentId == uid;
+    if (!mineIsPlayer && !mineIsOpponent) {
       return null;
     }
-    final Map<String, dynamic> mine = mineIsA ? a : b;
-    final Map<String, dynamic> other = mineIsA ? b : a;
-    final Timestamp? ts = data['createdAt'] as Timestamp?;
-    final DateTime dt = ts?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final String mode = (data['mode'] as String? ?? 'partie').toLowerCase();
+    final Map<String, dynamic> metadata =
+        (data['metadata'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final DateTime dt = parseSupabaseDate(data['created_at']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final String mode =
+        ((metadata['mode'] as String?) ?? (data['mode'] as String?) ?? 'partie').toLowerCase();
+
+    final String myId = mineIsPlayer ? playerId : opponentId;
+    final String otherId = mineIsPlayer ? opponentId : playerId;
+    final String myPseudo = (pseudoById[myId] ?? 'Joueur').trim();
+    final String otherPseudo = (pseudoById[otherId] ?? 'Joueur').trim();
+
+    final String rawResult = (data['result'] as String? ?? '').toLowerCase();
+    final bool isWin = mineIsPlayer
+        ? rawResult == 'win'
+        : (rawResult == 'loss' ? true : false);
+
+    final int winnerDelta = (metadata['winner_credits_delta'] as num?)?.toInt() ?? 0;
+    final int loserDelta = (metadata['loser_credits_delta'] as num?)?.toInt() ?? 0;
+
     return _PlayerMatchResult(
       myUid: uid,
-      myPseudo: (mine['pseudo'] as String? ?? 'Joueur').trim(),
-      opponentPseudo: ((other['pseudo'] as String?)?.trim().isNotEmpty ?? false)
-          ? (other['pseudo'] as String).trim()
-          : 'Joueur',
-      isWin: (mine['result'] as String? ?? '') == 'win',
+      myPseudo: myPseudo.isEmpty ? 'Joueur' : myPseudo,
+      opponentPseudo: otherPseudo.isEmpty ? 'Joueur' : otherPseudo,
+      isWin: isWin,
       modeLabel: mode == 'credits' || mode == 'duel_pari'
           ? 'Duel Pari'
           : (mode == 'solo' ? 'Solo' : (mode == 'duel' ? 'Duel' : 'Partie')),
-      stakeCredits: (data['stakeCredits'] as num?)?.toInt() ??
+      stakeCredits: (data['stake'] as num?)?.toInt() ??
+          (data['stakeCredits'] as num?)?.toInt() ??
           (data['wagerAmount'] as num?)?.toInt() ??
           0,
-      creditDelta: (mine['creditDelta'] as num?)?.toInt() ?? 0,
+      creditDelta: mineIsPlayer ? winnerDelta : loserDelta,
       dateLabel: '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
       createdAt: dt,
     );
