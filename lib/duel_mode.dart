@@ -44,7 +44,7 @@ enum DuelRematchDecision { pending, accepted, declined }
 
 enum DuelChatDelivery { sending, sent, failed }
 
-enum DuelRoomMode { duel, credits }
+enum DuelRoomMode { duel, duel_pari }
 
 const Duration _presenceGracePeriod = Duration(seconds: 20);
 const Duration _connectionWarningTimeout = Duration(seconds: 25);
@@ -434,7 +434,7 @@ class DuelSession {
   final DateTime? endedAt;
 
   bool get canStart => players.length == 2;
-  bool get isCreditsMode => mode == DuelRoomMode.credits;
+  bool get isCreditsMode => mode == DuelRoomMode.duel_pari;
   String get player1Id => players.isNotEmpty ? players.first : '';
   String get player2Id => players.length > 1 ? players[1] : '';
   List<String> handForPlayer(String playerId) {
@@ -611,7 +611,7 @@ class GameService {
       players: players,
       playerNames: names.map((k,v)=>MapEntry(k.toString(), v.toString())),
       currentTurn: (room['current_turn'] ?? gs['currentTurn'] ?? (players.isNotEmpty ? players.first : '')).toString(),
-      status: statusRaw == 'finished' ? DuelGameStatus.finished : ((statusRaw == 'playing' || statusRaw == 'round') ? DuelGameStatus.inProgress : DuelGameStatus.waiting),
+      status: statusRaw == 'finished' ? DuelGameStatus.finished : (statusRaw == 'round' ? DuelGameStatus.inProgress : DuelGameStatus.waiting),
       scores: Map<String, int>.from((gs['scores'] as Map? ?? <String, dynamic>{}).map((k, v) => MapEntry(k.toString(), (v as num).toInt()))),
       round: (gs['round'] as num?)?.toInt() ?? 1,
       mode: DuelRoomMode.values.firstWhere((m)=>m.name==(room['mode'] ?? 'duel'), orElse: ()=>DuelRoomMode.duel),
@@ -1228,7 +1228,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   String? _validatePseudo() {
     if (_authenticatedPlayerId == null) {
-      return widget.mode == DuelRoomMode.credits
+      return widget.mode == DuelRoomMode.duel_pari
           ? 'Connectez-vous avec Google pour jouer en mode pari.'
           : 'Connectez-vous avec Google pour jouer en duel simple.';
     }
@@ -1395,7 +1395,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _resolveIdentityIfNeeded() async {
-    if (_identityResolved || widget.mode == DuelRoomMode.credits) {
+    if (_identityResolved || widget.mode == DuelRoomMode.duel_pari) {
       return;
     }
     try {
@@ -1493,7 +1493,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _ensureLobbyAccess() async {
     if (!mounted || _authService.currentUser != null) {
-      if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId != null) {
+      if (widget.mode == DuelRoomMode.duel_pari && _authenticatedPlayerId != null) {
         final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
         if (!mounted) {
           return;
@@ -1515,7 +1515,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
               backgroundColor: Colors.transparent,
               child: GinoDecisionPopup(
                 title: 'Connexion',
-                message: widget.mode == DuelRoomMode.credits
+                message: widget.mode == DuelRoomMode.duel_pari
                     ? 'Connecte-toi avec Google pour jouer en mode pari.'
                     : 'Connecte-toi avec Google pour jouer en duel simple.',
                 primaryLabel: 'Google',
@@ -1542,7 +1542,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       Navigator.of(context).pop();
       return;
     }
-    if (widget.mode == DuelRoomMode.credits) {
+    if (widget.mode == DuelRoomMode.duel_pari) {
       final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
       if (!mounted) {
         return;
@@ -1683,7 +1683,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         return;
       }
       final String pseudo = _resolvePlayerName()!;
-      if (widget.mode == DuelRoomMode.credits) {
+      if (widget.mode == DuelRoomMode.duel_pari) {
         final String? uid = _authenticatedPlayerId;
         if (uid == null || !(await _hasPositiveCredit(uid))) {
           await _showInsufficientCreditDialog();
@@ -1788,7 +1788,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       return;
     }
     final String pseudo = _resolvePlayerName()!;
-    if (widget.mode == DuelRoomMode.credits) {
+    if (widget.mode == DuelRoomMode.duel_pari) {
       final String? uid = _authenticatedPlayerId;
       if (uid == null || !(await _hasPositiveCredit(uid))) {
         await _showInsufficientCreditDialog();
@@ -1828,7 +1828,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   Widget build(BuildContext context) {
     final DuelSession? session = _controller?.session;
     final bool busy = (_controller?.busy ?? false) || _isCreatingRoom;
-    final bool creditsMode = widget.mode == DuelRoomMode.credits;
+    final bool creditsMode = widget.mode == DuelRoomMode.duel_pari;
     final String title = creditsMode ? 'Mode pari' : 'Duel simple';
     return Scaffold(
       endDrawer: PlayerSidePanel(
@@ -2153,7 +2153,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   ];
 
   DuelController get _controller => widget.controller;
-  bool get _isCreditsMode => widget.mode == DuelRoomMode.credits;
+  bool get _isCreditsMode => widget.mode == DuelRoomMode.duel_pari;
   bool _isInitialStakePhase(DuelSession session) =>
       session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
   bool _isRematchStakePhase(DuelSession session) =>

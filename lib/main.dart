@@ -138,9 +138,9 @@ class MyApp extends StatelessWidget {
             unawaited(AudioService.instance.preloadGameSounds());
             return const DuelLobbyPage();
           },
-          GameModeRoutes.credits: (_) {
+          GameModeRoutes.duelPari: (_) {
             unawaited(AudioService.instance.preloadGameSounds());
-            return const DuelLobbyPage(mode: DuelRoomMode.credits);
+            return const DuelLobbyPage(mode: DuelRoomMode.duel_pari);
           },
           GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
           GameModeRoutes.history: (_) => const GameHistoryPage(),
@@ -369,12 +369,12 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
 
 
 
-enum GameMode { solo, duel, credits }
+enum GameMode { solo, duel, duel_pari }
 
 class GameModeRoutes {
   static const String solo = '/solo';
   static const String duel = '/duel';
-  static const String credits = '/credits';
+  static const String duelPari = '/duel-pari';
   static const String leaderboard = '/leaderboard';
   static const String history = '/history';
   static const String adminLogin = '/admin-login';
@@ -834,9 +834,9 @@ class _GameModePageState extends State<GameModePage>
                                                           milliseconds: 220,
                                                         ),
                                                     isSelected: _selectedMode ==
-                                                        GameMode.credits,
+                                                        GameMode.duel_pari,
                                                     onTap: () => _selectMode(
-                                                      GameMode.credits,
+                                                      GameMode.duel_pari,
                                                     ),
                                                   ),
                                                 ),
@@ -1008,7 +1008,7 @@ class _GameModePageState extends State<GameModePage>
     if (mode == null) {
       return;
     }
-    if ((mode == GameMode.duel || mode == GameMode.credits) && _authService.currentUser == null) {
+    if ((mode == GameMode.duel || mode == GameMode.duel_pari) && _authService.currentUser == null) {
       final bool shouldLogin = await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
@@ -1048,7 +1048,7 @@ class _GameModePageState extends State<GameModePage>
       }
       await _profileService.createOrUpdateFromGoogleUser(result.user!);
     }
-    if (mode == GameMode.credits) {
+    if (mode == GameMode.duel_pari) {
       final String? uid = _authService.currentUser?.id;
       if (uid == null) {
         return;
@@ -1093,7 +1093,7 @@ class _GameModePageState extends State<GameModePage>
     Navigator.of(context).pushNamed(switch (mode) {
       GameMode.solo => GameModeRoutes.solo,
       GameMode.duel => GameModeRoutes.duel,
-      GameMode.credits => GameModeRoutes.credits,
+      GameMode.duel_pari => GameModeRoutes.duelPari,
     });
   }
 }
