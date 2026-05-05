@@ -2,9 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:math';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,7 +11,6 @@ import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'config/backend_flags.dart';
 import 'credit_coins_icon.dart';
-import 'firebase_config.dart';
 import 'game_history_page.dart';
 import 'leaderboard_page.dart';
 import 'player_profile.dart';
@@ -28,6 +25,16 @@ import 'widgets/gino_popups.dart';
 import 'web_page_lifecycle_stub.dart'
     if (dart.library.html) 'web_page_lifecycle_web.dart';
 import 'supabase_user_photo.dart';
+
+
+String _toIsoTimestamp(DateTime value) => value.toUtc().toIso8601String();
+
+DateTime? _parseDateTime(Object? value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value)?.toLocal() ?? DateTime.tryParse(value);
+  return null;
+}
 
 enum DuelGameStatus { waiting, inProgress, finished }
 
@@ -96,7 +103,7 @@ String _localizeUserError(Object error) {
       .replaceFirst(RegExp(r'^Exception:\s*'), '');
   final String lowercase = message.toLowerCase();
 
-  if (error is FirebaseException) {
+  if (error is PostgrestException) {
     switch (error.code) {
       case 'room_not_found':
         return 'Code de partie introuvable.';
@@ -180,7 +187,7 @@ class DuelStakeOffer {
       'acceptedBy': acceptedBy,
       'amount': amount,
       'status': status.name,
-      'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
+      'createdAt': createdAt == null ? null : _toIsoTimestamp(createdAt!.toUtc()),
     };
   }
 
@@ -197,7 +204,7 @@ class DuelStakeOffer {
             value.name == (map['status'] as String? ?? DuelStakeStatus.none.name),
         orElse: () => DuelStakeStatus.none,
       ),
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
+      createdAt: _parseDateTime(map['createdAt']),
     );
   }
 }
@@ -219,7 +226,7 @@ class DuelAction {
     return <String, dynamic>{
       'type': type.name,
       'actorId': actorId,
-      'createdAt': Timestamp.fromDate(createdAt.toUtc()),
+      'createdAt': _toIsoTimestamp(createdAt.toUtc()),
       'payload': payload,
     };
   }
@@ -230,7 +237,7 @@ class DuelAction {
         (DuelActionType element) => element.name == json['type'],
       ),
       actorId: json['actorId'] as String,
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
+      createdAt: _parseDateTime(json['createdAt']) ?? DateTime.now(),
       payload: Map<String, dynamic>.from(json['payload'] as Map? ?? <String, dynamic>{}),
     );
   }
@@ -258,7 +265,7 @@ class DuelChatMessage {
       'senderId': senderId,
       'senderName': senderName,
       'text': text,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
     };
   }
 
@@ -271,7 +278,7 @@ class DuelChatMessage {
       senderId: data['senderId'] as String? ?? '',
       senderName: data['senderName'] as String? ?? '',
       text: data['text'] as String? ?? '',
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: _parseDateTime(data['createdAt']) ?? DateTime.now(),
     );
   }
 }
@@ -307,9 +314,9 @@ class DuelPlayerPresence {
       state: map['state'] as String? ?? 'offline',
       isOnline: map['isOnline'] as bool? ?? false,
       currentScreen: map['currentScreen'] as String? ?? 'background',
-      lastSeenAt: (map['lastSeenAt'] as Timestamp?)?.toDate(),
-      lastActionAt: (map['lastActionAt'] as Timestamp?)?.toDate(),
-      leftAt: (map['leftAt'] as Timestamp?)?.toDate(),
+      lastSeenAt: _parseDateTime(map['lastSeenAt']),
+      lastActionAt: _parseDateTime(map['lastActionAt']),
+      leftAt: _parseDateTime(map['leftAt']),
       connectionState: map['connectionState'] as String? ?? 'offline',
       appState: map['appState'] as String? ?? 'closed',
     );
@@ -477,7 +484,7 @@ class DuelSession {
       'rematchRequestBy': rematchRequestBy,
       'rematchRequestedAt': rematchRequestedAt == null
           ? null
-          : Timestamp.fromDate(rematchRequestedAt!.toUtc()),
+          : _toIsoTimestamp(rematchRequestedAt!.toUtc()),
       'rematchDecision': rematchDecision.name,
       'rematchStatus': rematchRequestBy == null ? 'none' : 'requested',
       'rematchDecisionBy': rematchDecisionBy,
@@ -490,7 +497,7 @@ class DuelSession {
       'exitBothPlayers': exitBothPlayers,
       'payoutWinnerId': payoutWinnerId,
       'payoutAmount': payoutAmount,
-      'payoutAt': payoutAt == null ? null : Timestamp.fromDate(payoutAt!.toUtc()),
+      'payoutAt': payoutAt == null ? null : _toIsoTimestamp(payoutAt!.toUtc()),
       'player1Hand': player1Hand,
       'player2Hand': player2Hand,
       'drawPile': drawPile,
@@ -510,12 +517,12 @@ class DuelSession {
       'requiredSuit': requiredSuit,
       'requiredColorAfterJoker': requiredColorAfterJoker,
       'aceColorRequired': aceColorRequired,
-      'gameStartedAt': gameStartedAt == null ? null : Timestamp.fromDate(gameStartedAt!.toUtc()),
+      'gameStartedAt': gameStartedAt == null ? null : _toIsoTimestamp(gameStartedAt!.toUtc()),
       'roundStartedAt':
-          roundStartedAt == null ? null : Timestamp.fromDate(roundStartedAt!.toUtc()),
+          roundStartedAt == null ? null : _toIsoTimestamp(roundStartedAt!.toUtc()),
       'presenceGraceUntil': presenceGraceUntil == null
           ? null
-          : Timestamp.fromDate(presenceGraceUntil!.toUtc()),
+          : _toIsoTimestamp(presenceGraceUntil!.toUtc()),
       'presence': presence.map(
         (String playerId, DuelPlayerPresence value) => MapEntry(
           playerId,
@@ -525,13 +532,13 @@ class DuelSession {
             'currentScreen': value.currentScreen,
             'lastSeenAt': value.lastSeenAt == null
                 ? null
-                : Timestamp.fromDate(value.lastSeenAt!.toUtc()),
+                : _toIsoTimestamp(value.lastSeenAt!.toUtc()),
             'lastActionAt': value.lastActionAt == null
                 ? null
-                : Timestamp.fromDate(value.lastActionAt!.toUtc()),
+                : _toIsoTimestamp(value.lastActionAt!.toUtc()),
             'leftAt': value.leftAt == null
                 ? null
-                : Timestamp.fromDate(value.leftAt!.toUtc()),
+                : _toIsoTimestamp(value.leftAt!.toUtc()),
             'connectionState': value.connectionState,
             'appState': value.appState,
           },
@@ -540,8 +547,8 @@ class DuelSession {
       'roomStatus': roomStatus,
       'closeReason': closeReason,
       'resultProcessed': resultProcessed,
-      'endedAt': endedAt == null ? null : Timestamp.fromDate(endedAt!.toUtc()),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'endedAt': endedAt == null ? null : _toIsoTimestamp(endedAt!.toUtc()),
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
     };
   }
 
@@ -588,7 +595,7 @@ class DuelSession {
           ? null
           : DuelAction.fromMap(Map<String, dynamic>.from(json['lastAction'] as Map)),
       rematchRequestBy: json['rematchRequestBy'] as String?,
-      rematchRequestedAt: (json['rematchRequestedAt'] as Timestamp?)?.toDate(),
+      rematchRequestedAt: _parseDateTime(json['rematchRequestedAt']),
       rematchDecision: DuelRematchDecision.values.firstWhere(
         (DuelRematchDecision d) =>
             d.name == (json['rematchDecision'] as String? ?? DuelRematchDecision.pending.name),
@@ -608,7 +615,7 @@ class DuelSession {
       exitBothPlayers: json['exitBothPlayers'] as bool? ?? false,
       payoutWinnerId: json['payoutWinnerId'] as String?,
       payoutAmount: (json['payoutAmount'] as num?)?.toInt() ?? 0,
-      payoutAt: (json['payoutAt'] as Timestamp?)?.toDate(),
+      payoutAt: _parseDateTime(json['payoutAt']),
       player1Hand: List<String>.from(json['player1Hand'] as List? ?? const <String>[]),
       player2Hand: List<String>.from(json['player2Hand'] as List? ?? const <String>[]),
       drawPile: List<String>.from(json['drawPile'] as List? ?? const <String>[]),
@@ -628,9 +635,9 @@ class DuelSession {
       requiredSuit: json['requiredSuit'] as String?,
       requiredColorAfterJoker: json['requiredColorAfterJoker'] as String?,
       aceColorRequired: json['aceColorRequired'] as bool? ?? false,
-      gameStartedAt: (json['gameStartedAt'] as Timestamp?)?.toDate(),
-      roundStartedAt: (json['roundStartedAt'] as Timestamp?)?.toDate(),
-      presenceGraceUntil: (json['presenceGraceUntil'] as Timestamp?)?.toDate(),
+      gameStartedAt: _parseDateTime(json['gameStartedAt']),
+      roundStartedAt: _parseDateTime(json['roundStartedAt']),
+      presenceGraceUntil: _parseDateTime(json['presenceGraceUntil']),
       presence: (json['presence'] as Map? ?? const <String, dynamic>{}).map(
         (Object? key, Object? value) => MapEntry(
           key.toString(),
@@ -640,7 +647,7 @@ class DuelSession {
       roomStatus: json['roomStatus'] as String? ?? 'open',
       closeReason: json['closeReason'] as String?,
       resultProcessed: json['resultProcessed'] as bool? ?? false,
-      endedAt: (json['endedAt'] as Timestamp?)?.toDate(),
+      endedAt: _parseDateTime(json['endedAt']),
     );
   }
 }
@@ -670,8 +677,8 @@ class GameService {
         'wins': 0,
         'losses': 0,
         'gamesPlayed': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       }, SetOptions(merge: true));
       return 1000;
     }
@@ -679,7 +686,7 @@ class GameService {
     if (!(profileSnap.data()?.containsKey('credits') ?? false)) {
       tx.set(profileRef, <String, dynamic>{
         'credits': credits,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       }, SetOptions(merge: true));
     }
     return credits;
@@ -690,8 +697,8 @@ class GameService {
       'presence.$playerId.state': 'online',
       'presence.$playerId.isOnline': true,
       'presence.$playerId.currentScreen': 'game',
-      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
-      'presence.$playerId.lastActionAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.lastSeenAt': DateTime.now().toUtc().toIso8601String(),
+      'presence.$playerId.lastActionAt': DateTime.now().toUtc().toIso8601String(),
       'presence.$playerId.leftAt': null,
       'presence.$playerId.connectionState': 'online',
       'presence.$playerId.appState': 'active',
@@ -703,8 +710,8 @@ class GameService {
       'presence.$playerId.state': 'offline',
       'presence.$playerId.isOnline': false,
       'presence.$playerId.currentScreen': 'background',
-      'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
-      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.leftAt': DateTime.now().toUtc().toIso8601String(),
+      'presence.$playerId.lastSeenAt': DateTime.now().toUtc().toIso8601String(),
       'presence.$playerId.connectionState': 'offline',
       'presence.$playerId.appState': 'closed',
     };
@@ -723,12 +730,12 @@ class GameService {
       'presence.$playerId.state': state,
       'presence.$playerId.isOnline': isOnline,
       'presence.$playerId.currentScreen': currentScreen ?? (isOnline ? 'game' : 'background'),
-      'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
-      if (touchLastAction) 'presence.$playerId.lastActionAt': FieldValue.serverTimestamp(),
+      'presence.$playerId.lastSeenAt': DateTime.now().toUtc().toIso8601String(),
+      if (touchLastAction) 'presence.$playerId.lastActionAt': DateTime.now().toUtc().toIso8601String(),
       'presence.$playerId.connectionState': connectionState ?? (isOnline ? 'online' : 'offline'),
       'presence.$playerId.appState': appState ?? (isOnline ? 'active' : 'closed'),
       if (state != 'offline') 'presence.$playerId.leftAt': null,
-      if (state == 'offline') 'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
+      if (state == 'offline') 'presence.$playerId.leftAt': DateTime.now().toUtc().toIso8601String(),
     };
   }
 
@@ -875,7 +882,7 @@ class GameService {
     debugPrint('[Presence] heartbeat sent player=$playerId');
     await games.doc(gameId).update(<String, dynamic>{
       ..._presenceOnlinePatch(playerId),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
@@ -905,7 +912,7 @@ class GameService {
         connectionState: connectionState,
         touchLastAction: touchLastAction,
       ),
-      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
@@ -1024,9 +1031,9 @@ class GameService {
           'revision': session.revision + 1,
           'repairLock': <String, dynamic>{
             'lockedBy': requestedBy,
-            'lockedAt': FieldValue.serverTimestamp(),
+            'lockedAt': DateTime.now().toUtc().toIso8601String(),
           },
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
         });
         return;
       }
@@ -1036,9 +1043,9 @@ class GameService {
           'revision': session.revision + 1,
           'repairLock': <String, dynamic>{
             'lockedBy': requestedBy,
-            'lockedAt': FieldValue.serverTimestamp(),
+            'lockedAt': DateTime.now().toUtc().toIso8601String(),
           },
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
         });
       }
     });
@@ -1150,7 +1157,7 @@ class GameService {
         tx.update(gameRef, <String, dynamic>{
           'status': DuelGameStatus.finished.name,
           'integrityError': preValidation.integrityError,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
         });
         throw StateError('Partie corrompue: cartes dupliquées détectées.');
       }
@@ -1200,7 +1207,7 @@ class GameService {
         if (move.payload.containsKey('winnerId')) 'rematchStatus': 'none',
         'revision': session.revision + 1,
         ...nextBoard.toFirestoreFields(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
         ...sessionPatch,
       });
       tx.set(gameRef.collection('actions').doc(actionId), validatedAction.toMap());
@@ -1310,7 +1317,7 @@ class GameService {
         'lastAction': action.toMap(),
         'lastActionBy': abandonedBy,
         'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
-        'scores.$winnerId': FieldValue.increment(1),
+        'scores.$winnerId': 1,
         'rematchRequestBy': null,
         'rematchRequestedAt': null,
         'rematchDecision': DuelRematchDecision.pending.name,
@@ -1323,7 +1330,7 @@ class GameService {
         'roomStatus': 'open',
         'closeReason': null,
         'resultProcessed': true,
-        'endedAt': FieldValue.serverTimestamp(),
+        'endedAt': DateTime.now().toUtc().toIso8601String(),
         'revision': session.revision + 1,
       };
       if (session.isCreditsMode) {
@@ -1349,20 +1356,20 @@ class GameService {
             'payoutDone': true,
             'payoutWinnerId': winnerId,
             'payoutAmount': offer.amount,
-            'payoutAt': FieldValue.serverTimestamp(),
+            'payoutAt': DateTime.now().toUtc().toIso8601String(),
             if (loserNoCredit) 'roomStatus': 'closed',
             if (loserNoCredit) 'closeReason': 'opponent_no_credit',
-            if (loserNoCredit) 'endedAt': FieldValue.serverTimestamp(),
+            if (loserNoCredit) 'endedAt': DateTime.now().toUtc().toIso8601String(),
           });
           tx.set(_userProfileRef(db, winnerId), <String, dynamic>{
             'credits': winnerNextCredits,
-            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedAt': DateTime.now().toUtc().toIso8601String(),
           }, SetOptions(merge: true));
         } else if (session.payoutDone) {
           debugPrint('[Forfeit] skipped: payout already done');
         }
       }
-      patch['updatedAt'] = FieldValue.serverTimestamp();
+      patch['updatedAt'] = DateTime.now().toUtc().toIso8601String();
       debugPrint(
         voluntaryQuit
             ? '[Forfeit] voluntary quit confirmed'
@@ -1433,8 +1440,8 @@ class GameService {
         'closeReason': null,
         'resultProcessed': false,
         'endedAt': null,
-        'roundStartedAt': FieldValue.serverTimestamp(),
-        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+        'roundStartedAt': DateTime.now().toUtc().toIso8601String(),
+        'presenceGraceUntil': _toIsoTimestamp(_presenceGraceDeadline()),
         'revision': session.revision + 1,
         if (!session.isCreditsMode)
           ..._boardInitPatch(
@@ -1481,14 +1488,14 @@ class GameService {
       }
       tx.update(ref, <String, dynamic>{
         'rematchRequestBy': requestedBy,
-        'rematchRequestedAt': FieldValue.serverTimestamp(),
+        'rematchRequestedAt': DateTime.now().toUtc().toIso8601String(),
         'rematchDecision': DuelRematchDecision.pending.name,
         'rematchDecisionBy': null,
         'status': DuelGameStatus.finished.name,
         'roundStatus': 'rematchProposalPending',
         'rematchStatus': 'requested',
         'betFlowState': DuelBetFlowState.rematchPendingFromLoser.name,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
         'revision': session.revision + 1,
         if (session.isCreditsMode) ...<String, dynamic>{
           'stakeOffer': const DuelStakeOffer().toMap(),
@@ -1606,8 +1613,8 @@ class GameService {
           'rematchStatus': 'accepted',
           'betFlowState': DuelBetFlowState.rematchStakePendingWinnerResponse.name,
           'activeStakeCredits': 0,
-          'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
-          'updatedAt': FieldValue.serverTimestamp(),
+          'presenceGraceUntil': _toIsoTimestamp(_presenceGraceDeadline()),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
           'revision': session.revision + 1,
         });
         return;
@@ -1654,9 +1661,9 @@ class GameService {
         'payoutWinnerId': null,
         'payoutAmount': 0,
         'payoutAt': null,
-        'roundStartedAt': FieldValue.serverTimestamp(),
-        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'roundStartedAt': DateTime.now().toUtc().toIso8601String(),
+        'presenceGraceUntil': _toIsoTimestamp(_presenceGraceDeadline()),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
         'revision': session.revision + 1,
         ..._boardInitPatch(
           gameId: session.gameId,
@@ -1702,7 +1709,7 @@ class GameService {
         'betFlowState': DuelBetFlowState.rematchRejected.name,
         'rematchRequestBy': null,
         'rematchRequestedAt': null,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
         'revision': session.revision + 1,
       });
     });
@@ -1735,7 +1742,7 @@ class GameService {
         'rematchStatus': 'none',
         'roundStatus': 'roundFinished',
         'betFlowState': DuelBetFlowState.matchFinished.name,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
         'revision': session.revision + 1,
       });
     });
@@ -1842,7 +1849,7 @@ class GameService {
                 ? DuelBetFlowState.counterStakePendingResponse.name
                 : DuelBetFlowState.initialStakePendingResponse.name),
         'lastInsufficientFundsPlayerId': null,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
         'revision': session.revision + 1,
       });
       if (isRematchStakeFlow) {
@@ -1916,7 +1923,7 @@ class GameService {
             'rematchRequestBy': null,
             'rematchRequestedAt': null,
           },
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
           'revision': session.revision + 1,
         });
         return;
@@ -1950,7 +1957,7 @@ class GameService {
           ).toMap(),
           'betFlowState': DuelBetFlowState.awaitingFundsValidation.name,
           'lastInsufficientFundsPlayerId': responderId,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
           'revision': session.revision + 1,
         });
         return;
@@ -2008,9 +2015,9 @@ class GameService {
           'closeReason': null,
           'resultProcessed': false,
           'endedAt': null,
-          'roundStartedAt': FieldValue.serverTimestamp(),
-          'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
-          'updatedAt': FieldValue.serverTimestamp(),
+          'roundStartedAt': DateTime.now().toUtc().toIso8601String(),
+          'presenceGraceUntil': _toIsoTimestamp(_presenceGraceDeadline()),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
           'revision': session.revision + 1,
           ..._boardInitPatch(
             gameId: session.gameId,
@@ -2020,11 +2027,11 @@ class GameService {
         });
         tx.set(_userProfileRef(db, offer.proposedBy!), <String, dynamic>{
           'credits': latestProposerCredits - offer.amount,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
         }, SetOptions(merge: true));
         tx.set(_userProfileRef(db, responderId), <String, dynamic>{
           'credits': latestResponderCredits - offer.amount,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
         }, SetOptions(merge: true));
         tx.set(ref.collection('actions').doc(), action.toMap());
         debugPrint('[RematchParis] winner accepted stake');
@@ -2050,24 +2057,24 @@ class GameService {
         'closeReason': null,
         'resultProcessed': false,
         'endedAt': null,
-        'roundStartedAt': FieldValue.serverTimestamp(),
-        'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+        'roundStartedAt': DateTime.now().toUtc().toIso8601String(),
+        'presenceGraceUntil': _toIsoTimestamp(_presenceGraceDeadline()),
         if (!session.deckInitialized)
           ..._boardInitPatch(
             gameId: session.gameId,
             players: session.players,
             round: session.round,
           ),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
         'revision': session.revision + 1,
       });
       tx.set(_userProfileRef(db, offer.proposedBy!), <String, dynamic>{
         'credits': latestProposerCredits - offer.amount,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       }, SetOptions(merge: true));
       tx.set(_userProfileRef(db, responderId), <String, dynamic>{
         'credits': latestResponderCredits - offer.amount,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       }, SetOptions(merge: true));
     });
   }
@@ -2126,15 +2133,15 @@ class GameService {
         'payoutDone': true,
         'payoutWinnerId': winnerId,
         'payoutAmount': offer.amount,
-        'payoutAt': FieldValue.serverTimestamp(),
+        'payoutAt': DateTime.now().toUtc().toIso8601String(),
         'resultProcessed': true,
-        'endedAt': FieldValue.serverTimestamp(),
+        'endedAt': DateTime.now().toUtc().toIso8601String(),
         if (loserNoCredit) 'roomStatus': 'closed',
         if (loserNoCredit) 'closeReason': 'opponent_no_credit',
       });
       tx.set(_userProfileRef(db, winnerId), <String, dynamic>{
         'credits': winnerNext,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       }, SetOptions(merge: true));
     });
   }
@@ -2185,8 +2192,8 @@ class DuelController extends ChangeNotifier {
       debugPrint('[DUEL_ROOM] listening room gameId=$id');
       debugPrint('[DUEL_ROOM] room state waiting opponent');
       await attach(id);
-    } on FirebaseException catch (e, st) {
-      debugPrint('[DUEL_ROOM] create FirebaseException code=${e.code} message=${e.message}');
+    } on PostgrestException catch (e, st) {
+      debugPrint('[DUEL_ROOM] create PostgrestException code=${e.code} message=${e.message}');
       debugPrintStack(stackTrace: st);
       error = _localizeUserError(e);
     } catch (e, st) {
@@ -2212,8 +2219,8 @@ class DuelController extends ChangeNotifier {
       );
       debugPrint('[DUEL_ROOM] join success gameId=$gameId');
       await attach(gameId);
-    } on FirebaseException catch (e, st) {
-      debugPrint('[DUEL_ROOM] join FirebaseException code=${e.code} message=${e.message}');
+    } on PostgrestException catch (e, st) {
+      debugPrint('[DUEL_ROOM] join PostgrestException code=${e.code} message=${e.message}');
       debugPrintStack(stackTrace: st);
       error = _localizeUserError(e);
     } catch (e, st) {
@@ -2779,7 +2786,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           _profileError = 'Le chargement du compte a expiré (8s). Réessayez.';
         });
       }
-    } on FirebaseException catch (e) {
+    } on PostgrestException catch (e) {
       if (mounted) {
         setState(() {
           _profileError = e.code == 'resource-exhausted'
@@ -4210,7 +4217,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           : DuelGameStatus.inProgress,
       sessionPatch: move.payload.containsKey('winnerId')
           ? <String, dynamic>{
-              'scores.${_controller.localPlayerId}': FieldValue.increment(1),
+              'scores.${_controller.localPlayerId}': 1,
             }
           : const <String, dynamic>{},
     );
@@ -7162,7 +7169,7 @@ DuelGameStateValidationResult validateGameState(DuelSession session) {
         'type': 'duplicate_card',
         'cardId': entry.key,
         'locations': entry.value,
-        'detectedAt': FieldValue.serverTimestamp(),
+        'detectedAt': DateTime.now().toUtc().toIso8601String(),
       };
       errors.add('Carte dupliquée ${entry.key} dans ${entry.value.join(', ')}');
       return DuelGameStateValidationResult(
