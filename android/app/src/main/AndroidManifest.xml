@@ -2,7 +2,11 @@
     <application
         android:label="gino"
         android:name="${applicationName}"
+<<<<<<< HEAD
         android:icon="@mipmap/launcher_icon">
+=======
+        android:icon="@mipmap/ic_launcher">
+>>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
         <activity
             android:name=".MainActivity"
             android:exported="true"

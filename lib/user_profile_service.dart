@@ -157,9 +157,12 @@ class UserProfileService {
     required String displayName,
   }) async {
     final String cleanedName = sanitizeDisplayName(displayName);
+<<<<<<< HEAD
     if (cleanedName.isEmpty) {
       throw ArgumentError('Le pseudo ne peut pas être vide.');
     }
+=======
+>>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     await _profiles.doc(uid).set(
       <String, dynamic>{
         'uid': uid,

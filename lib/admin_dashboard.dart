@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'widgets/gino_popups.dart';
 
 class AdminAccessConfig {
+<<<<<<< HEAD
   // Injectés au build : --dart-define=ADMIN_LOGIN=xxx --dart-define=ADMIN_PASSWORD=xxx
   // Si non définis, l'accès est bloqué.
   static const String _login = String.fromEnvironment('ADMIN_LOGIN', defaultValue: '');
@@ -13,6 +14,10 @@ class AdminAccessConfig {
     if (_login.isEmpty || _password.isEmpty) return false;
     return login == _login && password == _password;
   }
+=======
+  static const String login = 'GINO';
+  static const String password = 'GINO89';
+>>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
 }
 
 class LoginAdminPage extends StatefulWidget {
@@ -37,7 +42,11 @@ class _LoginAdminPageState extends State<LoginAdminPage> {
   void _submit() {
     final String login = _loginController.text.trim();
     final String password = _passwordController.text.trim();
+<<<<<<< HEAD
     if (AdminAccessConfig.verify(login, password)) {
+=======
+    if (login == AdminAccessConfig.login && password == AdminAccessConfig.password) {
+>>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       Navigator.of(context).pushReplacementNamed('/admin-dashboard');
       return;
     }
@@ -268,7 +277,11 @@ class AdminDashboardPage extends StatelessWidget {
         throw StateError('Joueur introuvable.');
       }
       final int oldCredit = (snap.data()?['credits'] as num?)?.toInt() ?? 0;
+<<<<<<< HEAD
       final int newCredit = (oldCredit - amount).clamp(0, oldCredit);
+=======
+      final int newCredit = (oldCredit - amount).clamp(0, 1 << 31).toInt();
+>>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
       tx.update(userRef, <String, dynamic>{
         'credits': newCredit,
         'updatedAt': FieldValue.serverTimestamp(),

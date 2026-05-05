@@ -9,6 +9,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+<<<<<<< HEAD
     match /user_profiles/{uid} {
       allow read: if isSignedIn();
       allow create: if isOwner(uid);
@@ -47,6 +48,42 @@ service cloud.firestore {
     match /credit_logs/{logId} {
       allow read: if request.auth.token.admin == true;
       allow write: if isSignedIn();
+=======
+    function protectedStatsUnchanged() {
+      return request.resource.data.credits == resource.data.credits &&
+          request.resource.data.wins == resource.data.wins &&
+          request.resource.data.losses == resource.data.losses &&
+          request.resource.data.score == resource.data.score &&
+          request.resource.data.rankScore == resource.data.rankScore &&
+          request.resource.data.totalGames == resource.data.totalGames;
+    }
+
+    function allowedSelfUpdateKeys() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'displayName',
+        'cardAvatarRank',
+        'cardAvatarSuit',
+        'hasCustomProfile',
+        'updatedAt',
+        'lastLoginAt',
+        'email',
+        'photoUrl',
+        'avatarUrl',
+        'isRegistered',
+      ]);
+    }
+
+    match /user_profiles/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) && protectedStatsUnchanged() && allowedSelfUpdateKeys();
+      allow delete: if request.auth.token.admin == true;
+    }
+
+    // TODO: Durcir les autres collections selon les besoins métier.
+    match /{document=**} {
+      allow read, write: if isSignedIn();
+>>>>>>> bd5661aa5a6db60d8cb455ad36ab93e0e5f7321b
     }
   }
 }
