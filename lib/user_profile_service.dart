@@ -61,25 +61,9 @@ class UserProfileService {
 
       await _client.from('profiles').upsert(profilePayload, onConflict: 'id');
 
-      final Map<String, dynamic> data = await _client
-          .from('profiles')
-          .select('id, email, display_name, photo_url, credits, wins, losses, games_played, created_at, last_login_at, profile_prompt_dismissed_at')
-          .eq('id', user.id)
-          .single();
+      final Map<String, dynamic> data = await _fetchProfileRow(user.id);
 
-      return PlayerProfile.fromMap(<String, dynamic>{
-        'uid': data['id'] ?? user.id,
-        'displayName': data['display_name'] ?? suggestedDisplayName,
-        'email': data['email'] ?? user.email,
-        'photoUrl': data['photo_url'] ?? supabaseUserPhotoUrl(user),
-        'credits': data['credits'] ?? 1000,
-        'wins': data['wins'] ?? 0,
-        'losses': data['losses'] ?? 0,
-        'totalGames': data['games_played'] ?? 0,
-        'created_at': data['created_at'] ?? now.toIso8601String(),
-        'last_login_at': data['last_login_at'] ?? now.toIso8601String(),
-        'profile_prompt_dismissed_at': data['profile_prompt_dismissed_at'],
-      });
+      return PlayerProfile.fromMap(data);
     } on PostgrestException catch (error, stackTrace) {
       debugPrint('[SUPABASE_PROFILE_ERROR] context=createOrUpdateFromGoogleUser uid=${user.id}');
       debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
@@ -114,7 +98,26 @@ class UserProfileService {
       throw ArgumentError('Symbole de carte invalide.');
     }
 
-    await _updateDisplayNameRow(uid: uid, cleanedName: cleanedName, context: 'updatePublicProfile');
+    debugPrint('[SUPABASE_PROFILE] update pseudo uid=$uid newName=$cleanedName');
+    try {
+      await _client
+          .from('profiles')
+          .update(<String, dynamic>{
+            'display_name': cleanedName,
+            'card_avatar_rank': cardAvatarRank,
+            'card_avatar_suit': cardAvatarSuit,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', uid);
+      debugPrint('[SUPABASE_PROFILE] update pseudo success');
+      final Map<String, dynamic> data = await _fetchProfileRow(uid);
+      debugPrint('[SUPABASE_PROFILE] reloaded display_name=${data['display_name']}');
+    } on PostgrestException catch (error, stackTrace) {
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=updatePublicProfile uid=$uid');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code} message=${error.message} details=${error.details} hint=${error.hint}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
+      rethrow;
+    }
   }
 
   Future<void> updateDisplayName({
@@ -125,35 +128,21 @@ class UserProfileService {
     if (cleanedName.isEmpty) {
       throw ArgumentError('Le pseudo ne peut pas être vide.');
     }
-    await _updateDisplayNameRow(uid: uid, cleanedName: cleanedName, context: 'updateDisplayName');
-  }
-
-  Future<void> _updateDisplayNameRow({
-    required String uid,
-    required String cleanedName,
-    required String context,
-  }) async {
-    debugPrint('[SUPABASE_PROFILE_UPDATE] context=$context uid=$uid cleanedName=$cleanedName');
+    debugPrint('[SUPABASE_PROFILE] update pseudo uid=$uid newName=$cleanedName');
     try {
-      final Map<String, dynamic> row = await _client
+      await _client
           .from('profiles')
           .update(<String, dynamic>{
             'display_name': cleanedName,
             'updated_at': DateTime.now().toUtc().toIso8601String(),
           })
-          .eq('id', uid)
-          .select()
-          .single();
-      debugPrint('[SUPABASE_PROFILE_UPDATE] context=$context row=$row');
+          .eq('id', uid);
+      debugPrint('[SUPABASE_PROFILE] update pseudo success');
+      final Map<String, dynamic> data = await _fetchProfileRow(uid);
+      debugPrint('[SUPABASE_PROFILE] reloaded display_name=${data['display_name']}');
     } on PostgrestException catch (error, stackTrace) {
-      if (error.code == 'PGRST116') {
-        throw StateError('Profil introuvable ou non autorisé.');
-      }
-      debugPrint('[SUPABASE_PROFILE_ERROR] context=$context uid=$uid');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.runtimeType=${error.runtimeType}');
-      debugPrint('[SUPABASE_PROFILE_ERROR] error.toString()=${error.toString()}');
+      debugPrint('[SUPABASE_PROFILE_ERROR] context=updateDisplayName uid=$uid');
+      debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code} message=${error.message} details=${error.details} hint=${error.hint}');
       debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
       rethrow;
     }
@@ -172,25 +161,12 @@ class UserProfileService {
     try {
       final List<Map<String, dynamic>> rows = await _client
           .from('profiles')
-          .select('id, email, display_name, photo_url, credits, wins, losses, games_played, created_at, last_login_at, profile_prompt_dismissed_at')
+          .select('id, email, display_name, photo_url, credits, wins, losses, games_played, card_avatar_rank, card_avatar_suit, created_at, last_login_at, profile_prompt_dismissed_at')
           .eq('id', uid);
       if (rows.isEmpty) {
         return null;
       }
-      final Map<String, dynamic> data = rows.first;
-      return PlayerProfile.fromMap(<String, dynamic>{
-        'uid': data['id'] ?? uid,
-        'displayName': data['display_name'] ?? 'Joueur',
-        'email': data['email'],
-        'photoUrl': data['photo_url'],
-        'credits': data['credits'] ?? 1000,
-        'wins': data['wins'] ?? 0,
-        'losses': data['losses'] ?? 0,
-        'totalGames': data['games_played'] ?? 0,
-        'created_at': data['created_at'],
-        'last_login_at': data['last_login_at'],
-        'profile_prompt_dismissed_at': data['profile_prompt_dismissed_at'],
-      });
+      return PlayerProfile.fromMap(rows.first);
     } on PostgrestException catch (error, stackTrace) {
       debugPrint('[SUPABASE_PROFILE_ERROR] context=getProfile uid=$uid');
       debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.message=${error.message}');
@@ -230,6 +206,15 @@ class UserProfileService {
       debugPrint('[SUPABASE_PROFILE_ERROR] stackTrace=$stackTrace');
       rethrow;
     }
+  }
+
+
+  Future<Map<String, dynamic>> _fetchProfileRow(String uid) async {
+    return await _client
+        .from('profiles')
+        .select('id, email, display_name, photo_url, credits, wins, losses, games_played, card_avatar_rank, card_avatar_suit, created_at, last_login_at, profile_prompt_dismissed_at')
+        .eq('id', uid)
+        .single();
   }
 
 }
