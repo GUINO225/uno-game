@@ -643,7 +643,6 @@ class GameService {
     final Map<String, dynamic> patch = <String, dynamic>{
       'current_turn': nextTurn,
       'last_action': action.toMap(),
-      'revision': ((sessionPatch['revision'] as num?)?.toInt() ?? 0) + 1,
       'status': status == DuelGameStatus.finished ? 'finished' : (status == DuelGameStatus.inProgress ? 'playing' : 'waiting'),
       if (sessionPatch.isNotEmpty) 'game_state': sessionPatch,
     };
