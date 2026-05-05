@@ -844,109 +844,23 @@ class GameService {
     DuelRoomMode? expectedMode,
   }) async {
     debugPrint('[JOIN_ROOM_ENTRY] TRUE UI ENTRY REACHED');
-    debugPrint('[JOIN_ROOM_BACKEND_CHECK] useSupabaseGameWrite=${BackendFlags.useSupabaseGameWrite}');
-    if (BackendFlags.useSupabaseGameWrite) {
-      debugPrint('[GAME_ROUTER] joinRoom backend=supabase expectedMode=${expectedMode?.name ?? 'null'}');
-      debugPrint('[SUPABASE_GAME] joinRoom start code=$gameId');
-      try {
-        await _supabaseGameService.joinRoom(
-          roomCode: gameId,
-          opponentId: playerId,
-          opponentPseudo: playerName,
-        );
-        debugPrint('[SUPABASE_GAME] joinRoom success code=$gameId');
-        return;
-      } catch (e, st) {
-        debugPrint('[SUPABASE_GAME] error=$e');
-        debugPrint('[SUPABASE_GAME] stack=$st');
-        rethrow;
-      }
+    debugPrint(
+      '[GAME_ROUTER] joinRoom backend=supabase expectedMode=${expectedMode?.name ?? 'null'}',
+    );
+    debugPrint('[SUPABASE_GAME] joinRoom start code=$gameId');
+    try {
+      await _supabaseGameService.joinRoom(
+        roomCode: gameId,
+        opponentId: playerId,
+        opponentPseudo: playerName,
+      );
+      debugPrint('[SUPABASE_GAME] joinRoom success code=$gameId');
+      return;
+    } catch (e, st) {
+      debugPrint('[SUPABASE_GAME] error=$e');
+      debugPrint('[SUPABASE_GAME] stack=$st');
+      rethrow;
     }
-    debugPrint('[GAME_ROUTER] joinRoom backend=firebase');
-    final FirebaseFirestore db = await _resolveDb();
-    debugPrint('[GameService] joinGame requested by $playerId for game=$gameId.');
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
-    await db.runTransaction((Transaction tx) async {
-      final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
-      if (!snap.exists) {
-        throw FirebaseException(plugin: 'cloud_firestore', code: 'room_not_found', message: 'Room not found');
-      }
-      final DuelSession session = DuelSession.fromDoc(snap);
-      if (expectedMode != null && session.mode != expectedMode) {
-        throw FirebaseException(plugin: 'cloud_firestore', code: 'room_not_found', message: 'Invalid code for this mode');
-      }
-      if (session.hostId == playerId) {
-        throw FirebaseException(
-          plugin: 'cloud_firestore',
-          code: 'cannot_join_own_room',
-          message: 'Creator cannot join own room',
-        );
-      }
-      if (session.status != DuelGameStatus.waiting) {
-        throw FirebaseException(
-          plugin: 'cloud_firestore',
-          code: 'room_not_waiting',
-          message: 'Room is not waiting',
-        );
-      }
-      if (session.players.length >= 2 && !session.players.contains(playerId)) {
-        throw FirebaseException(plugin: 'cloud_firestore', code: 'room_full', message: 'Room is already full');
-      }
-      final List<String> players = <String>{...session.players, playerId}.toList();
-      final bool activatesNow = players.length == 2 && !session.isCreditsMode;
-      int joiningPlayerCredits = session.playerCredits[playerId] ?? 1000;
-      if (session.isCreditsMode) {
-        joiningPlayerCredits = await _readCreditsFromProfileTx(
-          tx: tx,
-          db: db,
-          playerId: playerId,
-          displayName: playerName,
-        );
-        if (joiningPlayerCredits <= 0) {
-          throw StateError('Crédit insuffisant pour accéder au mode Pari.');
-        }
-      }
-      tx.update(ref, <String, dynamic>{
-        'players': players,
-        'playerNames.$playerId': playerName,
-        'scores.$playerId': session.scores[playerId] ?? 0,
-        if (session.isCreditsMode)
-          'playerCredits.$playerId': joiningPlayerCredits,
-        'status': players.length == 2
-            ? (session.isCreditsMode
-                ? DuelGameStatus.waiting.name
-                : DuelGameStatus.inProgress.name)
-            : DuelGameStatus.waiting.name,
-        if (players.length == 2 && session.isCreditsMode) ...<String, dynamic>{
-          'roomStatus': 'betting',
-          if (!session.stakeOffer.isAccepted)
-            'betFlowState': DuelBetFlowState.initialStakeProposed.name,
-        },
-        if (activatesNow && !session.deckInitialized)
-          ..._boardInitPatch(
-            gameId: session.gameId,
-            players: players,
-            round: session.round,
-          ),
-        if (players.length == 2 && session.gameStartedAt == null)
-          'gameStartedAt': FieldValue.serverTimestamp(),
-        if (players.length == 2) 'roundStartedAt': FieldValue.serverTimestamp(),
-        if (players.length == 2) 'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
-        if (activatesNow && !session.deckInitialized) 'revision': session.revision + 1,
-        ..._presenceOnlinePatch(playerId),
-        ...players
-            .where((String id) => id != playerId)
-            .fold<Map<String, dynamic>>(<String, dynamic>{}, (Map<String, dynamic> acc, String id) {
-          acc['presence.$id.state'] = 'online';
-          acc['presence.$id.connectionState'] = 'online';
-          acc['presence.$id.lastSeenAt'] = FieldValue.serverTimestamp();
-          acc['presence.$id.leftAt'] = null;
-          return acc;
-        }),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    });
   }
 
   Future<void> updatePresenceHeartbeat({
@@ -3115,6 +3029,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<bool> _hasPositiveCredit(String uid) async {
     final Map<String, dynamic> profile = await Supabase.instance.client
+        .schema('public')
         .from('profiles')
         .select('credits')
         .eq('id', uid)
@@ -3289,7 +3204,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         debugPrint('[DUEL_ROOM] createRoom failed reason=game_id_missing_after_success');
         return;
       }
-      debugPrint('[CREATE_ROOM] firestore create success');
+      debugPrint('[CREATE_ROOM] supabase create success');
       debugPrint('[DUEL_ROOM] createRoom success gameId=$createdGameId');
       if (controller.session != null) {
         debugPrint('[DUEL_ROOM] room created id=${controller.session!.gameId} roomStatus=${controller.session!.roomStatus} betStatus=${controller.session!.betFlowState.name}');
