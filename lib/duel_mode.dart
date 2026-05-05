@@ -639,6 +639,13 @@ class GameService {
 
   Future<void> updatePresenceHeartbeat({required String gameId, required String playerId}) async { return; }
   Future<void> markPlayerPresenceState({required String gameId, required String playerId, required String state, String? currentScreen, String? appState, String? connectionState, bool touchLastAction = false}) async { return; }
+  Future<void> repairGameStateIfNeeded({
+    required String gameId,
+    required String requestedBy,
+  }) async {
+    debugPrint('[SUPABASE_ONLY] repairGameStateIfNeeded not implemented yet game=$gameId requestedBy=$requestedBy');
+    return;
+  }
   Future<void> pushAction({required String gameId, required DuelAction action, required String nextTurn, DuelGameStatus status = DuelGameStatus.inProgress, Map<String, dynamic> sessionPatch = const <String, dynamic>{}}) async {
     final Map<String, dynamic> patch = <String, dynamic>{
       'current_turn': nextTurn,
