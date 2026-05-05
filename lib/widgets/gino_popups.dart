@@ -238,6 +238,83 @@ class GinoAmountCard extends StatelessWidget {
   }
 }
 
+class GinoSpecialFinishBonusPopup extends StatelessWidget {
+  const GinoSpecialFinishBonusPopup({
+    super.key,
+    required this.title,
+    required this.message,
+    required this.cardLabel,
+    required this.cardSuitSymbol,
+    required this.deltaLabel,
+    required this.onContinue,
+    this.isPositive = false,
+  });
+
+  final String title;
+  final String message;
+  final String cardLabel;
+  final String cardSuitSymbol;
+  final String deltaLabel;
+  final VoidCallback onContinue;
+  final bool isPositive;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color deltaColor = isPositive ? const Color(0xFF13C76B) : const Color(0xFFE16A6A);
+    return GinoPopupFrame(
+      titleTag: title,
+      width: math.min(MediaQuery.of(context).size.width * 0.84, 350),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(message, textAlign: TextAlign.center, style: GinoPopupStyle.baseText(fontSize: 17)),
+          const SizedBox(height: 14),
+          _BaseCardFace(
+            width: 104,
+            height: 146,
+            opacity: 0.96,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Text(cardLabel, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w800, fontSize: 30)),
+                const SizedBox(height: 8),
+                Text(
+                  cardSuitSymbol,
+                  style: TextStyle(
+                    color: (cardSuitSymbol == '♥' || cardSuitSymbol == '♦') ? const Color(0xFFC52626) : Colors.black87,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 40,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withOpacity(0.2)),
+            ),
+            child: Text(
+              deltaLabel,
+              textAlign: TextAlign.center,
+              style: GinoPopupStyle.baseText(fontSize: 20, fontWeight: FontWeight.w800, color: deltaColor),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: GinoPopupButton(label: 'Continuer', onPressed: onContinue),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BaseCardFace extends StatelessWidget {
   const _BaseCardFace({
     required this.width,
