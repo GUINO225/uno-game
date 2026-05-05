@@ -603,6 +603,7 @@ class GameService {
   DuelSession _mapRoomToSession(Map<String, dynamic> room) {
     final List<String> players = <String>[if (room['creator_id'] != null) room['creator_id'] as String, if (room['opponent_id'] != null) room['opponent_id'] as String];
     final Map<String, dynamic> gs = Map<String, dynamic>.from(room['game_state'] as Map? ?? <String, dynamic>{});
+    debugPrint('[SESSION_MAP] localHand=${(gs['hands'] is Map ? (gs['hands'] as Map)[localPlayerId] : null)} discard=${gs['discardPile']}');
     final Map<String, dynamic>? roomLastAction = room['last_action'] is Map ? Map<String, dynamic>.from(room['last_action'] as Map) : null;
     final Map<String, dynamic>? stateLastAction = gs['lastAction'] is Map ? Map<String, dynamic>.from(gs['lastAction'] as Map) : null;
     final Map<String, dynamic>? resolvedLastAction = roomLastAction ?? stateLastAction;

@@ -3,6 +3,89 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+Map<String, dynamic> applyGameAction(
+  Map<String, dynamic> gameState,
+  Map<String, dynamic> action,
+) {
+  final Map<String, dynamic> next = Map<String, dynamic>.from(gameState);
+  final List<String> players = List<String>.from(next['players'] as List? ?? const <String>[]);
+  final Map<String, dynamic> hands = Map<String, dynamic>.from(next['hands'] as Map? ?? <String, dynamic>{});
+  final List<String> drawPile = List<String>.from(next['drawPile'] as List? ?? const <String>[]);
+  final List<String> discardPile = List<String>.from(next['discardPile'] as List? ?? const <String>[]);
+  final String actorId = (action['actorId'] ?? action['playerId'] ?? action['by'] ?? '').toString();
+  final String type = (action['type'] ?? '').toString();
+  int pendingDrawCount = (next['pendingDrawCount'] as num?)?.toInt() ?? 0;
+  String? requiredSuit = next['requiredSuit'] as String?;
+  String currentTurn = (next['currentTurn'] ?? '').toString();
+  String? winnerId = next['winnerId'] as String?;
+
+  String nextPlayer({bool extraTurn = false}) {
+    if (players.length < 2 || extraTurn) return actorId;
+    final int idx = players.indexOf(actorId);
+    if (idx < 0) return players.first;
+    return players[(idx + 1) % players.length];
+  }
+
+  if (type == 'playCard') {
+    final String cardId = (action['cardId'] ?? (action['payload'] as Map?)?['cardId'] ?? '').toString();
+    final List<String> before = List<String>.from(hands[actorId] as List? ?? const <String>[]);
+    debugPrint('[GAME_LOGIC] playCard before hand=$before');
+    bool removed = false;
+    final int idx = before.indexOf(cardId);
+    if (idx >= 0) {
+      before.removeAt(idx);
+      removed = true;
+    }
+    hands[actorId] = before;
+    debugPrint('[GAME_LOGIC] playCard removed=$removed after hand=$before');
+    discardPile.add(cardId);
+    next['topDiscard'] = cardId;
+    debugPrint('[GAME_LOGIC] discardTop=$cardId');
+    requiredSuit = null;
+    final String rank = cardId.replaceAll(RegExp(r'[♥♠♦♣]'), '');
+    if (rank == '2') pendingDrawCount += 2;
+    if (rank == 'JK') pendingDrawCount += 8;
+    if (rank == '8') requiredSuit = (action['chosenSuit'] ?? (action['payload'] as Map?)?['chosenSuit'])?.toString();
+    final bool extraTurn = rank == '10' || rank == 'J';
+    currentTurn = nextPlayer(extraTurn: extraTurn);
+    if (before.isEmpty) winnerId = actorId;
+    debugPrint('[GAME_LOGIC] nextTurn=$currentTurn');
+  } else if (type == 'drawCard') {
+    if (drawPile.isEmpty && discardPile.length > 1) {
+      final String top = discardPile.removeLast();
+      drawPile.addAll(discardPile);
+      discardPile
+        ..clear()
+        ..add(top);
+      drawPile.shuffle(Random(DateTime.now().microsecondsSinceEpoch));
+    }
+    if (drawPile.isNotEmpty) {
+      final String drawn = drawPile.removeLast();
+      final List<String> hand = List<String>.from(hands[actorId] as List? ?? const <String>[])..add(drawn);
+      hands[actorId] = hand;
+      if (pendingDrawCount > 0) pendingDrawCount = (pendingDrawCount - 1).clamp(0, 999);
+      if (pendingDrawCount == 0) currentTurn = nextPlayer();
+    }
+  } else if (type == 'passTurn') {
+    currentTurn = nextPlayer();
+  } else if (type == 'chooseSuit') {
+    requiredSuit = (action['chosenSuit'] ?? (action['payload'] as Map?)?['chosenSuit'])?.toString();
+    currentTurn = nextPlayer();
+  }
+
+  next['hands'] = hands;
+  next['drawPile'] = drawPile;
+  next['discardPile'] = discardPile;
+  next['currentTurn'] = currentTurn;
+  next['requiredSuit'] = requiredSuit;
+  next['pendingDrawCount'] = pendingDrawCount;
+  next['winnerId'] = winnerId;
+  next['lastAction'] = action;
+  next['revision'] = ((next['revision'] as num?)?.toInt() ?? 0) + 1;
+  debugPrint('[GAME_LOGIC] revision=${next['revision']}');
+  return next;
+}
+
 class SupabaseGameService {
   SupabaseGameService({SupabaseClient? client}) : _client = client ?? Supabase.instance.client;
 
@@ -232,31 +315,28 @@ class SupabaseGameService {
     final Map<String, dynamic> room = await fetchRoom(roomCode);
     final int currentRevision = (room['revision'] as num?)?.toInt() ?? 0;
     debugPrint('[ACTION_PUSH] oldRevision=$currentRevision');
-    final Map<String, dynamic> gameState = Map<String, dynamic>.from(
+    final Map<String, dynamic> oldState = Map<String, dynamic>.from(
       room['game_state'] as Map? ?? <String, dynamic>{},
     );
-
-    if (patch['game_state'] is Map) {
-      gameState.addAll(Map<String, dynamic>.from(patch['game_state'] as Map));
-    }
-
     final Map<String, dynamic> action = Map<String, dynamic>.from(
-      patch['last_action'] as Map? ?? gameState['lastAction'] as Map? ?? <String, dynamic>{},
+      patch['last_action'] as Map? ?? oldState['lastAction'] as Map? ?? <String, dynamic>{},
     );
+    final Map<String, dynamic> gameState = applyGameAction(oldState, action);
 
     final Map<String, dynamic> updatePayload = <String, dynamic>{
       'game_state': gameState,
-      'current_turn': patch['current_turn'] ?? gameState['currentTurn'] ?? room['current_turn'],
+      'current_turn': gameState['currentTurn'] ?? room['current_turn'],
       'last_action': action.isEmpty ? null : action,
-      'last_action_by': patch['last_action_by'] ?? action['playerId'] ?? action['by'] ?? action['uid'],
-      'revision': currentRevision + 1,
+      'last_action_by': action['actorId'] ?? action['playerId'] ?? action['by'] ?? action['uid'],
+      'winner_id': gameState['winnerId'],
+      'status': gameState['winnerId'] != null ? 'finished' : 'round',
+      'revision': gameState['revision'] ?? (currentRevision + 1),
       'updated_at': DateTime.now().toUtc().toIso8601String(),
-      if (patch['status'] != null) 'status': patch['status'],
     };
 
     await _client.from('duel_games').update(updatePayload).eq('room_code', roomCode);
     final int localHandCount = (gameState['player1Hand'] as List?)?.length ?? ((gameState['hands'] is Map && (gameState['hands'] as Map)['player1'] is List) ? ((gameState['hands'] as Map)['player1'] as List).length : -1);
-    debugPrint('[ACTION_PUSH] newRevision=${currentRevision + 1}');
+    debugPrint('[ACTION_PUSH] newRevision=${updatePayload['revision']}');
     debugPrint('[ACTION_PUSH] game_state updated handCount=$localHandCount');
     debugPrint('[ACTION] push success room=$roomCode revision=${currentRevision + 1} currentTurn=${updatePayload['current_turn']}');
   }
