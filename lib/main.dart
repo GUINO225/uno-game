@@ -2601,29 +2601,29 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Suit _chooseRequestedSuitForBot(List<PlayingCard> hand) {
-    final Map<Suit, int> counts = <Suit, int>{};
-
+    final Map<Suit, int> counts = <Suit, int>{for (final Suit suit in Suit.values) suit: 0};
     for (final PlayingCard card in hand) {
-      if (!card.isJoker) {
+      if (!card.isJoker && card.suit != null) {
         counts[card.suit!] = (counts[card.suit!] ?? 0) + 1;
       }
     }
-
-    if (counts.isEmpty) {
-      return Suit.values[_random.nextInt(Suit.values.length)];
+    final List<Suit> available = counts.entries.where((MapEntry<Suit, int> e) => e.value > 0).map((e) => e.key).toList();
+    if (available.isEmpty) {
+      return Suit.hearts;
     }
-
-    Suit bestSuit = counts.keys.first;
-    int bestCount = counts[bestSuit] ?? 0;
-
-    counts.forEach((Suit suit, int count) {
-      if (count > bestCount) {
-        bestSuit = suit;
-        bestCount = count;
+    int scoreForSuit(Suit suit) {
+      final int baseCount = counts[suit] ?? 0;
+      int playableNow = 0;
+      for (final PlayingCard card in hand) {
+        if (card.isJoker) continue;
+        if (card.suit == suit || card.rank == _topDiscard.rank || card.rank == 8) {
+          playableNow++;
+        }
       }
-    });
-
-    return bestSuit;
+      return (baseCount * 100) + playableNow;
+    }
+    available.sort((Suit a, Suit b) => scoreForSuit(b).compareTo(scoreForSuit(a)));
+    return available.first;
   }
 
   void _endHumanTurn() {
@@ -2916,45 +2916,23 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   PlayingCard _chooseBestBotCard(List<PlayingCard> playable) {
-    // 1. Joker — force human to draw 8
-    final List<PlayingCard> jokers =
-        playable.where((PlayingCard c) => c.isJoker).toList();
-    if (jokers.isNotEmpty) return jokers.first;
-
-    // 2. 2 — force human to draw 2
-    final List<PlayingCard> twos =
-        playable.where((PlayingCard c) => c.rank == 2).toList();
-    if (twos.isNotEmpty) return twos.first;
-
-    // 3. Ace — skip / ace response
-    final List<PlayingCard> aces =
-        playable.where((PlayingCard c) => c.rank == 1).toList();
-    if (aces.isNotEmpty) return aces.first;
-
-    // 4. Non-8 cards — pick the one whose suit the bot has the most of
-    //    (maximises chaining opportunities and keeps hand cohesive)
-    final List<PlayingCard> nonEight =
-        playable.where((PlayingCard c) => c.rank != 8).toList();
-    if (nonEight.isNotEmpty) {
-      final Map<Suit, int> suitCount = <Suit, int>{};
-      for (final PlayingCard c in _botHand) {
-        if (!c.isJoker && c.suit != null) {
-          suitCount[c.suit!] = (suitCount[c.suit!] ?? 0) + 1;
-        }
+    int score(PlayingCard card) {
+      int value = 0;
+      final int handSize = _botHand.length;
+      if (handSize <= 2 && card.canFinishGame) value += 2000;
+      if (card.isJoker) value += handSize <= 3 ? 900 : 250;
+      if (card.rank == 2) value += handSize <= 3 ? 700 : 180;
+      if (card.rank == 1) value += handSize <= 3 ? 550 : 140;
+      if (card.rank == 11) value += 110;
+      if (card.rank == 8) value += handSize <= 3 ? 300 : -120;
+      if (!card.isJoker && card.suit != null) {
+        final int sameSuit = _botHand.where((PlayingCard c) => !c.isJoker && c.suit == card.suit).length;
+        value += sameSuit * 35;
       }
-      PlayingCard best = nonEight.first;
-      int bestScore = suitCount[best.suit] ?? 0;
-      for (final PlayingCard c in nonEight) {
-        final int score = suitCount[c.suit] ?? 0;
-        if (score > bestScore) {
-          bestScore = score;
-          best = c;
-        }
-      }
-      return best;
+      if (card.rank == _topDiscard.rank) value += 55;
+      return value;
     }
-
-    // 5. Only 8s available — play one (suit chosen in _getAskedSuit)
+    playable.sort((PlayingCard a, PlayingCard b) => score(b).compareTo(score(a)));
     return playable.first;
   }
 
@@ -3062,7 +3040,30 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           }
         }
 
-        final bool isSpecialCard = lastPlayed.isJoker || lastPlayed.rank == 2 || lastPlayed.rank == 8;
+        final bool isSpecialCard =
+            lastPlayed.isJoker || lastPlayed.rank == 1 || lastPlayed.rank == 2 || lastPlayed.rank == 8;
+        if (isSpecialCard) {
+          final String cardName = lastPlayed.isJoker
+              ? 'Joker'
+              : (lastPlayed.rank == 1 ? 'As' : (lastPlayed.rank == 2 ? '2' : '8'));
+          final String specialMessage = humanWon
+              ? 'Vous avez terminé avec un $cardName'
+              : 'Votre adversaire a terminé avec un $cardName';
+          final String label = lastPlayed.isJoker ? 'JOKER' : cardName;
+          final String suit = lastPlayed.isJoker ? '🃏' : _suitSymbol(lastPlayed.suit!);
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            child: GinoSpecialFinishBonusPopup(
+              title: humanWon ? 'Fin de manche' : 'Défaite',
+              message: specialMessage,
+              cardLabel: label,
+              cardSuitSymbol: suit,
+              deltaLabel: creditLabel,
+              isPositive: creditDelta >= 0,
+              onContinue: () => Navigator.of(context).pop(),
+            ),
+          );
+        }
 
         return Dialog(
           backgroundColor: Colors.transparent,
