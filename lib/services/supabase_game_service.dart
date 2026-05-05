@@ -142,6 +142,7 @@ class SupabaseGameService {
               callback: (PostgresChangePayload payload) {
                 final Map<String, dynamic> room = Map<String, dynamic>.from(payload.newRecord);
                 debugPrint('[REALTIME] event received room=$roomCode source=watchSession status=${room['status']} mode=${room['mode']} creator_id=${room['creator_id']} opponent_id=${room['opponent_id']} stake_status=${room['stake_status']} bet_flow_state=${room['bet_flow_state']} active_stake_credits=${room['active_stake_credits']}');
+                debugPrint('[GAME_STATE] revision=${room['revision']} currentTurn=${room['current_turn'] ?? (room['game_state'] is Map ? (room['game_state'] as Map)['currentTurn'] : null)}');
                 debugPrint('[GAME_FLOW] status=${room['status']} stakeStatus=${room['stake_status']} betFlowState=${room['bet_flow_state']} creator=${room['creator_id']} opponent=${room['opponent_id']} stake=${room['stake_amount']} proposedBy=${room['stake_proposed_by']} acceptedBy=${room['stake_accepted_by']} activeStake=${room['active_stake_credits']}');
                 controller.add(room);
               },
@@ -156,20 +157,33 @@ class SupabaseGameService {
   }
 
   Future<void> pushAction({required String roomCode, required Map<String, dynamic> patch}) async {
+    debugPrint('[ACTION] push start room=$roomCode');
     final Map<String, dynamic> room = await fetchRoom(roomCode);
     final int currentRevision = (room['revision'] as num?)?.toInt() ?? 0;
     final Map<String, dynamic> gameState = Map<String, dynamic>.from(
       room['game_state'] as Map? ?? <String, dynamic>{},
     );
-    if (patch['game_state'] is Map<String, dynamic>) {
+
+    if (patch['game_state'] is Map) {
       gameState.addAll(Map<String, dynamic>.from(patch['game_state'] as Map));
     }
-    final Map<String, dynamic> nextPatch = <String, dynamic>{
-      ...patch,
-      'revision': currentRevision + 1,
+
+    final Map<String, dynamic> action = Map<String, dynamic>.from(
+      patch['last_action'] as Map? ?? gameState['lastAction'] as Map? ?? <String, dynamic>{},
+    );
+
+    final Map<String, dynamic> updatePayload = <String, dynamic>{
       'game_state': gameState,
+      'current_turn': patch['current_turn'] ?? gameState['currentTurn'] ?? room['current_turn'],
+      'last_action': action.isEmpty ? null : action,
+      'last_action_by': patch['last_action_by'] ?? action['playerId'] ?? action['by'] ?? action['uid'],
+      'revision': currentRevision + 1,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+      if (patch['status'] != null) 'status': patch['status'],
     };
-    await _client.from('duel_games').update(nextPatch).eq('room_code', roomCode);
+
+    await _client.from('duel_games').update(updatePayload).eq('room_code', roomCode);
+    debugPrint('[ACTION] push success room=$roomCode revision=${currentRevision + 1} currentTurn=${updatePayload['current_turn']}');
   }
 
   Future<void> proposeStake({required String roomCode, required String proposedBy, required int amount}) async {
