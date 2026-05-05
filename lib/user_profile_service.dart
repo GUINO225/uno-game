@@ -114,11 +114,10 @@ class UserProfileService {
       throw ArgumentError('Symbole de carte invalide.');
     }
 
-    await _client.from('profiles').upsert(<String, dynamic>{
-      'id': uid,
+    await _client.from('profiles').update(<String, dynamic>{
       'display_name': cleanedName,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'id');
+    }).eq('id', uid);
   }
 
   Future<void> updateDisplayName({
@@ -126,11 +125,10 @@ class UserProfileService {
     required String displayName,
   }) async {
     final String cleanedName = sanitizeDisplayName(displayName);
-    await _client.from('profiles').upsert(<String, dynamic>{
-      'id': uid,
+    await _client.from('profiles').update(<String, dynamic>{
       'display_name': cleanedName,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
-    }, onConflict: 'id');
+    }).eq('id', uid);
   }
 
   Future<void> dismissProfileCustomizationPrompt({
