@@ -611,7 +611,7 @@ class GameService {
       players: players,
       playerNames: names.map((k,v)=>MapEntry(k.toString(), v.toString())),
       currentTurn: (room['current_turn'] ?? gs['currentTurn'] ?? (players.isNotEmpty ? players.first : '')).toString(),
-      status: statusRaw == 'finished' ? DuelGameStatus.finished : (statusRaw == 'playing' ? DuelGameStatus.inProgress : DuelGameStatus.waiting),
+      status: statusRaw == 'finished' ? DuelGameStatus.finished : ((statusRaw == 'playing' || statusRaw == 'round') ? DuelGameStatus.inProgress : DuelGameStatus.waiting),
       scores: Map<String, int>.from((gs['scores'] as Map? ?? <String, dynamic>{}).map((k, v) => MapEntry(k.toString(), (v as num).toInt()))),
       round: (gs['round'] as num?)?.toInt() ?? 1,
       mode: DuelRoomMode.values.firstWhere((m)=>m.name==(room['mode'] ?? 'duel'), orElse: ()=>DuelRoomMode.duel),
@@ -650,7 +650,7 @@ class GameService {
     final Map<String, dynamic> patch = <String, dynamic>{
       'current_turn': nextTurn,
       'last_action': action.toMap(),
-      'status': status == DuelGameStatus.finished ? 'finished' : (status == DuelGameStatus.inProgress ? 'playing' : 'waiting'),
+      'status': status == DuelGameStatus.finished ? 'finished' : (status == DuelGameStatus.inProgress ? 'round' : 'waiting'),
       if (sessionPatch.isNotEmpty) 'game_state': sessionPatch,
     };
     await _supabaseGameService.pushAction(roomCode: gameId, patch: patch);
@@ -3430,7 +3430,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   }
 
   void _maybePromptMandatoryStake(DuelSession session) {
-    final bool shouldPromptInInitial = session.status == DuelGameStatus.waiting &&
+    final bool shouldPromptInInitial = session.betFlowState == DuelBetFlowState.initialStakeProposed &&
         session.activeStakeCredits <= 0 &&
         !session.stakeOffer.isPending &&
         ((session.invitedRefusalCount < 2 && _controller.localPlayerId == session.hostId) ||

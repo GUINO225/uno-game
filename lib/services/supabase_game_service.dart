@@ -34,12 +34,21 @@ class SupabaseGameService {
     required String opponentId,
     required String opponentPseudo,
   }) async {
+    final Map<String, dynamic> room = await _client
+        .from('duel_games')
+        .select('mode')
+        .eq('room_code', roomCode)
+        .single();
+
+    final String updatedRoomMode = (room['mode'] ?? 'duel').toString();
+    final bool requiresBetting = updatedRoomMode == 'credits' || updatedRoomMode == 'pari';
     final Map<String, dynamic> updated = await _client
         .from('duel_games')
         .update(<String, dynamic>{
           'opponent_id': opponentId,
           'opponent_pseudo': opponentPseudo,
-          'status': 'playing',
+          'status': requiresBetting ? 'betting' : 'round',
+          if (requiresBetting) 'bet_flow_state': 'initialStakeProposed',
         })
         .eq('room_code', roomCode)
         .eq('status', 'waiting')
@@ -47,7 +56,7 @@ class SupabaseGameService {
         .single();
 
     debugPrint(
-      '[SUPABASE_GAME] joinRoom updated room=${updated['room_code']} status=${updated['status']}',
+      '[SUPABASE_GAME] joinRoom updated room=${updated['room_code']} status=${updated['status']} mode=$updatedRoomMode bet_flow_state=${updated['bet_flow_state']}',
     );
   }
 
@@ -68,7 +77,8 @@ class SupabaseGameService {
         debugPrint('[SUPABASE_GAME] listenRoom initial fetch success code=$roomCode');
         debugPrint('[SUPABASE_GAME] listenRoom initial creator_id=${room['creator_id']}');
         debugPrint('[SUPABASE_GAME] listenRoom initial opponent_id=${room['opponent_id']}');
-        debugPrint('[SUPABASE_GAME] listenRoom initial status=${room['status']}');
+        debugPrint('[REALTIME] event received room=$roomCode source=initial status=${room['status']} mode=${room['mode']} creator_id=${room['creator_id']} opponent_id=${room['opponent_id']} stake_status=${room['stake_status']} bet_flow_state=${room['bet_flow_state']} active_stake_credits=${room['active_stake_credits']}');
+        debugPrint('[GAME_FLOW] status=${room['status']} betFlowState=${room['bet_flow_state']}');
         onRoomChanged(room);
       } catch (e) {
         debugPrint('[SUPABASE_GAME] listenRoom initial fetch failed: $e');
@@ -87,13 +97,14 @@ class SupabaseGameService {
             value: roomCode,
           ),
           callback: (PostgresChangePayload payload) {
-            debugPrint('[SUPABASE_GAME] listenRoom realtime event received code=$roomCode');
+            debugPrint('[REALTIME] event received room=$roomCode source=realtime');
             final dynamic row = payload.newRecord;
             if (row is Map) {
               final Map<String, dynamic> room = Map<String, dynamic>.from(row);
               debugPrint('[SUPABASE_GAME] listenRoom realtime creator_id=${room['creator_id']}');
               debugPrint('[SUPABASE_GAME] listenRoom realtime opponent_id=${room['opponent_id']}');
-              debugPrint('[SUPABASE_GAME] listenRoom realtime status=${room['status']}');
+              debugPrint('[REALTIME] event received room=$roomCode status=${room['status']} mode=${room['mode']} creator_id=${room['creator_id']} opponent_id=${room['opponent_id']} stake_status=${room['stake_status']} bet_flow_state=${room['bet_flow_state']} active_stake_credits=${room['active_stake_credits']}');
+              debugPrint('[GAME_FLOW] status=${room['status']} betFlowState=${room['bet_flow_state']}');
               onRoomChanged(room);
             }
           },
@@ -127,7 +138,10 @@ class SupabaseGameService {
                 value: roomCode,
               ),
               callback: (PostgresChangePayload payload) {
-                controller.add(Map<String, dynamic>.from(payload.newRecord));
+                final Map<String, dynamic> room = Map<String, dynamic>.from(payload.newRecord);
+                debugPrint('[REALTIME] event received room=$roomCode source=watchSession status=${room['status']} mode=${room['mode']} creator_id=${room['creator_id']} opponent_id=${room['opponent_id']} stake_status=${room['stake_status']} bet_flow_state=${room['bet_flow_state']} active_stake_credits=${room['active_stake_credits']}');
+                debugPrint('[GAME_FLOW] status=${room['status']} betFlowState=${room['bet_flow_state']}');
+                controller.add(room);
               },
             )
             .subscribe();
@@ -157,29 +171,33 @@ class SupabaseGameService {
   }
 
   Future<void> proposeStake({required String roomCode, required String proposedBy, required int amount}) async {
-    try {
-      await _client.rpc('propose_duel_stake', params: {'p_room_code': roomCode, 'p_proposed_by': proposedBy, 'p_amount': amount});
-    } catch (_) {
-      await _client.from('duel_games').update({'stake_amount': amount, 'stake_proposed_by': proposedBy, 'stake_status': 'pending', 'bet_flow_state': 'initialStakePendingResponse', 'stake_accepted_by': null, 'active_stake_credits': 0}).eq('room_code', roomCode);
-    }
+    await _client.from('duel_games').update({
+      'stake_amount': amount,
+      'stake_proposed_by': proposedBy,
+      'stake_status': 'pending',
+      'bet_flow_state': 'initialStakePendingResponse',
+    }).eq('room_code', roomCode);
   }
 
   Future<void> respondToStake({required String roomCode, required String responderId, required bool accept, bool insufficientFunds = false}) async {
-    if (!accept || insufficientFunds) {
-      try {
-        await _client.rpc('reject_duel_stake', params: {'p_room_code': roomCode, 'p_responder_id': responderId, 'p_insufficient_funds': insufficientFunds});
-      } catch (_) {
-        await _client.from('duel_games').update({'stake_status': insufficientFunds ? 'insufficientFunds' : 'declined', 'bet_flow_state': insufficientFunds ? 'awaitingFundsValidation' : 'initialStakeRejected'}).eq('room_code', roomCode);
-      }
-      return;
-    }
-    try {
-      await _client.rpc('accept_duel_stake', params: {'p_room_code': roomCode, 'p_responder_id': responderId});
-    } catch (_) {
+    if (accept) {
       final room = await fetchRoom(roomCode);
       final int amount = (room['stake_amount'] as num?)?.toInt() ?? 0;
-      await _client.from('duel_games').update({'stake_accepted_by': responderId, 'stake_status': 'accepted', 'bet_flow_state': 'readyToStart', 'active_stake_credits': amount, 'status': 'playing'}).eq('room_code', roomCode);
+      await _client.from('duel_games').update({
+        'stake_accepted_by': responderId,
+        'stake_status': 'accepted',
+        'active_stake_credits': amount * 2,
+        'status': 'round',
+        'bet_flow_state': 'readyToStart',
+      }).eq('room_code', roomCode);
+      return;
     }
+    await _client.from('duel_games').update({
+      'stake_status': 'declined',
+      'active_stake_credits': 0,
+      'status': 'betting',
+      'bet_flow_state': 'initialStakeRejected',
+    }).eq('room_code', roomCode);
   }
 
   Future<void> resolveStakeAfterRound({required String roomCode, required String winnerId}) async {
