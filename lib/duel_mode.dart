@@ -603,6 +603,10 @@ class GameService {
   DuelSession _mapRoomToSession(Map<String, dynamic> room) {
     final List<String> players = <String>[if (room['creator_id'] != null) room['creator_id'] as String, if (room['opponent_id'] != null) room['opponent_id'] as String];
     final Map<String, dynamic> gs = Map<String, dynamic>.from(room['game_state'] as Map? ?? <String, dynamic>{});
+    final Map<String, dynamic>? roomLastAction = room['last_action'] is Map ? Map<String, dynamic>.from(room['last_action'] as Map) : null;
+    final Map<String, dynamic>? stateLastAction = gs['lastAction'] is Map ? Map<String, dynamic>.from(gs['lastAction'] as Map) : null;
+    final Map<String, dynamic>? resolvedLastAction = roomLastAction ?? stateLastAction;
+    debugPrint('[GAME_STATE] revision=${room['revision'] ?? gs['revision'] ?? 0} currentTurn=${room['current_turn'] ?? gs['currentTurn']}');
     final Map<String, dynamic> names = <String, dynamic>{if (room['creator_id'] != null) room['creator_id']: room['creator_pseudo'] ?? 'Joueur 1', if (room['opponent_id'] != null) room['opponent_id']: room['opponent_pseudo'] ?? 'Joueur 2'};
     final String statusRaw = (room['status'] ?? 'waiting').toString();
     return DuelSession(
@@ -619,11 +623,11 @@ class GameService {
       activeStakeCredits: (room['active_stake_credits'] as num?)?.toInt() ?? 0,
       stakeOffer: DuelStakeOffer(proposedBy: room['stake_proposed_by'] as String?, acceptedBy: room['stake_accepted_by'] as String?, amount: (room['stake_amount'] as num?)?.toInt() ?? 0, status: DuelStakeStatus.values.firstWhere((e)=>e.name==(room['stake_status'] ?? 'none'), orElse: ()=>DuelStakeStatus.none)),
       betFlowState: DuelBetFlowState.values.firstWhere((e)=>e.name==(room['bet_flow_state'] ?? 'idle'), orElse: ()=>DuelBetFlowState.idle),
-      lastAction: gs['lastAction'] is Map<String,dynamic> ? DuelAction.fromMap(gs['lastAction'] as Map<String,dynamic>) : null,
+      lastAction: resolvedLastAction != null ? DuelAction.fromMap(resolvedLastAction) : null,
       revision: (room['revision'] as num?)?.toInt() ?? (gs['revision'] as num?)?.toInt() ?? 0,
-      player1Hand: List<String>.from(gs['player1Hand'] as List? ?? const <String>[]),
-      player2Hand: List<String>.from(gs['player2Hand'] as List? ?? const <String>[]),
-      drawPile: List<String>.from(gs['drawPile'] as List? ?? const <String>[]),
+      player1Hand: List<String>.from((gs['hands'] is Map ? (gs['hands'] as Map)['player1'] : gs['player1Hand']) as List? ?? const <String>[]),
+      player2Hand: List<String>.from((gs['hands'] is Map ? (gs['hands'] as Map)['player2'] : gs['player2Hand']) as List? ?? const <String>[]),
+      drawPile: List<String>.from(gs['drawPile'] as List? ?? (gs['deck'] as List? ?? const <String>[])),
       discardPile: List<String>.from(gs['discardPile'] as List? ?? const <String>[]),
       topDiscard: gs['topDiscard'] as String?,
       player1CardCount: (gs['player1CardCount'] as num?)?.toInt() ?? 0,
@@ -650,6 +654,7 @@ class GameService {
     final Map<String, dynamic> patch = <String, dynamic>{
       'current_turn': nextTurn,
       'last_action': action.toMap(),
+      'last_action_by': action.actorId,
       'status': status == DuelGameStatus.finished ? 'finished' : (status == DuelGameStatus.inProgress ? 'round' : 'waiting'),
       if (sessionPatch.isNotEmpty) 'game_state': sessionPatch,
     };
