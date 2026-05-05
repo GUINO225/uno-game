@@ -953,6 +953,10 @@ class GameService {
     required String gameId,
     required String playerId,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: updatePresenceHeartbeat');
+      return;
+    }
     final CollectionReference<Map<String, dynamic>> games = await _games();
     debugPrint('[Presence] heartbeat sent player=$playerId');
     await games.doc(gameId).update(<String, dynamic>{
@@ -970,6 +974,10 @@ class GameService {
     String? connectionState,
     bool touchLastAction = false,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: markPlayerPresenceState');
+      return;
+    }
     final CollectionReference<Map<String, dynamic>> games = await _games();
     if (state == 'maybeOffline' || state == 'leaving') {
       debugPrint('[Presence] beforeunload detected, marking maybeOffline only');
@@ -1067,6 +1075,10 @@ class GameService {
     required String gameId,
     required String requestedBy,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: repairGameStateIfNeeded');
+      return;
+    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
@@ -1120,6 +1132,11 @@ class GameService {
 
 
   Stream<List<DuelAction>> watchActions(String gameId) async* {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: watchActions');
+      yield <DuelAction>[];
+      return;
+    }
     final CollectionReference<Map<String, dynamic>> games = await _games();
     yield* games
         .doc(gameId)
@@ -1137,6 +1154,11 @@ class GameService {
   }
 
   Stream<List<DuelChatMessage>> watchChatMessages(String gameId) async* {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: watchChatMessages');
+      yield <DuelChatMessage>[];
+      return;
+    }
     final CollectionReference<Map<String, dynamic>> games = await _games();
     yield* games
         .doc(gameId)
@@ -1157,6 +1179,10 @@ class GameService {
     required String senderName,
     required String text,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: pushChatMessage');
+      return;
+    }
     final String cleaned = text.trim();
     if (cleaned.isEmpty) {
       return;
@@ -1180,6 +1206,10 @@ class GameService {
     DuelGameStatus status = DuelGameStatus.inProgress,
     Map<String, dynamic> sessionPatch = const <String, dynamic>{},
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: pushAction');
+      return;
+    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> gameRef =
         db.collection('duel_games').doc(gameId);
@@ -1267,6 +1297,10 @@ class GameService {
     required String gameId,
     required String currentUserId,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: markPlayerAbandoned');
+      return;
+    }
     await markPlayerAbandoned(
       gameId: gameId,
       abandonedBy: currentUserId,
@@ -1279,6 +1313,10 @@ class GameService {
     required String abandonedBy,
     required String reportedBy,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: markPlayerAbandoned');
+      return;
+    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref = db.collection('duel_games').doc(gameId);
     debugPrint('[Forfeit] requested abandonedBy=$abandonedBy reportedBy=$reportedBy');
@@ -1425,6 +1463,10 @@ class GameService {
     required DuelSession current,
     required String requestedBy,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: startNewRound');
+      return;
+    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(current.gameId);
@@ -1495,6 +1537,10 @@ class GameService {
     required String gameId,
     required String requestedBy,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: requestRematch');
+      return;
+    }
     debugPrint('[RematchParis] loser requested rematch: $requestedBy');
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
@@ -1543,6 +1589,10 @@ class GameService {
     required String gameId,
     required String requestedBy,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: cancelRematchRequest');
+      return;
+    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
@@ -1577,6 +1627,10 @@ class GameService {
     required String gameId,
     required String playerId,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: declineRematch');
+      return;
+    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
@@ -1593,6 +1647,10 @@ class GameService {
     required String responderId,
     required bool accept,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: cleanupExpiredRematchRequest');
+      return;
+    }
     if (accept) {
       await acceptRematch(gameId: current.gameId, acceptedBy: responderId);
       return;
@@ -1604,6 +1662,10 @@ class GameService {
     required String gameId,
     required String acceptedBy,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: acceptRematch');
+      return;
+    }
     debugPrint('[RematchParis] rematch request accepted by opponent: $acceptedBy');
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
@@ -1698,6 +1760,10 @@ class GameService {
     required String gameId,
     required String declinedBy,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: declineRematch');
+      return;
+    }
     debugPrint('[RematchParis] decline requested by=$declinedBy game=$gameId');
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
@@ -1731,6 +1797,10 @@ class GameService {
   Future<void> cleanupExpiredRematchRequest({
     required String gameId,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: cleanupExpiredRematchRequest');
+      return;
+    }
     final FirebaseFirestore db = await _resolveDb();
     final DocumentReference<Map<String, dynamic>> ref =
         db.collection('duel_games').doc(gameId);
@@ -1762,6 +1832,10 @@ class GameService {
     required String proposedBy,
     required int amount,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: proposeStake');
+      return;
+    }
     if (!current.isCreditsMode) {
       return;
     }
@@ -1869,6 +1943,10 @@ class GameService {
     required bool accept,
     bool insufficientFunds = false,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: respondToStake');
+      return;
+    }
     if (!current.isCreditsMode) {
       return;
     }
@@ -2084,6 +2162,10 @@ class GameService {
     required DuelSession current,
     required String winnerId,
   }) async {
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
+      debugPrint('[SUPABASE_ONLY] skipped Firebase function: resolveStakeAfterRound');
+      return;
+    }
     if (!current.isCreditsMode) {
       return;
     }
@@ -2429,14 +2511,15 @@ class DuelController extends ChangeNotifier {
 
     final Map<String, dynamic> withPresence = <String, dynamic>{
       ...sessionPatch,
-      ...service._presenceStatePatch(
-        playerId: localPlayerId,
-        state: 'online',
-        currentScreen: 'game',
-        appState: 'active',
-        connectionState: 'online',
-        touchLastAction: true,
-      ),
+      if (!(BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite))
+        ...service._presenceStatePatch(
+          playerId: localPlayerId,
+          state: 'online',
+          currentScreen: 'game',
+          appState: 'active',
+          connectionState: 'online',
+          touchLastAction: true,
+        ),
     };
 
     await service.pushAction(
@@ -3031,13 +3114,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<bool> _hasPositiveCredit(String uid) async {
-    if (BackendFlags.useSupabaseGameWrite && !BackendFlags.useSupabaseCredits) {
-      debugPrint('[CREDITS_ROUTER] bypass Firebase credit check during Supabase room test');
-      return true;
-    }
-    final DocumentSnapshot<Map<String, dynamic>> snap =
-        await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
-    final int credits = (snap.data()?['credits'] as num?)?.toInt() ?? 0;
+    final Map<String, dynamic> profile = await Supabase.instance.client
+        .from('profiles')
+        .select('credits')
+        .eq('id', uid)
+        .single();
+    final int credits = (profile['credits'] as num?)?.toInt() ?? 0;
     return credits > 0;
   }
 
@@ -3146,23 +3228,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         return;
       }
       debugPrint('[CREATE_ROOM] uid=$uid');
-      try {
-        await _ensureFirestoreIdentity();
-      } on FirebaseException catch (e) {
-        debugPrint('[CREATE_ROOM] firestore error: code=${e.code} message=${e.message}');
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = 'Erreur Firestore (${e.code}).';
-        });
-        return;
-      } catch (e) {
-        debugPrint('[CREATE_ROOM] firestore error: $e');
-        unawaited(_sfx.playError());
-        setState(() {
-          _profileError = 'Impossible de préparer la connexion Firebase: $e';
-        });
-        return;
-      }
+      _authenticatedPlayerId = uid;
       await _resolveIdentityIfNeeded();
       final String? pseudoError = _validatePseudo();
       if (pseudoError != null) {
@@ -3259,23 +3325,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       });
       return;
     }
-    try {
-      await _ensureFirestoreIdentity();
-    } on FirebaseException catch (e) {
-      debugPrint('[CREATE_ROOM] firestore error: code=${e.code} message=${e.message}');
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Erreur Firestore (${e.code}).';
-      });
-      return;
-    } catch (e) {
-      debugPrint('[CREATE_ROOM] firestore error: $e');
-      unawaited(_sfx.playError());
-      setState(() {
-        _profileError = 'Impossible de préparer la connexion Firebase: $e';
-      });
-      return;
-    }
+    _authenticatedPlayerId = uid;
     await _resolveIdentityIfNeeded();
     final String? pseudoError = _validatePseudo();
     if (pseudoError != null) {
@@ -3754,7 +3804,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _lifecycleExitTriggered = false;
       _controller.startPresenceGracePeriod();
       final DuelSession? current = _controller.session;
-      if (current != null) {
+      if (current != null &&
+          !(BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite)) {
         unawaited(_controller.service.markPlayerPresenceState(
           gameId: current.gameId,
           playerId: _controller.localPlayerId,
@@ -3786,6 +3837,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     debugPrint('[Presence] lifecycle exit signal=$reason');
     final DuelSession? session = _controller.session;
     if (session == null) {
+      return;
+    }
+    if (BackendFlags.useSupabaseGameRead || BackendFlags.useSupabaseGameWrite) {
       return;
     }
     try {
