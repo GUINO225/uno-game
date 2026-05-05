@@ -82,7 +82,7 @@ class PlayerProfile {
   }
 
   factory PlayerProfile.fromMap(Map<String, dynamic> map) {
-    final String uid = (map['id'] ?? map['uid']) as String? ?? '';
+    final String uid = (map['id'] as String?) ?? '';
     final String rank = (map['card_avatar_rank'] ?? map['cardAvatarRank']) as String? ?? '';
     final String suit = (map['card_avatar_suit'] ?? map['cardAvatarSuit']) as String? ?? '';
     final GameCardAvatarData fallback = GameCardAvatarPalette.fromSeed(uid);

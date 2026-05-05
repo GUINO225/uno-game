@@ -50,6 +50,20 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     return (profile, rank);
   }
 
+  void _logUiProfile({
+    required String currentUserId,
+    required PlayerProfile? profile,
+    required String displayedName,
+  }) {
+    debugPrint('[UI_PROFILE] currentUserId=$currentUserId');
+    debugPrint('[UI_PROFILE] loadedProfileUid=${profile?.uid ?? 'null'}');
+    debugPrint('[UI_PROFILE] profile.displayName=${profile?.displayName ?? 'null'}');
+    debugPrint(
+      '[UI_PROFILE] profile.publicDisplayName=${profile?.publicDisplayName ?? 'null'}',
+    );
+    debugPrint('[UI_PROFILE] displayedName=$displayedName');
+  }
+
   Future<void> _signIn() async {
     final GoogleAuthResult result = await _authService.signInWithGoogle();
     if (!mounted) {
@@ -209,14 +223,14 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     if (user == null) {
       return;
     }
-    final bool? updated = await showModalBottomSheet<bool>(
+    final PlayerProfile? updatedProfile = await showModalBottomSheet<PlayerProfile>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) => _PublicProfileEditorSheet(
         initialProfile: profile,
         onSave: (String displayName, String rank, String suit) async {
-          await _profileService.updatePublicProfile(
+          return await _profileService.updatePublicProfile(
             uid: user.id,
             displayName: displayName,
             cardAvatarRank: rank,
@@ -225,9 +239,13 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
         },
       ),
     );
-    if (!mounted || updated != true) {
+    if (!mounted || updatedProfile == null) {
       return;
     }
+    setState(() {
+      _panelDataUid = null;
+      _panelDataFuture = Future<(PlayerProfile?, int?)>.value((updatedProfile, null));
+    });
     _refreshPanelData();
     ScaffoldMessenger.of(
       context,
@@ -256,6 +274,16 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   (BuildContext context, AsyncSnapshot<(PlayerProfile?, int?)> snapshot) {
                 final PlayerProfile? profile = snapshot.data?.$1;
                 final int? rank = snapshot.data?.$2;
+                final String currentUserId = _authService.currentUser?.id ?? 'null';
+                final String displayedName = _safeLabel(
+                  profile?.publicDisplayName,
+                  fallback: 'Joueur',
+                );
+                _logUiProfile(
+                  currentUserId: currentUserId,
+                  profile: profile,
+                  displayedName: displayedName,
+                );
                 if (profile != null) {
                   _maybeSuggestProfileCustomization(profile);
                 }
@@ -637,7 +665,7 @@ class _PublicProfileEditorSheet extends StatefulWidget {
   });
 
   final PlayerProfile initialProfile;
-  final Future<void> Function(String displayName, String rank, String suit) onSave;
+  final Future<PlayerProfile> Function(String displayName, String rank, String suit) onSave;
 
   @override
   State<_PublicProfileEditorSheet> createState() => _PublicProfileEditorSheetState();
@@ -675,11 +703,11 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
       _saving = true;
     });
     try {
-      await widget.onSave(name, _selectedRank, _selectedSuit);
+      final PlayerProfile updatedProfile = await widget.onSave(name, _selectedRank, _selectedSuit);
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(updatedProfile);
     } catch (e) {
       if (!mounted) {
         return;
@@ -918,13 +946,30 @@ class PlayerSidePanelButton extends StatefulWidget {
 class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
+  Future<PlayerProfile?>? _profileFuture;
+  String? _futureUid;
 
-  Future<PlayerProfile?> _loadProfile() async {
-    final User? user = _authService.currentUser;
-    if (user == null) {
-      return null;
+  void _refreshProfile() {
+    final String? uid = _authService.currentUser?.id;
+    setState(() {
+      _futureUid = uid;
+      _profileFuture = uid == null ? Future<PlayerProfile?>.value(null) : _profileService.getProfile(uid);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshProfile();
+  }
+
+  Future<PlayerProfile?> _profileForCurrentUser() {
+    final String? uid = _authService.currentUser?.id;
+    if (_profileFuture == null || _futureUid != uid) {
+      _futureUid = uid;
+      _profileFuture = uid == null ? Future<PlayerProfile?>.value(null) : _profileService.getProfile(uid);
     }
-    return _profileService.createOrUpdateFromGoogleUser(user);
+    return _profileFuture!;
   }
 
   @override
@@ -933,13 +978,29 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
       alignment: Alignment.topRight,
       child: Padding(
         padding: const EdgeInsets.only(top: 6, right: 10),
-        child: FutureBuilder<PlayerProfile?>(
-          future: _loadProfile(),
-          builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
-            return StreamBuilder<User?>(
-              stream: _authService.authStateChanges,
-              builder: (BuildContext context, AsyncSnapshot<User?> _) {
+        child: StreamBuilder<User?>(
+          stream: _authService.authStateChanges,
+          builder: (BuildContext context, AsyncSnapshot<User?> authSnapshot) {
+            final String? authUid = authSnapshot.data?.id;
+            if (_futureUid != authUid) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  _refreshProfile();
+                }
+              });
+            }
+            return FutureBuilder<PlayerProfile?>(
+              key: ValueKey<String?>('psp-btn-$authUid'),
+              future: _profileForCurrentUser(),
+              builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
                 final PlayerProfile? profile = snapshot.data;
+                debugPrint('[UI_PROFILE] currentUserId=${_authService.currentUser?.id ?? 'null'}');
+                debugPrint('[UI_PROFILE] loadedProfileUid=${profile?.uid ?? 'null'}');
+                debugPrint('[UI_PROFILE] profile.displayName=${profile?.displayName ?? 'null'}');
+                debugPrint('[UI_PROFILE] profile.publicDisplayName=${profile?.publicDisplayName ?? 'null'}');
+                debugPrint(
+                  '[UI_PROFILE] displayedName=${_safeLabel(profile?.publicDisplayName, fallback: 'Joueur')}',
+                );
                 final String creditsLabel = snapshot.connectionState == ConnectionState.waiting
                     ? '...'
                     : '${profile?.credits ?? 0}';
