@@ -81,7 +81,7 @@ class UserProfileService {
     }
   }
 
-  Future<void> updatePublicProfile({
+  Future<PlayerProfile> updatePublicProfile({
     required String uid,
     required String displayName,
     required String cardAvatarRank,
@@ -110,8 +110,10 @@ class UserProfileService {
           })
           .eq('id', uid);
       debugPrint('[SUPABASE_PROFILE] update pseudo success');
-      final Map<String, dynamic> data = await _fetchProfileRow(uid);
-      debugPrint('[SUPABASE_PROFILE] reloaded display_name=${data['display_name']}');
+      final PlayerProfile updatedProfile =
+          await getProfile(uid) ?? PlayerProfile.fromMap(await _fetchProfileRow(uid));
+      debugPrint('[SUPABASE_PROFILE] reloaded display_name=${updatedProfile.displayName}');
+      return updatedProfile;
     } on PostgrestException catch (error, stackTrace) {
       debugPrint('[SUPABASE_PROFILE_ERROR] context=updatePublicProfile uid=$uid');
       debugPrint('[SUPABASE_PROFILE_ERROR] PostgrestException.code=${error.code} message=${error.message} details=${error.details} hint=${error.hint}');
