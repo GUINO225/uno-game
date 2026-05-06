@@ -12,6 +12,7 @@ import 'leaderboard_service.dart';
 import 'player_profile.dart';
 import 'premium_ui.dart';
 import 'user_profile_service.dart';
+import 'widgets/gino_popups.dart';
 
 class PlayerSidePanel extends StatefulWidget {
   const PlayerSidePanel({
@@ -124,20 +125,25 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                backgroundColor: const Color(0xFFF7F4EC),
+                surfaceTintColor: Colors.transparent,
+                backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+                ),
+                shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
                 title: Text(
                   'Personnalisez votre profil',
                   style: GoogleFonts.poppins(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: PremiumColors.textDark,
+                    color: GinoPopupStyle.textWhite,
                   ),
                 ),
                 content: Text(
                   'Pour garder votre anonymat, nous vous recommandons de changer votre pseudonyme et de choisir un avatar de carte. Vous pouvez le faire maintenant ou plus tard.',
                   style: GoogleFonts.poppins(
-                    color: PremiumColors.textDark.withOpacity(0.85),
+                    color: GinoPopupStyle.textWhite.withOpacity(0.85),
                     height: 1.35,
                   ),
                 ),
@@ -145,15 +151,16 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(false),
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF0B6D3A),
+                      foregroundColor: GinoPopupStyle.casinoGold,
                     ),
                     child: const Text('Plus tard'),
                   ),
                   ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(true),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0B6D3A),
-                      foregroundColor: Colors.white,
+                      backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                      foregroundColor: GinoPopupStyle.textWhite,
+                      shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

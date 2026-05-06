@@ -380,6 +380,7 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
         isPositive ? const Color(0xFF13C76B) : const Color(0xFFE16A6A);
     return GinoPopupFrame(
       titleTag: title,
+      isPremium: true,
       width: math.min(MediaQuery.of(context).size.width * 0.84, 350),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -454,7 +455,11 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
           if (secondaryActionLabel == null || onSecondaryAction == null)
             SizedBox(
               width: double.infinity,
-              child: GinoPopupButton(label: 'Continuer', onPressed: onContinue),
+              child: GinoPopupButton(
+                label: 'Continuer',
+                onPressed: onContinue,
+                isPremium: true,
+              ),
             )
           else
             Row(
@@ -463,6 +468,7 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
                   child: GinoPopupButton(
                     label: 'Quitter',
                     isPrimary: false,
+                    isPremium: true,
                     onPressed: onContinue,
                   ),
                 ),
@@ -470,6 +476,7 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
                 Expanded(
                   child: GinoPopupButton(
                     label: secondaryActionLabel!,
+                    isPremium: true,
                     onPressed: onSecondaryAction,
                   ),
                 ),
@@ -1342,6 +1349,7 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
 
     return GinoPopupFrame(
       width: math.min(MediaQuery.of(context).size.width * 0.78, 320),
+      isPremium: true,
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       showTitleTag: false,
       child: Column(
@@ -1364,7 +1372,7 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: GinoPopupStyle.accentGreen,
               borderRadius: BorderRadius.circular(8),
@@ -1379,7 +1387,11 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
           ),
           if (showButton) ...<Widget>[
             const SizedBox(height: 14),
-            GinoPopupButton(label: buttonLabel, onPressed: onDrawPressed),
+            GinoPopupButton(
+              label: buttonLabel,
+              onPressed: onDrawPressed,
+              isPremium: true,
+            ),
           ],
         ],
       ),
@@ -2434,6 +2446,7 @@ class GinoVictoryPopup extends StatelessWidget {
   Widget build(BuildContext context) {
     return GinoPopupFrame(
       titleTag: title,
+      isPremium: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -2463,14 +2476,22 @@ class GinoVictoryPopup extends StatelessWidget {
           if (canRequestRematch && onRematch != null) ...<Widget>[
             SizedBox(
               width: double.infinity,
-              child: GinoPopupButton(label: 'Revanche', onPressed: onRematch),
+              child: GinoPopupButton(
+                label: 'Revanche',
+                onPressed: onRematch,
+                isPremium: true,
+              ),
             ),
             const SizedBox(height: 10),
           ],
           if (onReplay != null) ...<Widget>[
             SizedBox(
               width: double.infinity,
-              child: GinoPopupButton(label: 'Rejouer', onPressed: onReplay),
+              child: GinoPopupButton(
+                label: 'Rejouer',
+                onPressed: onReplay,
+                isPremium: true,
+              ),
             ),
             const SizedBox(height: 10),
           ],
@@ -2481,6 +2502,7 @@ class GinoVictoryPopup extends StatelessWidget {
                 label: 'Retour menu',
                 onPressed: onBackToMenu,
                 isPrimary: false,
+                isPremium: true,
               ),
             ),
         ],
@@ -2775,6 +2797,7 @@ class GinoDecisionPopup extends StatelessWidget {
   Widget build(BuildContext context) {
     return GinoPopupFrame(
       titleTag: title,
+      isPremium: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -2791,6 +2814,7 @@ class GinoDecisionPopup extends StatelessWidget {
                   label: secondaryLabel,
                   onPressed: onSecondary,
                   isPrimary: false,
+                  isPremium: true,
                 ),
               ),
               const SizedBox(width: 10),
@@ -2798,6 +2822,7 @@ class GinoDecisionPopup extends StatelessWidget {
                 child: GinoPopupButton(
                   label: primaryLabel,
                   onPressed: onPrimary,
+                  isPremium: true,
                 ),
               ),
             ],

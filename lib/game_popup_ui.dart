@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'widgets/gino_popups.dart';
+
 class GamePopupButton extends StatelessWidget {
   const GamePopupButton({
     super.key,
@@ -10,8 +12,8 @@ class GamePopupButton extends StatelessWidget {
     this.onPressed,
     this.icon,
     this.expanded = false,
-    this.backgroundColor = const Color(0xFF111111),
-    this.foregroundColor = Colors.white,
+    this.backgroundColor = GinoPopupStyle.accentGreen,
+    this.foregroundColor = GinoPopupStyle.textWhite,
   });
 
   final String label;
@@ -75,8 +77,8 @@ class GamePopupIconButton extends StatelessWidget {
     required this.semanticLabel,
     this.onPressed,
     this.expanded = false,
-    this.backgroundColor = const Color(0xFF111111),
-    this.foregroundColor = Colors.white,
+    this.backgroundColor = GinoPopupStyle.accentGreen,
+    this.foregroundColor = GinoPopupStyle.textWhite,
   });
 
   final IconData icon;
@@ -139,11 +141,28 @@ class GamePopupDialog extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0x14000000)),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(color: Colors.black26, blurRadius: 16, offset: Offset(0, 8)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+                GinoPopupStyle.popupGreen.withOpacity(0.92),
+                const Color(0xFF001D13).withOpacity(0.97),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withOpacity(0.48),
+                blurRadius: 34,
+                offset: const Offset(0, 22),
+              ),
+              BoxShadow(
+                color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.18),
+                blurRadius: 30,
+                spreadRadius: 1,
+              ),
             ],
           ),
           child: Column(
@@ -153,7 +172,7 @@ class GamePopupDialog extends StatelessWidget {
                 formattedTitle,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                  color: Colors.black,
+                  color: GinoPopupStyle.textWhite,
                   fontSize: 16,
                   fontWeight: FontWeight.w400,
                   letterSpacing: 0.1,
@@ -165,7 +184,7 @@ class GamePopupDialog extends StatelessWidget {
                   subtitle!,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
-                    color: Colors.black87,
+                    color: GinoPopupStyle.textWhite.withOpacity(0.87),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
