@@ -249,6 +249,8 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
     required this.onContinue,
     this.detailLines = const <String>[],
     this.isPositive = false,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
   final String title;
@@ -259,17 +261,24 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
   final VoidCallback onContinue;
   final List<String> detailLines;
   final bool isPositive;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
-    final Color deltaColor = isPositive ? const Color(0xFF13C76B) : const Color(0xFFE16A6A);
+    final Color deltaColor =
+        isPositive ? const Color(0xFF13C76B) : const Color(0xFFE16A6A);
     return GinoPopupFrame(
       titleTag: title,
       width: math.min(MediaQuery.of(context).size.width * 0.84, 350),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text(message, textAlign: TextAlign.center, style: GinoPopupStyle.baseText(fontSize: 17)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GinoPopupStyle.baseText(fontSize: 17),
+          ),
           const SizedBox(height: 14),
           _BaseCardFace(
             width: 104,
@@ -278,12 +287,21 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Text(cardLabel, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w800, fontSize: 30)),
+                Text(
+                  cardLabel,
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 30,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   cardSuitSymbol,
                   style: TextStyle(
-                    color: (cardSuitSymbol == '♥' || cardSuitSymbol == '♦') ? const Color(0xFFC52626) : Colors.black87,
+                    color: (cardSuitSymbol == '♥' || cardSuitSymbol == '♦')
+                        ? const Color(0xFFC52626)
+                        : Colors.black87,
                     fontWeight: FontWeight.w900,
                     fontSize: 40,
                   ),
@@ -303,7 +321,11 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
             child: Text(
               deltaLabel,
               textAlign: TextAlign.center,
-              style: GinoPopupStyle.baseText(fontSize: 20, fontWeight: FontWeight.w800, color: deltaColor),
+              style: GinoPopupStyle.baseText(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: deltaColor,
+              ),
             ),
           ),
           if (detailLines.isNotEmpty) ...<Widget>[
@@ -319,10 +341,30 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: GinoPopupButton(label: 'Continuer', onPressed: onContinue),
-          ),
+          if (secondaryActionLabel == null || onSecondaryAction == null)
+            SizedBox(
+              width: double.infinity,
+              child: GinoPopupButton(label: 'Continuer', onPressed: onContinue),
+            )
+          else
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: GinoPopupButton(
+                    label: 'Quitter',
+                    isPrimary: false,
+                    onPressed: onContinue,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GinoPopupButton(
+                    label: secondaryActionLabel!,
+                    onPressed: onSecondaryAction,
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
