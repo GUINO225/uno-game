@@ -5641,6 +5641,20 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           },
           child: Scaffold(
             backgroundColor: PremiumColors.tableGreenDark,
+            endDrawer: PlayerSidePanel(
+              onOpenLeaderboard: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const LeaderboardPage()),
+                );
+              },
+              onOpenHistory: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const GameHistoryPage()),
+                );
+              },
+            ),
             body: Stack(
               children: <Widget>[
               TableBackground(
@@ -5696,6 +5710,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                                   child: _DuelChatPreviewBubble(text: _activeChatPreview!),
                                 ),
                             ],
+                          ),
+                          const SizedBox(width: 6),
+                          const PlayerSidePanelButton(
+                            padding: EdgeInsets.zero,
+                            wrapInAlign: false,
+                            showCredits: false,
                           ),
                         ],
                       ),
@@ -7900,6 +7920,8 @@ class _MyHandRowState extends State<_MyHandRow> {
                                 child: SizedBox(
                                   width: wrapWidth,
                                   child: Wrap(
+                                    alignment: WrapAlignment.center,
+                                    runAlignment: WrapAlignment.center,
                                     spacing: _MyHandRow._cardGap,
                                     runSpacing: _MyHandRow._cardGap,
                                     children: List<Widget>.generate(cards.length, (int index) {
