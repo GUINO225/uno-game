@@ -469,16 +469,9 @@ class _IntroLandingPageState extends State<IntroLandingPage>
           context: context,
           barrierDismissible: true,
           builder: (BuildContext context) {
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              child: GinoDecisionPopup(
-                title: 'Connexion',
-                message: 'Connecte-toi avec Google pour sauvegarder ton profil et tes crédits.',
-                primaryLabel: 'Google',
-                secondaryLabel: 'Sans connexion',
-                onPrimary: () => Navigator.of(context).pop(true),
-                onSecondary: () => Navigator.of(context).pop(false),
-              ),
+            return ConnectionPopup(
+              onGooglePressed: () => Navigator.of(context).pop(true),
+              onContinueWithoutAccount: () => Navigator.of(context).pop(false),
             );
           },
         ) ??
