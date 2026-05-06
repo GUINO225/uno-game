@@ -17,6 +17,10 @@ enum AppSfxEvent {
   chat,
   popup,
   joker,
+  jokerEffect,
+  jokerDrawn,
+  heavyDraw,
+  oneCardLeft,
   error,
   success,
   shuffle,
@@ -224,6 +228,18 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       exactBaseNames: <String>['pop_up_jocker', 'joker'],
       contains: <String>['jocker', 'joker'],
     );
+    _eventToAsset[AppSfxEvent.jokerEffect] = _pickAsset(
+      exactBaseNames: <String>['fahhhhh'],
+    );
+    _eventToAsset[AppSfxEvent.jokerDrawn] = _pickAsset(
+      exactBaseNames: <String>['wow'],
+    );
+    _eventToAsset[AppSfxEvent.heavyDraw] = _pickAsset(
+      exactBaseNames: <String>['witch'],
+    );
+    _eventToAsset[AppSfxEvent.oneCardLeft] = _pickAsset(
+      exactBaseNames: <String>['boom'],
+    );
     _eventToAsset[AppSfxEvent.error] = _pickAsset(
       exactBaseNames: <String>['error'],
       contains: <String>['error'],
@@ -282,6 +298,10 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> playChat() => _play(AppSfxEvent.chat, volume: 0.78);
   Future<void> playPopup() => _play(AppSfxEvent.popup, volume: 0.72);
   Future<void> playJoker() => _play(AppSfxEvent.joker, volume: 0.88);
+  Future<void> playJokerEffect() => _play(AppSfxEvent.jokerEffect, volume: 0.9);
+  Future<void> playJokerDrawn() => _play(AppSfxEvent.jokerDrawn, volume: 0.88);
+  Future<void> playHeavyDraw() => _play(AppSfxEvent.heavyDraw, volume: 0.86);
+  Future<void> playOneCardLeft() => _play(AppSfxEvent.oneCardLeft, volume: 0.9);
   Future<void> playError() => _play(AppSfxEvent.error, volume: 0.75);
   Future<void> playSuccess() => _play(AppSfxEvent.success, volume: 0.78);
   Future<void> playShuffle() => _play(AppSfxEvent.shuffle, volume: 0.82);
@@ -706,6 +726,10 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       AppSfxEvent.win,
       AppSfxEvent.lose,
       AppSfxEvent.shuffle,
+      AppSfxEvent.jokerEffect,
+      AppSfxEvent.jokerDrawn,
+      AppSfxEvent.heavyDraw,
+      AppSfxEvent.oneCardLeft,
     ]));
   }
 
@@ -761,6 +785,10 @@ class AppSfxService {
   Future<void> playChat() => _audio.playChat();
   Future<void> playPopup() => _audio.playPopup();
   Future<void> playJoker() => _audio.playJoker();
+  Future<void> playJokerEffect() => _audio.playJokerEffect();
+  Future<void> playJokerDrawn() => _audio.playJokerDrawn();
+  Future<void> playHeavyDraw() => _audio.playHeavyDraw();
+  Future<void> playOneCardLeft() => _audio.playOneCardLeft();
   Future<void> playError() => _audio.playError();
   Future<void> playSuccess() => _audio.playSuccess();
   Future<void> playShuffle() => _audio.playShuffle();

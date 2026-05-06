@@ -3414,6 +3414,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   String? _lastOutcomeSfxKey;
   String? _lastStatsSyncKey;
   String? _lastOpponentActionSfxKey;
+  String? _lastHeavyDrawSfxKey;
+  String? _lastOneCardSfxKey;
   String? _lastFunnyActionKey;
   bool _creditExitHandled = false;
   bool _funnyMessagesEnabled = true;
@@ -4233,6 +4235,37 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     });
   }
 
+  void _playDrawnCardSfx(DuelCard? card) {
+    if (card?.isJoker ?? false) {
+      unawaited(_sfx.playJokerDrawn());
+    } else {
+      unawaited(_sfx.playDraw());
+    }
+  }
+
+  void _playHeavyDrawSfxOnce({
+    required String key,
+    required int total,
+    required bool sequenceStart,
+  }) {
+    if (!sequenceStart || total < 4 || _lastHeavyDrawSfxKey == key) {
+      return;
+    }
+    _lastHeavyDrawSfxKey = key;
+    unawaited(_sfx.playHeavyDraw());
+  }
+
+  void _playOneCardLeftSfxOnce({
+    required String key,
+    required int cardCount,
+  }) {
+    if (cardCount != 1 || _lastOneCardSfxKey == key) {
+      return;
+    }
+    _lastOneCardSfxKey = key;
+    unawaited(_sfx.playOneCardLeft());
+  }
+
   void _maybePlayOpponentActionSfx(DuelSession session) {
     final DuelAction? action = session.lastAction;
     if (action == null || action.actorId == _controller.localPlayerId) {
@@ -4250,15 +4283,27 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _lastOpponentActionSfxKey = key;
     if (action.type == DuelActionType.playCard) {
       unawaited(_sfx.playCard());
+      final String? cardId = action.payload['cardId'] as String?;
+      if (cardId != null && cardId.isNotEmpty) {
+        final DuelCard card = DuelCard.fromId(cardId);
+        if (card.isJoker) {
+          unawaited(_sfx.playJokerEffect());
+        }
+        _playOneCardLeftSfxOnce(
+          key: '${key}_one_card',
+          cardCount: session.handForPlayer(action.actorId).length,
+        );
+      }
       return;
     }
-    final bool isForcedEight = action.payload['forcedDraw'] == true &&
-        (action.payload['forcedTotal'] as num? ?? 0) >= 8;
-    if (isForcedEight) {
-      unawaited(_sfx.playJoker());
-    } else {
-      unawaited(_sfx.playDraw());
-    }
+    final bool isForcedDraw = action.payload['forcedDraw'] == true;
+    final int forcedTotal = (action.payload['forcedTotal'] as num? ?? 0).toInt();
+    _playHeavyDrawSfxOnce(
+      key: '${session.gameId}_${session.round}_${action.actorId}_$forcedTotal',
+      total: forcedTotal,
+      sequenceStart: isForcedDraw && session.pendingDrawCount == forcedTotal - 1,
+    );
+    unawaited(_sfx.playDraw());
   }
 
   Future<void> _onDrawTap() async {
@@ -4276,14 +4321,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return;
     }
     setState(() => _isDrawingActionBusy = true);
-    final bool isJokerForcedDraw =
-        move.payload['forcedDraw'] == true && board.forcedDrawInitial >= 8;
+    final bool isForcedDraw = move.payload['forcedDraw'] == true;
+    final int forcedTotal = (move.payload['forcedTotal'] as num? ?? 0).toInt();
+    final DuelCard? drawnCard = board.drawPile.isEmpty ? null : board.drawPile.last;
     try {
-      if (isJokerForcedDraw && board.pendingDraw == board.forcedDrawInitial) {
-        unawaited(_sfx.playJoker());
-      } else {
-        unawaited(_sfx.playDraw());
-      }
+      _playHeavyDrawSfxOnce(
+        key: '${session.gameId}_${session.round}_${_controller.localPlayerId}_$forcedTotal',
+        total: forcedTotal,
+        sequenceStart: isForcedDraw && board.pendingDraw == board.forcedDrawInitial,
+      );
+      _playDrawnCardSfx(drawnCard);
       await _controller.sendAction(
         DuelActionType.drawCard,
         payload: move.payload,
