@@ -66,6 +66,174 @@ class PremiumCardEffects {
   }
 }
 
+
+class PremiumGameDecorations {
+  const PremiumGameDecorations._();
+
+  static BoxDecoration glassPanel({
+    double radius = 18,
+    Color? borderColor,
+    double opacity = 0.34,
+    bool golden = false,
+  }) {
+    final Color glowColor = golden ? PremiumColors.accent : PremiumColors.accentGreen;
+    return BoxDecoration(
+      color: const Color(0xFF041E15).withOpacity(opacity),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: borderColor ??
+            (golden
+                ? PremiumColors.accent.withOpacity(0.42)
+                : Colors.white.withOpacity(0.18)),
+      ),
+      boxShadow: <BoxShadow>[
+        BoxShadow(
+          color: Colors.black.withOpacity(0.28),
+          blurRadius: 18,
+          offset: const Offset(0, 9),
+        ),
+        BoxShadow(
+          color: glowColor.withOpacity(golden ? 0.11 : 0.08),
+          blurRadius: golden ? 24 : 20,
+          spreadRadius: 1,
+        ),
+      ],
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          Colors.white.withOpacity(golden ? 0.16 : 0.11),
+          const Color(0xFF062719).withOpacity(opacity),
+          Colors.black.withOpacity(0.16),
+        ],
+      ),
+    );
+  }
+
+  static BoxDecoration goldPill({bool active = false}) {
+    return BoxDecoration(
+      color: const Color(0xFF061F15).withOpacity(0.78),
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(
+        color: PremiumColors.accent.withOpacity(active ? 0.58 : 0.36),
+      ),
+      boxShadow: <BoxShadow>[
+        BoxShadow(
+          color: PremiumColors.accent.withOpacity(active ? 0.18 : 0.09),
+          blurRadius: active ? 18 : 12,
+        ),
+        BoxShadow(
+          color: Colors.black.withOpacity(0.22),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: <Color>[
+          PremiumColors.accent.withOpacity(active ? 0.18 : 0.10),
+          Colors.white.withOpacity(0.05),
+          Colors.black.withOpacity(0.10),
+        ],
+      ),
+    );
+  }
+}
+
+class PremiumGamePanel extends StatelessWidget {
+  const PremiumGamePanel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(10),
+    this.radius = 18,
+    this.golden = false,
+    this.opacity = 0.34,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double radius;
+  final bool golden;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      decoration: PremiumGameDecorations.glassPanel(
+        radius: radius,
+        golden: golden,
+        opacity: opacity,
+      ),
+      child: child,
+    );
+  }
+}
+
+class PremiumDividerLine extends StatelessWidget {
+  const PremiumDividerLine({super.key, this.verticalPadding = 8});
+
+  final double verticalPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: verticalPadding),
+      child: Container(
+        height: 1,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: <Color>[
+              Colors.white.withOpacity(0.02),
+              PremiumColors.accent.withOpacity(0.32),
+              Colors.white.withOpacity(0.02),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PremiumIconButtonShell extends StatelessWidget {
+  const PremiumIconButtonShell({
+    super.key,
+    required this.child,
+    this.golden = false,
+  });
+
+  final Widget child;
+  final bool golden;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF031C12).withOpacity(0.72),
+        border: Border.all(
+          color: (golden ? PremiumColors.accent : PremiumColors.accentGreen)
+              .withOpacity(golden ? 0.42 : 0.32),
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: (golden ? PremiumColors.accent : PremiumColors.accentGreen)
+                .withOpacity(0.12),
+            blurRadius: 14,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.24),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
 class TableBackground extends StatelessWidget {
   const TableBackground({
     super.key,
@@ -82,9 +250,9 @@ class TableBackground extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[
-            Color(0xFF06623B),
-            Color(0xFF004F2C),
-            Color(0xFF013C25),
+            Color(0xFF0B4D31),
+            Color(0xFF062D20),
+            Color(0xFF02170F),
           ],
         ),
       ),

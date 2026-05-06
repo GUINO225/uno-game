@@ -628,8 +628,8 @@ class StartupAdPopup extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-          Positioned(
+            ),
+            Positioned(
             top: -10,
             right: -10,
             child: Material(
@@ -1284,7 +1284,7 @@ class _SpecialBonusOptionCard extends StatelessWidget {
             BoxShadow(
               color: const Color(0xFF72FF9E).withOpacity(0.10),
               blurRadius: 16,
-            ),
+              ),
           ],
         ),
         child: Row(
@@ -1328,7 +1328,7 @@ class _SpecialBonusOptionCard extends StatelessWidget {
               activeTrackColor: const Color(0xFF0E6F3B),
               inactiveThumbColor: const Color(0xFFDCECDF),
               inactiveTrackColor: Colors.white.withOpacity(0.16),
-            ),
+              ),
           ],
         ),
       ),
@@ -1594,7 +1594,7 @@ class BackgroundDecoration extends StatelessWidget {
                   height: 1,
                 ),
               ),
-            ),
+              ),
           ],
         ),
       ),
@@ -1778,7 +1778,7 @@ class SelectionPlayingCard extends StatelessWidget {
             BoxShadow(
               color: const Color(0xFF6CFF99).withOpacity(0.12),
               blurRadius: 16,
-            ),
+              ),
           ],
         ),
         child: ClipRRect(
@@ -1890,8 +1890,8 @@ class DuelSelectionCard extends StatelessWidget {
                 height: height * 0.74,
               ),
             ),
-          ),
-          Positioned(
+            ),
+            Positioned(
             right: 3,
             bottom: 6,
             child: Transform.rotate(
@@ -4021,10 +4021,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 child: Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.68),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white24),
+                    decoration: PremiumGameDecorations.glassPanel(
+                      radius: 12,
+                      golden: true,
+                      opacity: 0.58,
                     ),
                     child: Text(
                       _forcedDrawCount > 1
@@ -4044,25 +4044,30 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   Widget _topBar() {
     return Row(
       children: <Widget>[
-        IconButton(
-          onPressed: () {
-            unawaited(_sfx.playClick());
-            Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
-          },
-          tooltip: 'Retour aux modes',
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        PremiumIconButtonShell(
+          child: IconButton(
+            onPressed: () {
+              unawaited(_sfx.playClick());
+              Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+            },
+            tooltip: 'Retour aux modes',
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          ),
         ),
         const SizedBox(width: 6),
         const AppLogo(size: 72),
         const SizedBox(width: 8),
         Expanded(child: _scoreBar()),
-        IconButton(
-          onPressed: () {
-            unawaited(_sfx.playClick());
-            _startNewGame();
-          },
-          tooltip: 'Nouvelle manche',
-          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+        PremiumIconButtonShell(
+          golden: true,
+          child: IconButton(
+            onPressed: () {
+              unawaited(_sfx.playClick());
+              _startNewGame();
+            },
+            tooltip: 'Nouvelle manche',
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+          ),
         ),
         const SizedBox(width: 6),
         const PlayerSidePanelButton(
@@ -4110,13 +4115,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Widget _playerPanel({required bool canInteract}) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white24),
-      ),
+    return PremiumGamePanel(
+      padding: const EdgeInsets.all(12),
+      radius: 20,
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
@@ -4132,10 +4133,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 avatar: _humanAvatar,
                 showCountBadge: false,
               ),
-              Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 8),
-                child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
-              ),
+              const PremiumDividerLine(verticalPadding: 8),
               Expanded(child: _playerHandArea(canInteract: canInteract)),
             ],
           ),
@@ -4192,66 +4190,61 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Widget _botHandArea() {
-    return Container(
-      height: 114,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: <Widget>[
-          Column(
-            children: <Widget>[
-              _playerHeader(
-                isHuman: false,
-                name: _botName,
-                count: _botHand.length,
-                wins: 0,
-                losses: 0,
-                avatar: _botAvatar,
-                showCountBadge: false,
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 8),
-                child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  reverse: true,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List<Widget>.generate(
-                      _botHand.length,
-                      (int index) {
-                        final PlayingCard card = _botHand[index];
-                        final int cardRef = identityHashCode(card);
-                        final bool isNew = _newBotCardRefs.contains(cardRef);
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 12),
-                          child: BouncyCardEntry(
-                            key: ValueKey<int>(cardRef),
-                            animate: isNew,
-                            delay: Duration(milliseconds: isNew ? index * 32 : 0),
-                            child: const CardBackView(width: 28, height: 40),
-                          ),
-                        );
-                      },
+    return PremiumGamePanel(
+      padding: const EdgeInsets.all(12),
+      radius: 20,
+      child: SizedBox(
+        height: 92,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Column(
+              children: <Widget>[
+                _playerHeader(
+                  isHuman: false,
+                  name: _botName,
+                  count: _botHand.length,
+                  wins: 0,
+                  losses: 0,
+                  avatar: _botAvatar,
+                  showCountBadge: false,
+                ),
+                const PremiumDividerLine(verticalPadding: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List<Widget>.generate(
+                        _botHand.length,
+                        (int index) {
+                          final PlayingCard card = _botHand[index];
+                          final int cardRef = identityHashCode(card);
+                          final bool isNew = _newBotCardRefs.contains(cardRef);
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 12),
+                            child: BouncyCardEntry(
+                              key: ValueKey<int>(cardRef),
+                              animate: isNew,
+                              delay: Duration(milliseconds: isNew ? index * 32 : 0),
+                              child: const CardBackView(width: 28, height: 40),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: -6,
-            right: -6,
-            child: _CountBadge(count: _botHand.length),
-          ),
-        ],
+              ],
+            ),
+            Positioned(
+              top: -6,
+              right: -6,
+              child: _CountBadge(count: _botHand.length),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -4385,10 +4378,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           '$_status-${_activeSuitConstraint?.name}-${_humanMustAnswerAce ? 1 : 0}',
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.45),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white24),
+        decoration: PremiumGameDecorations.glassPanel(
+          radius: 16,
+          golden: _activeSuitConstraint != null || _humanMustAnswerAce,
+          opacity: 0.42,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -4495,11 +4488,7 @@ class _ScorePill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.28),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white24),
-      ),
+      decoration: PremiumGameDecorations.goldPill(),
       child: Text(
         '$label : $value',
         style: const TextStyle(
@@ -4608,11 +4597,7 @@ class _EmptyCardSlot extends StatelessWidget {
     return Container(
       width: 64,
       height: 92,
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white38),
-      ),
+      decoration: PremiumGameDecorations.glassPanel(radius: 12, opacity: 0.28),
       child: Center(
         child: Text(
           label,
@@ -4651,7 +4636,14 @@ class CardView extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         color: Colors.white,
       ).copyWith(
-        border: Border.all(color: Colors.black26, width: 1),
+        border: Border.all(color: PremiumColors.accent.withOpacity(0.28), width: 1),
+        boxShadow: <BoxShadow>[
+          ...PremiumCardEffects.bevelShadow,
+          BoxShadow(
+            color: PremiumColors.accent.withOpacity(0.08),
+            blurRadius: 10,
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(7),
       child: card.isJoker
@@ -4837,7 +4829,7 @@ class _SuitChoiceTile extends StatelessWidget {
             Text(
               _name,
               style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+              ),
           ],
         ),
       ),

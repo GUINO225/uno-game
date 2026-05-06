@@ -5702,13 +5702,15 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          IconButton(
-                            onPressed: () {
-                              unawaited(_sfx.playClick());
-                              unawaited(_handleBackNavigation());
-                            },
-                            tooltip: 'Retour aux modes',
-                            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                          PremiumIconButtonShell(
+                            child: IconButton(
+                              onPressed: () {
+                                unawaited(_sfx.playClick());
+                                unawaited(_handleBackNavigation());
+                              },
+                              tooltip: 'Retour aux modes',
+                              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                            ),
                           ),
                           const SizedBox(width: 2),
                           Expanded(
@@ -5761,11 +5763,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         Align(
                           alignment: Alignment.centerRight,
                           child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white24),
-                            ),
+                            decoration: PremiumGameDecorations.goldPill(active: true),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
@@ -7104,13 +7102,7 @@ class _DuelStatusBanner extends StatelessWidget {
             child: Container(
               constraints: const BoxConstraints(maxWidth: 300),
               padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: compact ? 7 : 10),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.38),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
-                ],
-              ),
+              decoration: PremiumGameDecorations.goldPill(active: true),
               child: RichText(
                 textAlign: TextAlign.center,
                 maxLines: 1,
@@ -7199,10 +7191,10 @@ class _CreditsStakeBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white24),
+      decoration: PremiumGameDecorations.glassPanel(
+        radius: 16,
+        golden: true,
+        opacity: 0.32,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -7343,13 +7335,9 @@ class _OpponentRowState extends State<_OpponentRow> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(widget.compact ? 8 : 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
-      ),
+    return PremiumGamePanel(
+      padding: EdgeInsets.all(widget.compact ? 10 : 12),
+      radius: 18,
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
@@ -7366,10 +7354,7 @@ class _OpponentRowState extends State<_OpponentRow> {
               ),
               const SizedBox(height: 4),
               _OpponentPresenceBadge(status: widget.connectionStatus),
-              Padding(
-                padding: EdgeInsets.only(top: widget.compact ? 6 : 8, bottom: widget.compact ? 6 : 8),
-                child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
-              ),
+              PremiumDividerLine(verticalPadding: widget.compact ? 6 : 8),
               SizedBox(
                 height: widget.compact ? 36 : 42,
                 child: SingleChildScrollView(
@@ -7631,7 +7616,7 @@ class _AvatarCardCircle extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white60, width: 1.2),
+        border: Border.all(color: PremiumColors.accent.withOpacity(0.68), width: 1.2),
         boxShadow: const <BoxShadow>[
           BoxShadow(
             color: Colors.black38,
@@ -7746,7 +7731,11 @@ class _CenterArea extends StatelessWidget {
           Container(
             margin: EdgeInsets.only(top: compact ? 7 : 10),
             padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 10, vertical: compact ? 5 : 6),
-            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
+            decoration: PremiumGameDecorations.glassPanel(
+              radius: 10,
+              golden: requiredSuit != null,
+              opacity: 0.50,
+            ),
             child: _SuitOverlayText(message: overlay),
           ),
       ],
@@ -7886,10 +7875,9 @@ class _MyHandRowState extends State<_MyHandRow> {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.black.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
+      child: PremiumGamePanel(
+        padding: const EdgeInsets.all(10),
+        radius: 18,
         child: Stack(
           children: <Widget>[
             Column(
@@ -7918,10 +7906,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                     ),
                   ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 8),
-                  child: Container(height: 1, color: Colors.white.withOpacity(0.16)),
-                ),
+                const PremiumDividerLine(verticalPadding: 8),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (BuildContext context, BoxConstraints constraints) {
@@ -8047,10 +8032,7 @@ class _ActionMessageCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.25),
-        borderRadius: BorderRadius.circular(10),
-      ),
+      decoration: PremiumGameDecorations.glassPanel(radius: 12, opacity: 0.30),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
@@ -8194,7 +8176,7 @@ class _DrawCountBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFD50000),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.4),
+        border: Border.all(color: PremiumColors.accent.withOpacity(0.85), width: 1.4),
         boxShadow: const <BoxShadow>[
           BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
         ],
