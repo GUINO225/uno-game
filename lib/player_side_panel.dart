@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +12,6 @@ import 'leaderboard_service.dart';
 import 'player_profile.dart';
 import 'premium_ui.dart';
 import 'user_profile_service.dart';
-
 
 class PlayerSidePanel extends StatefulWidget {
   const PlayerSidePanel({
@@ -249,8 +250,21 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
 
   @override
   Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.sizeOf(context);
+    final double mobileWidth = screenSize.width * 0.82;
+    final double drawerWidth = screenSize.width >= 600
+        ? mobileWidth.clamp(0, 410).toDouble()
+        : mobileWidth.clamp(0, screenSize.width * 0.85).toDouble();
+
     return Drawer(
+      width: drawerWidth,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(left: Radius.circular(28)),
+      ),
       child: SafeArea(
+        left: false,
         child: StreamBuilder<User?>(
           stream: _authService.authStateChanges,
           builder: (BuildContext context, AsyncSnapshot<User?> snapshot) {
@@ -273,86 +287,88 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   _maybeSuggestProfileCustomization(profile);
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const ModernSideMenu(
+                    child: Center(
+                      child: CircularProgressIndicator(color: _SideMenuStyle.accentGreen),
+                    ),
+                  );
                 }
                 if (snapshot.hasError) {
-                  return ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: <Widget>[
-                      Text(
-                        'Mon compte',
-                        style: GoogleFonts.poppins(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w700,
-                          color: PremiumColors.textDark,
+                  return ModernSideMenu(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+                      children: <Widget>[
+                        const _SideMenuCloseRow(),
+                        const SizedBox(height: 14),
+                        const _SideMenuProfileHeader(),
+                        const SizedBox(height: 18),
+                        Text(
+                          'Compte connecté, mais impossible de charger les données pour le moment.',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white.withOpacity(0.82),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Compte connecté, mais impossible de charger les données pour le moment.',
-                        style: GoogleFonts.poppins(
-                          color: PremiumColors.textDark.withOpacity(0.85),
-                          fontSize: 13,
+                        const SizedBox(height: 10),
+                        Text(
+                          '${snapshot.error}',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        '${snapshot.error}',
-                        style: GoogleFonts.poppins(
-                          color: PremiumColors.textDark.withOpacity(0.65),
-                          fontSize: 11,
+                        const SizedBox(height: 18),
+                        _SideMenuActionButton(
+                          label: 'Réessayer',
+                          icon: Icons.refresh_rounded,
+                          onPressed: _refreshPanelData,
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _refreshPanelData,
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Réessayer'),
-                      ),
-                    ],
+                      ],
+                    ),
                   );
                 }
                 if (profile == null) {
-                  return ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: <Widget>[
-                      Text(
-                        'Mon compte',
-                        style: GoogleFonts.poppins(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w700,
-                          color: PremiumColors.textDark,
+                  return ModernSideMenu(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+                      children: <Widget>[
+                        const _SideMenuCloseRow(),
+                        const SizedBox(height: 14),
+                        const _SideMenuProfileHeader(),
+                        const SizedBox(height: 18),
+                        Text(
+                          'Connectez-vous avec Google pour voir vos statistiques.',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white.withOpacity(0.82),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Connectez-vous avec Google pour voir vos statistiques.',
-                        style: GoogleFonts.poppins(
-                          color: PremiumColors.textDark.withOpacity(0.85),
-                          fontSize: 13,
+                        const SizedBox(height: 18),
+                        _SideMenuActionButton(
+                          label: 'Connexion Google',
+                          icon: Icons.g_mobiledata_rounded,
+                          onPressed: _signIn,
+                          primary: true,
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _signIn,
-                        icon: const Icon(Icons.g_mobiledata_rounded),
-                        label: const Text('Connexion Google'),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: widget.onOpenLeaderboard,
-                        icon: const Icon(Icons.leaderboard_outlined),
-                        label: const Text('Voir le classement'),
-                      ),
-                      if (widget.onOpenHistory != null) ...<Widget>[
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: widget.onOpenHistory,
-                          icon: const Icon(Icons.history_rounded),
-                          label: const Text('Historique des parties'),
+                        const SizedBox(height: 10),
+                        _SideMenuActionButton(
+                          label: 'Voir le classement',
+                          icon: Icons.leaderboard_outlined,
+                          onPressed: widget.onOpenLeaderboard,
                         ),
+                        if (widget.onOpenHistory != null) ...<Widget>[
+                          const SizedBox(height: 10),
+                          _SideMenuActionButton(
+                            label: 'Historique des parties',
+                            icon: Icons.history_rounded,
+                            onPressed: widget.onOpenHistory,
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   );
                 }
                 final List<_PlayerInfoTileData> accountTiles = <_PlayerInfoTileData>[
@@ -393,14 +409,15 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                     value: 'Compte Google connecté',
                   ),
                 ];
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
-                  children: <Widget>[
-                    _AccountDrawerHeader(profile: profile),
-                    const SizedBox(height: 14),
-                    PremiumPanel(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Column(
+                return ModernSideMenu(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+                    children: <Widget>[
+                      const _SideMenuCloseRow(),
+                      const SizedBox(height: 14),
+                      _SideMenuProfileHeader(profile: profile),
+                      const SizedBox(height: 14),
+                      _SideMenuStatsPanel(
                         children: List<Widget>.generate(accountTiles.length, (int index) {
                           final _PlayerInfoTileData tile = accountTiles[index];
                           return _PlayerInfoTile(
@@ -412,34 +429,36 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                           );
                         }),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: () => _openProfileEditor(profile),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Modifier mon profil'),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: widget.onOpenLeaderboard,
-                      icon: const Icon(Icons.leaderboard_outlined),
-                      label: const Text('Voir le classement'),
-                    ),
-                    if (widget.onOpenHistory != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: widget.onOpenHistory,
-                        icon: const Icon(Icons.history_rounded),
-                        label: const Text('Historique des parties'),
+                      const SizedBox(height: 12),
+                      _SideMenuActionButton(
+                        label: 'Modifier mon profil',
+                        icon: Icons.edit_outlined,
+                        onPressed: () => _openProfileEditor(profile),
+                        primary: true,
+                        trailingIcon: Icons.edit_outlined,
+                      ),
+                      const SizedBox(height: 10),
+                      _SideMenuActionButton(
+                        label: 'Voir le classement',
+                        icon: Icons.leaderboard_outlined,
+                        onPressed: widget.onOpenLeaderboard,
+                      ),
+                      if (widget.onOpenHistory != null) ...<Widget>[
+                        const SizedBox(height: 10),
+                        _SideMenuActionButton(
+                          label: 'Historique des parties',
+                          icon: Icons.history_rounded,
+                          onPressed: widget.onOpenHistory,
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      _SideMenuActionButton(
+                        label: 'Déconnexion',
+                        icon: Icons.logout_rounded,
+                        onPressed: _signOut,
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: _signOut,
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Déconnexion'),
-                    ),
-                  ],
+                  ),
                 );
               },
             );
@@ -450,25 +469,204 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   }
 }
 
-String _safeLabel(String? value, {required String fallback}) {
-  final String cleaned = (value ?? '').trim();
-  return cleaned.isEmpty ? fallback : cleaned;
+class _SideMenuStyle {
+  const _SideMenuStyle._();
+
+  static const Color deepGreen = Color(0xEE04180F);
+  static const Color accentGreen = Color(0xFF55F29A);
+  static const Color softGreen = Color(0xFF0B6D3A);
 }
 
-class _AccountDrawerHeader extends StatelessWidget {
-  const _AccountDrawerHeader({required this.profile});
+class ModernSideMenu extends StatelessWidget {
+  const ModernSideMenu({
+    super.key,
+    required this.child,
+  });
 
-  final PlayerProfile profile;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final String safeName = _safeLabel(profile.publicDisplayName, fallback: 'Joueur');
+    return ClipRRect(
+      borderRadius: const BorderRadius.horizontal(left: Radius.circular(28)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: _SideMenuStyle.deepGreen,
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(28)),
+            border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.34)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withOpacity(0.26),
+                blurRadius: 28,
+                offset: const Offset(-10, 0),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: <Widget>[
+              const Positioned(
+                top: 26,
+                left: 18,
+                child: _SideMenuDecorativeMark(
+                  symbol: '♣',
+                  size: 74,
+                  angle: -0.16,
+                ),
+              ),
+              const Positioned(
+                top: 126,
+                right: 16,
+                child: _SideMenuDecorativeMark(
+                  symbol: '♠',
+                  size: 56,
+                  angle: 0.18,
+                ),
+              ),
+              const Positioned(
+                bottom: 56,
+                left: 22,
+                child: _SideMenuDecorativeMark(
+                  symbol: '♦',
+                  size: 64,
+                  angle: 0.14,
+                ),
+              ),
+              Positioned(
+                top: 210,
+                left: -36,
+                child: _BlurredCircle(size: 118, color: _SideMenuStyle.accentGreen),
+              ),
+              Positioned(
+                bottom: 112,
+                right: -44,
+                child: _BlurredCircle(size: 136, color: _SideMenuStyle.softGreen),
+              ),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-    return PremiumPanel(
+class _SideMenuDecorativeMark extends StatelessWidget {
+  const _SideMenuDecorativeMark({
+    required this.symbol,
+    required this.size,
+    required this.angle,
+  });
+
+  final String symbol;
+  final double size;
+  final double angle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: angle,
+      child: Text(
+        symbol,
+        style: GoogleFonts.poppins(
+          fontSize: size,
+          fontWeight: FontWeight.w400,
+          color: Colors.white.withOpacity(0.045),
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _BlurredCircle extends StatelessWidget {
+  const _BlurredCircle({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withOpacity(0.08),
+        ),
+      ),
+    );
+  }
+}
+
+class _SideMenuCloseRow extends StatelessWidget {
+  const _SideMenuCloseRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: <Widget>[
+        InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _SideMenuStyle.accentGreen.withOpacity(0.08),
+              border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.34)),
+            ),
+            child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SideMenuProfileHeader extends StatelessWidget {
+  const _SideMenuProfileHeader({this.profile});
+
+  final PlayerProfile? profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final PlayerProfile? currentProfile = profile;
+    final String? safeName = currentProfile == null
+        ? null
+        : _safeLabel(currentProfile.publicDisplayName, fallback: 'Joueur');
+
+    return Container(
       padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.075),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.28)),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _PanelAvatar(profile: profile, size: 56),
+          currentProfile == null
+              ? Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _SideMenuStyle.accentGreen.withOpacity(0.12),
+                    border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.36)),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                )
+              : _PanelAvatar(profile: currentProfile, size: 56),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -478,28 +676,32 @@ class _AccountDrawerHeader extends StatelessWidget {
                   'Mon compte',
                   style: GoogleFonts.poppins(
                     fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: PremiumColors.textDark,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white,
                   ),
                 ),
+                if (safeName != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    safeName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
-                  safeName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    color: PremiumColors.textDark.withOpacity(0.92),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Compte Google connecté',
-                  maxLines: 1,
+                  'Connecte-toi pour sauvegarder ton profil et tes crédits.',
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    color: PremiumColors.textDark.withOpacity(0.72),
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white.withOpacity(0.72),
+                    height: 1.3,
                   ),
                 ),
               ],
@@ -509,6 +711,102 @@ class _AccountDrawerHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SideMenuStatsPanel extends StatelessWidget {
+  const _SideMenuStatsPanel({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.065),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.22)),
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+class _SideMenuActionButton extends StatelessWidget {
+  const _SideMenuActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.primary = false,
+    this.trailingIcon = Icons.arrow_forward_ios_rounded,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool primary;
+  final IconData trailingIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color foreground = primary ? const Color(0xFF052016) : Colors.white;
+    final Color background = primary
+        ? _SideMenuStyle.accentGreen.withOpacity(onPressed == null ? 0.32 : 0.9)
+        : Colors.white.withOpacity(onPressed == null ? 0.035 : 0.055);
+    final Color border = primary
+        ? _SideMenuStyle.accentGreen.withOpacity(0.72)
+        : _SideMenuStyle.accentGreen.withOpacity(onPressed == null ? 0.14 : 0.34);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 50),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: border),
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                icon,
+                size: 20,
+                color: foreground.withOpacity(onPressed == null ? 0.45 : 1),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: foreground.withOpacity(onPressed == null ? 0.45 : 1),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                trailingIcon,
+                size: trailingIcon == Icons.arrow_forward_ios_rounded ? 15 : 18,
+                color: foreground.withOpacity(onPressed == null ? 0.35 : 0.9),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _safeLabel(String? value, {required String fallback}) {
+  final String cleaned = (value ?? '').trim();
+  return cleaned.isEmpty ? fallback : cleaned;
 }
 
 class _PlayerInfoTileData {
@@ -542,8 +840,9 @@ class _PlayerInfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color tileColor =
-        accent ? PremiumColors.accent.withOpacity(0.2) : Colors.white.withOpacity(0.7);
+    final Color tileColor = accent
+        ? _SideMenuStyle.accentGreen.withOpacity(0.14)
+        : Colors.white.withOpacity(0.06);
 
     return Container(
       margin: isLast ? EdgeInsets.zero : const EdgeInsets.only(bottom: 8),
@@ -551,7 +850,9 @@ class _PlayerInfoTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: tileColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: PremiumColors.textDark.withOpacity(0.08)),
+        border: Border.all(
+          color: _SideMenuStyle.accentGreen.withOpacity(accent ? 0.32 : 0.14),
+        ),
       ),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
@@ -559,7 +860,7 @@ class _PlayerInfoTile extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Icon(icon, size: 18, color: PremiumColors.textDark.withOpacity(0.82)),
+              Icon(icon, size: 18, color: Colors.white.withOpacity(0.78)),
               const SizedBox(width: 10),
               Expanded(
                 child: compact
@@ -571,7 +872,7 @@ class _PlayerInfoTile extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: PremiumColors.textDark.withOpacity(0.75),
+                              color: Colors.white.withOpacity(0.68),
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -581,8 +882,8 @@ class _PlayerInfoTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: PremiumColors.textDark,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withOpacity(0.94),
                             ),
                           ),
                         ],
@@ -595,7 +896,7 @@ class _PlayerInfoTile extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: PremiumColors.textDark.withOpacity(0.75),
+                                color: Colors.white.withOpacity(0.68),
                               ),
                             ),
                           ),
@@ -608,8 +909,8 @@ class _PlayerInfoTile extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: PremiumColors.textDark,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white.withOpacity(0.94),
                               ),
                             ),
                           ),
