@@ -1,102 +1,52 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
     function isSignedIn() {
       return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
     }
 
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function protectedStatsUnchanged() {
-      return request.resource.data.credits == resource.data.credits &&
-                          request.resource.data.wins == resource.data.wins &&
-                          request.resource.data.losses == resource.data.losses &&
-                          request.resource.data.score == resource.data.score &&
-                          request.resource.data.rankScore == resource.data.rankScore &&
-                          request.resource.data.totalGames == resource.data.totalGames;
-    }
-
-    function allowedSelfUpdateKeys() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            'displayName',
-            'cardAvatarRank',
-            'cardAvatarSuit',
-            'hasCustomProfile',
-            'updatedAt',
-            'lastLoginAt',
-            'email',
-            'photoUrl',
-            'avatarUrl',
-            'isRegistered'
-      ]);
-    }
-
     match /user_profiles/{uid} {
       allow read: if isSignedIn();
       allow create: if isOwner(uid);
-      allow update: if isOwner(uid) && protectedStatsUnchanged() && allowedSelfUpdateKeys();
-      allow delete: if isAdmin();
+      allow update: if isSignedIn();
+      allow delete: if request.auth.token.admin == true;
     }
 
     match /duel_games/{gameId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-
       allow update: if isSignedIn() && (
-                          request.auth.uid in resource.data.players ||
-              (
-                                          resource.data.players.size() < 2 &&
-                                  resource.data.status == 'waiting'
-              )
+        request.auth.uid in resource.data.players ||
+        (resource.data.players.size() < 2 && resource.data.status == 'waiting')
       );
-
       allow delete: if false;
     }
 
     match /duel_games/{gameId}/actions/{actionId} {
       allow read: if isSignedIn();
-
-      allow create: if isSignedIn() &&
-                      request.auth.uid in get(/databases/$(database)/documents/duel_games/$(gameId)).data.players;
-
+      allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/duel_games/$(gameId)).data.players;
       allow update, delete: if false;
     }
 
     match /duel_games/{gameId}/chat_messages/{msgId} {
       allow read: if isSignedIn();
-
-      allow create: if isSignedIn() &&
-                      request.auth.uid == request.resource.data.senderId;
-
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.senderId;
       allow update, delete: if false;
     }
 
     match /match_results/{resultId} {
-      allow read: if isSignedIn() &&
-                      request.auth.uid in resource.data.participantUids;
-
-      allow create: if isSignedIn() &&
-                      request.auth.uid in request.resource.data.participantUids;
-
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participantUids;
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantUids;
       allow update, delete: if false;
     }
 
     match /credit_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if false;
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
+      allow read: if request.auth.token.admin == true;
+      allow write: if isSignedIn();
     }
   }
 }

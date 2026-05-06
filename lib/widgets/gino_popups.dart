@@ -247,6 +247,7 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
     required this.cardSuitSymbol,
     required this.deltaLabel,
     required this.onContinue,
+    this.detailLines = const <String>[],
     this.isPositive = false,
   });
 
@@ -256,6 +257,7 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
   final String cardSuitSymbol;
   final String deltaLabel;
   final VoidCallback onContinue;
+  final List<String> detailLines;
   final bool isPositive;
 
   @override
@@ -304,6 +306,18 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
               style: GinoPopupStyle.baseText(fontSize: 20, fontWeight: FontWeight.w800, color: deltaColor),
             ),
           ),
+          if (detailLines.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 10),
+            Text(
+              detailLines.join('\n'),
+              textAlign: TextAlign.center,
+              style: GinoPopupStyle.baseText(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withOpacity(0.9),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,

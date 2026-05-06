@@ -135,17 +135,31 @@ class MyApp extends StatelessWidget {
           ),
         ),
         routes: <String, WidgetBuilder>{
-          GameModeRoutes.solo: (_) {
+          GameModeRoutes.solo: (BuildContext context) {
             unawaited(AudioService.instance.preloadGameSounds());
-            return const CrazyEightsPage();
+            final Object? args = ModalRoute.of(context)?.settings.arguments;
+            return CrazyEightsPage(
+              launchOptions: args is GameLaunchOptions ? args : const GameLaunchOptions(),
+            );
           },
-          GameModeRoutes.duel: (_) {
+          GameModeRoutes.duel: (BuildContext context) {
             unawaited(AudioService.instance.preloadGameSounds());
-            return const DuelLobbyPage();
+            final Object? args = ModalRoute.of(context)?.settings.arguments;
+            final bool specialBonusesEnabled = args is GameLaunchOptions
+                ? args.specialBonusesEnabled
+                : true;
+            return DuelLobbyPage(specialBonusesEnabled: specialBonusesEnabled);
           },
-          GameModeRoutes.credits: (_) {
+          GameModeRoutes.credits: (BuildContext context) {
             unawaited(AudioService.instance.preloadGameSounds());
-            return const DuelLobbyPage(mode: DuelRoomMode.credits);
+            final Object? args = ModalRoute.of(context)?.settings.arguments;
+            final bool specialBonusesEnabled = args is GameLaunchOptions
+                ? args.specialBonusesEnabled
+                : false;
+            return DuelLobbyPage(
+              mode: DuelRoomMode.credits,
+              specialBonusesEnabled: specialBonusesEnabled,
+            );
           },
           GameModeRoutes.leaderboard: (_) => const LeaderboardPage(),
           GameModeRoutes.history: (_) => const GameHistoryPage(),
@@ -386,6 +400,26 @@ class GameModeRoutes {
   static const String adminDashboard = '/admin-dashboard';
 }
 
+class GameLaunchOptions {
+  const GameLaunchOptions({this.specialBonusesEnabled = true});
+
+  final bool specialBonusesEnabled;
+}
+
+class SpecialFinishBonus {
+  const SpecialFinishBonus({
+    required this.cardName,
+    required this.amount,
+  });
+
+  final String cardName;
+  final int amount;
+
+  String get winnerLine => 'Bonus $cardName : +$amount';
+  String get loserLine => 'Malus adverse : −$amount';
+}
+
+
 class GameModePalette {
   static const Color background = Color(0xFF004F2C);
   static const Color backgroundShade = Color(0xFF013C25);
@@ -604,6 +638,7 @@ class _GameModePageState extends State<GameModePage>
   late final SelectionCardModel _duelBackCard;
   late final SelectionCardModel _parisSelectionCard;
   GameMode? _selectedMode;
+  bool _specialBonusesEnabled = true;
 
   @override
   void initState() {
@@ -849,6 +884,17 @@ class _GameModePageState extends State<GameModePage>
                                             ),
                                           ],
                                         ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _SpecialBonusOptionCard(
+                                        enabled: _specialBonusesEnabled,
+                                        selectedMode: _selectedMode,
+                                        onChanged: (bool value) {
+                                          unawaited(AppSfxService.instance.playClick());
+                                          setState(() {
+                                            _specialBonusesEnabled = value;
+                                          });
+                                        },
                                       ),
                                       const SizedBox(height: _controlsTopSpacing),
                                       AnimatedSwitcher(
@@ -1097,11 +1143,92 @@ class _GameModePageState extends State<GameModePage>
       }
     }
     unawaited(AppSfxService.instance.playClick());
-    Navigator.of(context).pushNamed(switch (mode) {
-      GameMode.solo => GameModeRoutes.solo,
-      GameMode.duel => GameModeRoutes.duel,
-      GameMode.credits => GameModeRoutes.credits,
-    });
+    Navigator.of(context).pushNamed(
+      switch (mode) {
+        GameMode.solo => GameModeRoutes.solo,
+        GameMode.duel => GameModeRoutes.duel,
+        GameMode.credits => GameModeRoutes.credits,
+      },
+      arguments: GameLaunchOptions(
+        specialBonusesEnabled: mode == GameMode.credits ? false : _specialBonusesEnabled,
+      ),
+    );
+  }
+}
+
+
+class _SpecialBonusOptionCard extends StatelessWidget {
+  const _SpecialBonusOptionCard({
+    required this.enabled,
+    required this.selectedMode,
+    required this.onChanged,
+  });
+
+  final bool enabled;
+  final GameMode? selectedMode;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool forcedOff = selectedMode == GameMode.credits;
+    final bool displayedEnabled = !forcedOff && enabled;
+    final String status = displayedEnabled
+        ? 'Bonus spéciaux activés'
+        : 'Bonus spéciaux désactivés';
+    final String detail = forcedOff
+        ? 'Mode Paris/Mises : bonus sécurisés désactivés pour ne pas perturber les mises.'
+        : 'Cartes concernées : 8, As, 2 et Joker.';
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: selectedMode == null ? 0.74 : 1,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.22),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.22)),
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              displayedEnabled ? Icons.auto_awesome_rounded : Icons.block_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    status,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text(
+                    detail,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.78),
+                      fontWeight: FontWeight.w500,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch.adaptive(
+              value: displayedEnabled,
+              onChanged: forcedOff ? null : onChanged,
+              activeColor: GameModePalette.accentGreen,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1792,7 +1919,12 @@ class _PlayResolution {
 }
 
 class CrazyEightsPage extends StatefulWidget {
-  const CrazyEightsPage({super.key});
+  const CrazyEightsPage({
+    super.key,
+    this.launchOptions = const GameLaunchOptions(),
+  });
+
+  final GameLaunchOptions launchOptions;
 
   @override
   State<CrazyEightsPage> createState() => _CrazyEightsPageState();
@@ -2883,20 +3015,36 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
   }
 
+  SpecialFinishBonus? _specialFinishBonusFor(PlayingCard card) {
+    if (card.isJoker) {
+      return const SpecialFinishBonus(cardName: 'Joker', amount: 300);
+    }
+    switch (card.rank) {
+      case 1:
+        return const SpecialFinishBonus(cardName: 'As', amount: 150);
+      case 2:
+        return const SpecialFinishBonus(cardName: '2', amount: 200);
+      case 8:
+        return const SpecialFinishBonus(cardName: '8', amount: 100);
+    }
+    return null;
+  }
+
   int _computeRoundCreditDelta({
     required PlayerTurn winner,
     required PlayingCard lastPlayed,
   }) {
-    if (winner == PlayerTurn.human) {
-      return 100;
-    } else {
-      int penalty = -100;
-      if (lastPlayed.isJoker) penalty -= 200;
-      else if (lastPlayed.rank == 1) penalty -= 100; // Ace
-      else if (lastPlayed.rank == 2) penalty -= 75;
-      else if (lastPlayed.rank == 8) penalty -= 50;
-      return penalty;
+    final int baseDelta = winner == PlayerTurn.human ? 100 : -100;
+    if (!widget.launchOptions.specialBonusesEnabled) {
+      return baseDelta;
     }
+    final SpecialFinishBonus? bonus = _specialFinishBonusFor(lastPlayed);
+    if (bonus == null) {
+      return baseDelta;
+    }
+    return winner == PlayerTurn.human
+        ? baseDelta + bonus.amount
+        : baseDelta - bonus.amount;
   }
 
   Future<void> _applyRoundCredits(int delta) async {
@@ -3022,30 +3170,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         final Color creditColor =
             creditDelta >= 0 ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
 
-        // Explanation label for the credit change
-        String bonusReason;
-        if (humanWon) {
-          bonusReason = 'Victoire · +100 crédits';
-        } else {
-          if (lastPlayed.isJoker) {
-            bonusReason = 'Joker adverse\n−100 base · −200 Joker';
-          } else if (lastPlayed.rank == 1) {
-            bonusReason = 'As adverse\n−100 base · −100 As';
-          } else if (lastPlayed.rank == 2) {
-            bonusReason = 'Carte 2 adverse\n−100 base · −75 carte 2';
-          } else if (lastPlayed.rank == 8) {
-            bonusReason = 'Carte 8 adverse\n−100 base · −50 carte 8';
-          } else {
-            bonusReason = 'Défaite · −100 crédits';
-          }
-        }
+        final SpecialFinishBonus? specialBonus = _specialFinishBonusFor(lastPlayed);
+        final bool bonusesEnabled = widget.launchOptions.specialBonusesEnabled;
+        final SpecialFinishBonus? appliedBonus = bonusesEnabled ? specialBonus : null;
+        final bool isSpecialCard = appliedBonus != null;
+        final String bonusReason = appliedBonus != null
+            ? '${humanWon ? 'Victoire' : 'Défaite'} · base ${humanWon ? '+100' : '−100'}\n${appliedBonus.winnerLine} / ${appliedBonus.loserLine}'
+            : (humanWon ? 'Victoire · +100 crédits' : 'Défaite · −100 crédits');
 
-        final bool isSpecialCard =
-            lastPlayed.isJoker || lastPlayed.rank == 1 || lastPlayed.rank == 2 || lastPlayed.rank == 8;
-        if (isSpecialCard) {
-          final String cardName = lastPlayed.isJoker
-              ? 'Joker'
-              : (lastPlayed.rank == 1 ? 'As' : (lastPlayed.rank == 2 ? '2' : '8'));
+        if (appliedBonus != null) {
+          final String cardName = appliedBonus.cardName;
           final String specialMessage = humanWon
               ? 'Vous avez terminé avec un $cardName'
               : 'Votre adversaire a terminé avec un $cardName';
@@ -3059,8 +3193,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               cardLabel: label,
               cardSuitSymbol: suit,
               deltaLabel: creditLabel,
+              detailLines: <String>[
+                'Carte spéciale : $cardName',
+                'Bonus gagnant : +${appliedBonus.amount}',
+                'Malus adversaire : −${appliedBonus.amount}',
+                'Impact total : $creditLabel',
+              ],
               isPositive: creditDelta >= 0,
-              onContinue: () => Navigator.of(context).pop(),
+              onContinue: () {
+                Navigator.of(context).pop();
+                if (mounted) {
+                  Navigator.of(this.context).popUntil((Route<dynamic> route) => route.isFirst);
+                }
+              },
             ),
           );
         }
