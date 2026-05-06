@@ -4120,7 +4120,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     );
   }
 
-  Future<void> _showForcedDrawPopup(int amount) async {
+  Future<void> _showForcedDrawPopup(int amount, {String? opponentName}) async {
     _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
@@ -4133,6 +4133,18 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             }
           }),
         );
+        if (amount == 2) {
+          return PremiumDrawTwoPopup(
+            opponentName: opponentName ?? 'Adversaire',
+            cardsToDraw: amount,
+            showTimer: false,
+            onDraw: () {
+              if (Navigator.of(dialogContext).canPop()) {
+                Navigator.of(dialogContext).pop();
+              }
+            },
+          );
+        }
         return Dialog(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -4200,7 +4212,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (!mounted) {
         return;
       }
-      await _showForcedDrawPopup(amount);
+      await _showForcedDrawPopup(
+        amount,
+        opponentName: _displayNameUpper(session, action.actorId),
+      );
     });
   }
 

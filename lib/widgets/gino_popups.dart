@@ -845,6 +845,615 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
   }
 }
 
+
+class PremiumDrawTwoPopup extends StatefulWidget {
+  const PremiumDrawTwoPopup({
+    super.key,
+    required this.opponentName,
+    required this.onDraw,
+    this.cardsToDraw = 2,
+    this.autoDrawSeconds,
+    this.showTimer = false,
+  });
+
+  final String opponentName;
+  final VoidCallback onDraw;
+  final int cardsToDraw;
+  final int? autoDrawSeconds;
+  final bool showTimer;
+
+  @override
+  State<PremiumDrawTwoPopup> createState() => _PremiumDrawTwoPopupState();
+}
+
+class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
+    with TickerProviderStateMixin {
+  late final AnimationController _introController;
+  late final AnimationController _ambientController;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<double> _shakeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _introController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    )..forward();
+    _ambientController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat(reverse: true);
+    _fadeAnimation = CurvedAnimation(
+      parent: _introController,
+      curve: const Interval(0.0, 0.72, curve: Curves.easeOutCubic),
+    );
+    _scaleAnimation = Tween<double>(begin: 0.85, end: 1).animate(
+      CurvedAnimation(parent: _introController, curve: Curves.easeOutBack),
+    );
+    _shakeAnimation = TweenSequence<double>(<TweenSequenceItem<double>>[
+      TweenSequenceItem<double>(tween: Tween<double>(begin: 0, end: -7), weight: 1),
+      TweenSequenceItem<double>(tween: Tween<double>(begin: -7, end: 6), weight: 1),
+      TweenSequenceItem<double>(tween: Tween<double>(begin: 6, end: -4), weight: 1),
+      TweenSequenceItem<double>(tween: Tween<double>(begin: -4, end: 0), weight: 1),
+    ]).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.0, 0.42, curve: Curves.easeOut),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _introController.dispose();
+    _ambientController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.of(context).size;
+    final double popupWidth = math.min(screenSize.width * 0.88, 430);
+    final double compactFactor = screenSize.height < 720 ? 0.88 : 1.0;
+    final String normalizedName = widget.opponentName.trim().isEmpty
+        ? 'Adversaire'
+        : widget.opponentName.trim();
+
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+            child: Container(color: Colors.black.withOpacity(0.56)),
+          ),
+        ),
+        Positioned.fill(
+          child: AnimatedBuilder(
+            animation: _ambientController,
+            builder: (BuildContext context, Widget? child) {
+              return CustomPaint(
+                painter: _PremiumDrawTwoParticlePainter(_ambientController.value),
+              );
+            },
+          ),
+        ),
+        SafeArea(
+          child: Center(
+            child: AnimatedBuilder(
+              animation: Listenable.merge(<Listenable>[_introController, _ambientController]),
+              builder: (BuildContext context, Widget? child) {
+                final double glowPulse = 0.75 + (_ambientController.value * 0.25);
+                return Opacity(
+                  opacity: _fadeAnimation.value,
+                  child: Transform.translate(
+                    offset: Offset(_shakeAnimation.value, 0),
+                    child: Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: Container(
+                        width: popupWidth,
+                        margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.topCenter,
+                          children: <Widget>[
+                            Container(
+                              padding: EdgeInsets.fromLTRB(
+                                20,
+                                76 * compactFactor,
+                                20,
+                                22 * compactFactor,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: <Color>[
+                                    const Color(0xFF044B30).withOpacity(0.92),
+                                    GinoPopupStyle.popupGreen.withOpacity(0.94),
+                                    const Color(0xFF012A19).withOpacity(0.96),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(32),
+                                border: Border.all(
+                                  color: const Color(0xFF69FFB0).withOpacity(0.72),
+                                  width: 1.4,
+                                ),
+                                boxShadow: <BoxShadow>[
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.62),
+                                    blurRadius: 34,
+                                    offset: const Offset(0, 24),
+                                  ),
+                                  BoxShadow(
+                                    color: GinoPopupStyle.accentGreen.withOpacity(0.30 * glowPulse),
+                                    blurRadius: 42,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  _PremiumDrawTwoAttackTitle(opponentName: normalizedName),
+                                  SizedBox(height: 16 * compactFactor),
+                                  _PremiumDrawTwoCardShowcase(
+                                    cardsToDraw: widget.cardsToDraw,
+                                    glowValue: _ambientController.value,
+                                  ),
+                                  SizedBox(height: 14 * compactFactor),
+                                  Text(
+                                    'Vous devez piocher',
+                                    textAlign: TextAlign.center,
+                                    style: GinoPopupStyle.baseText(
+                                      fontSize: 18,
+                                      fontWeight: GinoPopupStyle.titleWeight,
+                                      color: GinoPopupStyle.textWhite,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  _PremiumDividerText(
+                                    child: Text(
+                                      '${widget.cardsToDraw} CARTES',
+                                      textAlign: TextAlign.center,
+                                      style: GinoPopupStyle.baseText(
+                                        fontSize: 16,
+                                        fontWeight: GinoPopupStyle.titleWeight,
+                                        color: const Color(0xFF61FF66),
+                                        height: 1.05,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: 18 * compactFactor),
+                                  _PremiumDrawTwoButton(
+                                    label: 'PIOCHER ${widget.cardsToDraw} CARTES',
+                                    onPressed: widget.onDraw,
+                                  ),
+                                  if (widget.showTimer && widget.autoDrawSeconds != null) ...<Widget>[
+                                    SizedBox(height: 14 * compactFactor),
+                                    _PremiumDrawTwoTimer(seconds: widget.autoDrawSeconds!),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              top: -36,
+                              child: _PremiumDrawTwoOpponentAvatar(name: normalizedName),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PremiumDrawTwoAttackTitle extends StatelessWidget {
+  const _PremiumDrawTwoAttackTitle({required this.opponentName});
+
+  final String opponentName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            '$opponentName vous attaque !',
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            style: GinoPopupStyle.baseText(
+              fontSize: 18,
+              fontWeight: GinoPopupStyle.titleWeight,
+              color: GinoPopupStyle.textWhite,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PremiumDrawTwoCardShowcase extends StatelessWidget {
+  const _PremiumDrawTwoCardShowcase({required this.cardsToDraw, required this.glowValue});
+
+  final int cardsToDraw;
+  final double glowValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final double glow = 0.62 + (glowValue * 0.38);
+    return SizedBox(
+      width: 230,
+      height: 235,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Container(
+            width: 174,
+            height: 174,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF2CFF91).withOpacity(0.18), width: 5),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF1EFF95).withOpacity(0.30 * glow),
+                  blurRadius: 34 + (12 * glowValue),
+                  spreadRadius: 6,
+                ),
+              ],
+            ),
+          ),
+          Transform.rotate(
+            angle: -0.25,
+            child: Container(
+              width: 122,
+              height: 174,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFDEB),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: const Color(0xFFE5E8D8), width: 1),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.38),
+                    blurRadius: 18,
+                    offset: const Offset(0, 12),
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFF74FFAE).withOpacity(0.18 * glow),
+                    blurRadius: 26,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: <Widget>[
+                  Positioned(
+                    top: 18,
+                    left: 16,
+                    child: Text(
+                      '2',
+                      style: GinoPopupStyle.baseText(
+                        color: GinoPopupStyle.amountGreen,
+                        fontSize: 50,
+                        fontWeight: GinoPopupStyle.titleWeight,
+                        height: 0.9,
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Text(
+                      '♣',
+                      style: GinoPopupStyle.baseText(
+                        color: GinoPopupStyle.amountGreen,
+                        fontSize: 84,
+                        fontWeight: GinoPopupStyle.titleWeight,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 14,
+                    bottom: 14,
+                    child: Transform.rotate(
+                      angle: math.pi,
+                      child: Text(
+                        '2',
+                        style: GinoPopupStyle.baseText(
+                          color: GinoPopupStyle.amountGreen,
+                          fontSize: 42,
+                          fontWeight: GinoPopupStyle.titleWeight,
+                          height: 0.9,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            right: 18,
+            top: 72,
+            child: _PremiumDrawTwoBadge(cardsToDraw: cardsToDraw),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumDrawTwoBadge extends StatelessWidget {
+  const _PremiumDrawTwoBadge({required this.cardsToDraw});
+
+  final int cardsToDraw;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 74,
+      height: 74,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFFFF4545), Color(0xFFD90016)],
+        ),
+        border: Border.all(color: const Color(0xFFFF8989), width: 2),
+        boxShadow: <BoxShadow>[
+          BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 12, offset: const Offset(0, 7)),
+          BoxShadow(color: const Color(0xFFFF1E2D).withOpacity(0.32), blurRadius: 18, spreadRadius: 2),
+        ],
+      ),
+      child: Text(
+        '+$cardsToDraw',
+        style: GinoPopupStyle.baseText(
+          fontSize: 34,
+          fontWeight: GinoPopupStyle.titleWeight,
+          color: Colors.white,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumDividerText extends StatelessWidget {
+  const _PremiumDividerText({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        const _PremiumDividerLine(),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: child),
+        const _PremiumDividerLine(),
+      ],
+    );
+  }
+}
+
+class _PremiumDividerLine extends StatelessWidget {
+  const _PremiumDividerLine();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 54,
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: <Color>[
+            Colors.transparent,
+            GinoPopupStyle.accentGreen.withOpacity(0.68),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumDrawTwoButton extends StatelessWidget {
+  const _PremiumDrawTwoButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: math.min(MediaQuery.of(context).size.width * 0.68, 300),
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[Color(0xFF22E999), Color(0xFF08A95F)],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFA9FFD1).withOpacity(0.62), width: 1),
+            boxShadow: <BoxShadow>[
+              BoxShadow(color: const Color(0xFF13C76B).withOpacity(0.34), blurRadius: 18, spreadRadius: 1),
+              BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 12, offset: const Offset(0, 7)),
+            ],
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: GinoPopupStyle.baseText(
+                fontSize: 15,
+                fontWeight: GinoPopupStyle.buttonWeight,
+                color: Colors.white,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumDrawTwoTimer extends StatelessWidget {
+  const _PremiumDrawTwoTimer({required this.seconds});
+
+  final int seconds;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: 27,
+          height: 27,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFF3DFF83).withOpacity(0.85), width: 2),
+            color: const Color(0xFF043C25).withOpacity(0.76),
+          ),
+          child: Text(
+            '$seconds',
+            style: GinoPopupStyle.baseText(
+              fontSize: 12,
+              fontWeight: GinoPopupStyle.textWeight,
+              color: const Color(0xFF63FF78),
+              height: 1,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Auto-pioche dans ${seconds}s',
+          style: GinoPopupStyle.baseText(
+            fontSize: 13,
+            fontWeight: GinoPopupStyle.textWeight,
+            color: GinoPopupStyle.textWhite.withOpacity(0.72),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PremiumDrawTwoOpponentAvatar extends StatelessWidget {
+  const _PremiumDrawTwoOpponentAvatar({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final String initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
+    return Container(
+      width: 74,
+      height: 74,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: GinoPopupStyle.cardWhite,
+        border: Border.all(color: const Color(0xFF1BFF8E).withOpacity(0.74), width: 3),
+        boxShadow: <BoxShadow>[
+          BoxShadow(color: const Color(0xFF13C76B).withOpacity(0.42), blurRadius: 22, spreadRadius: 4),
+          BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Text(
+        initial,
+        style: GinoPopupStyle.baseText(
+          fontSize: 28,
+          fontWeight: GinoPopupStyle.titleWeight,
+          color: GinoPopupStyle.suitBlack,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumDrawTwoParticlePainter extends CustomPainter {
+  const _PremiumDrawTwoParticlePainter(this.progress);
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint sparkPaint = Paint()..style = PaintingStyle.fill;
+    final Paint cardPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final List<Offset> sparks = <Offset>[
+      Offset(size.width * 0.18, size.height * 0.28),
+      Offset(size.width * 0.78, size.height * 0.34),
+      Offset(size.width * 0.25, size.height * 0.72),
+      Offset(size.width * 0.72, size.height * 0.78),
+      Offset(size.width * 0.50, size.height * 0.21),
+    ];
+    for (int i = 0; i < sparks.length; i++) {
+      final double pulse = (math.sin((progress * math.pi * 2) + i) + 1) / 2;
+      sparkPaint.color = const Color(0xFF59FF9C).withOpacity(0.10 + (pulse * 0.16));
+      canvas.drawCircle(sparks[i], 1.4 + (pulse * 2.2), sparkPaint);
+    }
+
+    final List<Offset> cards = <Offset>[
+      Offset(size.width * 0.20, size.height * 0.40),
+      Offset(size.width * 0.80, size.height * 0.47),
+      Offset(size.width * 0.30, size.height * 0.62),
+    ];
+    for (int i = 0; i < cards.length; i++) {
+      final double drift = math.sin((progress * math.pi * 2) + i) * 5;
+      final Rect rect = Rect.fromCenter(
+        center: cards[i] + Offset(drift, -drift * 0.4),
+        width: 30,
+        height: 42,
+      );
+      canvas.save();
+      canvas.translate(rect.center.dx, rect.center.dy);
+      canvas.rotate(-0.35 + (i * 0.28));
+      cardPaint.color = const Color(0xFF98FFC8).withOpacity(0.08);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset.zero, width: rect.width, height: rect.height),
+          const Radius.circular(4),
+        ),
+        cardPaint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PremiumDrawTwoParticlePainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
 class GinoVictoryPopup extends StatelessWidget {
   const GinoVictoryPopup({
     super.key,
