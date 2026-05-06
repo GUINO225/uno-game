@@ -1494,7 +1494,43 @@ class GameService {
       }
       final String requesterId = session.rematchRequestBy!;
       if (session.isCreditsMode) {
+        final int requesterCredits = await _readCreditsFromProfileTx(
+          tx: tx,
+          db: db,
+          playerId: requesterId,
+        );
+        final int accepterCredits = await _readCreditsFromProfileTx(
+          tx: tx,
+          db: db,
+          playerId: acceptedBy,
+        );
+        if (requesterCredits <= 0 || accepterCredits <= 0) {
+          final String insufficientPlayerId =
+              requesterCredits <= 0 ? requesterId : acceptedBy;
+          tx.update(ref, <String, dynamic>{
+            'playerCredits.$requesterId': requesterCredits,
+            'playerCredits.$acceptedBy': accepterCredits,
+            'status': DuelGameStatus.finished.name,
+            'roundStatus': 'roundFinished',
+            'rematchRequestBy': null,
+            'rematchRequestedAt': null,
+            'rematchDecision': DuelRematchDecision.declined.name,
+            'rematchDecisionBy': acceptedBy,
+            'rematchStatus': 'refused',
+            'betFlowState': DuelBetFlowState.rematchRejected.name,
+            'activeStakeCredits': 0,
+            'stakeOffer': const DuelStakeOffer().toMap(),
+            'lastInsufficientFundsPlayerId': insufficientPlayerId,
+            'roomStatus': 'closed',
+            'closeReason': 'opponent_no_credit',
+            'updatedAt': FieldValue.serverTimestamp(),
+            'revision': session.revision + 1,
+          });
+          return;
+        }
         tx.update(ref, <String, dynamic>{
+          'playerCredits.$requesterId': requesterCredits,
+          'playerCredits.$acceptedBy': accepterCredits,
           'status': DuelGameStatus.finished.name,
           'roundStatus': 'roundFinished',
           'rematchDecision': DuelRematchDecision.pending.name,
@@ -1653,8 +1689,9 @@ class GameService {
       }
       final bool isInitialStakeFlow =
           session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
-      final bool isRematchStakeFlow =
-          session.status == DuelGameStatus.finished && session.rematchRequestBy != null;
+      final bool isRematchStakeFlow = session.status == DuelGameStatus.finished &&
+          session.rematchRequestBy != null &&
+          session.betFlowState == DuelBetFlowState.rematchStakePendingWinnerResponse;
       if (!isInitialStakeFlow && !isRematchStakeFlow) {
         return;
       }
@@ -3442,7 +3479,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   bool _isInitialStakePhase(DuelSession session) =>
       session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
   bool _isRematchStakePhase(DuelSession session) =>
-      session.status == DuelGameStatus.finished && session.rematchRequestBy != null;
+      session.status == DuelGameStatus.finished &&
+      session.rematchRequestBy != null &&
+      session.betFlowState == DuelBetFlowState.rematchStakePendingWinnerResponse;
   bool _canSetStake(DuelSession session) {
     if (!_isCreditsMode || session.players.length != 2) {
       return false;

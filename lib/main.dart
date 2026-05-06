@@ -4083,9 +4083,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           child: Stack(
             clipBehavior: Clip.none,
             children: <Widget>[
-              const Align(
-                alignment: Alignment.topCenter,
-                child: AppLogo(size: 72),
+              const Positioned(
+                left: 0,
+                top: 40,
+                child: AppLogo(size: 52),
               ),
               Align(
                 alignment: Alignment.topLeft,
@@ -4140,8 +4141,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 ),
               ),
               Positioned(
-                left: 0,
-                right: 0,
+                left: 64,
+                right: 64,
                 bottom: 0,
                 child: Center(child: _scoreBar()),
               ),
