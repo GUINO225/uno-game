@@ -3279,12 +3279,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 'Impact total : $creditLabel',
               ],
               isPositive: creditDelta >= 0,
-              onContinue: () {
-                Navigator.of(context).pop();
-                if (mounted) {
-                  Navigator.of(this.context).popUntil((Route<dynamic> route) => route.isFirst);
-                }
-              },
+              onContinue: () => _closeRoundPopupAndExit(context),
+              secondaryActionLabel: 'Rematch',
+              onSecondaryAction: () => _closeRoundPopupAndStartRematch(context),
             ),
           );
         }
@@ -3390,17 +3387,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       child: GinoPopupButton(
                         label: 'Quitter',
                         isPrimary: false,
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => _closeRoundPopupAndExit(context),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: GinoPopupButton(
-                        label: 'Nouvelle manche',
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _startNewGame();
-                        },
+                        label: 'Rematch',
+                        onPressed: () => _closeRoundPopupAndStartRematch(context),
                       ),
                     ),
                   ],
@@ -3412,6 +3406,20 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       },
     );
     _isImportantPopupOpen = false;
+  }
+
+  void _closeRoundPopupAndExit(BuildContext dialogContext) {
+    Navigator.of(dialogContext).pop();
+    if (mounted) {
+      Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+    }
+  }
+
+  void _closeRoundPopupAndStartRematch(BuildContext dialogContext) {
+    Navigator.of(dialogContext).pop();
+    if (mounted) {
+      _startNewGame();
+    }
   }
 
   void _switchToHuman() {
@@ -3638,7 +3646,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         const PlayerSidePanelButton(
           padding: EdgeInsets.zero,
           wrapInAlign: false,
-          showCredits: false,
+          showCredits: true,
         ),
       ],
     );

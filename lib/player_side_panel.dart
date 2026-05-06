@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -954,25 +955,27 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
   Widget build(BuildContext context) {
     final Widget button = Padding(
       padding: widget.padding,
-      child: FutureBuilder<PlayerProfile?>(
-        future: _loadProfile(),
-        builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
-          return StreamBuilder<User?>(
-            stream: _authService.authStateChanges,
-            builder: (BuildContext context, AsyncSnapshot<User?> _) {
+      child: StreamBuilder<User?>(
+        stream: _authService.authStateChanges,
+        initialData: _authService.currentUser,
+        builder: (BuildContext context, AsyncSnapshot<User?> authSnapshot) {
+          final User? user = authSnapshot.data;
+          return FutureBuilder<PlayerProfile?>(
+            future: _loadProfile(),
+            builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
               final PlayerProfile? profile = snapshot.data;
-              final String creditsLabel = snapshot.connectionState == ConnectionState.waiting
-                  ? '...'
-                  : '${profile?.credits ?? 0}';
               final GameCardAvatarData fallbackAvatar = GameCardAvatarPalette.fromSeed(
-                _authService.currentUser?.uid ?? 'menu_guest',
+                user?.uid ?? 'menu_guest',
                 salt: 5,
               );
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  if (widget.showCredits) ...<Widget>[
-                    _CreditBadge(value: creditsLabel),
+                  if (widget.showCredits && user != null) ...<Widget>[
+                    _LiveCreditBadge(
+                      uid: user.uid,
+                      fallbackCredits: profile?.credits,
+                    ),
                     const SizedBox(width: 6),
                   ],
                   Material(
@@ -1005,6 +1008,35 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
     return Align(
       alignment: widget.alignment,
       child: button,
+    );
+  }
+}
+
+class _LiveCreditBadge extends StatelessWidget {
+  const _LiveCreditBadge({required this.uid, this.fallbackCredits});
+
+  final String uid;
+  final int? fallbackCredits;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(uid)
+          .snapshots(),
+      builder: (
+        BuildContext context,
+        AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
+      ) {
+        final Map<String, dynamic>? data = snapshot.data?.data();
+        final int? liveCredits = (data?['credits'] as num?)?.toInt();
+        final String creditsLabel = snapshot.connectionState == ConnectionState.waiting &&
+                fallbackCredits == null
+            ? '...'
+            : '${liveCredits ?? fallbackCredits ?? 0}';
+        return _CreditBadge(value: creditsLabel);
+      },
     );
   }
 }
