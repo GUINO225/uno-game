@@ -2567,7 +2567,7 @@ class ConnectionPopup extends StatelessWidget {
                             isPrimary: true,
                             onPressed: onGooglePressed,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 28),
                           _ConnectionPopupButton(
                             text: 'Continuer sans compte',
                             icon: const Icon(
