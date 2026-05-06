@@ -676,7 +676,7 @@ class GameModePage extends StatefulWidget {
 }
 
 class _GameModePageState extends State<GameModePage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
   static const double _designWidth = 393;
@@ -694,6 +694,7 @@ class _GameModePageState extends State<GameModePage>
   static const double _modeCardHeight = 178;
 
   late final AnimationController _introController;
+  late final AnimationController _ambientController;
   late final Animation<double> _fadeIn;
   late final Animation<Offset> _slideUp;
   late final Animation<double> _soloFade;
@@ -705,10 +706,8 @@ class _GameModePageState extends State<GameModePage>
   late final Animation<double> _creditsFade;
   late final Animation<Offset> _creditsSlideUp;
   late final Animation<double> _creditsScale;
-  late final SelectionCardModel _soloSelectionCard;
   late final SelectionCardModel _duelFrontCard;
   late final SelectionCardModel _duelBackCard;
-  late final SelectionCardModel _parisSelectionCard;
   GameMode? _selectedMode;
   bool _specialBonusesEnabled = true;
 
@@ -716,10 +715,12 @@ class _GameModePageState extends State<GameModePage>
   void initState() {
     super.initState();
     final Random random = Random();
-    _soloSelectionCard = SelectionCardGenerator.randomCard(random);
     _duelFrontCard = SelectionCardGenerator.randomCard(random);
     _duelBackCard = SelectionCardGenerator.randomCard(random);
-    _parisSelectionCard = SelectionCardGenerator.randomCard(random);
+    _ambientController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 5200),
+    )..repeat(reverse: true);
     _introController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -797,13 +798,14 @@ class _GameModePageState extends State<GameModePage>
   @override
   void dispose() {
     _introController.dispose();
+    _ambientController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: GameModePalette.background,
+      backgroundColor: const Color(0xFF02160E),
       endDrawer: PlayerSidePanel(
         onOpenLeaderboard: () {
           Navigator.of(context).pop();
@@ -816,24 +818,7 @@ class _GameModePageState extends State<GameModePage>
       ),
       body: Stack(
         children: <Widget>[
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    Colors.white.withOpacity(0.14),
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.08),
-                  ],
-                  stops: const <double>[0.0, 0.32, 1.0],
-                ),
-              ),
-            ),
-          ),
-          const BackgroundDecoration(),
+          PremiumHomeBackgroundDecoration(animation: _ambientController),
           SafeArea(
             child: FadeTransition(
               opacity: _fadeIn,
@@ -853,7 +838,10 @@ class _GameModePageState extends State<GameModePage>
                         child: Column(
                           children: <Widget>[
                             const SizedBox(height: _logoTopSpacing),
-                            const AppLogo(size: 170),
+                            PremiumHomeLogoGlow(
+                              animation: _ambientController,
+                              child: const AppLogo(size: 170),
+                            ),
                             Expanded(
                               child: Center(
                                 child: Transform.translate(
@@ -886,7 +874,10 @@ class _GameModePageState extends State<GameModePage>
                                                     width: _modeCardWidth,
                                                     height: _modeCardHeight,
                                                     primaryCard:
-                                                        _soloSelectionCard,
+                                                        const SelectionCardModel(
+                                                      rank: '9',
+                                                      suit: SelectionSuit.club,
+                                                    ),
                                                     labelFontSize:
                                                         _modeLabelFontSize,
                                                     appearDelay:
@@ -948,7 +939,10 @@ class _GameModePageState extends State<GameModePage>
                                                     width: _modeCardWidth,
                                                     height: _modeCardHeight,
                                                     primaryCard:
-                                                        _parisSelectionCard,
+                                                        const SelectionCardModel(
+                                                      rank: 'A',
+                                                      suit: SelectionSuit.heart,
+                                                    ),
                                                     labelFontSize:
                                                         _modeLabelFontSize,
                                                     appearDelay:
@@ -1065,12 +1059,13 @@ class _GameModePageState extends State<GameModePage>
           const SafeArea(
             child: Align(
               alignment: Alignment.bottomRight,
-              child: GlobalMusicToggleButton(),
+              child: GlobalMusicToggleButton(premiumSurface: true),
             ),
           ),
           SafeArea(
             child: Builder(
-              builder: (BuildContext context) => const PlayerSidePanelButton(),
+              builder: (BuildContext context) =>
+                  const PlayerSidePanelButton(premiumSurface: true),
             ),
           ),
           SafeArea(
@@ -1266,15 +1261,39 @@ class _SpecialBonusOptionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.22),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.22)),
+          borderRadius: BorderRadius.circular(18),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              Colors.white.withOpacity(0.10),
+              const Color(0xFF07351F).withOpacity(0.76),
+              Colors.black.withOpacity(0.18),
+            ],
+          ),
+          border: Border.all(
+            color: const Color(0xFF73F38A).withOpacity(0.46),
+            width: 1.1,
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withOpacity(0.24),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+            BoxShadow(
+              color: const Color(0xFF72FF9E).withOpacity(0.10),
+              blurRadius: 16,
+            ),
+          ],
         ),
         child: Row(
           children: <Widget>[
             Icon(
               displayedEnabled ? Icons.auto_awesome_rounded : Icons.block_rounded,
-              color: Colors.white,
+              color: displayedEnabled
+                  ? const Color(0xFFE8C45A)
+                  : Colors.white.withOpacity(0.62),
               size: 20,
             ),
             const SizedBox(width: 8),
@@ -1305,7 +1324,10 @@ class _SpecialBonusOptionCard extends StatelessWidget {
             Switch.adaptive(
               value: displayedEnabled,
               onChanged: forcedOff ? null : onChanged,
-              activeColor: GameModePalette.accentGreen,
+              activeColor: const Color(0xFF91FFA8),
+              activeTrackColor: const Color(0xFF0E6F3B),
+              inactiveThumbColor: const Color(0xFFDCECDF),
+              inactiveTrackColor: Colors.white.withOpacity(0.16),
             ),
           ],
         ),
@@ -1725,53 +1747,110 @@ class SelectionPlayingCard extends StatelessWidget {
   final SelectionCardModel model;
   final double width;
   final double height;
+
   @override
   Widget build(BuildContext context) {
-    const Color cardGreen = Color(0xFF138F4C);
+    final Color suitColor = model.isRedSuit
+        ? const Color(0xFFD83B47)
+        : const Color(0xFF087D45);
     return RepaintBoundary(
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFD8E7DC)),
+          borderRadius: BorderRadius.circular(14),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              Color(0xFFFFFFFF),
+              Color(0xFFF5FFF8),
+              Color(0xFFE7F4EA),
+            ],
+          ),
+          border: Border.all(color: const Color(0xFFE4B853).withOpacity(0.58)),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.26),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+            BoxShadow(
+              color: const Color(0xFF6CFF99).withOpacity(0.12),
+              blurRadius: 16,
             ),
           ],
         ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            Positioned(
-              top: 8,
-              left: 8,
-              child: _CardCorner(rank: model.rank, suit: model.suitSymbol, color: cardGreen),
-            ),
-            Positioned(
-              bottom: 8,
-              right: 8,
-              child: Transform.rotate(
-                angle: pi,
-                child: _CardCorner(rank: model.rank, suit: model.suitSymbol, color: cardGreen),
-              ),
-            ),
-            Center(
-              child: Text(
-                model.suitSymbol,
-                style: TextStyle(
-                  color: cardGreen,
-                  fontSize: height * 0.46,
-                  height: 1,
-                  fontWeight: FontWeight.w500,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(13),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.25, -0.4),
+                      radius: 0.86,
+                      colors: <Color>[
+                        const Color(0xFF68FF9A).withOpacity(0.18),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _CardCorner(
+                  rank: model.rank,
+                  suit: model.suitSymbol,
+                  color: suitColor,
+                ),
+              ),
+              Positioned(
+                bottom: 8,
+                right: 8,
+                child: Transform.rotate(
+                  angle: pi,
+                  child: _CardCorner(
+                    rank: model.rank,
+                    suit: model.suitSymbol,
+                    color: suitColor,
+                  ),
+                ),
+              ),
+              Center(
+                child: Text(
+                  model.suitSymbol,
+                  style: TextStyle(
+                    color: suitColor,
+                    fontSize: height * 0.46,
+                    height: 1,
+                    fontWeight: FontWeight.w500,
+                    shadows: <Shadow>[
+                      Shadow(
+                        color: suitColor.withOpacity(0.22),
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.58),
+                      width: 1,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1935,9 +2014,26 @@ class _PressableModeCard extends StatefulWidget {
   State<_PressableModeCard> createState() => _PressableModeCardState();
 }
 
-class _PressableModeCardState extends State<_PressableModeCard> {
+class _PressableModeCardState extends State<_PressableModeCard>
+    with SingleTickerProviderStateMixin {
   bool _isPressed = false;
   bool _isHovered = false;
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1953,28 +2049,79 @@ class _PressableModeCardState extends State<_PressableModeCard> {
           onTapCancel: () => setState(() => _isPressed = false),
           onTap: widget.onTap,
           child: AnimatedScale(
-            scale: _isPressed ? 0.962 : emphasized ? 1.02 : 1,
+            scale: _isPressed ? 0.962 : emphasized ? 1.018 : 1,
             duration: const Duration(milliseconds: 140),
             curve: Curves.easeOut,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: emphasized
-                    ? Colors.white.withOpacity(0.07)
-                    : Colors.transparent,
-                border: Border.all(
-                  color: emphasized
-                      ? Colors.white.withOpacity(0.45)
-                      : Colors.transparent,
-                ),
-              ),
+            child: AnimatedBuilder(
+              animation: _pulseController,
+              builder: (BuildContext context, Widget? child) {
+                final double pulse = 0.55 + (_pulseController.value * 0.45);
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        Colors.white.withOpacity(emphasized ? 0.16 : 0.10),
+                        const Color(0xFF0B3C27).withOpacity(0.72),
+                        Colors.black.withOpacity(0.24),
+                      ],
+                      stops: const <double>[0, 0.5, 1],
+                    ),
+                    border: Border.all(
+                      color: Color.lerp(
+                        const Color(0xFF57FF91).withOpacity(0.46),
+                        const Color(0xFFE4B853).withOpacity(0.44),
+                        emphasized ? pulse : 0.22,
+                      )!,
+                      width: emphasized ? 1.45 : 1.05,
+                    ),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.34),
+                        blurRadius: 28,
+                        offset: const Offset(0, 18),
+                      ),
+                      BoxShadow(
+                        color: const Color(0xFF60FF92)
+                            .withOpacity(emphasized ? 0.18 : 0.08),
+                        blurRadius: emphasized ? 26 : 18,
+                        spreadRadius: emphasized ? 1 : 0,
+                      ),
+                      BoxShadow(
+                        color: const Color(0xFFE2B857)
+                            .withOpacity(emphasized ? 0.08 : 0.035),
+                        blurRadius: 18,
+                      ),
+                    ],
+                  ),
+                  child: child,
+                );
+              },
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  widget.child,
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(22),
+                      gradient: RadialGradient(
+                        center: Alignment.topCenter,
+                        radius: 0.9,
+                        colors: <Color>[
+                          const Color(0xFF69FF97).withOpacity(0.16),
+                          Colors.white.withOpacity(0.035),
+                          Colors.transparent,
+                        ],
+                        stops: const <double>[0, 0.54, 1],
+                      ),
+                    ),
+                    child: widget.child,
+                  ),
                   const SizedBox(height: 11),
                   Text(
                     widget.label,
@@ -1983,6 +2130,12 @@ class _PressableModeCardState extends State<_PressableModeCard> {
                       fontSize: widget.labelFontSize,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 0.45,
+                      shadows: <Shadow>[
+                        Shadow(
+                          color: const Color(0xFF58FF91).withOpacity(0.32),
+                          blurRadius: emphasized ? 12 : 7,
+                        ),
+                      ],
                     ),
                   ),
                 ],
