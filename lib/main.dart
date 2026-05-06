@@ -2758,22 +2758,32 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     if (!mounted) {
       return;
     }
+    bool commandPopupClosed = false;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.62),
       builder: (BuildContext dialogContext) {
         unawaited(
           Future<void>.delayed(const Duration(milliseconds: 1700), () {
-            if (Navigator.of(dialogContext).canPop()) {
+            if (!commandPopupClosed && Navigator.of(dialogContext).canPop()) {
+              commandPopupClosed = true;
               Navigator.of(dialogContext).pop();
             }
           }),
         );
         return Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
           child: GinoOpponentCommandPopup(
             playerName: _botName,
             suit: _suitSymbol(suit),
+            onClose: () {
+              if (!commandPopupClosed && Navigator.of(dialogContext).canPop()) {
+                commandPopupClosed = true;
+                Navigator.of(dialogContext).pop();
+              }
+            },
           ),
         );
       },

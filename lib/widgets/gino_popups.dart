@@ -1284,48 +1284,391 @@ class GinoOpponentCommandPopup extends StatelessWidget {
     super.key,
     required this.playerName,
     required this.suit,
+    this.onClose,
   });
 
   final String playerName;
   final String suit;
+  final VoidCallback? onClose;
+
+  void _close(BuildContext context) {
+    if (onClose != null) {
+      onClose!();
+      return;
+    }
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GinoPopupFrame(
-      width: math.min(MediaQuery.of(context).size.width * 0.78, 320),
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
-      showTitleTag: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _CenteredRichText(
-            fontSize: 18,
-            spans: <TextSpan>[
-              TextSpan(
-                text: playerName,
-                style: GinoPopupStyle.baseText(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                ),
+    final Size screenSize = MediaQuery.of(context).size;
+    final String symbol = _normalizeSuitSymbol(suit);
+    final Color suitColor = _opponentCommandSuitColor(symbol);
+    final String suitName = _opponentCommandSuitName(symbol);
+    final double panelWidth = math.min(screenSize.width * 0.92, 520);
+    final double maxPanelHeight = screenSize.height * 0.86;
+
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 520,
+              maxHeight: maxPanelHeight,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.topCenter,
+                children: <Widget>[
+                  Container(
+                    width: panelWidth,
+                    margin: const EdgeInsets.only(top: 26),
+                    padding: const EdgeInsets.fromLTRB(22, 44, 22, 22),
+                    decoration: BoxDecoration(
+                      color: const Color(0xE6072017),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: const Color(0xCC68E49A), width: 1),
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: GinoPopupStyle.accentGreen.withOpacity(0.20),
+                          blurRadius: 42,
+                          spreadRadius: 3,
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.48),
+                          blurRadius: 26,
+                          offset: const Offset(0, 16),
+                        ),
+                      ],
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: <Color>[
+                          const Color(0xF00A3523),
+                          const Color(0xE6041D14),
+                          const Color(0xF0082A1C),
+                        ],
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: _OpponentCommandCloseButton(onPressed: () => _close(context)),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          playerName,
+                          textAlign: TextAlign.center,
+                          style: GinoPopupStyle.baseText(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'commande',
+                          textAlign: TextAlign.center,
+                          style: GinoPopupStyle.baseText(
+                            fontWeight: GinoPopupStyle.textWeight,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        _OpponentCommandCard(symbol: symbol, suitColor: suitColor),
+                        const SizedBox(height: 18),
+                        Text(
+                          'Il joue une carte 8 et choisit la couleur.',
+                          textAlign: TextAlign.center,
+                          style: GinoPopupStyle.baseText(
+                            color: const Color(0xFFE7F2EA),
+                            fontSize: 15,
+                            fontWeight: GinoPopupStyle.textWeight,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'La couleur demandée est :',
+                          textAlign: TextAlign.center,
+                          style: GinoPopupStyle.baseText(
+                            color: const Color(0xFFD5E2D9),
+                            fontSize: 15,
+                            fontWeight: GinoPopupStyle.textWeight,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _OpponentCommandSuitPill(
+                          symbol: symbol,
+                          suitName: suitName,
+                          suitColor: suitColor,
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46,
+                          child: OutlinedButton(
+                            onPressed: () => _close(context),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: GinoPopupStyle.accentGreen,
+                              foregroundColor: GinoPopupStyle.textWhite,
+                              side: BorderSide(color: GinoPopupStyle.accentGreen.withOpacity(0.95), width: 1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: Text(
+                              'OK, j’ai compris',
+                              textAlign: TextAlign.center,
+                              style: GinoPopupStyle.baseText(
+                                color: GinoPopupStyle.textWhite,
+                                fontSize: 15,
+                                fontWeight: GinoPopupStyle.buttonWeight,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    child: _OpponentCommandBadge(),
+                  ),
+                ],
               ),
-              TextSpan(
-                text: ' commande',
-                style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.textWeight, fontSize: 18),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 14),
+        ),
+      ),
+    );
+  }
+}
+
+class _OpponentCommandBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 54,
+      height: 54,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xF006291B),
+        border: Border.all(color: const Color(0xFF72E99F), width: 1.2),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: GinoPopupStyle.accentGreen.withOpacity(0.45),
+            blurRadius: 22,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Text(
+        '8',
+        style: GinoPopupStyle.baseText(
+          fontSize: 18,
+          fontWeight: GinoPopupStyle.titleWeight,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _OpponentCommandCloseButton extends StatelessWidget {
+  const _OpponentCommandCloseButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: GinoPopupStyle.accentGreen.withOpacity(0.08),
+        border: Border.all(color: GinoPopupStyle.accentGreen.withOpacity(0.56), width: 1),
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        splashRadius: 20,
+        icon: Icon(
+          Icons.close,
+          color: GinoPopupStyle.textWhite.withOpacity(0.92),
+          size: 18,
+        ),
+        tooltip: 'Fermer',
+      ),
+    );
+  }
+}
+
+class _OpponentCommandCard extends StatelessWidget {
+  const _OpponentCommandCard({required this.symbol, required this.suitColor});
+
+  final String symbol;
+  final Color suitColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 136,
+      height: 152,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Container(
+            width: 112,
+            height: 112,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: suitColor.withOpacity(0.20),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: suitColor.withOpacity(0.35),
+                  blurRadius: 38,
+                  spreadRadius: 7,
+                ),
+              ],
+            ),
+          ),
           Transform.rotate(
-            angle: -0.08,
-            child: GinoSuitCard(
-              suit: suit,
-              width: 72,
-              height: 104,
+            angle: -0.06,
+            child: Container(
+              width: 88,
+              height: 126,
+              decoration: BoxDecoration(
+                color: GinoPopupStyle.cardWhite,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFDCE8DD), width: 1),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.28),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: <Widget>[
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Text(
+                      '8',
+                      style: GinoPopupStyle.baseText(
+                        color: suitColor,
+                        fontSize: 18,
+                        fontWeight: GinoPopupStyle.titleWeight,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Text(
+                      symbol,
+                      style: GinoPopupStyle.baseText(
+                        color: suitColor,
+                        fontSize: 58,
+                        fontWeight: GinoPopupStyle.titleWeight,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 10,
+                    bottom: 10,
+                    child: Text(
+                      symbol,
+                      style: GinoPopupStyle.baseText(
+                        color: suitColor,
+                        fontSize: 18,
+                        fontWeight: GinoPopupStyle.titleWeight,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _OpponentCommandSuitPill extends StatelessWidget {
+  const _OpponentCommandSuitPill({
+    required this.symbol,
+    required this.suitName,
+    required this.suitColor,
+  });
+
+  final String symbol;
+  final String suitName;
+  final Color suitColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xCC031912),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: suitColor.withOpacity(0.78), width: 1),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: suitColor.withOpacity(0.16),
+            blurRadius: 18,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Text(
+        '$symbol $suitName',
+        textAlign: TextAlign.center,
+        style: GinoPopupStyle.baseText(
+          color: suitColor,
+          fontSize: 16,
+          fontWeight: GinoPopupStyle.textWeight,
+        ),
+      ),
+    );
+  }
+}
+
+String _opponentCommandSuitName(String symbol) {
+  switch (symbol) {
+    case '♥':
+      return 'cœur';
+    case '♦':
+      return 'carreau';
+    case '♣':
+      return 'trèfle';
+    case '♠':
+      return 'pique';
+    default:
+      return symbol;
+  }
+}
+
+Color _opponentCommandSuitColor(String symbol) {
+  switch (symbol) {
+    case '♥':
+    case '♦':
+      return const Color(0xFFFF4B43);
+    case '♣':
+      return const Color(0xFF7DFFAD);
+    case '♠':
+      return const Color(0xFFE5EAE4);
+    default:
+      return GinoPopupStyle.textWhite;
   }
 }
 
