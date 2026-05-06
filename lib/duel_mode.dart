@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -4465,7 +4466,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     final int? selected = await showDialog<int>(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black54,
+      barrierColor: Colors.black.withOpacity(0.70),
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, void Function(void Function()) setModalState) {
@@ -4483,43 +4484,46 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
               });
             }
 
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Padding(
-                padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    GinoBetProposalPopup(
-                      opponentName: opponentName,
-                      presetAmounts: options,
-                      selectedAmount: selectedAmount,
-                      amountController: amountController,
-                      validationError: validationError,
-                      onAmountChanged: (String value) {
-                        final int? parsed = int.tryParse(value.trim());
-                        setModalState(() {
-                          selectedAmount = parsed;
-                          validationError = validate(parsed);
-                        });
-                      },
-                      onSelectAmount: selectAmount,
-                      onCancel: () => Navigator.of(context).pop(),
-                      onValidate: () {
-                        final int? parsed = int.tryParse(amountController.text.trim());
-                        final String? error = validate(parsed);
-                        if (error != null) {
+            return BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+              child: Dialog(
+                backgroundColor: Colors.transparent,
+                insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      GinoBetProposalPopup(
+                        opponentName: opponentName,
+                        presetAmounts: options,
+                        selectedAmount: selectedAmount,
+                        amountController: amountController,
+                        validationError: validationError,
+                        onAmountChanged: (String value) {
+                          final int? parsed = int.tryParse(value.trim());
                           setModalState(() {
                             selectedAmount = parsed;
-                            validationError = error;
+                            validationError = validate(parsed);
                           });
-                          return;
-                        }
-                        Navigator.of(context).pop(parsed);
-                      },
-                    ),
-                  ],
+                        },
+                        onSelectAmount: selectAmount,
+                        onCancel: () => Navigator.of(context).pop(),
+                        onValidate: () {
+                          final int? parsed = int.tryParse(amountController.text.trim());
+                          final String? error = validate(parsed);
+                          if (error != null) {
+                            setModalState(() {
+                              selectedAmount = parsed;
+                              validationError = error;
+                            });
+                            return;
+                          }
+                          Navigator.of(context).pop(parsed);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );

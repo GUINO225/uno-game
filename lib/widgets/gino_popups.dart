@@ -14,6 +14,9 @@ class GinoPopupStyle {
   static const Color amountGreen = Color(0xFF004928);
   static const Color suitRed = Color(0xFFFF1E12);
   static const Color suitBlack = Color(0xFF111111);
+  static const Color casinoGold = Color(0xFFFFD36A);
+  static const Color premiumDeepGreen = Color(0xFF012A1B);
+  static const Color premiumNeonGreen = Color(0xFF27F28A);
 
   static const double popupRadius = 16;
   static const double buttonRadius = 12;
@@ -46,6 +49,7 @@ class GinoPopupFrame extends StatelessWidget {
     this.width,
     this.padding = const EdgeInsets.fromLTRB(16, 22, 16, 14),
     this.showTitleTag = true,
+    this.isPremium = false,
   });
 
   final Widget child;
@@ -53,11 +57,13 @@ class GinoPopupFrame extends StatelessWidget {
   final double? width;
   final EdgeInsets padding;
   final bool showTitleTag;
+  final bool isPremium;
 
   @override
   Widget build(BuildContext context) {
     final double resolvedWidth = width ?? math.min(MediaQuery.of(context).size.width * 0.8, 330);
     final bool shouldShowTitle = showTitleTag && titleTag != null && titleTag!.trim().isNotEmpty;
+    final double radius = isPremium ? 28 : GinoPopupStyle.popupRadius;
 
     return Center(
       child: Stack(
@@ -68,9 +74,37 @@ class GinoPopupFrame extends StatelessWidget {
             width: resolvedWidth,
             padding: padding,
             decoration: BoxDecoration(
-              color: GinoPopupStyle.popupGreen,
-              borderRadius: BorderRadius.circular(GinoPopupStyle.popupRadius),
-              border: Border.all(color: GinoPopupStyle.borderGreen, width: 1),
+              color: isPremium ? null : GinoPopupStyle.popupGreen,
+              gradient: isPremium
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+                        GinoPopupStyle.popupGreen.withOpacity(0.92),
+                        const Color(0xFF001D13).withOpacity(0.97),
+                      ],
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(
+                color: isPremium ? GinoPopupStyle.premiumNeonGreen.withOpacity(0.72) : GinoPopupStyle.borderGreen,
+                width: isPremium ? 1.15 : 1,
+              ),
+              boxShadow: isPremium
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.48),
+                        blurRadius: 34,
+                        offset: const Offset(0, 22),
+                      ),
+                      BoxShadow(
+                        color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.18),
+                        blurRadius: 30,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
             ),
             child: child,
           ),
@@ -80,8 +114,24 @@ class GinoPopupFrame extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                 decoration: BoxDecoration(
-                  color: GinoPopupStyle.accentGreen,
-                  borderRadius: BorderRadius.circular(8),
+                  color: isPremium ? GinoPopupStyle.premiumDeepGreen.withOpacity(0.96) : GinoPopupStyle.accentGreen,
+                  borderRadius: BorderRadius.circular(isPremium ? 999 : 8),
+                  border: isPremium
+                      ? Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.9), width: 1)
+                      : null,
+                  boxShadow: isPremium
+                      ? <BoxShadow>[
+                          BoxShadow(
+                            color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.22),
+                            blurRadius: 18,
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.28),
+                            blurRadius: 12,
+                            offset: const Offset(0, 8),
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Text(
                   _popupTitleCase(titleTag!),
@@ -114,23 +164,50 @@ class GinoPopupButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.isPrimary = true,
+    this.isPremium = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool isPrimary;
+  final bool isPremium;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 170),
+      curve: Curves.easeOut,
       height: 44,
+      decoration: isPremium
+          ? BoxDecoration(
+              borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius),
+              boxShadow: isPrimary
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.34),
+                        blurRadius: 18,
+                        offset: const Offset(0, 7),
+                      ),
+                    ]
+                  : null,
+            )
+          : null,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          backgroundColor: isPrimary
-              ? GinoPopupStyle.screenGreen.withOpacity(0.70)
-              : GinoPopupStyle.screenGreen.withOpacity(0.45),
-          side: const BorderSide(color: GinoPopupStyle.borderGreen, width: 1),
+          backgroundColor: isPremium
+              ? (isPrimary
+                  ? GinoPopupStyle.premiumNeonGreen.withOpacity(0.82)
+                  : const Color(0xFF021D14).withOpacity(0.88))
+              : (isPrimary
+                  ? GinoPopupStyle.screenGreen.withOpacity(0.70)
+                  : GinoPopupStyle.screenGreen.withOpacity(0.45)),
+          side: BorderSide(
+            color: isPremium
+                ? (isPrimary ? GinoPopupStyle.casinoGold.withOpacity(0.58) : GinoPopupStyle.borderGreen.withOpacity(0.95))
+                : GinoPopupStyle.borderGreen,
+            width: 1,
+          ),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius)),
           foregroundColor: GinoPopupStyle.textWhite,
         ),
@@ -174,6 +251,7 @@ class GinoAmountCard extends StatelessWidget {
     this.onTap,
     this.width = 56,
     this.height = 84,
+    this.isPremium = false,
   });
 
   final int amount;
@@ -181,42 +259,73 @@ class GinoAmountCard extends StatelessWidget {
   final VoidCallback? onTap;
   final double width;
   final double height;
+  final bool isPremium;
 
   @override
   Widget build(BuildContext context) {
-    final Widget card = SizedBox(
+    final Widget card = AnimatedContainer(
+      duration: const Duration(milliseconds: 170),
+      curve: Curves.easeOutCubic,
       width: width + 10,
       height: height + 10,
+      decoration: isPremium && selected
+          ? BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.34),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                ),
+              ],
+            )
+          : null,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
-          Transform.rotate(
-            angle: -0.05,
-            child: Transform.translate(
-              offset: const Offset(-4, 4),
-              child: _BaseCardFace(width: width, height: height, opacity: 0.86),
+          if (!isPremium) ...<Widget>[
+            Transform.rotate(
+              angle: -0.05,
+              child: Transform.translate(
+                offset: const Offset(-4, 4),
+                child: _BaseCardFace(width: width, height: height, opacity: 0.86),
+              ),
             ),
-          ),
-          Transform.rotate(
-            angle: 0.04,
-            child: Transform.translate(
-              offset: const Offset(4, 3),
-              child: _BaseCardFace(width: width, height: height, opacity: 0.91),
+            Transform.rotate(
+              angle: 0.04,
+              child: Transform.translate(
+                offset: const Offset(4, 3),
+                child: _BaseCardFace(width: width, height: height, opacity: 0.91),
+              ),
             ),
-          ),
+          ],
           Transform.rotate(
             angle: selected ? -0.02 : 0.01,
             child: _BaseCardFace(
               width: width,
               height: height,
               selected: selected,
-              child: Text(
-                '$amount',
-                style: GinoPopupStyle.baseText(
-                  color: GinoPopupStyle.amountGreen,
-                  fontSize: width >= 72 ? 25 : 19,
-                  fontWeight: GinoPopupStyle.titleWeight,
-                ),
+              isPremium: isPremium,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  if (isPremium) ...<Widget>[
+                    Icon(
+                      Icons.monetization_on_rounded,
+                      color: GinoPopupStyle.casinoGold.withOpacity(0.92),
+                      size: width >= 72 ? 22 : 18,
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  Text(
+                    '$amount',
+                    style: GinoPopupStyle.baseText(
+                      color: GinoPopupStyle.amountGreen,
+                      fontSize: width >= 72 ? 25 : 19,
+                      fontWeight: GinoPopupStyle.titleWeight,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -232,7 +341,7 @@ class GinoAmountCard extends StatelessWidget {
       child: AnimatedScale(
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOut,
-        scale: selected ? 1.05 : 1,
+        scale: selected ? (isPremium ? 1.07 : 1.05) : 1,
         child: card,
       ),
     );
@@ -378,6 +487,7 @@ class _BaseCardFace extends StatelessWidget {
     required this.height,
     this.opacity = 1,
     this.selected = false,
+    this.isPremium = false,
     this.child,
   });
 
@@ -385,6 +495,7 @@ class _BaseCardFace extends StatelessWidget {
   final double height;
   final double opacity;
   final bool selected;
+  final bool isPremium;
   final Widget? child;
 
   @override
@@ -395,8 +506,22 @@ class _BaseCardFace extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: GinoPopupStyle.cardWhite.withOpacity(opacity),
-        borderRadius: BorderRadius.circular(7),
-        border: selected ? Border.all(color: GinoPopupStyle.accentGreen, width: 2) : null,
+        borderRadius: BorderRadius.circular(isPremium ? 13 : 7),
+        border: selected
+            ? Border.all(
+                color: isPremium ? GinoPopupStyle.casinoGold : GinoPopupStyle.accentGreen,
+                width: isPremium ? 1.8 : 2,
+              )
+            : (isPremium ? Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.24), width: 0.8) : null),
+        boxShadow: isPremium
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withOpacity(selected ? 0.28 : 0.18),
+                  blurRadius: selected ? 16 : 8,
+                  offset: Offset(0, selected ? 9 : 5),
+                ),
+              ]
+            : null,
       ),
       child: child,
     );
@@ -616,95 +741,119 @@ class GinoBetProposalPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GinoPopupFrame(
-      titleTag: 'Montant du pari',
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _CenteredRichText(
-            fontSize: 17,
-            spans: <TextSpan>[
-              const TextSpan(text: 'Propose un pari à '),
-              TextSpan(
-                text: opponentName,
-                style: GinoPopupStyle.baseText(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            alignment: WrapAlignment.center,
-            runAlignment: WrapAlignment.center,
-            spacing: 10,
-            runSpacing: 10,
-            children: presetAmounts
-                .map(
-                  (int amount) => GinoAmountCard(
-                    amount: amount,
-                    selected: selectedAmount == amount,
-                    onTap: () => onSelectAmount(amount),
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.96, end: 1),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      builder: (BuildContext context, double scale, Widget? child) {
+        return Opacity(
+          opacity: ((scale - 0.96) / 0.04).clamp(0.0, 1.0).toDouble(),
+          child: Transform.scale(scale: scale, child: child),
+        );
+      },
+      child: GinoPopupFrame(
+        titleTag: 'Montant du pari',
+        isPremium: true,
+        padding: const EdgeInsets.fromLTRB(18, 30, 18, 16),
+        width: math.min(MediaQuery.of(context).size.width * 0.86, 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _CenteredRichText(
+              fontSize: 17,
+              spans: <TextSpan>[
+                const TextSpan(text: 'Propose un pari à '),
+                TextSpan(
+                  text: opponentName,
+                  style: GinoPopupStyle.baseText(
+                    color: GinoPopupStyle.casinoGold,
+                    fontWeight: FontWeight.w700,
                   ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: amountController,
-            keyboardType: TextInputType.number,
-            style: GinoPopupStyle.baseText(fontSize: 16),
-            onChanged: onAmountChanged,
-            decoration: InputDecoration(
-              hintText: 'Montant du pari',
-              hintStyle: GinoPopupStyle.baseText(fontSize: 15, color: Colors.white70),
-              filled: true,
-              fillColor: GinoPopupStyle.screenGreen.withOpacity(0.35),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: GinoPopupStyle.borderGreen),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: GinoPopupStyle.accentGreen),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              alignment: WrapAlignment.center,
+              runAlignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 10,
+              children: presetAmounts
+                  .map(
+                    (int amount) => GinoAmountCard(
+                      amount: amount,
+                      selected: selectedAmount == amount,
+                      onTap: () => onSelectAmount(amount),
+                      isPremium: true,
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              style: GinoPopupStyle.baseText(fontSize: 16),
+              onChanged: onAmountChanged,
+              decoration: InputDecoration(
+                hintText: 'Montant du pari',
+                hintStyle: GinoPopupStyle.baseText(fontSize: 15, color: Colors.white70),
+                prefixIcon: Icon(
+                  Icons.monetization_on_rounded,
+                  color: GinoPopupStyle.casinoGold.withOpacity(0.92),
+                  size: 20,
+                ),
+                filled: true,
+                fillColor: const Color(0xFF021F15).withOpacity(0.82),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.55)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.95)),
+                ),
               ),
             ),
-          ),
-          if (validationError != null) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(
-              validationError!,
-              style: GinoPopupStyle.baseText(
-                fontSize: 12,
-                color: const Color(0xFFFFC9C9),
-                fontWeight: GinoPopupStyle.titleWeight,
+            if (validationError != null) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                validationError!,
+                style: GinoPopupStyle.baseText(
+                  fontSize: 12,
+                  color: const Color(0xFFFFC9C9),
+                  fontWeight: GinoPopupStyle.titleWeight,
+                ),
               ),
+            ],
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: GinoPopupButton(
+                    label: 'Annuler',
+                    onPressed: onCancel,
+                    isPrimary: false,
+                    isPremium: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GinoPopupButton(
+                    label: 'Valider',
+                    onPressed: onValidate,
+                    isPremium: true,
+                  ),
+                ),
+              ],
             ),
           ],
-          const SizedBox(height: 14),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: GinoPopupButton(
-                  label: 'Annuler',
-                  onPressed: onCancel,
-                  isPrimary: false,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GinoPopupButton(
-                  label: 'Valider',
-                  onPressed: onValidate,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 }
-
 class GinoIncomingBetPopup extends StatelessWidget {
   const GinoIncomingBetPopup({
     super.key,
