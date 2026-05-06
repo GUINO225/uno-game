@@ -4,7 +4,11 @@
       "Bash(xargs head *)",
       "Bash(flutter pub *)",
       "Bash(dart run *)",
-      "Bash(flutter analyze *)"
+      "Bash(flutter analyze *)",
+      "Bash(git add *)",
+      "Bash(git stash *)",
+      "Bash(git pull *)",
+      "Bash(git commit *)"
     ]
   }
 }
