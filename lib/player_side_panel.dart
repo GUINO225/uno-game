@@ -223,20 +223,22 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     if (user == null) {
       return;
     }
-    final bool? updated = await showModalBottomSheet<bool>(
+    final bool? updated = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) => _PublicProfileEditorSheet(
-        initialProfile: profile,
-        onSave: (String displayName, String rank, String suit) async {
-          await _profileService.updatePublicProfile(
-            uid: user.uid,
-            displayName: displayName,
-            cardAvatarRank: rank,
-            cardAvatarSuit: suit,
-          );
-        },
+      barrierColor: Colors.black.withOpacity(0.38),
+      builder: (BuildContext context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: _PublicProfileEditorSheet(
+          initialProfile: profile,
+          onSave: (String displayName, String rank, String suit) async {
+            await _profileService.updatePublicProfile(
+              uid: user.uid,
+              displayName: displayName,
+              cardAvatarRank: rank,
+              cardAvatarSuit: suit,
+            );
+          },
+        ),
       ),
     );
     if (!mounted || updated != true) {
@@ -1012,144 +1014,222 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final EdgeInsets viewInsets = MediaQuery.of(context).viewInsets;
+    final MediaQueryData mediaQuery = MediaQuery.of(context);
+    final EdgeInsets viewInsets = mediaQuery.viewInsets;
+    final Size screenSize = mediaQuery.size;
+    final double dialogWidth = (screenSize.width * 0.92).clamp(0, 520).toDouble();
+    final double maxDialogHeight = screenSize.height - viewInsets.bottom - 32;
+
     return Padding(
       padding: EdgeInsets.only(bottom: viewInsets.bottom),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF0A4A2A),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F4EC),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFF1B8B4A), width: 2),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      'Modifier mon profil',
-                      style: GoogleFonts.poppins(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                        color: PremiumColors.textDark,
-                      ),
+      child: Dialog(
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        backgroundColor: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: dialogWidth,
+            maxHeight: maxDialogHeight < 320 ? screenSize.height * 0.88 : maxDialogHeight,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xE60A2418),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: const Color(0xFF7CF7A9).withOpacity(0.28)),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.32),
+                      blurRadius: 34,
+                      offset: const Offset(0, 18),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Pseudo public',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600,
-                        color: PremiumColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _displayNameController,
-                      maxLength: 18,
-                      style: GoogleFonts.poppins(
-                        color: PremiumColors.textDark,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Ton pseudo',
-                        counterText: '',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF2D8D55)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF2D8D55)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF0B6D3A), width: 2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Avatar carte',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600,
-                        color: PremiumColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF8EF),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFB9DDBE)),
-                        ),
-                        child: GameCardAvatar.fromSelection(
-                          rank: _selectedRank,
-                          suit: _selectedSuit,
-                          size: 72,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _AvatarSelectorGrid<String>(
-                      values: GameCardAvatarPalette.ranks,
-                      selected: _selectedRank,
-                      onSelected: (String rank) => setState(() => _selectedRank = rank),
-                      labelBuilder: (String rank) => rank,
-                    ),
-                    const SizedBox(height: 10),
-                    _AvatarSelectorGrid<String>(
-                      values: GameCardAvatarPalette.suits,
-                      selected: _selectedSuit,
-                      onSelected: (String suit) => setState(() => _selectedSuit = suit),
-                      labelBuilder: _suitLabel,
-                      textColorBuilder: _suitColor,
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF0B6D3A),
-                              side: const BorderSide(color: Color(0xFF0B6D3A), width: 1.5),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text('Annuler'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _saving ? null : _submit,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0B6D3A),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(_saving ? 'Enregistrement...' : 'Enregistrer'),
-                          ),
-                        ),
-                      ],
+                    BoxShadow(
+                      color: const Color(0xFF44E57D).withOpacity(0.08),
+                      blurRadius: 28,
+                      spreadRadius: 1,
                     ),
                   ],
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              'Modifier mon profil',
+                              style: GoogleFonts.poppins(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFFF2FFF5),
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            onTap: _saving ? null : () => Navigator.of(context).pop(false),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF5CFF94).withOpacity(0.12),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFF7CF7A9).withOpacity(0.28),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: Color(0xFFE9FFF0),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Pseudo public',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFFDDFBE5),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _displayNameController,
+                        maxLength: 18,
+                        cursorColor: const Color(0xFF7CF7A9),
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFFF4FFF6),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Ton pseudo',
+                          hintStyle: GoogleFonts.poppins(
+                            color: const Color(0xFFF4FFF6).withOpacity(0.48),
+                            fontWeight: FontWeight.w400,
+                          ),
+                          counterText: '',
+                          filled: true,
+                          fillColor: const Color(0xFF102F20).withOpacity(0.86),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: const Color(0xFF7CF7A9).withOpacity(0.5),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: const Color(0xFF7CF7A9).withOpacity(0.42),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(color: Color(0xFF74F29C), width: 1.5),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Avatar carte',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFFDDFBE5),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF102F20).withOpacity(0.72),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: const Color(0xFF7CF7A9).withOpacity(0.34),
+                            ),
+                            boxShadow: <BoxShadow>[
+                              BoxShadow(
+                                color: const Color(0xFF65F794).withOpacity(0.23),
+                                blurRadius: 24,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: GameCardAvatar.fromSelection(
+                            rank: _selectedRank,
+                            suit: _selectedSuit,
+                            size: 72,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _AvatarSelectorGrid<String>(
+                        values: GameCardAvatarPalette.ranks,
+                        selected: _selectedRank,
+                        onSelected: (String rank) => setState(() => _selectedRank = rank),
+                        labelBuilder: (String rank) => rank,
+                      ),
+                      const SizedBox(height: 12),
+                      _AvatarSelectorGrid<String>(
+                        values: GameCardAvatarPalette.suits,
+                        selected: _selectedSuit,
+                        onSelected: (String suit) => setState(() => _selectedSuit = suit),
+                        labelBuilder: _suitLabel,
+                        textColorBuilder: _suitColor,
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(46),
+                                foregroundColor: const Color(0xFFEFFFF3),
+                                side: BorderSide(
+                                  color: const Color(0xFF7CF7A9).withOpacity(0.68),
+                                  width: 1.2,
+                                ),
+                                textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: const Text('Annuler'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _saving ? null : _submit,
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(46),
+                                backgroundColor: const Color(0xFF16A34A),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(_saving ? 'Enregistrement...' : 'Enregistrer'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1171,8 +1251,8 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
 
   static Color _suitColor(String suit) {
     return switch (suit) {
-      'hearts' || 'diamonds' => const Color(0xFFD32F2F),
-      _ => const Color(0xFF151515),
+      'hearts' || 'diamonds' => const Color(0xFFFF7676),
+      _ => const Color(0xFFEFFFF3),
     };
   }
 }
@@ -1199,23 +1279,43 @@ class _AvatarSelectorGrid<T> extends StatelessWidget {
       runSpacing: 8,
       children: values.map((T value) {
         final bool isSelected = value == selected;
-        return ChoiceChip(
-          label: Text(
-            labelBuilder(value),
-            style: TextStyle(
-              color: textColorBuilder?.call(value) ?? const Color(0xFF1A1A1A),
-              fontWeight: FontWeight.w700,
+        final Color baseTextColor = textColorBuilder?.call(value) ?? const Color(0xFFEFFFF3);
+        return InkWell(
+          onTap: () => onSelected(value),
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? const Color(0xFF16A34A)
+                  : const Color(0xFF0D2B1E).withOpacity(0.58),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isSelected
+                    ? const Color(0xFF89F7AD)
+                    : const Color(0xFF7CF7A9).withOpacity(0.24),
+                width: isSelected ? 1.4 : 1,
+              ),
+              boxShadow: isSelected
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFF55F58D).withOpacity(0.20),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Text(
+              labelBuilder(value),
+              style: GoogleFonts.poppins(
+                color: isSelected && textColorBuilder == null ? Colors.white : baseTextColor,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-          selected: isSelected,
-          selectedColor: const Color(0xFFE7F6EA),
-          backgroundColor: Colors.white,
-          side: BorderSide(
-            color: isSelected ? const Color(0xFF0B6D3A) : const Color(0xFFD6D6D6),
-            width: isSelected ? 1.8 : 1,
-          ),
-          showCheckmark: false,
-          onSelected: (_) => onSelected(value),
         );
       }).toList(growable: false),
     );
