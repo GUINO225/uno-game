@@ -3971,7 +3971,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         children: <Widget>[
           TableBackground(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(12, topInset + 8, 12, 12),
+              padding: EdgeInsets.fromLTRB(12, topInset + 4, 12, 12),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 980),
@@ -3979,9 +3979,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       _topBar(),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
                       _statusBanner(),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
                       Expanded(
                         flex: compact ? 3 : 2,
                         child: Align(
@@ -4042,40 +4042,84 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Widget _topBar() {
-    return Row(
-      children: <Widget>[
-        PremiumIconButtonShell(
-          child: IconButton(
-            onPressed: () {
-              unawaited(_sfx.playClick());
-              Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
-            },
-            tooltip: 'Retour aux modes',
-            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double sideWidth = min(
+          constraints.maxWidth * 0.38,
+          176.0,
+        );
+
+        return SizedBox(
+          height: 112,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              const Align(
+                alignment: Alignment.topCenter,
+                child: AppLogo(size: 72),
+              ),
+              Align(
+                alignment: Alignment.topLeft,
+                child: PremiumIconButtonShell(
+                  child: IconButton(
+                    onPressed: () {
+                      unawaited(_sfx.playClick());
+                      Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+                    },
+                    tooltip: 'Retour aux modes',
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 14,
+                right: 0,
+                child: SizedBox(
+                  width: sideWidth,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        PremiumIconButtonShell(
+                          golden: true,
+                          child: IconButton(
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              _startNewGame();
+                            },
+                            tooltip: 'Nouvelle manche',
+                            icon: const Icon(
+                              Icons.refresh_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const PlayerSidePanelButton(
+                          padding: EdgeInsets.zero,
+                          wrapInAlign: false,
+                          showCredits: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Center(child: _scoreBar()),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 6),
-        const AppLogo(size: 72),
-        const SizedBox(width: 8),
-        Expanded(child: _scoreBar()),
-        PremiumIconButtonShell(
-          golden: true,
-          child: IconButton(
-            onPressed: () {
-              unawaited(_sfx.playClick());
-              _startNewGame();
-            },
-            tooltip: 'Nouvelle manche',
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-          ),
-        ),
-        const SizedBox(width: 6),
-        const PlayerSidePanelButton(
-          padding: EdgeInsets.zero,
-          wrapInAlign: false,
-          showCredits: true,
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -4377,17 +4421,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         key: ValueKey<String>(
           '$_status-${_activeSuitConstraint?.name}-${_humanMustAnswerAce ? 1 : 0}',
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: PremiumGameDecorations.glassPanel(
           radius: 16,
           golden: _activeSuitConstraint != null || _humanMustAnswerAce,
           opacity: 0.42,
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             Text(
               _status,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w400,
@@ -4397,6 +4443,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               const SizedBox(height: 6),
               Text(
                 'Couleur demandée : ${_suitName(_activeSuitConstraint!)} ${_suitSymbol(_activeSuitConstraint!)}',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: _statusSuitColor(_activeSuitConstraint!),
                   fontWeight: FontWeight.bold,
@@ -4407,6 +4454,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               const SizedBox(height: 6),
               const Text(
                 'Réponse à l’As : jouez un As, un joker de même couleur, ou piochez.',
+                textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white70),
               ),
             ],
