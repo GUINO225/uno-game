@@ -938,151 +938,137 @@ class ConnectionPopup extends StatelessWidget {
   Widget build(BuildContext context) {
     final Size screenSize = MediaQuery.sizeOf(context);
     final double popupWidth =
-        screenSize.width < 420 ? screenSize.width * 0.88 : 400.0;
-    final double horizontalPadding = popupWidth < 340 ? 18 : 22;
+        screenSize.width < 420 ? screenSize.width * 0.88 : 420.0;
+    final double horizontalPadding = popupWidth < 340 ? 18 : 24;
+    final double messageFontSize = popupWidth < 340 ? 20 : 23;
 
     return Material(
       color: Colors.transparent,
       child: SafeArea(
-        minimum: const EdgeInsets.symmetric(horizontal: 12, vertical: 44),
+        minimum: const EdgeInsets.symmetric(horizontal: 12, vertical: 48),
         child: Center(
           child: SingleChildScrollView(
-            child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              tween: Tween<double>(begin: 0.96, end: 1),
-              builder: (BuildContext context, double value, Widget? child) {
-                return Opacity(
-                  opacity: value.clamp(0.0, 1.0).toDouble(),
-                  child: Transform.scale(scale: value, child: child),
-                );
-              },
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.topCenter,
-                children: <Widget>[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(26),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                      child: Container(
-                        width: popupWidth,
-                        padding: EdgeInsets.fromLTRB(
-                          horizontalPadding,
-                          56,
-                          horizontalPadding,
-                          24,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.topCenter,
+              children: <Widget>[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                    child: Container(
+                      width: popupWidth,
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        72,
+                        horizontalPadding,
+                        28,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF003F34).withOpacity(0.62),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(
+                          color: const Color(0xFF7CFFD0).withOpacity(0.85),
+                          width: 1.6,
                         ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF003F34).withOpacity(0.52),
-                          borderRadius: BorderRadius.circular(26),
-                          border: Border.all(
-                            color: const Color(0xFF7CFFD0).withOpacity(0.46),
-                            width: 1,
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: const Color(0xFF00FF99).withOpacity(0.22),
+                            blurRadius: 28,
+                            spreadRadius: 2,
                           ),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: const Color(0xFF00FF99).withOpacity(0.12),
-                              blurRadius: 22,
-                              spreadRadius: 0,
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            'Connecte-toi avec Google pour\nsauvegarder ton profil et\ntes crédits.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: messageFontSize,
+                              height: 1.35,
+                              fontWeight: FontWeight.w800,
                             ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            const Text(
-                              'Connecte-toi avec Google pour\nsauvegarder ton profil et\ntes crédits.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Color(0xFFF2F2F2),
-                                fontSize: 16,
-                                height: 1.4,
-                                fontWeight: FontWeight.w400,
-                              ),
+                          ),
+                          const SizedBox(height: 34),
+                          _ConnectionPopupButton(
+                            text: 'Connexion Google',
+                            icon: const _ConnectionGoogleIcon(),
+                            isPrimary: true,
+                            onPressed: onGooglePressed,
+                          ),
+                          const SizedBox(height: 14),
+                          _ConnectionPopupButton(
+                            text: 'Continuer sans compte',
+                            icon: const Icon(
+                              Icons.person_outline_rounded,
+                              color: Color(0xFF7CFFD0),
+                              size: 30,
                             ),
-                            const SizedBox(height: 28),
-                            _ConnectionPopupButton(
-                              text: 'Connexion Google',
-                              icon: const _ConnectionGoogleIcon(),
-                              isPrimary: true,
-                              onPressed: onGooglePressed,
-                            ),
-                            const SizedBox(height: 14),
-                            _ConnectionPopupButton(
-                              text: 'Continuer sans compte',
-                              icon: const Icon(
-                                Icons.person_outline_rounded,
-                                color: Color(0xFF9BFFDA),
-                                size: 24,
-                              ),
-                              isPrimary: false,
-                              onPressed: onContinueWithoutAccount,
-                            ),
-                          ],
-                        ),
+                            isPrimary: false,
+                            onPressed: onContinueWithoutAccount,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  Positioned(
-                    top: -24,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: popupWidth - 32),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: <Color>[
-                              const Color(0xFF25F2A0).withOpacity(0.84),
-                              const Color(0xFF00B66A).withOpacity(0.78),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.14),
-                            width: 1,
-                          ),
-                          boxShadow: <BoxShadow>[
-                            BoxShadow(
-                              color: const Color(0xFF00FF99).withOpacity(0.16),
-                              blurRadius: 16,
-                              spreadRadius: 0,
-                            ),
+                ),
+                Positioned(
+                  top: -34,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: popupWidth - 24),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: <Color>[
+                            Color(0xFF00F28A),
+                            Color(0xFF00B66A),
                           ],
                         ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Icon(
-                              Icons.shield_outlined,
-                              color: Color(0xFFF2F2F2),
-                              size: 22,
-                            ),
-                            SizedBox(width: 9),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  'Connexion',
-                                  maxLines: 1,
-                                  style: TextStyle(
-                                    color: Color(0xFFF2F2F2),
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: const Color(0xFF00FF99).withOpacity(0.45),
+                            blurRadius: 24,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.shield_outlined,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                          SizedBox(width: 12),
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Connexion',
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1108,61 +1094,55 @@ class _ConnectionPopupButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(22),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         child: Container(
           width: double.infinity,
-          height: 60,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          constraints: const BoxConstraints(minHeight: 76),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           decoration: BoxDecoration(
             color: isPrimary
-                ? const Color(0xFF13D67C).withOpacity(0.72)
-                : const Color(0xFF003F34).withOpacity(0.34),
-            borderRadius: BorderRadius.circular(18),
+                ? const Color(0xFF00D873).withOpacity(0.88)
+                : const Color(0xFF003F34).withOpacity(0.45),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: const Color(0xFF8DFFD5).withOpacity(
-                isPrimary ? 0.46 : 0.34,
-              ),
-              width: 1,
+              color: const Color(0xFF24FF9A),
+              width: 1.8,
             ),
             boxShadow: isPrimary
                 ? <BoxShadow>[
                     BoxShadow(
-                      color: const Color(0xFF00FF99).withOpacity(0.12),
-                      blurRadius: 14,
-                      spreadRadius: 0,
+                      color: const Color(0xFF00FF99).withOpacity(0.28),
+                      blurRadius: 18,
+                      spreadRadius: 1,
                     ),
                   ]
                 : <BoxShadow>[],
           ),
           child: Row(
             children: <Widget>[
-              SizedBox(width: 34, height: 34, child: Center(child: icon)),
-              const SizedBox(width: 12),
+              SizedBox(width: 44, height: 44, child: Center(child: icon)),
+              const SizedBox(width: 18),
               Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    text,
-                    maxLines: 1,
-                    style: TextStyle(
-                      color: const Color(0xFFF2F2F2),
-                      fontSize: isPrimary ? 17 : 15,
-                      height: 1.1,
-                      fontWeight:
-                          isPrimary ? FontWeight.w500 : FontWeight.w400,
-                    ),
+                child: Text(
+                  text,
+                  softWrap: true,
+                  maxLines: 2,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: isPrimary ? 23 : 20,
+                    height: 1.08,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Icon(
+              const SizedBox(width: 10),
+              const Icon(
                 Icons.chevron_right_rounded,
-                color: const Color(0xFFF2F2F2).withOpacity(0.76),
-                size: 24,
+                color: Colors.white,
+                size: 34,
               ),
             ],
           ),
@@ -1178,26 +1158,19 @@ class _ConnectionGoogleIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F2F2),
+      width: 44,
+      height: 44,
+      decoration: const BoxDecoration(
+        color: Colors.white,
         shape: BoxShape.circle,
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            spreadRadius: 0,
-          ),
-        ],
       ),
       alignment: Alignment.center,
       child: const Text(
         'G',
         style: TextStyle(
           color: Color(0xFF4285F4),
-          fontSize: 19,
-          fontWeight: FontWeight.w600,
+          fontSize: 27,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );
