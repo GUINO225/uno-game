@@ -300,6 +300,7 @@ class DuelSession {
     required this.scores,
     required this.round,
     this.mode = DuelRoomMode.duel,
+    this.specialBonusesEnabled = true,
     this.playerCredits = const <String, int>{},
     this.activeStakeCredits = 0,
     this.stakeOffer = const DuelStakeOffer(),
@@ -356,6 +357,7 @@ class DuelSession {
   final Map<String, int> scores;
   final int round;
   final DuelRoomMode mode;
+  final bool specialBonusesEnabled;
   final Map<String, int> playerCredits;
   final int activeStakeCredits;
   final DuelStakeOffer stakeOffer;
@@ -443,6 +445,7 @@ class DuelSession {
       'scores': scores,
       'round': round,
       'mode': mode.name,
+      'specialBonusesEnabled': specialBonusesEnabled,
       'playerCredits': playerCredits,
       'activeStakeCredits': activeStakeCredits,
       'stakeOffer': stakeOffer.toMap(),
@@ -538,6 +541,7 @@ class DuelSession {
             value.name == (json['mode'] as String? ?? DuelRoomMode.duel.name),
         orElse: () => DuelRoomMode.duel,
       ),
+      specialBonusesEnabled: json['specialBonusesEnabled'] as bool? ?? true,
       playerCredits: Map<String, int>.from(
         (json['playerCredits'] as Map? ?? const <String, int>{}).map(
           (Object? key, Object? value) => MapEntry(
@@ -757,6 +761,7 @@ class GameService {
     required String playerId,
     required String playerName,
     DuelRoomMode mode = DuelRoomMode.duel,
+    bool specialBonusesEnabled = true,
   }) async {
     final String code = _generateCode();
     final CollectionReference<Map<String, dynamic>> games = await _games();
@@ -788,6 +793,7 @@ class GameService {
         scores: <String, int>{playerId: 0},
         round: 1,
         mode: mode,
+        specialBonusesEnabled: mode == DuelRoomMode.credits ? false : specialBonusesEnabled,
         playerCredits: mode == DuelRoomMode.credits
             ? <String, int>{playerId: initialCredits}
             : const <String, int>{},
@@ -2010,10 +2016,10 @@ class GameService {
   }
 
   static int _duelCardBonus(DuelCard card) {
-    if (card.isJoker) return 200;
-    if (card.rank == 'A') return 100;
-    if (card.rank == '2') return 75;
-    if (card.rank == '8') return 50;
+    if (card.isJoker) return 300;
+    if (card.rank == 'A') return 150;
+    if (card.rank == '2') return 200;
+    if (card.rank == '8') return 100;
     return 0;
   }
 
@@ -2022,29 +2028,33 @@ class GameService {
     required String winnerId,
     required DuelCard winnerCard,
   }) async {
+    if (!current.specialBonusesEnabled || current.isCreditsMode) {
+      debugPrint('[Duel] special bonus skipped: disabled or credits mode');
+      return;
+    }
     final String loserId = current.players.firstWhere(
       (String id) => id != winnerId,
       orElse: () => '',
     );
     if (loserId.isEmpty) return;
     final int bonus = _duelCardBonus(winnerCard);
-    final int gain = 100 + bonus;
+    if (bonus <= 0) return;
     final FirebaseFirestore db = await _resolveDb();
+    final DocumentReference<Map<String, dynamic>> winnerRef = _userProfileRef(db, winnerId);
+    final DocumentReference<Map<String, dynamic>> loserRef = _userProfileRef(db, loserId);
     try {
-      await db.collection('user_profiles').doc(winnerId).update(<String, dynamic>{
-        'credits': FieldValue.increment(gain),
-        'updatedAt': FieldValue.serverTimestamp(),
+      await db.runTransaction((Transaction tx) async {
+        tx.set(winnerRef, <String, dynamic>{
+          'credits': FieldValue.increment(bonus),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        tx.set(loserRef, <String, dynamic>{
+          'credits': FieldValue.increment(-bonus),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       });
     } catch (e) {
-      debugPrint('[Duel] winner credit update failed: $e');
-    }
-    try {
-      await db.collection('user_profiles').doc(loserId).update(<String, dynamic>{
-        'credits': FieldValue.increment(-gain),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('[Duel] loser credit update failed: $e');
+      debugPrint('[Duel] balanced special bonus update failed: $e');
     }
   }
 }
@@ -2055,12 +2065,14 @@ class DuelController extends ChangeNotifier {
     required this.localPlayerId,
     required this.localPlayerName,
     this.roomMode = DuelRoomMode.duel,
+    this.specialBonusesEnabled = true,
   });
 
   final GameService service;
   final String localPlayerId;
   final String localPlayerName;
   final DuelRoomMode roomMode;
+  final bool specialBonusesEnabled;
 
   DuelSession? session;
   StreamSubscription<DuelSession>? _subscription;
@@ -2084,6 +2096,7 @@ class DuelController extends ChangeNotifier {
         playerId: localPlayerId,
         playerName: localPlayerName,
         mode: roomMode,
+        specialBonusesEnabled: specialBonusesEnabled,
       );
       await attach(id);
     } catch (e) {
@@ -2499,9 +2512,14 @@ class DuelController extends ChangeNotifier {
 }
 
 class DuelLobbyPage extends StatefulWidget {
-  const DuelLobbyPage({super.key, this.mode = DuelRoomMode.duel});
+  const DuelLobbyPage({
+    super.key,
+    this.mode = DuelRoomMode.duel,
+    this.specialBonusesEnabled = true,
+  });
 
   final DuelRoomMode mode;
+  final bool specialBonusesEnabled;
 
   @override
   State<DuelLobbyPage> createState() => _DuelLobbyPageState();
@@ -2907,6 +2925,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       localPlayerId: _authenticatedPlayerId ?? _localPlayerId,
       localPlayerName: pseudo,
       roomMode: widget.mode,
+      specialBonusesEnabled: widget.mode == DuelRoomMode.credits
+          ? false
+          : widget.specialBonusesEnabled,
     )..addListener(_onControllerChange);
     _controller = created;
     return created;
@@ -3148,6 +3169,19 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                               color: PremiumColors.textDark,
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            widget.mode == DuelRoomMode.credits
+                                ? 'Bonus spéciaux désactivés en mode Paris/Mises pour protéger les mises.'
+                                : (widget.specialBonusesEnabled
+                                    ? 'Bonus spéciaux activés : 8, As, 2 et Joker.'
+                                    : 'Bonus spéciaux désactivés pour cette partie.'),
+                            style: const TextStyle(
+                              color: PremiumColors.textDark,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 10),
@@ -4031,7 +4065,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (_isCreditsMode) {
         await _controller.resolveStakeAfterRound(winnerId);
       }
-      unawaited(_controller.applyCardBonusCredits(winnerId: winnerId, winnerCard: card));
+      if (session.specialBonusesEnabled && !_isCreditsMode) {
+        unawaited(_controller.applyCardBonusCredits(winnerId: winnerId, winnerCard: card));
+      }
     }
   }
 
