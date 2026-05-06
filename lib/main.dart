@@ -2784,9 +2784,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     final String? selected = await showDialog<String>(
       context: context,
       barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.58),
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
           child: GinoChooseSuitPopup(
             onSuitSelected: (String suit) => Navigator.of(context).pop(suit),
           ),

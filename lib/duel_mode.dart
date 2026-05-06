@@ -4077,7 +4077,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _markImportantPopupOpened();
     return showDialog<String>(
       context: context,
-      barrierColor: Colors.black54,
+      barrierColor: Colors.black.withOpacity(0.58),
       builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,
