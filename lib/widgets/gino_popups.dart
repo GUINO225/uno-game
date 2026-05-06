@@ -937,15 +937,13 @@ class ConnectionPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Size screenSize = MediaQuery.sizeOf(context);
-    final double popupWidth =
-        screenSize.width < 420 ? screenSize.width * 0.88 : 420.0;
-    final double horizontalPadding = popupWidth < 340 ? 18 : 24;
-    final double messageFontSize = popupWidth < 340 ? 20 : 23;
+    final double popupWidth = math.min(screenSize.width * 0.9, 400);
+    final double horizontalPadding = popupWidth < 340 ? 20 : 26;
 
     return Material(
       color: Colors.transparent,
       child: SafeArea(
-        minimum: const EdgeInsets.symmetric(horizontal: 12, vertical: 48),
+        minimum: const EdgeInsets.symmetric(horizontal: 12, vertical: 40),
         child: Center(
           child: SingleChildScrollView(
             child: Stack(
@@ -953,59 +951,64 @@ class ConnectionPopup extends StatelessWidget {
               alignment: Alignment.topCenter,
               children: <Widget>[
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(26),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
                     child: Container(
                       width: popupWidth,
                       padding: EdgeInsets.fromLTRB(
                         horizontalPadding,
-                        72,
+                        58,
                         horizontalPadding,
-                        28,
+                        24,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF003F34).withOpacity(0.62),
-                        borderRadius: BorderRadius.circular(28),
+                        color: const Color(0xFF032F27).withOpacity(0.66),
+                        borderRadius: BorderRadius.circular(26),
                         border: Border.all(
-                          color: const Color(0xFF7CFFD0).withOpacity(0.85),
-                          width: 1.6,
+                          color: const Color(0xFF8FFFD0).withOpacity(0.34),
+                          width: 1,
                         ),
                         boxShadow: <BoxShadow>[
                           BoxShadow(
-                            color: const Color(0xFF00FF99).withOpacity(0.22),
-                            blurRadius: 28,
-                            spreadRadius: 2,
+                            color: const Color(0xFF00FF99).withOpacity(0.11),
+                            blurRadius: 22,
+                            spreadRadius: 0.5,
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.16),
+                            blurRadius: 30,
+                            offset: const Offset(0, 18),
                           ),
                         ],
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          Text(
-                            'Connecte-toi avec Google pour\nsauvegarder ton profil et\ntes crédits.',
+                          const Text(
+                            'Connecte-toi avec Google pour sauvegarder ton profil et tes crédits.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: messageFontSize,
-                              height: 1.35,
-                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFF2F2F2),
+                              fontSize: 16,
+                              height: 1.4,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
-                          const SizedBox(height: 34),
+                          const SizedBox(height: 28),
                           _ConnectionPopupButton(
                             text: 'Connexion Google',
                             icon: const _ConnectionGoogleIcon(),
                             isPrimary: true,
                             onPressed: onGooglePressed,
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 12),
                           _ConnectionPopupButton(
                             text: 'Continuer sans compte',
                             icon: const Icon(
                               Icons.person_outline_rounded,
-                              color: Color(0xFF7CFFD0),
-                              size: 30,
+                              color: Color(0xFF9BFFD8),
+                              size: 24,
                             ),
                             isPrimary: false,
                             onPressed: onContinueWithoutAccount,
@@ -1016,27 +1019,25 @@ class ConnectionPopup extends StatelessWidget {
                   ),
                 ),
                 Positioned(
-                  top: -34,
+                  top: -24,
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: popupWidth - 24),
+                    constraints: BoxConstraints(maxWidth: popupWidth - 32),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 28,
-                        vertical: 14,
+                        horizontal: 20,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: <Color>[
-                            Color(0xFF00F28A),
-                            Color(0xFF00B66A),
-                          ],
+                        color: const Color(0xFF044B3A).withOpacity(0.86),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF8FFFD0).withOpacity(0.32),
+                          width: 1,
                         ),
-                        borderRadius: BorderRadius.circular(18),
                         boxShadow: <BoxShadow>[
                           BoxShadow(
-                            color: const Color(0xFF00FF99).withOpacity(0.45),
-                            blurRadius: 24,
-                            spreadRadius: 1,
+                            color: const Color(0xFF00FF99).withOpacity(0.14),
+                            blurRadius: 16,
                           ),
                         ],
                       ),
@@ -1045,10 +1046,10 @@ class ConnectionPopup extends StatelessWidget {
                         children: <Widget>[
                           Icon(
                             Icons.shield_outlined,
-                            color: Colors.white,
-                            size: 30,
+                            color: Color(0xFFEFFEF8),
+                            size: 20,
                           ),
-                          SizedBox(width: 12),
+                          SizedBox(width: 8),
                           Flexible(
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
@@ -1056,9 +1057,9 @@ class ConnectionPopup extends StatelessWidget {
                                 'Connexion',
                                 maxLines: 1,
                                 style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFFF2F2F2),
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -1092,57 +1093,67 @@ class _ConnectionPopupButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double radius = isPrimary ? 18 : 16;
+    final TextStyle labelStyle = TextStyle(
+      color: const Color(0xFFF2F2F2),
+      fontSize: isPrimary ? 17 : 15,
+      height: 1.05,
+      fontWeight: isPrimary ? FontWeight.w500 : FontWeight.w400,
+      letterSpacing: 0.05,
+    );
+
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(radius),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(radius),
         child: Container(
           width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 76),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          height: isPrimary ? 58 : 54,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: isPrimary
-                ? const Color(0xFF00D873).withOpacity(0.88)
-                : const Color(0xFF003F34).withOpacity(0.45),
-            borderRadius: BorderRadius.circular(22),
+                ? const Color(0xFF0ACB78).withOpacity(0.82)
+                : const Color(0xFF033B30).withOpacity(0.54),
+            borderRadius: BorderRadius.circular(radius),
             border: Border.all(
-              color: const Color(0xFF24FF9A),
-              width: 1.8,
+              color: const Color(
+                0xFF9BFFD8,
+              ).withOpacity(isPrimary ? 0.42 : 0.28),
+              width: 1,
             ),
             boxShadow: isPrimary
                 ? <BoxShadow>[
                     BoxShadow(
-                      color: const Color(0xFF00FF99).withOpacity(0.28),
-                      blurRadius: 18,
-                      spreadRadius: 1,
+                      color: const Color(0xFF00FF99).withOpacity(0.12),
+                      blurRadius: 14,
                     ),
                   ]
                 : <BoxShadow>[],
           ),
           child: Row(
             children: <Widget>[
-              SizedBox(width: 44, height: 44, child: Center(child: icon)),
-              const SizedBox(width: 18),
+              SizedBox(width: 34, height: 34, child: Center(child: icon)),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  text,
-                  softWrap: true,
-                  maxLines: 2,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: isPrimary ? 23 : 20,
-                    height: 1.08,
-                    fontWeight: FontWeight.w900,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    text,
+                    softWrap: false,
+                    maxLines: 1,
+                    overflow: TextOverflow.visible,
+                    style: labelStyle,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              const Icon(
+              const SizedBox(width: 8),
+              Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.white,
-                size: 34,
+                color: const Color(0xFFF2F2F2).withOpacity(0.82),
+                size: 24,
               ),
             ],
           ),
@@ -1158,10 +1169,10 @@ class _ConnectionGoogleIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 44,
-      height: 44,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F2F2).withOpacity(0.96),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
@@ -1169,8 +1180,8 @@ class _ConnectionGoogleIcon extends StatelessWidget {
         'G',
         style: TextStyle(
           color: Color(0xFF4285F4),
-          fontSize: 27,
-          fontWeight: FontWeight.w900,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
