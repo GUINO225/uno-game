@@ -4145,14 +4145,27 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             },
           );
         }
+        if (amount >= 8) {
+          return PremiumJockzrDrawPopup(
+            opponentName: opponentName ?? 'Adversaire',
+            cardsToDraw: 8,
+            showTimer: true,
+            autoDrawSeconds: 10,
+            onDraw: () {
+              if (Navigator.of(dialogContext).canPop()) {
+                Navigator.of(dialogContext).pop();
+              }
+            },
+          );
+        }
         return Dialog(
           backgroundColor: Colors.transparent,
           elevation: 0,
           insetPadding: const EdgeInsets.symmetric(horizontal: 20),
           child: GinoDrawPenaltyPopup(
             cardsToDraw: amount,
-            rank: amount >= 8 ? '8' : '2',
-            suit: amount >= 8 ? 'spades' : 'diamonds',
+            rank: '2',
+            suit: 'diamonds',
           ),
         );
       },

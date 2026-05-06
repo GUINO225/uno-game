@@ -845,6 +845,412 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
   }
 }
 
+class PremiumJockzrDrawPopup extends StatefulWidget {
+  const PremiumJockzrDrawPopup({
+    super.key,
+    required this.opponentName,
+    required this.onDraw,
+    this.cardsToDraw = 8,
+    this.autoDrawSeconds,
+    this.showTimer = true,
+  });
+
+  final String opponentName;
+  final VoidCallback onDraw;
+  final int cardsToDraw;
+  final int? autoDrawSeconds;
+  final bool showTimer;
+
+  @override
+  State<PremiumJockzrDrawPopup> createState() => _PremiumJockzrDrawPopupState();
+}
+
+class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
+    with TickerProviderStateMixin {
+  late final AnimationController _introController;
+  late final AnimationController _ambientController;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _introController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    )..forward();
+    _ambientController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat(reverse: true);
+    _fadeAnimation = CurvedAnimation(
+      parent: _introController,
+      curve: const Interval(0.0, 0.72, curve: Curves.easeOutCubic),
+    );
+    _scaleAnimation = Tween<double>(begin: 0.85, end: 1).animate(
+      CurvedAnimation(parent: _introController, curve: Curves.easeOutBack),
+    );
+  }
+
+  @override
+  void dispose() {
+    _introController.dispose();
+    _ambientController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.of(context).size;
+    final double popupWidth = math.min(screenSize.width * 0.88, 430);
+    final double compactFactor = screenSize.height < 720 ? 0.88 : 1.0;
+    final String normalizedName = widget.opponentName.trim().isEmpty
+        ? 'Adversaire'
+        : widget.opponentName.trim();
+    final int displayedCardsToDraw = widget.cardsToDraw;
+    final int timerSeconds = widget.autoDrawSeconds ?? 10;
+
+    return Stack(
+      children: <Widget>[
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(color: Colors.black.withOpacity(0.62)),
+          ),
+        ),
+        Positioned.fill(
+          child: AnimatedBuilder(
+            animation: _ambientController,
+            builder: (BuildContext context, Widget? child) {
+              return CustomPaint(
+                painter: _PremiumDrawTwoParticlePainter(_ambientController.value),
+              );
+            },
+          ),
+        ),
+        SafeArea(
+          child: Center(
+            child: AnimatedBuilder(
+              animation: Listenable.merge(
+                <Listenable>[_introController, _ambientController],
+              ),
+              builder: (BuildContext context, Widget? child) {
+                final double glowPulse = 0.75 + (_ambientController.value * 0.25);
+                return Opacity(
+                  opacity: _fadeAnimation.value,
+                  child: Transform.scale(
+                    scale: _scaleAnimation.value,
+                    child: Container(
+                      width: popupWidth,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.topCenter,
+                        children: <Widget>[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(34),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                              child: Container(
+                                padding: EdgeInsets.fromLTRB(
+                                  20,
+                                  78 * compactFactor,
+                                  20,
+                                  22 * compactFactor,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: <Color>[
+                                      const Color(0xFF053E2A).withOpacity(0.90),
+                                      const Color(0xFF007C4F).withOpacity(0.80),
+                                      const Color(0xFF012618).withOpacity(0.96),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(34),
+                                  border: Border.all(
+                                    color: const Color(0xFF69FFB0).withOpacity(0.78),
+                                    width: 1.4,
+                                  ),
+                                  boxShadow: <BoxShadow>[
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.66),
+                                      blurRadius: 36,
+                                      offset: const Offset(0, 26),
+                                    ),
+                                    BoxShadow(
+                                      color: const Color(0xFF15FF8A).withOpacity(
+                                        0.34 * glowPulse,
+                                      ),
+                                      blurRadius: 48,
+                                      spreadRadius: 3,
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        normalizedName,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        style: GinoPopupStyle.baseText(
+                                          fontSize: 18,
+                                          fontWeight: GinoPopupStyle.titleWeight,
+                                          color: GinoPopupStyle.textWhite,
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'JOCKeR JOUÉ !',
+                                      textAlign: TextAlign.center,
+                                      style: GinoPopupStyle.baseText(
+                                        fontSize: 18,
+                                        fontWeight: GinoPopupStyle.titleWeight,
+                                        color: const Color(0xFF8CFFB5),
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                    SizedBox(height: 14 * compactFactor),
+                                    _PremiumJockzrCardShowcase(
+                                      cardsToDraw: displayedCardsToDraw,
+                                      glowValue: _ambientController.value,
+                                    ),
+                                    SizedBox(height: 12 * compactFactor),
+                                    Text(
+                                      'Vous devez piocher',
+                                      textAlign: TextAlign.center,
+                                      style: GinoPopupStyle.baseText(
+                                        fontSize: 18,
+                                        fontWeight: GinoPopupStyle.titleWeight,
+                                        color: GinoPopupStyle.textWhite,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    _PremiumDividerText(
+                                      child: Text(
+                                        '$displayedCardsToDraw CARTES',
+                                        textAlign: TextAlign.center,
+                                        style: GinoPopupStyle.baseText(
+                                          fontSize: 16,
+                                          fontWeight: GinoPopupStyle.titleWeight,
+                                          color: const Color(0xFF61FF66),
+                                          height: 1.05,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(height: 18 * compactFactor),
+                                    _PremiumDrawTwoButton(
+                                      label: 'PIOCHER $displayedCardsToDraw CARTES',
+                                      onPressed: widget.onDraw,
+                                    ),
+                                    if (widget.showTimer) ...<Widget>[
+                                      SizedBox(height: 14 * compactFactor),
+                                      _PremiumDrawTwoTimer(seconds: timerSeconds),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: -36,
+                            child: _PremiumJockzrBadge(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PremiumJockzrBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 74,
+      height: 74,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFFF8FFF3), Color(0xFFB8FFD6)],
+        ),
+        border: Border.all(color: const Color(0xFF1BFF8E).withOpacity(0.78), width: 3),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: const Color(0xFF13C76B).withOpacity(0.45),
+            blurRadius: 24,
+            spreadRadius: 5,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.36),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Text(
+        '🃏',
+        style: GinoPopupStyle.baseText(
+          fontSize: 28,
+          fontWeight: GinoPopupStyle.titleWeight,
+          color: GinoPopupStyle.suitBlack,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumJockzrCardShowcase extends StatelessWidget {
+  const _PremiumJockzrCardShowcase({required this.cardsToDraw, required this.glowValue});
+
+  final int cardsToDraw;
+  final double glowValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final double glow = 0.62 + (glowValue * 0.38);
+    return SizedBox(
+      width: 230,
+      height: 235,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Container(
+            width: 180,
+            height: 180,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFF2CFF91).withOpacity(0.18),
+                width: 5,
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF1EFF95).withOpacity(0.34 * glow),
+                  blurRadius: 36 + (12 * glowValue),
+                  spreadRadius: 7,
+                ),
+              ],
+            ),
+          ),
+          Transform.rotate(
+            angle: -0.18,
+            child: Container(
+              width: 126,
+              height: 178,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[Color(0xFFFFFFF4), Color(0xFFE7FFF0)],
+                ),
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(color: const Color(0xFFE5E8D8), width: 1),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.38),
+                    blurRadius: 18,
+                    offset: const Offset(0, 12),
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFF74FFAE).withOpacity(0.20 * glow),
+                    blurRadius: 28,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: <Widget>[
+                  Positioned(
+                    top: 14,
+                    left: 12,
+                    child: Text(
+                      'J',
+                      style: GinoPopupStyle.baseText(
+                        color: GinoPopupStyle.amountGreen,
+                        fontSize: 50,
+                        fontWeight: GinoPopupStyle.titleWeight,
+                        height: 0.9,
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          '🃏',
+                          style: GinoPopupStyle.baseText(
+                            color: GinoPopupStyle.amountGreen,
+                            fontSize: 50,
+                            fontWeight: GinoPopupStyle.titleWeight,
+                            height: 1,
+                          ),
+                        ),
+                        Text(
+                          'JOCKeR',
+                          style: GinoPopupStyle.baseText(
+                            color: GinoPopupStyle.amountGreen,
+                            fontSize: 16,
+                            fontWeight: GinoPopupStyle.titleWeight,
+                            height: 1,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: Transform.rotate(
+                      angle: math.pi,
+                      child: Text(
+                        'J',
+                        style: GinoPopupStyle.baseText(
+                          color: GinoPopupStyle.amountGreen,
+                          fontSize: 42,
+                          fontWeight: GinoPopupStyle.titleWeight,
+                          height: 0.9,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            right: 18,
+            top: 72,
+            child: _PremiumDrawTwoBadge(cardsToDraw: cardsToDraw),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class PremiumDrawTwoPopup extends StatefulWidget {
   const PremiumDrawTwoPopup({
@@ -942,7 +1348,9 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
         SafeArea(
           child: Center(
             child: AnimatedBuilder(
-              animation: Listenable.merge(<Listenable>[_introController, _ambientController]),
+              animation: Listenable.merge(
+                <Listenable>[_introController, _ambientController],
+              ),
               builder: (BuildContext context, Widget? child) {
                 final double glowPulse = 0.75 + (_ambientController.value * 0.25);
                 return Opacity(
@@ -953,7 +1361,10 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
                       scale: _scaleAnimation.value,
                       child: Container(
                         width: popupWidth,
-                        margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        margin: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                         child: Stack(
                           clipBehavior: Clip.none,
                           alignment: Alignment.topCenter,
@@ -1106,7 +1517,10 @@ class _PremiumDrawTwoCardShowcase extends StatelessWidget {
             height: 174,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF2CFF91).withOpacity(0.18), width: 5),
+              border: Border.all(
+                color: const Color(0xFF2CFF91).withOpacity(0.18),
+                width: 5,
+              ),
               boxShadow: <BoxShadow>[
                 BoxShadow(
                   color: const Color(0xFF1EFF95).withOpacity(0.30 * glow),
