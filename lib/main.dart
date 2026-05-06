@@ -2452,6 +2452,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   Suit? _activeSuitConstraint;
 
   bool _humanDidVoluntaryDrawThisTurn = false;
+  bool _forcedDrawWitchPlayed = false;
 
   int _humanScore = 0;
   int _botScore = 0;
@@ -2532,6 +2533,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _botMustAnswerAce = false;
       _activeSuitConstraint = null;
       _humanDidVoluntaryDrawThisTurn = false;
+      _forcedDrawWitchPlayed = false;
       _humanHand.addAll(humanInitialCards);
       _botHand.addAll(botInitialCards);
     });
@@ -2732,6 +2734,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _forcedDrawCount = count;
       _forcedDrawTarget = target;
       _forcedDrawSource = source;
+      _forcedDrawWitchPlayed = false;
       _status = announcement;
     });
   }
@@ -2749,6 +2752,28 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return _forcedDrawCount > 1
         ? 'Vous piochez • encore $_forcedDrawCount cartes'
         : 'Vous piochez • encore 1 carte';
+  }
+
+  void _playDrawnCardSfx(PlayingCard card) {
+    if (card.isJoker) {
+      unawaited(_sfx.playJokerDrawn());
+    } else {
+      unawaited(_sfx.playDraw());
+    }
+  }
+
+  void _playHeavyDrawSfxOnce() {
+    if (_forcedDrawWitchPlayed || _forcedDrawCount < 4) {
+      return;
+    }
+    _forcedDrawWitchPlayed = true;
+    unawaited(_sfx.playHeavyDraw());
+  }
+
+  void _playBotOneCardLeftSfxIfNeeded() {
+    if (_botHand.length == 1) {
+      unawaited(_sfx.playOneCardLeft());
+    }
   }
 
   Future<void> _onHumanTapCard(PlayingCard card) async {
@@ -2860,12 +2885,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         return;
       }
 
+      _playHeavyDrawSfxOnce();
       setState(() {
         _humanHand.add(card);
         _forcedDrawCount--;
         _status = _forcedDrawCount > 0 ? 'Vous piochez' : 'Pioche terminée';
       });
-      unawaited(_sfx.playDraw());
+      _playDrawnCardSfx(card);
 
       _finishForcedDrawIfNeeded();
       return;
@@ -2881,7 +2907,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             : 'Pioche vide';
       });
       if (drawn > 0) {
-        unawaited(_sfx.playDraw());
+        _playDrawnCardSfx(_humanHand.last);
       }
       _endHumanTurn();
       return;
@@ -2909,7 +2935,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _humanDidVoluntaryDrawThisTurn = true;
       _status = 'Vous piochez';
     });
-    unawaited(_sfx.playDraw());
+    _playDrawnCardSfx(drawnCard);
 
     // After drawing voluntarily, turn always passes to the bot
     await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -3060,6 +3086,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           count: 9,
           announcement: '$_botName joue un joker.',
         );
+        unawaited(_sfx.playJokerEffect());
         _showFunnyGameMessage(playerName: 'Vous', message: 'Le joker a parlé.');
         return const _PlayResolution(
           extraTurn: false,
@@ -3133,6 +3160,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Future<void> _runForcedDrawForBot() async {
+    _playHeavyDrawSfxOnce();
     while (_forcedDrawCount > 0 &&
         _forcedDrawTarget == PlayerTurn.bot &&
         !_gameOver) {
@@ -3154,7 +3182,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             ? 'Ordi pioche encore $_forcedDrawCount $unit'
             : 'Ordi a fini de piocher';
       });
-      unawaited(_sfx.playDraw());
+      _playDrawnCardSfx(card);
       await Future<void>.delayed(const Duration(milliseconds: 300));
     }
 
@@ -3311,7 +3339,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       debugPrint('[SoloBot] warning: no state progress detected');
       final List<PlayingCard> fallbackDraw = _drawCards(_botHand, 1);
       if (fallbackDraw.isNotEmpty) {
-        unawaited(_sfx.playDraw());
+        _playDrawnCardSfx(fallbackDraw.first);
         setState(() {
           _status = 'Ordi pioche (sécurité)';
         });
@@ -3377,7 +3405,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           debugPrint('[SoloBot] no playable card, drawing');
           final int drawn = _drawCards(_botHand, 1).length;
           if (drawn > 0) {
-            unawaited(_sfx.playDraw());
+            _playDrawnCardSfx(_botHand.last);
           }
           setState(() {
             _botMustAnswerAce = false;
@@ -3398,6 +3426,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           card: botAce,
           playerName: _botName,
         );
+        _playBotOneCardLeftSfxIfNeeded();
 
         final bool wasAceResponse = _botMustAnswerAce;
         setState(() {
@@ -3460,9 +3489,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         setState(() {
           _status = 'Ordi pioche';
         });
-        unawaited(_sfx.playDraw());
-
         final PlayingCard drawnCard = drawn.first;
+        _playDrawnCardSfx(drawnCard);
         if (_isCardPlayableForHand(drawnCard, _botHand)) {
           chosen = drawnCard;
         } else {
@@ -3479,6 +3507,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         card: chosen,
         playerName: _botName,
       );
+      _playBotOneCardLeftSfxIfNeeded();
 
       final _PlayResolution outcome = await _applyCardEffects(
         card: chosen,
