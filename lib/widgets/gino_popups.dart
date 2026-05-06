@@ -872,50 +872,443 @@ class GinoIncomingBetPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GinoPopupFrame(
-      titleTag: 'Proposition',
-      width: math.min(MediaQuery.of(context).size.width * 0.82, 400),
+    return PremiumBetProposalPopup(
+      proposerName: proposerName,
+      amount: amount,
+      onAccept: onAccept,
+      onReject: onRefuse,
+      acceptEnabled: acceptEnabled,
+    );
+  }
+}
+
+class PremiumBetProposalPopup extends StatefulWidget {
+  const PremiumBetProposalPopup({
+    super.key,
+    required this.proposerName,
+    required this.amount,
+    required this.onAccept,
+    required this.onReject,
+    this.acceptEnabled = true,
+  });
+
+  final String proposerName;
+  final int amount;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+  final bool acceptEnabled;
+
+  @override
+  State<PremiumBetProposalPopup> createState() => _PremiumBetProposalPopupState();
+}
+
+class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
+    with TickerProviderStateMixin {
+  late final AnimationController _entranceController;
+  late final AnimationController _glowController;
+  late final Animation<double> _entrance;
+
+  @override
+  void initState() {
+    super.initState();
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 230),
+    )..forward();
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1750),
+    )..repeat(reverse: true);
+    _entrance = CurvedAnimation(
+      parent: _entranceController,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    _entranceController.dispose();
+    _glowController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.of(context).size;
+    final double popupWidth = math.min(screenSize.width * 0.86, 420);
+    final double horizontalPadding = screenSize.width < 360 ? 14 : 18;
+    final double glowSize = math.min(popupWidth * 0.64, 250);
+
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(color: Colors.black.withOpacity(0.58)),
+        ),
+        Center(
+          child: FadeTransition(
+            opacity: _entrance,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.85, end: 1).animate(_entrance),
+              child: AnimatedBuilder(
+                animation: _glowController,
+                builder: (BuildContext context, Widget? child) {
+                  final double pulse = Curves.easeInOut.transform(_glowController.value);
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.topCenter,
+                    children: <Widget>[
+                      Container(
+                        width: popupWidth,
+                        padding: EdgeInsets.fromLTRB(
+                          horizontalPadding,
+                          34,
+                          horizontalPadding,
+                          18,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: <Color>[
+                              GinoPopupStyle.premiumDeepGreen.withOpacity(0.84),
+                              GinoPopupStyle.popupGreen.withOpacity(0.78),
+                              const Color(0xFF00160F).withOpacity(0.9),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.72 + (pulse * 0.16)),
+                            width: 1.25,
+                          ),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.64),
+                              blurRadius: 42,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 25),
+                            ),
+                            BoxShadow(
+                              color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.18 + (pulse * 0.1)),
+                              blurRadius: 38,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(28),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Stack(
+                                  alignment: Alignment.center,
+                                  children: <Widget>[
+                                    Container(
+                                      width: glowSize * (0.86 + pulse * 0.08),
+                                      height: glowSize * (0.86 + pulse * 0.08),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: RadialGradient(
+                                          colors: <Color>[
+                                            GinoPopupStyle.casinoGold.withOpacity(0.38 + pulse * 0.12),
+                                            GinoPopupStyle.casinoGold.withOpacity(0.12),
+                                            Colors.transparent,
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: glowSize * 0.18,
+                                      right: popupWidth * 0.28,
+                                      child: _PremiumGlowDot(size: 5, opacity: 0.35 + pulse * 0.3),
+                                    ),
+                                    Positioned(
+                                      bottom: glowSize * 0.18,
+                                      left: popupWidth * 0.3,
+                                      child: _PremiumGlowDot(size: 4, opacity: 0.28 + pulse * 0.26),
+                                    ),
+                                    _PremiumAmountCard(amount: widget.amount),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  widget.proposerName,
+                                  textAlign: TextAlign.center,
+                                  style: GinoPopupStyle.baseText(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    color: GinoPopupStyle.textWhite,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'propose une mise de',
+                                  textAlign: TextAlign.center,
+                                  style: GinoPopupStyle.baseText(
+                                    fontSize: 17,
+                                    fontWeight: GinoPopupStyle.textWeight,
+                                    color: GinoPopupStyle.textWhite.withOpacity(0.88),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${widget.amount}',
+                                  textAlign: TextAlign.center,
+                                  style: GinoPopupStyle.baseText(
+                                    fontSize: 17,
+                                    fontWeight: GinoPopupStyle.titleWeight,
+                                    color: GinoPopupStyle.casinoGold,
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: _PremiumBetActionButton(
+                                        label: 'REFUSER',
+                                        onPressed: widget.onReject,
+                                        isAccept: false,
+                                        pulse: pulse,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _PremiumBetActionButton(
+                                        label: 'ACCEPTER',
+                                        onPressed: widget.acceptEnabled ? widget.onAccept : null,
+                                        isAccept: true,
+                                        pulse: pulse,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Vous acceptez de parier ${widget.amount} jetons',
+                                  textAlign: TextAlign.center,
+                                  style: GinoPopupStyle.baseText(
+                                    fontSize: 17,
+                                    fontWeight: GinoPopupStyle.textWeight,
+                                    color: GinoPopupStyle.textWhite.withOpacity(0.56),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: -17,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: GinoPopupStyle.casinoGold.withOpacity(0.88),
+                              width: 1,
+                            ),
+                            boxShadow: <BoxShadow>[
+                              BoxShadow(
+                                color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.24),
+                                blurRadius: 18,
+                              ),
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.34),
+                                blurRadius: 12,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            'Proposition',
+                            style: GinoPopupStyle.baseText(
+                              fontSize: 17,
+                              fontWeight: GinoPopupStyle.titleWeight,
+                              letterSpacing: 0.1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PremiumAmountCard extends StatelessWidget {
+  const _PremiumAmountCard({required this.amount});
+
+  final int amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 94,
+      height: 136,
+      decoration: BoxDecoration(
+        color: GinoPopupStyle.cardWhite,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.72), width: 1.15),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: GinoPopupStyle.casinoGold.withOpacity(0.28),
+            blurRadius: 22,
+            spreadRadius: 1,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 20,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          GinoAmountCard(
-            amount: amount,
-            width: 74,
-            height: 116,
+          Icon(
+            Icons.monetization_on_rounded,
+            color: GinoPopupStyle.casinoGold.withOpacity(0.95),
+            size: 22,
           ),
-          const SizedBox(height: 16),
-          _CenteredRichText(
-            fontSize: 17,
-            spans: <TextSpan>[
-              TextSpan(
-                text: proposerName,
-                style: GinoPopupStyle.baseText(fontWeight: FontWeight.w700),
-              ),
-              const TextSpan(text: ' propose une mise de '),
-              TextSpan(
-                text: '$amount',
-                style: GinoPopupStyle.baseText(fontWeight: GinoPopupStyle.titleWeight),
-              ),
-            ],
+          const SizedBox(height: 7),
+          Text(
+            '$amount',
+            style: GinoPopupStyle.baseText(
+              color: GinoPopupStyle.casinoGold,
+              fontSize: 25,
+              fontWeight: GinoPopupStyle.titleWeight,
+            ),
           ),
-          const SizedBox(height: 18),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: GinoPopupButton(
-                  label: 'Accepter',
-                  onPressed: acceptEnabled ? onAccept : null,
-                ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumBetActionButton extends StatelessWidget {
+  const _PremiumBetActionButton({
+    required this.label,
+    required this.onPressed,
+    required this.isAccept,
+    required this.pulse,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool isAccept;
+  final double pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool disabled = onPressed == null;
+    final Color fillColor = isAccept
+        ? GinoPopupStyle.premiumNeonGreen.withOpacity(disabled ? 0.34 : 0.82 + pulse * 0.08)
+        : const Color(0xFF021D14).withOpacity(0.9);
+
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: <Widget>[
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          height: 44,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius),
+            boxShadow: isAccept && !disabled
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.26 + pulse * 0.18),
+                      blurRadius: 18 + pulse * 8,
+                      offset: const Offset(0, 7),
+                    ),
+                  ]
+                : null,
+          ),
+          child: OutlinedButton(
+            onPressed: onPressed,
+            style: OutlinedButton.styleFrom(
+              backgroundColor: fillColor,
+              side: BorderSide(
+                color: isAccept
+                    ? GinoPopupStyle.casinoGold.withOpacity(0.58)
+                    : GinoPopupStyle.casinoGold.withOpacity(0.48),
+                width: 1,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GinoPopupButton(
-                  label: 'Refuser',
-                  onPressed: onRefuse,
-                  isPrimary: false,
-                ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius),
               ),
-            ],
+              foregroundColor: GinoPopupStyle.textWhite,
+            ),
+            child: Text(
+              label,
+              style: GinoPopupStyle.baseText(
+                fontSize: 15,
+                fontWeight: GinoPopupStyle.buttonWeight,
+              ),
+            ),
+          ),
+        ),
+        if (isAccept)
+          Positioned(
+            top: -13,
+            child: Container(
+              width: 27,
+              height: 27,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+                border: Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.78), width: 1),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: GinoPopupStyle.premiumNeonGreen.withOpacity(disabled ? 0.1 : 0.25 + pulse * 0.12),
+                    blurRadius: 12,
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.verified_user_rounded,
+                color: disabled
+                    ? GinoPopupStyle.textWhite.withOpacity(0.46)
+                    : GinoPopupStyle.casinoGold.withOpacity(0.96),
+                size: 15,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PremiumGlowDot extends StatelessWidget {
+  const _PremiumGlowDot({required this.size, required this.opacity});
+
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: GinoPopupStyle.casinoGold.withOpacity(opacity),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: GinoPopupStyle.casinoGold.withOpacity(opacity),
+            blurRadius: 8,
+            spreadRadius: 1,
           ),
         ],
       ),

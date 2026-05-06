@@ -4623,23 +4623,15 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     final String? decision = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black54,
+      barrierColor: Colors.transparent,
+      useSafeArea: false,
       builder: (BuildContext dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              GinoIncomingBetPopup(
-                proposerName: proposer,
-                amount: offer.amount,
-                acceptEnabled: !insufficient,
-                onAccept: () => Navigator.of(dialogContext).pop('accept'),
-                onRefuse: () => Navigator.of(dialogContext).pop('refuse'),
-              ),
-            ],
-          ),
+        return PremiumBetProposalPopup(
+          proposerName: proposer,
+          amount: offer.amount,
+          acceptEnabled: !insufficient,
+          onAccept: () => Navigator.of(dialogContext).pop('accept'),
+          onReject: () => Navigator.of(dialogContext).pop('refuse'),
         );
       },
     );
