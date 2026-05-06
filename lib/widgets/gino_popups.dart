@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -918,6 +919,259 @@ class GinoVictoryPopup extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class ConnectionPopup extends StatelessWidget {
+  const ConnectionPopup({
+    super.key,
+    required this.onGooglePressed,
+    required this.onContinueWithoutAccount,
+  });
+
+  final VoidCallback onGooglePressed;
+  final VoidCallback onContinueWithoutAccount;
+
+  @override
+  Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.sizeOf(context);
+    final double popupWidth =
+        screenSize.width < 420 ? screenSize.width * 0.88 : 420.0;
+    final double horizontalPadding = popupWidth < 340 ? 18 : 24;
+    final double messageFontSize = popupWidth < 340 ? 20 : 23;
+
+    return Material(
+      color: Colors.transparent,
+      child: SafeArea(
+        minimum: const EdgeInsets.symmetric(horizontal: 12, vertical: 48),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.topCenter,
+              children: <Widget>[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                    child: Container(
+                      width: popupWidth,
+                      padding: EdgeInsets.fromLTRB(
+                        horizontalPadding,
+                        72,
+                        horizontalPadding,
+                        28,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF003F34).withOpacity(0.62),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(
+                          color: const Color(0xFF7CFFD0).withOpacity(0.85),
+                          width: 1.6,
+                        ),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: const Color(0xFF00FF99).withOpacity(0.22),
+                            blurRadius: 28,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            'Connecte-toi avec Google pour\nsauvegarder ton profil et\ntes crédits.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: messageFontSize,
+                              height: 1.35,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 34),
+                          _ConnectionPopupButton(
+                            text: 'Connexion Google',
+                            icon: const _ConnectionGoogleIcon(),
+                            isPrimary: true,
+                            onPressed: onGooglePressed,
+                          ),
+                          const SizedBox(height: 14),
+                          _ConnectionPopupButton(
+                            text: 'Continuer sans compte',
+                            icon: const Icon(
+                              Icons.person_outline_rounded,
+                              color: Color(0xFF7CFFD0),
+                              size: 30,
+                            ),
+                            isPrimary: false,
+                            onPressed: onContinueWithoutAccount,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: -34,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: popupWidth - 24),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: <Color>[
+                            Color(0xFF00F28A),
+                            Color(0xFF00B66A),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: const Color(0xFF00FF99).withOpacity(0.45),
+                            blurRadius: 24,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.shield_outlined,
+                            color: Colors.white,
+                            size: 30,
+                          ),
+                          SizedBox(width: 12),
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Connexion',
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConnectionPopupButton extends StatelessWidget {
+  const _ConnectionPopupButton({
+    required this.text,
+    required this.icon,
+    required this.isPrimary,
+    required this.onPressed,
+  });
+
+  final String text;
+  final Widget icon;
+  final bool isPrimary;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 76),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          decoration: BoxDecoration(
+            color: isPrimary
+                ? const Color(0xFF00D873).withOpacity(0.88)
+                : const Color(0xFF003F34).withOpacity(0.45),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: const Color(0xFF24FF9A),
+              width: 1.8,
+            ),
+            boxShadow: isPrimary
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: const Color(0xFF00FF99).withOpacity(0.28),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : <BoxShadow>[],
+          ),
+          child: Row(
+            children: <Widget>[
+              SizedBox(width: 44, height: 44, child: Center(child: icon)),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Text(
+                  text,
+                  softWrap: true,
+                  maxLines: 2,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: isPrimary ? 23 : 20,
+                    height: 1.08,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white,
+                size: 34,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConnectionGoogleIcon extends StatelessWidget {
+  const _ConnectionGoogleIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'G',
+        style: TextStyle(
+          color: Color(0xFF4285F4),
+          fontSize: 27,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
