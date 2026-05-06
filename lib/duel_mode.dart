@@ -2023,13 +2023,16 @@ class GameService {
     return 0;
   }
 
+  /// Applies credit bonus/malus after a round in credits (paris) mode.
+  /// Winner: +100 base + card bonus. Loser: −100 base − card bonus.
+  /// Only called for credits mode; simple duel has no credit transfers.
   Future<void> applyCardBonusCredits({
     required DuelSession current,
     required String winnerId,
     required DuelCard winnerCard,
   }) async {
-    if (!current.specialBonusesEnabled || current.isCreditsMode) {
-      debugPrint('[Duel] special bonus skipped: disabled or credits mode');
+    if (!current.isCreditsMode) {
+      debugPrint('[Duel] card bonus skipped: not credits mode');
       return;
     }
     final String loserId = current.players.firstWhere(
@@ -2037,24 +2040,25 @@ class GameService {
       orElse: () => '',
     );
     if (loserId.isEmpty) return;
-    final int bonus = _duelCardBonus(winnerCard);
-    if (bonus <= 0) return;
+    final int cardBonus = _duelCardBonus(winnerCard);
+    final int gain = 100 + cardBonus;   // winner: base + bonus
+    final int loss = 100 + cardBonus;   // loser:  base + bonus (symmetric)
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> winnerRef = _userProfileRef(db, winnerId);
-    final DocumentReference<Map<String, dynamic>> loserRef = _userProfileRef(db, loserId);
     try {
-      await db.runTransaction((Transaction tx) async {
-        tx.set(winnerRef, <String, dynamic>{
-          'credits': FieldValue.increment(bonus),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-        tx.set(loserRef, <String, dynamic>{
-          'credits': FieldValue.increment(-bonus),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+      await db.collection('user_profiles').doc(winnerId).update(<String, dynamic>{
+        'credits': FieldValue.increment(gain),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      debugPrint('[Duel] balanced special bonus update failed: $e');
+      debugPrint('[Duel] winner card bonus update failed: $e');
+    }
+    try {
+      await db.collection('user_profiles').doc(loserId).update(<String, dynamic>{
+        'credits': FieldValue.increment(-loss),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('[Duel] loser card bonus update failed: $e');
     }
   }
 }
@@ -3174,10 +3178,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                           const SizedBox(height: 10),
                           Text(
                             widget.mode == DuelRoomMode.credits
-                                ? 'Bonus spéciaux désactivés en mode Paris/Mises pour protéger les mises.'
-                                : (widget.specialBonusesEnabled
-                                    ? 'Bonus spéciaux activés : 8, As, 2 et Joker.'
-                                    : 'Bonus spéciaux désactivés pour cette partie.'),
+                                ? 'Bonus crédits actifs : Joker +200 · As +100 · 2 +75 · 8 +50 (en plus de la mise).'
+                                : 'Mode duel simple · aucun transfert de crédits.',
                             style: const TextStyle(
                               color: PremiumColors.textDark,
                               fontSize: 12,
@@ -4063,11 +4065,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     final String? winnerId = move.payload['winnerId'] as String?;
     if (winnerId != null && winnerId.isNotEmpty) {
       if (_isCreditsMode) {
+        // Paris mode: resolve the bet stake, then add card bonus on top
         await _controller.resolveStakeAfterRound(winnerId);
-      }
-      if (session.specialBonusesEnabled && !_isCreditsMode) {
         unawaited(_controller.applyCardBonusCredits(winnerId: winnerId, winnerCard: card));
       }
+      // Simple duel: no credit bonuses applied
     }
   }
 
@@ -4974,6 +4976,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         await _controller.acceptRematch();
       } else {
         await _controller.declineRematch();
+        // Decliner goes back to main menu immediately
+        if (mounted) {
+          Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+        }
+        return;
       }
     } catch (error) {
       debugPrint('[RematchParis] failed: $error');
@@ -5063,6 +5070,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (_rematchUiState != DuelRematchUiState.rematchRejected) {
         setState(() {
           _rematchUiState = DuelRematchUiState.rematchRejected;
+        });
+        // Requester sees "declined" — navigate to home after short delay
+        Future<void>.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+          }
         });
       }
       return;
@@ -5641,6 +5654,20 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           },
           child: Scaffold(
             backgroundColor: PremiumColors.tableGreenDark,
+            endDrawer: PlayerSidePanel(
+              onOpenLeaderboard: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const LeaderboardPage()),
+                );
+              },
+              onOpenHistory: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const GameHistoryPage()),
+                );
+              },
+            ),
             body: Stack(
               children: <Widget>[
               TableBackground(
@@ -5696,6 +5723,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                                   child: _DuelChatPreviewBubble(text: _activeChatPreview!),
                                 ),
                             ],
+                          ),
+                          const SizedBox(width: 6),
+                          const PlayerSidePanelButton(
+                            padding: EdgeInsets.zero,
+                            wrapInAlign: false,
+                            showCredits: false,
                           ),
                         ],
                       ),
@@ -7900,6 +7933,8 @@ class _MyHandRowState extends State<_MyHandRow> {
                                 child: SizedBox(
                                   width: wrapWidth,
                                   child: Wrap(
+                                    alignment: WrapAlignment.center,
+                                    runAlignment: WrapAlignment.center,
                                     spacing: _MyHandRow._cardGap,
                                     runSpacing: _MyHandRow._cardGap,
                                     children: List<Widget>.generate(cards.length, (int index) {

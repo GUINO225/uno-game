@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -65,11 +66,23 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   }
 
   Future<void> _signOut() async {
-    await _authService.signOut();
-    if (!mounted) {
-      return;
+    try {
+      await _authService.signOut();
+      if (!mounted) {
+        return;
+      }
+      _refreshPanelData();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Déconnexion réussie')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Déconnexion impossible: $e')),
+      );
     }
-    _refreshPanelData();
   }
 
   void _refreshPanelData() {
@@ -909,7 +922,18 @@ class _AvatarSelectorGrid<T> extends StatelessWidget {
 }
 
 class PlayerSidePanelButton extends StatefulWidget {
-  const PlayerSidePanelButton({super.key});
+  const PlayerSidePanelButton({
+    super.key,
+    this.alignment = Alignment.topRight,
+    this.padding = const EdgeInsets.only(top: 6, right: 10),
+    this.wrapInAlign = true,
+    this.showCredits = true,
+  });
+
+  final AlignmentGeometry alignment;
+  final EdgeInsetsGeometry padding;
+  final bool wrapInAlign;
+  final bool showCredits;
 
   @override
   State<PlayerSidePanelButton> createState() => _PlayerSidePanelButtonState();
@@ -929,55 +953,90 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topRight,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 6, right: 10),
-        child: FutureBuilder<PlayerProfile?>(
-          future: _loadProfile(),
-          builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
-            return StreamBuilder<User?>(
-              stream: _authService.authStateChanges,
-              builder: (BuildContext context, AsyncSnapshot<User?> _) {
-                final PlayerProfile? profile = snapshot.data;
-                final String creditsLabel = snapshot.connectionState == ConnectionState.waiting
-                    ? '...'
-                    : '${profile?.credits ?? 0}';
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    _CreditBadge(value: creditsLabel),
+    final Widget button = Padding(
+      padding: widget.padding,
+      child: StreamBuilder<User?>(
+        stream: _authService.authStateChanges,
+        initialData: _authService.currentUser,
+        builder: (BuildContext context, AsyncSnapshot<User?> authSnapshot) {
+          final User? user = authSnapshot.data;
+          return FutureBuilder<PlayerProfile?>(
+            future: _loadProfile(),
+            builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
+              final PlayerProfile? profile = snapshot.data;
+              final GameCardAvatarData fallbackAvatar = GameCardAvatarPalette.fromSeed(
+                user?.uid ?? 'menu_guest',
+                salt: 5,
+              );
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (widget.showCredits && user != null) ...<Widget>[
+                    _LiveCreditBadge(
+                      uid: user.uid,
+                      fallbackCredits: profile?.credits,
+                    ),
                     const SizedBox(width: 6),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(18),
-                        onTap: () => Scaffold.of(context).openEndDrawer(),
-                        child: Tooltip(
-                          message: 'Menu joueur',
-                          child: GameCardAvatar.fromSelection(
-                            size: 52,
-                            rank: profile?.selectedCardAvatar.rank ??
-                                GameCardAvatarPalette.fromSeed(
-                                  _authService.currentUser?.uid ?? 'menu_guest',
-                                  salt: 5,
-                                ).rank,
-                            suit: profile?.selectedCardAvatar.suit ??
-                                GameCardAvatarPalette.fromSeed(
-                                  _authService.currentUser?.uid ?? 'menu_guest',
-                                  salt: 5,
-                                ).suit,
-                          ),
+                  ],
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => Scaffold.of(context).openEndDrawer(),
+                      child: Tooltip(
+                        message: 'Menu joueur',
+                        child: GameCardAvatar.fromSelection(
+                          size: 52,
+                          rank: profile?.selectedCardAvatar.rank ?? fallbackAvatar.rank,
+                          suit: profile?.selectedCardAvatar.suit ?? fallbackAvatar.suit,
                         ),
                       ),
                     ),
-                  ],
-                );
-              },
-            );
-          },
-        ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
       ),
+    );
+
+    if (!widget.wrapInAlign) {
+      return button;
+    }
+
+    return Align(
+      alignment: widget.alignment,
+      child: button,
+    );
+  }
+}
+
+class _LiveCreditBadge extends StatelessWidget {
+  const _LiveCreditBadge({required this.uid, this.fallbackCredits});
+
+  final String uid;
+  final int? fallbackCredits;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(uid)
+          .snapshots(),
+      builder: (
+        BuildContext context,
+        AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
+      ) {
+        final Map<String, dynamic>? data = snapshot.data?.data();
+        final int? liveCredits = (data?['credits'] as num?)?.toInt();
+        final String creditsLabel = snapshot.connectionState == ConnectionState.waiting &&
+                fallbackCredits == null
+            ? '...'
+            : '${liveCredits ?? fallbackCredits ?? 0}';
+        return _CreditBadge(value: creditsLabel);
+      },
     );
   }
 }
