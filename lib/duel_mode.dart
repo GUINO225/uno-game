@@ -2920,21 +2920,27 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+            side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+          ),
+          shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
           title: const Text(
             'Crédit insuffisant',
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w300),
+            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
           ),
           content: const Text(
             'Votre solde est insuffisant pour accéder au mode Pari. Veuillez contacter le service client ou l’administrateur afin de recharger votre compte.',
-            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w300),
+            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
           ),
           actions: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF13C76B),
-                foregroundColor: Colors.white,
+                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                foregroundColor: GinoPopupStyle.textWhite,
+                shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
               ),
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Retour à l’accueil'),
@@ -5402,21 +5408,27 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+            side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+          ),
+          shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
           title: const Text(
             'Solde épuisé',
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w300),
+            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
           ),
           content: const Text(
             'Votre crédit est épuisé. Vous ne pouvez plus continuer en mode Pari. Veuillez contacter le service client ou l’administrateur pour recharger votre compte.',
-            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w300),
+            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
           ),
           actions: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF13C76B),
-                foregroundColor: Colors.white,
+                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                foregroundColor: GinoPopupStyle.textWhite,
+                shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
               ),
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Retour à l’accueil'),
@@ -5433,21 +5445,27 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+            side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+          ),
+          shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
           title: const Text(
             'Partie terminée',
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.w300),
+            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
           ),
           content: const Text(
             'Votre adversaire n’a plus de crédit disponible. La partie est terminée.',
-            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w300),
+            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
           ),
           actions: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF13C76B),
-                foregroundColor: Colors.white,
+                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                foregroundColor: GinoPopupStyle.textWhite,
+                shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
               ),
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Retour'),
@@ -6285,9 +6303,29 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
         top: false,
         child: Container(
           constraints: const BoxConstraints(maxHeight: 470),
-          decoration: const BoxDecoration(
-            color: Color(0xFF0D3C31),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                GinoPopupStyle.premiumDeepGreen.withOpacity(0.98),
+                const Color(0xFF0D3C31).withOpacity(0.96),
+                GinoPopupStyle.popupGreen.withOpacity(0.98),
+              ],
+            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            border: Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.36)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withOpacity(0.36),
+                blurRadius: 30,
+                offset: const Offset(0, -10),
+              ),
+              BoxShadow(
+                color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.10),
+                blurRadius: 24,
+              ),
+            ],
           ),
           child: Column(
             children: <Widget>[

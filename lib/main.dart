@@ -613,23 +613,42 @@ class StartupAdPopup extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: GinoPopupStyle.popupGreen,
-                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[
+                    GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+                    GinoPopupStyle.popupGreen.withOpacity(0.92),
+                    const Color(0xFF001D13).withOpacity(0.97),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: GinoPopupStyle.borderGreen,
+                  color: GinoPopupStyle.casinoGold.withOpacity(0.72),
                   width: 1,
                 ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.42),
+                    blurRadius: 30,
+                    offset: const Offset(0, 18),
+                  ),
+                  BoxShadow(
+                    color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.16),
+                    blurRadius: 26,
+                  ),
+                ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(17),
                 child: Image.asset(
                   _adAssetPath,
                   fit: BoxFit.contain,
                 ),
               ),
             ),
-            ),
-            Positioned(
+          ),
+          Positioned(
             top: -10,
             right: -10,
             child: Material(
@@ -640,9 +659,23 @@ class StartupAdPopup extends StatelessWidget {
                 child: Ink(
                   width: 38,
                   height: 38,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF12C76A),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        GinoPopupStyle.casinoGold,
+                        GinoPopupStyle.accentGreen,
+                      ],
+                    ),
                     shape: BoxShape.circle,
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.32),
+                        blurRadius: 14,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.close,
@@ -1193,21 +1226,27 @@ class _GameModePageState extends State<GameModePage>
           barrierDismissible: false,
           builder: (BuildContext dialogContext) {
             return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+                side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+              ),
+              shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
               title: const Text(
                 'Crédit insuffisant',
-                style: TextStyle(color: Colors.black, fontWeight: FontWeight.w300),
+                style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
               ),
               content: const Text(
                 'Votre solde est insuffisant pour accéder au mode Pari. Veuillez contacter le service client ou l’administrateur afin de recharger votre compte.',
-                style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w300),
+                style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
               ),
               actions: <Widget>[
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF13C76B),
-                    foregroundColor: Colors.white,
+                    backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                    foregroundColor: GinoPopupStyle.textWhite,
+                    shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
                   ),
                   onPressed: () => Navigator.of(dialogContext).pop(),
                   child: const Text('Retour à l’accueil'),
@@ -3741,6 +3780,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           backgroundColor: Colors.transparent,
           child: GinoPopupFrame(
             titleTag: humanWon ? 'Vous avez gagné' : 'Vous avez perdu',
+            isPremium: true,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -3838,6 +3878,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       child: GinoPopupButton(
                         label: 'Quitter',
                         isPrimary: false,
+                        isPremium: true,
                         onPressed: () => _closeRoundPopupAndExit(context),
                       ),
                     ),
@@ -3845,6 +3886,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                     Expanded(
                       child: GinoPopupButton(
                         label: 'Rematch',
+                        isPremium: true,
                         onPressed: () => _closeRoundPopupAndStartRematch(context),
                       ),
                     ),

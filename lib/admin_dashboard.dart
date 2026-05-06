@@ -57,6 +57,7 @@ class _LoginAdminPageState extends State<LoginAdminPage> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: GinoPopupFrame(
                 titleTag: 'Admin',
+                isPremium: true,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
@@ -91,11 +92,12 @@ class _LoginAdminPageState extends State<LoginAdminPage> {
                             label: 'Retour',
                             onPressed: () => Navigator.of(context).pop(),
                             isPrimary: false,
+                            isPremium: true,
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: GinoPopupButton(label: 'Connexion', onPressed: _submit),
+                          child: GinoPopupButton(label: 'Connexion', onPressed: _submit, isPremium: true),
                         ),
                       ],
                     ),
@@ -152,6 +154,7 @@ class AdminDashboardPage extends StatelessWidget {
           backgroundColor: Colors.transparent,
           child: GinoPopupFrame(
             titleTag: add ? '+ Crédit' : '- Crédit',
+            isPremium: true,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -186,6 +189,7 @@ class AdminDashboardPage extends StatelessWidget {
                       child: GinoPopupButton(
                         label: 'Annuler',
                         isPrimary: false,
+                        isPremium: true,
                         onPressed: () => Navigator.of(dialogContext).pop(),
                       ),
                     ),
@@ -193,6 +197,7 @@ class AdminDashboardPage extends StatelessWidget {
                     Expanded(
                       child: GinoPopupButton(
                         label: 'Valider',
+                        isPremium: true,
                         onPressed: () {
                           final int? parsed = int.tryParse(amountInput.trim());
                           if (parsed == null || parsed <= 0) {
