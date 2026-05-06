@@ -193,9 +193,11 @@ class GlobalMusicToggleButton extends StatelessWidget {
   const GlobalMusicToggleButton({
     super.key,
     this.margin = const EdgeInsets.only(right: 12, bottom: 12),
+    this.premiumSurface = false,
   });
 
   final EdgeInsets margin;
+  final bool premiumSurface;
 
   @override
   Widget build(BuildContext context) {
@@ -206,20 +208,50 @@ class GlobalMusicToggleButton extends StatelessWidget {
         final bool enabled = audio.isBackgroundMusicEnabled;
         return Padding(
           padding: margin,
-          child: Material(
-            color: Colors.black.withOpacity(0.28),
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              onTap: () async {
-                await audio.toggleBackgroundMusicFromUserGesture();
-              },
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: premiumSurface ? BoxShape.circle : BoxShape.rectangle,
+              borderRadius: premiumSurface ? null : BorderRadius.circular(16),
+              color: premiumSurface
+                  ? const Color(0xFF031C12).withOpacity(0.76)
+                  : Colors.black.withOpacity(0.28),
+              border: premiumSurface
+                  ? Border.all(
+                      color: const Color(0xFF72FF9E).withOpacity(0.42),
+                      width: 1,
+                    )
+                  : null,
+              boxShadow: premiumSurface
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFF4CFF84).withOpacity(0.14),
+                        blurRadius: 16,
+                        spreadRadius: 1,
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.24),
+                        blurRadius: 12,
+                        offset: const Offset(0, 7),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Material(
+              color: Colors.transparent,
               borderRadius: BorderRadius.circular(16),
-              child: Padding(
-                padding: const EdgeInsets.all(7),
-                child: Icon(
-                  enabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-                  size: 19,
-                  color: Colors.white.withOpacity(enabled ? 0.95 : 0.72),
+              child: InkWell(
+                onTap: () async {
+                  await audio.toggleBackgroundMusicFromUserGesture();
+                },
+                customBorder: premiumSurface ? const CircleBorder() : null,
+                borderRadius: premiumSurface ? null : BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: Icon(
+                    enabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                    size: 19,
+                    color: Colors.white.withOpacity(enabled ? 0.95 : 0.72),
+                  ),
                 ),
               ),
             ),

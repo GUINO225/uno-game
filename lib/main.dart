@@ -438,15 +438,20 @@ class IntroLandingPage extends StatefulWidget {
 }
 
 class _IntroLandingPageState extends State<IntroLandingPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
   bool _hasShownStartupAd = false;
   bool _hasAskedStartupLogin = false;
+  late final AnimationController _ambientController;
 
   @override
   void initState() {
     super.initState();
+    _ambientController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4600),
+    )..repeat(reverse: true);
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_showStartupDialogs());
@@ -504,6 +509,7 @@ class _IntroLandingPageState extends State<IntroLandingPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _ambientController.dispose();
     super.dispose();
   }
 
@@ -517,7 +523,7 @@ class _IntroLandingPageState extends State<IntroLandingPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: GameModePalette.background,
+      backgroundColor: const Color(0xFF022817),
       endDrawer: PlayerSidePanel(
         onOpenLeaderboard: () {
           Navigator.of(context).pop();
@@ -530,16 +536,17 @@ class _IntroLandingPageState extends State<IntroLandingPage>
       ),
       body: Stack(
         children: <Widget>[
-          const BackgroundDecoration(),
+          PremiumHomeBackgroundDecoration(animation: _ambientController),
           const SafeArea(
             child: Align(
               alignment: Alignment.bottomRight,
-              child: GlobalMusicToggleButton(),
+              child: GlobalMusicToggleButton(premiumSurface: true),
             ),
           ),
           SafeArea(
             child: Builder(
-              builder: (BuildContext context) => const PlayerSidePanelButton(),
+              builder: (BuildContext context) =>
+                  const PlayerSidePanelButton(premiumSurface: true),
             ),
           ),
           SafeArea(
@@ -551,9 +558,12 @@ class _IntroLandingPageState extends State<IntroLandingPage>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: <Widget>[
-                      const FittedBox(
+                      FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: AppLogo(size: 280),
+                        child: PremiumHomeLogoGlow(
+                          animation: _ambientController,
+                          child: const AppLogo(size: 280),
+                        ),
                       ),
                       const SizedBox(height: 34),
                       const SizedBox(height: 16),
@@ -1304,6 +1314,216 @@ class _SpecialBonusOptionCard extends StatelessWidget {
   }
 }
 
+
+class PremiumHomeLogoGlow extends StatelessWidget {
+  const PremiumHomeLogoGlow({
+    super.key,
+    required this.animation,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (BuildContext context, Widget? child) {
+        final double glow = 0.56 + (animation.value * 0.24);
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: const Color(0xFF58FF91).withOpacity(0.20 * glow),
+                blurRadius: 72 + (animation.value * 18),
+                spreadRadius: 8 + (animation.value * 6),
+              ),
+              BoxShadow(
+                color: const Color(0xFFE4B853).withOpacity(0.08 * glow),
+                blurRadius: 38,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class PremiumHomeBackgroundDecoration extends StatelessWidget {
+  const PremiumHomeBackgroundDecoration({
+    super.key,
+    required this.animation,
+  });
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                Color(0xFF031E13),
+                Color(0xFF064427),
+                Color(0xFF02160E),
+              ],
+              stops: <double>[0, 0.48, 1],
+            ),
+          ),
+          child: Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(0, -0.18),
+                      radius: 0.86,
+                      colors: <Color>[
+                        const Color(0xFF0DBB61).withOpacity(0.24),
+                        Colors.transparent,
+                      ],
+                      stops: const <double>[0, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: animation,
+                  builder: (BuildContext context, _) {
+                    return CustomPaint(
+                      painter: _PremiumHomeParticlePainter(animation.value),
+                    );
+                  },
+                ),
+              ),
+              Positioned(
+                top: -120,
+                left: -70,
+                child: Transform.rotate(
+                  angle: -0.48,
+                  child: _premiumDecorCard(260, 400, 0.075),
+                ),
+              ),
+              Positioned(
+                right: -110,
+                bottom: -130,
+                child: Transform.rotate(
+                  angle: -0.33,
+                  child: _premiumDecorCard(290, 410, 0.065),
+                ),
+              ),
+              Positioned(
+                top: 118,
+                right: -52,
+                child: Transform.rotate(
+                  angle: 0.18,
+                  child: _premiumDecorCard(150, 224, 0.045),
+                ),
+              ),
+              Positioned(
+                top: 70,
+                left: -34,
+                child: Text(
+                  '♠',
+                  style: TextStyle(
+                    fontSize: 156,
+                    color: Colors.white.withOpacity(0.045),
+                    height: 1,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 18,
+                bottom: 42,
+                child: Text(
+                  '♣',
+                  style: TextStyle(
+                    fontSize: 136,
+                    color: const Color(0xFF9CFFB7).withOpacity(0.045),
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _premiumDecorCard(double width, double height, double opacity) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        color: Colors.white.withOpacity(opacity * 0.35),
+        border: Border.all(
+          color: const Color(0xFF9EFFBA).withOpacity(opacity),
+          width: 1.2,
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.14),
+            blurRadius: 34,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumHomeParticlePainter extends CustomPainter {
+  const _PremiumHomeParticlePainter(this.phase);
+
+  final double phase;
+
+  static const List<Offset> _positions = <Offset>[
+    Offset(0.16, 0.18),
+    Offset(0.78, 0.16),
+    Offset(0.62, 0.32),
+    Offset(0.24, 0.58),
+    Offset(0.84, 0.64),
+    Offset(0.42, 0.78),
+    Offset(0.12, 0.86),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (int i = 0; i < _positions.length; i++) {
+      final Offset base = _positions[i];
+      final double drift = sin((phase * pi * 2) + i) * 7;
+      final Offset center = Offset(
+        (base.dx * size.width) + drift,
+        (base.dy * size.height) - (phase * 9) + (i.isEven ? 4 : -4),
+      );
+      final double sparkle =
+          0.38 + (sin((phase * pi * 2) + (i * 0.9)) * 0.18);
+      final Paint paint = Paint()
+        ..color = (i.isEven ? const Color(0xFFE8C45A) : const Color(0xFF72FF9E))
+            .withOpacity(0.10 + (sparkle * 0.08));
+      canvas.drawCircle(center, 1.4 + (i % 3 * 0.45), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PremiumHomeParticlePainter oldDelegate) {
+    return oldDelegate.phase != phase;
+  }
+}
+
 class BackgroundDecoration extends StatelessWidget {
   const BackgroundDecoration({super.key});
 
@@ -1851,8 +2071,25 @@ class _IntroPlayButton extends StatefulWidget {
   State<_IntroPlayButton> createState() => _IntroPlayButtonState();
 }
 
-class _IntroPlayButtonState extends State<_IntroPlayButton> {
+class _IntroPlayButtonState extends State<_IntroPlayButton>
+    with SingleTickerProviderStateMixin {
   bool _isPressed = false;
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1861,30 +2098,57 @@ class _IntroPlayButtonState extends State<_IntroPlayButton> {
       onTapUp: (_) => setState(() => _isPressed = false),
       onTapCancel: () => setState(() => _isPressed = false),
       onTap: widget.onTap,
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        scale: _isPressed ? 0.97 : 1,
+      child: AnimatedBuilder(
+        animation: _pulseController,
+        builder: (BuildContext context, Widget? child) {
+          final double pulse = 1 + (_pulseController.value * 0.018);
+          return AnimatedScale(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            scale: _isPressed ? 0.97 : pulse,
+            child: child,
+          );
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 54, vertical: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 58, vertical: 16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[Color(0xFF96F8A6), Color(0xFF5DD978)],
+            borderRadius: BorderRadius.circular(32),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                const Color(0xFFE7FFE7).withOpacity(0.52),
+                const Color(0xFF80FFA0).withOpacity(0.34),
+                const Color(0xFF31DC66).withOpacity(0.90),
+              ],
+              stops: const <double>[0, 0.34, 1],
+            ),
+            border: Border.all(
+              color: const Color(0xFF8BFFAA).withOpacity(0.92),
+              width: 1.4,
             ),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: const Color(0xFF8BFFAA).withOpacity(0.28),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                color: const Color(0xFF62FF8E).withOpacity(0.30),
+                blurRadius: 28,
+                spreadRadius: 1,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.20),
+                blurRadius: 22,
+                offset: const Offset(0, 14),
+              ),
+              BoxShadow(
+                color: Colors.white.withOpacity(0.16),
+                blurRadius: 6,
+                offset: const Offset(-2, -2),
               ),
             ],
           ),
-              child: Text(
+          child: Text(
             'Jouer',
             style: GoogleFonts.poppins(
               color: GameModePalette.backgroundShade,
