@@ -439,19 +439,73 @@ class IntroLandingPage extends StatefulWidget {
 
 class _IntroLandingPageState extends State<IntroLandingPage>
     with WidgetsBindingObserver {
+  final AuthService _authService = AuthService.instance;
+  final UserProfileService _profileService = UserProfileService.instance;
   bool _hasShownStartupAd = false;
+  bool _hasAskedStartupLogin = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _hasShownStartupAd) {
+      unawaited(_showStartupDialogs());
+    });
+  }
+
+  Future<void> _showStartupDialogs() async {
+    if (!mounted) {
+      return;
+    }
+    if (!_hasShownStartupAd) {
+      _hasShownStartupAd = true;
+      await showStartupAdPopup(context);
+    }
+    if (!mounted || _hasAskedStartupLogin || _authService.currentUser != null) {
+      return;
+    }
+    _hasAskedStartupLogin = true;
+    final bool shouldLogin = await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          builder: (BuildContext context) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: GinoDecisionPopup(
+                title: 'Connexion',
+                message: 'Connecte-toi avec Google pour sauvegarder ton profil et tes crédits.',
+                primaryLabel: 'Google',
+                secondaryLabel: 'Sans connexion',
+                onPrimary: () => Navigator.of(context).pop(true),
+                onSecondary: () => Navigator.of(context).pop(false),
+              ),
+            );
+          },
+        ) ??
+        false;
+    if (!mounted || !shouldLogin) {
+      return;
+    }
+    final GoogleAuthResult result = await _authService.signInWithGoogle();
+    if (!mounted) {
+      return;
+    }
+    if (!result.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.errorMessage ?? 'Connexion Google impossible.')),
+      );
+      return;
+    }
+    try {
+      await _profileService.createOrUpdateFromGoogleUser(result.user!);
+    } catch (e) {
+      if (!mounted) {
         return;
       }
-      _hasShownStartupAd = true;
-      showStartupAdPopup(context);
-    });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Connexion réussie, profil indisponible: $e')),
+      );
+    }
   }
 
   @override
@@ -471,6 +525,16 @@ class _IntroLandingPageState extends State<IntroLandingPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: GameModePalette.background,
+      endDrawer: PlayerSidePanel(
+        onOpenLeaderboard: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+        },
+        onOpenHistory: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pushNamed(GameModeRoutes.history);
+        },
+      ),
       body: Stack(
         children: <Widget>[
           const BackgroundDecoration(),
@@ -478,6 +542,11 @@ class _IntroLandingPageState extends State<IntroLandingPage>
             child: Align(
               alignment: Alignment.bottomRight,
               child: GlobalMusicToggleButton(),
+            ),
+          ),
+          SafeArea(
+            child: Builder(
+              builder: (BuildContext context) => const PlayerSidePanelButton(),
             ),
           ),
           SafeArea(
@@ -587,8 +656,8 @@ class StartupAdPopup extends StatelessWidget {
   }
 }
 
-void showStartupAdPopup(BuildContext context) {
-  showDialog<void>(
+Future<void> showStartupAdPopup(BuildContext context) {
+  return showDialog<void>(
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.black54,
@@ -732,8 +801,18 @@ class _GameModePageState extends State<GameModePage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: GameModePalette.background,
+      endDrawer: PlayerSidePanel(
+        onOpenLeaderboard: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+        },
+        onOpenHistory: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pushNamed(GameModeRoutes.history);
+        },
+      ),
       body: Stack(
-                children: <Widget>[
+        children: <Widget>[
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -3448,6 +3527,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     return Scaffold(
       backgroundColor: GameModePalette.background,
+      endDrawer: PlayerSidePanel(
+        onOpenLeaderboard: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+        },
+        onOpenHistory: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pushNamed(GameModeRoutes.history);
+        },
+      ),
       body: Stack(
         children: <Widget>[
           TableBackground(
@@ -3545,6 +3634,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           tooltip: 'Nouvelle manche',
           icon: const Icon(Icons.refresh_rounded, color: Colors.white),
         ),
+        const SizedBox(width: 6),
+        const PlayerSidePanelButton(
+          padding: EdgeInsets.zero,
+          wrapInAlign: false,
+          showCredits: false,
+        ),
       ],
     );
   }
@@ -3636,6 +3731,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             child: SizedBox(
               width: wrapWidth,
               child: Wrap(
+                alignment: WrapAlignment.center,
+                runAlignment: WrapAlignment.center,
                 spacing: 6,
                 runSpacing: 6,
                 children: List<Widget>.generate(_humanHand.length, (int index) {
