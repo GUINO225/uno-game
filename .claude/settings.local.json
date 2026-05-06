@@ -8,7 +8,10 @@
       "Bash(git add *)",
       "Bash(git stash *)",
       "Bash(git pull *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh pr *)",
+      "Bash(where gh *)"
     ]
   }
 }
