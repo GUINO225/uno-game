@@ -1329,7 +1329,7 @@ class GinoOpponentCommandPopup extends StatelessWidget {
   }
 }
 
-class GinoChooseSuitPopup extends StatelessWidget {
+class GinoChooseSuitPopup extends StatefulWidget {
   const GinoChooseSuitPopup({
     super.key,
     required this.onSuitSelected,
@@ -1340,71 +1340,396 @@ class GinoChooseSuitPopup extends StatelessWidget {
   final List<String> suits;
 
   @override
-  Widget build(BuildContext context) {
-    final List<String> resolvedSuits = suits.length >= 4
-        ? suits.take(4).toList(growable: false)
+  State<GinoChooseSuitPopup> createState() => _GinoChooseSuitPopupState();
+}
+
+class _GinoChooseSuitPopupState extends State<GinoChooseSuitPopup> {
+  late String _selectedSuit;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedSuit = _resolvedSuits.first;
+  }
+
+  List<String> get _resolvedSuits {
+    return widget.suits.length >= 4
+        ? widget.suits.take(4).map(_normalizeSuitSymbol).toList(growable: false)
         : const <String>['♥', '♠', '♣', '♦'];
-    return GinoPopupFrame(
-      width: math.min(MediaQuery.of(context).size.width * 0.74, 308),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-      showTitleTag: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _CenteredRichText(
-            fontSize: 16,
-            spans: <TextSpan>[
-              TextSpan(
-                text: 'Choisissez ',
-                style: GinoPopupStyle.baseText(
-                  fontSize: 16,
-                  fontWeight: GinoPopupStyle.titleWeight,
+  }
+
+  void _closeDialog() {
+    Navigator.of(context).maybePop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.of(context).size;
+    final double popupWidth = math.min(screenSize.width - 32, 520.0);
+    final List<String> resolvedSuits = _resolvedSuits;
+
+    if (!resolvedSuits.contains(_selectedSuit)) {
+      _selectedSuit = resolvedSuits.first;
+    }
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: popupWidth),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+              child: Container(
+                width: popupWidth,
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                decoration: BoxDecoration(
+                  color: const Color(0xE6082418),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: GinoPopupStyle.accentGreen.withOpacity(0.32),
+                    width: 1,
+                  ),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: GinoPopupStyle.accentGreen.withOpacity(0.16),
+                      blurRadius: 28,
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.42),
+                      blurRadius: 32,
+                      offset: const Offset(0, 18),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Stack(
+                      alignment: Alignment.topCenter,
+                      children: <Widget>[
+                        Align(
+                          alignment: Alignment.topRight,
+                          child: InkWell(
+                            onTap: _closeDialog,
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.06),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: GinoPopupStyle.accentGreen
+                                      .withOpacity(0.28),
+                                ),
+                              ),
+                              child: Text(
+                                '×',
+                                style: GinoPopupStyle.baseText(
+                                  fontSize: 16,
+                                  fontWeight: GinoPopupStyle.titleWeight,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Container(
+                              width: 44,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: <Color>[
+                                    GinoPopupStyle.accentGreen
+                                        .withOpacity(0.96),
+                                    GinoPopupStyle.screenGreen
+                                        .withOpacity(0.84),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.18),
+                                ),
+                                boxShadow: <BoxShadow>[
+                                  BoxShadow(
+                                    color: GinoPopupStyle.accentGreen
+                                        .withOpacity(0.34),
+                                    blurRadius: 18,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                '8',
+                                style: GinoPopupStyle.baseText(
+                                  fontSize: 16,
+                                  fontWeight: GinoPopupStyle.titleWeight,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Jouer la carte 8',
+                              textAlign: TextAlign.center,
+                              style: GinoPopupStyle.baseText(
+                                fontSize: 16,
+                                fontWeight: GinoPopupStyle.titleWeight,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Choisissez la couleur (sorte) de votre carte 8',
+                      textAlign: TextAlign.center,
+                      style: GinoPopupStyle.baseText(
+                        fontSize: 16,
+                        fontWeight: GinoPopupStyle.textWeight,
+                        color: GinoPopupStyle.textWhite.withOpacity(0.86),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      runAlignment: WrapAlignment.center,
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: <Widget>[
+                        for (final String suit in resolvedSuits)
+                          _GinoSuitChoiceTile(
+                            suit: suit,
+                            selected: suit == _selectedSuit,
+                            onTap: () => setState(() => _selectedSuit = suit),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: GinoPopupStyle.baseText(
+                          fontSize: 16,
+                          fontWeight: GinoPopupStyle.textWeight,
+                          color: GinoPopupStyle.textWhite.withOpacity(0.86),
+                        ),
+                        children: <TextSpan>[
+                          const TextSpan(text: 'Vous jouerez : 8 '),
+                          TextSpan(
+                            text: _suitNameForChoice(_selectedSuit),
+                            style: GinoPopupStyle.baseText(
+                              fontSize: 16,
+                              fontWeight: GinoPopupStyle.textWeight,
+                              color: GinoPopupStyle.accentGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _GinoSuitDialogButton(
+                            label: 'Annuler',
+                            isPrimary: false,
+                            onTap: _closeDialog,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _GinoSuitDialogButton(
+                            label: 'Jouer la carte',
+                            onTap: () => widget.onSuitSelected(_selectedSuit),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              TextSpan(
-                text: 'une couleur',
-                style: GinoPopupStyle.baseText(fontSize: 16, fontWeight: GinoPopupStyle.textWeight),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 52 / 74,
-            children: <Widget>[
-              GinoSuitCard(
-                suit: resolvedSuits[0],
-                width: 52,
-                height: 74,
-                onTap: () => onSuitSelected(resolvedSuits[0]),
-              ),
-              GinoSuitCard(
-                suit: resolvedSuits[1],
-                width: 52,
-                height: 74,
-                onTap: () => onSuitSelected(resolvedSuits[1]),
-              ),
-              GinoSuitCard(
-                suit: resolvedSuits[2],
-                width: 52,
-                height: 74,
-                onTap: () => onSuitSelected(resolvedSuits[2]),
-              ),
-              GinoSuitCard(
-                suit: resolvedSuits[3],
-                width: 52,
-                height: 74,
-                onTap: () => onSuitSelected(resolvedSuits[3]),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
+  }
+}
+
+class _GinoSuitChoiceTile extends StatelessWidget {
+  const _GinoSuitChoiceTile({
+    required this.suit,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String suit;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accentColor = _choiceSuitColor(suit);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        width: 108,
+        height: 124,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? GinoPopupStyle.screenGreen.withOpacity(0.82)
+              : GinoPopupStyle.popupGreen.withOpacity(0.62),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? GinoPopupStyle.accentGreen
+                : accentColor.withOpacity(0.34),
+            width: selected ? 1.4 : 1,
+          ),
+          boxShadow: <BoxShadow>[
+            if (selected)
+              BoxShadow(
+                color: GinoPopupStyle.accentGreen.withOpacity(0.28),
+                blurRadius: 18,
+                spreadRadius: 1,
+              ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.20),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Text(
+              suit,
+              style: GinoPopupStyle.baseText(
+                color: accentColor,
+                fontSize: 42,
+                fontWeight: GinoPopupStyle.titleWeight,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _suitNameForChoice(suit),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GinoPopupStyle.baseText(
+                fontSize: 16,
+                fontWeight: GinoPopupStyle.textWeight,
+                color: GinoPopupStyle.textWhite.withOpacity(0.92),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GinoSuitDialogButton extends StatelessWidget {
+  const _GinoSuitDialogButton({
+    required this.label,
+    required this.onTap,
+    this.isPrimary = true,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool isPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius),
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: isPrimary
+                ? GinoPopupStyle.accentGreen.withOpacity(0.86)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius),
+            border: Border.all(
+              color: GinoPopupStyle.accentGreen
+                  .withOpacity(isPrimary ? 0.88 : 0.72),
+              width: 1,
+            ),
+            boxShadow: isPrimary
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: GinoPopupStyle.accentGreen.withOpacity(0.28),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : null,
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: GinoPopupStyle.baseText(
+                fontSize: 15,
+                fontWeight: GinoPopupStyle.buttonWeight,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _suitNameForChoice(String suit) {
+  switch (_normalizeSuitSymbol(suit)) {
+    case '♥':
+      return 'cœur';
+    case '♠':
+      return 'pique';
+    case '♣':
+      return 'trèfle';
+    case '♦':
+      return 'carreau';
+    default:
+      return suit;
+  }
+}
+
+Color _choiceSuitColor(String suit) {
+  switch (_normalizeSuitSymbol(suit)) {
+    case '♥':
+    case '♦':
+      return const Color(0xFFFF5B55);
+    case '♣':
+      return const Color(0xFF75F0A2);
+    case '♠':
+      return const Color(0xFFE4ECE7);
+    default:
+      return GinoPopupStyle.textWhite;
   }
 }
 
