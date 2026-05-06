@@ -1329,12 +1329,14 @@ class PlayerSidePanelButton extends StatefulWidget {
     this.padding = const EdgeInsets.only(top: 6, right: 10),
     this.wrapInAlign = true,
     this.showCredits = true,
+    this.premiumSurface = false,
   });
 
   final AlignmentGeometry alignment;
   final EdgeInsetsGeometry padding;
   final bool wrapInAlign;
   final bool showCredits;
+  final bool premiumSurface;
 
   @override
   State<PlayerSidePanelButton> createState() => _PlayerSidePanelButtonState();
@@ -1365,7 +1367,8 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
             future: _loadProfile(),
             builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
               final PlayerProfile? profile = snapshot.data;
-              final GameCardAvatarData fallbackAvatar = GameCardAvatarPalette.fromSeed(
+              final GameCardAvatarData fallbackAvatar =
+                  GameCardAvatarPalette.fromSeed(
                 user?.uid ?? 'menu_guest',
                 salt: 5,
               );
@@ -1376,20 +1379,50 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                     _LiveCreditBadge(
                       uid: user.uid,
                       fallbackCredits: profile?.credits,
+                      premiumSurface: widget.premiumSurface,
                     ),
                     const SizedBox(width: 6),
                   ],
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
+                  DecoratedBox(
+                    decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      onTap: () => Scaffold.of(context).openEndDrawer(),
-                      child: Tooltip(
-                        message: 'Menu joueur',
-                        child: GameCardAvatar.fromSelection(
-                          size: 52,
-                          rank: profile?.selectedCardAvatar.rank ?? fallbackAvatar.rank,
-                          suit: profile?.selectedCardAvatar.suit ?? fallbackAvatar.suit,
+                      border: widget.premiumSurface
+                          ? Border.all(
+                              color: const Color(0xFFE4B853)
+                                  .withOpacity(0.36),
+                              width: 1,
+                            )
+                          : null,
+                      boxShadow: widget.premiumSurface
+                          ? <BoxShadow>[
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.26),
+                                blurRadius: 18,
+                                offset: const Offset(0, 9),
+                              ),
+                              BoxShadow(
+                                color: const Color(0xFF7CFF9B)
+                                    .withOpacity(0.10),
+                                blurRadius: 14,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => Scaffold.of(context).openEndDrawer(),
+                        child: Tooltip(
+                          message: 'Menu joueur',
+                          child: GameCardAvatar.fromSelection(
+                            size: 52,
+                            rank: profile?.selectedCardAvatar.rank ??
+                                fallbackAvatar.rank,
+                            suit: profile?.selectedCardAvatar.suit ??
+                                fallbackAvatar.suit,
+                          ),
                         ),
                       ),
                     ),
@@ -1414,10 +1447,15 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
 }
 
 class _LiveCreditBadge extends StatelessWidget {
-  const _LiveCreditBadge({required this.uid, this.fallbackCredits});
+  const _LiveCreditBadge({
+    required this.uid,
+    this.fallbackCredits,
+    this.premiumSurface = false,
+  });
 
   final String uid;
   final int? fallbackCredits;
+  final bool premiumSurface;
 
   @override
   Widget build(BuildContext context) {
@@ -1436,24 +1474,48 @@ class _LiveCreditBadge extends StatelessWidget {
                 fallbackCredits == null
             ? '...'
             : '${liveCredits ?? fallbackCredits ?? 0}';
-        return _CreditBadge(value: creditsLabel);
+        return _CreditBadge(
+          value: creditsLabel,
+          premiumSurface: premiumSurface,
+        );
       },
     );
   }
 }
 
 class _CreditBadge extends StatelessWidget {
-  const _CreditBadge({required this.value});
+  const _CreditBadge({required this.value, this.premiumSurface = false});
 
   final String value;
+  final bool premiumSurface;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
+        color: premiumSurface
+            ? const Color(0xFF031C12).withOpacity(0.70)
+            : Colors.black.withOpacity(0.3),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.28)),
+        border: Border.all(
+          color: premiumSurface
+              ? const Color(0xFFE4B853).withOpacity(0.42)
+              : Colors.white.withOpacity(0.28),
+          width: 1,
+        ),
+        boxShadow: premiumSurface
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.20),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF6BFF94).withOpacity(0.09),
+                  blurRadius: 14,
+                ),
+              ]
+            : null,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
