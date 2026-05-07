@@ -12,7 +12,6 @@ import 'package:flutter/services.dart';
 import 'app_logo.dart';
 import 'app_sfx_service.dart';
 import 'auth_service.dart';
-import 'credit_coins_icon.dart';
 import 'firebase_config.dart';
 import 'game_history_page.dart';
 import 'leaderboard_page.dart';
@@ -5783,6 +5782,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           child: Scaffold(
             backgroundColor: PremiumColors.tableGreenDark,
             endDrawer: PlayerSidePanel(
+              contextualGamePanel: _DuelSidePanelGameInfo(
+                modeLabel: _isCreditsMode ? 'Paris' : 'Duel',
+                playerName: localName,
+                opponentName: opponentName,
+                playerScore: myScore,
+                opponentScore: opponentScore,
+                playerCredits: myCredits,
+                activeStakeCredits: _isCreditsMode ? session.activeStakeCredits : null,
+                playerStakeCredits: _isCreditsMode ? session.stakeOffer.amount : null,
+              ),
               onOpenLeaderboard: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
@@ -5862,65 +5871,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                           ),
                         ],
                       ),
-                      if (_isCreditsMode) ...<Widget>[
-                        const SizedBox(height: 2),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: DecoratedBox(
-                            decoration: PremiumGameDecorations.goldPill(active: true),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  const CreditCoinsIcon(size: 16),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '$myCredits',
-                                    style: const TextStyle(
-                                      color: Color(0xFFFFE8A0),
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
                       SizedBox(height: isCompactDuelLayout ? 1 : 2),
-                      _DuelStatusBanner(
-                        opponentName: opponentName,
-                        myScore: myScore,
-                        opponentScore: opponentScore,
+                      _DuelRoundBanner(
                         round: session.round,
                         compact: isCompactDuelLayout,
                       ),
-                      if (_isCreditsMode) ...<Widget>[
-                        const SizedBox(height: 6),
-                        _CreditsStakeBanner(
-                          activeStakeCredits: session.activeStakeCredits,
-                          playerStakeCredits: session.stakeOffer.amount,
-                          stakeText: _requiresStake(session)
-                              ? switch (stakeOffer.status) {
-                                  DuelStakeStatus.pending =>
-                                    'Proposition en attente : ${stakeOffer.amount}',
-                                  DuelStakeStatus.declined =>
-                                    'Proposition refusée. Faites un nouveau pari.',
-                                  DuelStakeStatus.insufficientFunds =>
-                                    'Solde insuffisant détecté. Proposez une autre mise.',
-                                  DuelStakeStatus.none ||
-                                  DuelStakeStatus.accepted ||
-                                  DuelStakeStatus.resolved =>
-                                    'Pari obligatoire avant de jouer.',
-                                }
-                              : null,
-                        ),
-                      ],
-                      SizedBox(height: sectionGap),
+                      SizedBox(height: isCompactDuelLayout ? 3 : 5),
                       _OpponentRow(
                         name: opponentName,
                         count: getOpponentCardCount(session, _controller.localPlayerId),
@@ -5930,6 +5886,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         avatarCard: opponentAvatarCard,
                         compact: isCompactDuelLayout,
                         connectionStatus: _controller.opponentConnectionStatus,
+                        showStats: false,
                       ),
                       SizedBox(height: sectionGap),
                       _CenterArea(
@@ -5957,8 +5914,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         credits: null,
                         fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
                         avatarCard: localAvatarCard,
-                        cardScale: isCompactDuelLayout ? 0.9 : 0.94,
-                        minCardsViewportHeight: isCompactDuelLayout ? 210 : 190,
+                        showStats: false,
+                        cardScale: isCompactDuelLayout ? 0.98 : 1.04,
+                        minCardsViewportHeight: isCompactDuelLayout ? 250 : 235,
                       ),
                       SizedBox(height: isCompactDuelLayout ? 4 : 6),
                       _ActionMessageCard(
@@ -7199,221 +7157,263 @@ int getOpponentCardCount(DuelSession session, String currentUserId) {
   return 0;
 }
 
-class _DuelStatusBanner extends StatelessWidget {
-  const _DuelStatusBanner({
+class _DuelSidePanelGameInfo extends StatelessWidget {
+  const _DuelSidePanelGameInfo({
+    required this.modeLabel,
+    required this.playerName,
     required this.opponentName,
-    required this.myScore,
+    required this.playerScore,
     required this.opponentScore,
-    required this.round,
-    this.compact = false,
+    required this.playerCredits,
+    this.activeStakeCredits,
+    this.playerStakeCredits,
   });
 
+  final String modeLabel;
+  final String playerName;
   final String opponentName;
-  final int myScore;
+  final int playerScore;
   final int opponentScore;
-  final int round;
-  final bool compact;
+  final int playerCredits;
+  final int? activeStakeCredits;
+  final int? playerStakeCredits;
+
+  bool get _hasStakeInfo => activeStakeCredits != null || playerStakeCredits != null;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: compact ? 3 : 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF061D13).withOpacity(0.78),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE8C65D).withOpacity(0.48)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: const Color(0xFFE8C65D).withOpacity(0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Align(
-            alignment: Alignment.topCenter,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 300),
-              padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: compact ? 7 : 10),
-              decoration: PremiumGameDecorations.goldPill(active: true),
-              child: RichText(
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                text: TextSpan(
-                  children: <InlineSpan>[
-                    TextSpan(
-                      text: 'Vous  ',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w700,
-                        fontSize: compact ? 12 : 13,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    TextSpan(
-                      text: '$myScore',
+          Row(
+            children: <Widget>[
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFE8C65D).withOpacity(0.16),
+                  border: Border.all(color: const Color(0xFFE8C65D).withOpacity(0.62)),
+                ),
+                child: const Icon(
+                  Icons.query_stats_rounded,
+                  color: Color(0xFFFFE8A0),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Infos $modeLabel',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                    const TextSpan(
-                      text: '   :   ',
+                    const SizedBox(height: 1),
+                    Text(
+                      'Résumé de la partie',
                       style: TextStyle(
-                        color: Colors.white54,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    TextSpan(
-                      text: '$opponentName  ',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w700,
-                        fontSize: compact ? 12 : 13,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    TextSpan(
-                      text: '$opponentScore',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 18,
+                        color: Colors.white.withOpacity(0.64),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(top: compact ? 4 : 6),
-            child: Text(
-              'Manche $round',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: compact ? 11 : 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CreditsStakeBanner extends StatelessWidget {
-  const _CreditsStakeBanner({
-    required this.activeStakeCredits,
-    required this.playerStakeCredits,
-    this.stakeText,
-  });
-
-  final int activeStakeCredits;
-  final int playerStakeCredits;
-  final String? stakeText;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: PremiumGameDecorations.glassPanel(
-        radius: 16,
-        golden: true,
-        opacity: 0.32,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _StakeInfoChip(
-                  label: 'Mise',
-                  icon: Icons.workspace_premium_rounded,
-                  value: playerStakeCredits > 0 ? playerStakeCredits : 0,
-                  highlighted: false,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StakeInfoChip(
-                  label: 'Coffre',
-                  icon: Icons.inventory_2_rounded,
-                  value: activeStakeCredits > 0 ? activeStakeCredits : 0,
-                  highlighted: true,
-                ),
-              ),
             ],
           ),
-          if (stakeText != null) ...<Widget>[
-            const SizedBox(height: 6),
-            Text(
-              stakeText!,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.92),
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
+          const SizedBox(height: 12),
+          _DuelSideInfoTile(
+            icon: Icons.person_outline_rounded,
+            label: 'Score joueur',
+            value: '$playerScore',
+            subtitle: playerName,
+            accent: true,
+          ),
+          const SizedBox(height: 8),
+          _DuelSideInfoTile(
+            icon: Icons.shield_outlined,
+            label: 'Score adversaire',
+            value: '$opponentScore',
+            subtitle: opponentName,
+          ),
+          if (_hasStakeInfo) ...<Widget>[
+            const SizedBox(height: 8),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _DuelSideInfoTile(
+                    icon: Icons.workspace_premium_rounded,
+                    label: 'Mise',
+                    value: '${playerStakeCredits ?? 0}',
+                    compact: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _DuelSideInfoTile(
+                    icon: Icons.inventory_2_rounded,
+                    label: 'Coffre',
+                    value: '${activeStakeCredits ?? 0}',
+                    compact: true,
+                    accent: true,
+                  ),
+                ),
+              ],
             ),
           ],
+          const SizedBox(height: 8),
+          _DuelSideInfoTile(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Crédit / solde',
+            value: '$playerCredits',
+            accent: true,
+          ),
         ],
       ),
     );
   }
 }
 
-class _StakeInfoChip extends StatelessWidget {
-  const _StakeInfoChip({
-    required this.label,
+class _DuelSideInfoTile extends StatelessWidget {
+  const _DuelSideInfoTile({
     required this.icon,
+    required this.label,
     required this.value,
-    required this.highlighted,
+    this.subtitle,
+    this.accent = false,
+    this.compact = false,
   });
 
-  final String label;
   final IconData icon;
-  final int value;
-  final bool highlighted;
+  final String label;
+  final String value;
+  final String? subtitle;
+  final bool accent;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final Color baseColor = highlighted ? const Color(0xFF2B3E25) : Colors.white.withOpacity(0.1);
-    final Color borderColor =
-        highlighted ? const Color(0xAAE8C65D) : Colors.white.withOpacity(0.24);
-    final Color textColor = highlighted ? const Color(0xFFFFE9A9) : Colors.white;
-
+    final Color accentColor = accent ? const Color(0xFFFFE8A0) : Colors.white;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+        vertical: compact ? 9 : 10,
+      ),
       decoration: BoxDecoration(
-        color: baseColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
+        color: accent
+            ? const Color(0xFFE8C65D).withOpacity(0.12)
+            : Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: accent
+              ? const Color(0xFFE8C65D).withOpacity(0.30)
+              : Colors.white.withOpacity(0.12),
+        ),
       ),
       child: Row(
         children: <Widget>[
+          Icon(icon, size: 17, color: accentColor.withOpacity(0.86)),
+          const SizedBox(width: 9),
           Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.88),
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.68),
+                    fontSize: compact ? 11 : 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (subtitle != null && subtitle!.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.46),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           const SizedBox(width: 8),
-          Icon(icon, size: 15, color: textColor),
-          const SizedBox(width: 4),
           Text(
-            '$value',
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: textColor,
-              fontWeight: FontWeight.w800,
-              fontSize: 12.5,
+              color: accentColor,
+              fontSize: compact ? 13 : 15,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DuelRoundBanner extends StatelessWidget {
+  const _DuelRoundBanner({
+    required this.round,
+    this.compact = false,
+  });
+
+  final int round;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.center,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 12 : 16,
+          vertical: compact ? 6 : 8,
+        ),
+        decoration: PremiumGameDecorations.goldPill(active: true),
+        child: Text(
+          'Manche $round',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: compact ? 11 : 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
+        ),
       ),
     );
   }
@@ -7429,6 +7429,7 @@ class _OpponentRow extends StatefulWidget {
     required this.avatarCard,
     required this.connectionStatus,
     this.compact = false,
+    this.showStats = true,
   });
 
   final String name;
@@ -7439,6 +7440,7 @@ class _OpponentRow extends StatefulWidget {
   final DuelCard avatarCard;
   final OpponentConnectionStatus connectionStatus;
   final bool compact;
+  final bool showStats;
 
   @override
   State<_OpponentRow> createState() => _OpponentRowState();
@@ -7475,6 +7477,7 @@ class _OpponentRowState extends State<_OpponentRow> {
                 fallbackInitial: widget.fallbackInitial,
                 compact: true,
                 avatarCard: widget.avatarCard,
+                showStats: widget.showStats,
               ),
               const SizedBox(height: 4),
               _OpponentPresenceBadge(status: widget.connectionStatus),
@@ -7649,6 +7652,7 @@ class _ProfileBlock extends StatelessWidget {
     required this.avatarCard,
     this.credits,
     this.compact = false,
+    this.showStats = true,
   });
 
   final String name;
@@ -7658,6 +7662,7 @@ class _ProfileBlock extends StatelessWidget {
   final String fallbackInitial;
   final DuelCard avatarCard;
   final bool compact;
+  final bool showStats;
 
   @override
   Widget build(BuildContext context) {
@@ -7693,16 +7698,18 @@ class _ProfileBlock extends StatelessWidget {
                   letterSpacing: 0.3,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                'V $wins   D $losses',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w600,
-                  fontSize: compact ? 10 : 11,
+              if (showStats) ...<Widget>[
+                const SizedBox(height: 2),
+                Text(
+                  'V $wins   D $losses',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                    fontSize: compact ? 10 : 11,
+                  ),
                 ),
-              ),
-              if (credits != null) ...<Widget>[
+              ],
+              if (showStats && credits != null) ...<Widget>[
                 const SizedBox(height: 1),
                 Text(
                   'Crédit $credits',
@@ -7952,6 +7959,7 @@ class _MyHandRow extends StatefulWidget {
     required this.wins,
     required this.losses,
     this.credits,
+    this.showStats = true,
     required this.fallbackInitial,
     required this.avatarCard,
     this.cardScale = 1,
@@ -7966,6 +7974,7 @@ class _MyHandRow extends StatefulWidget {
   final int wins;
   final int losses;
   final int? credits;
+  final bool showStats;
   final String fallbackInitial;
   final DuelCard avatarCard;
   final double cardScale;
@@ -8017,6 +8026,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                       fallbackInitial: widget.fallbackInitial,
                       compact: true,
                       avatarCard: widget.avatarCard,
+                      showStats: widget.showStats,
                     ),
                     const SizedBox(width: 8),
                     Expanded(

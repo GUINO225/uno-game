@@ -19,10 +19,12 @@ class PlayerSidePanel extends StatefulWidget {
     super.key,
     this.onOpenLeaderboard,
     this.onOpenHistory,
+    this.contextualGamePanel,
   });
 
   final VoidCallback? onOpenLeaderboard;
   final VoidCallback? onOpenHistory;
+  final Widget? contextualGamePanel;
 
   @override
   State<PlayerSidePanel> createState() => _PlayerSidePanelState();
@@ -346,6 +348,10 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                         const _SideMenuCloseRow(),
                         const SizedBox(height: 14),
                         const _SideMenuProfileHeader(),
+                        if (widget.contextualGamePanel != null) ...<Widget>[
+                          const SizedBox(height: 14),
+                          widget.contextualGamePanel!,
+                        ],
                         const SizedBox(height: 18),
                         Text(
                           'Connectez-vous avec Google pour voir vos statistiques.',
@@ -425,6 +431,10 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                       const _SideMenuCloseRow(),
                       const SizedBox(height: 14),
                       _SideMenuProfileHeader(profile: profile),
+                      if (widget.contextualGamePanel != null) ...<Widget>[
+                        const SizedBox(height: 14),
+                        widget.contextualGamePanel!,
+                      ],
                       const SizedBox(height: 14),
                       _SideMenuStatsPanel(
                         children: List<Widget>.generate(accountTiles.length, (int index) {
