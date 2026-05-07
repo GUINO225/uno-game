@@ -14,17 +14,23 @@ import 'premium_ui.dart';
 import 'user_profile_service.dart';
 import 'widgets/gino_popups.dart';
 
+enum PlayerSidePanelEdge { left, right }
+
 class PlayerSidePanel extends StatefulWidget {
   const PlayerSidePanel({
     super.key,
     this.onOpenLeaderboard,
     this.onOpenHistory,
     this.contextualGamePanel,
+    this.edge = PlayerSidePanelEdge.right,
+    this.width,
   });
 
   final VoidCallback? onOpenLeaderboard;
   final VoidCallback? onOpenHistory;
   final Widget? contextualGamePanel;
+  final PlayerSidePanelEdge edge;
+  final double? width;
 
   @override
   State<PlayerSidePanel> createState() => _PlayerSidePanelState();
@@ -263,19 +269,26 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   Widget build(BuildContext context) {
     final Size screenSize = MediaQuery.sizeOf(context);
     final double mobileWidth = screenSize.width * 0.82;
-    final double drawerWidth = screenSize.width >= 600
-        ? mobileWidth.clamp(0, 410).toDouble()
-        : mobileWidth.clamp(0, screenSize.width * 0.85).toDouble();
+    final double drawerWidth = widget.width ??
+        (screenSize.width >= 600
+            ? mobileWidth.clamp(0, 410).toDouble()
+            : mobileWidth.clamp(0, screenSize.width * 0.85).toDouble());
+
+    final bool opensFromLeft = widget.edge == PlayerSidePanelEdge.left;
 
     return Drawer(
       width: drawerWidth,
       backgroundColor: Colors.transparent,
       elevation: 0,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(left: Radius.circular(28)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(
+          left: opensFromLeft ? Radius.zero : const Radius.circular(28),
+          right: opensFromLeft ? const Radius.circular(28) : Radius.zero,
+        ),
       ),
       child: SafeArea(
         left: false,
+        right: false,
         child: StreamBuilder<User?>(
           stream: _authService.authStateChanges,
           builder: (BuildContext context, AsyncSnapshot<User?> snapshot) {
@@ -628,7 +641,15 @@ class _SideMenuCloseRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       children: <Widget>[
         InkWell(
-          onTap: () => Navigator.of(context).pop(),
+          onTap: () {
+            final _PlayerSidePanelControllerScope? menuScope =
+                _PlayerSidePanelControllerScope.maybeOf(context);
+            if (menuScope != null) {
+              menuScope.close();
+              return;
+            }
+            Navigator.of(context).pop();
+          },
           customBorder: const CircleBorder(),
           child: Container(
             width: 40,
@@ -1398,6 +1419,167 @@ class _AvatarSelectorGrid<T> extends StatelessWidget {
   }
 }
 
+
+class ResponsivePlayerSidePanelLayout extends StatefulWidget {
+  const ResponsivePlayerSidePanelLayout({
+    super.key,
+    required this.child,
+    this.onOpenLeaderboard,
+    this.onOpenHistory,
+    this.contextualGamePanel,
+  });
+
+  final Widget child;
+  final VoidCallback? onOpenLeaderboard;
+  final VoidCallback? onOpenHistory;
+  final Widget? contextualGamePanel;
+
+  @override
+  State<ResponsivePlayerSidePanelLayout> createState() =>
+      _ResponsivePlayerSidePanelLayoutState();
+}
+
+class _ResponsivePlayerSidePanelLayoutState
+    extends State<ResponsivePlayerSidePanelLayout> {
+  bool _sidePanelOpen = true;
+
+  static const double _desktopBreakpoint = 720;
+
+  void _toggleSidePanel() {
+    setState(() {
+      _sidePanelOpen = !_sidePanelOpen;
+    });
+  }
+
+  void _closeSidePanel() {
+    if (!_sidePanelOpen) {
+      return;
+    }
+    setState(() {
+      _sidePanelOpen = false;
+    });
+  }
+
+  void _openLeaderboard() {
+    if (MediaQuery.sizeOf(context).width < _desktopBreakpoint) {
+      _closeSidePanel();
+    }
+    widget.onOpenLeaderboard?.call();
+  }
+
+  void _openHistory() {
+    if (MediaQuery.sizeOf(context).width < _desktopBreakpoint) {
+      _closeSidePanel();
+    }
+    widget.onOpenHistory?.call();
+  }
+
+  double _panelWidth(Size screenSize, bool isDesktop) {
+    if (isDesktop) {
+      return screenSize.width >= 1100 ? 360 : 320;
+    }
+    final double preferredWidth = screenSize.width <= 380
+        ? screenSize.width * 0.76
+        : screenSize.width * 0.82;
+    final double maxPanelWidth = screenSize.width * 0.86;
+    final double minPanelWidth = maxPanelWidth < 260 ? maxPanelWidth : 260;
+    return preferredWidth.clamp(minPanelWidth, maxPanelWidth).toDouble();
+  }
+
+  Widget _sidePanel(double width) {
+    return SizedBox(
+      width: width,
+      child: PlayerSidePanel(
+        edge: PlayerSidePanelEdge.left,
+        width: width,
+        contextualGamePanel: widget.contextualGamePanel,
+        onOpenLeaderboard:
+            widget.onOpenLeaderboard == null ? null : _openLeaderboard,
+        onOpenHistory: widget.onOpenHistory == null ? null : _openHistory,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Size screenSize = MediaQuery.sizeOf(context);
+    final bool isDesktop = screenSize.width >= _desktopBreakpoint;
+    final double panelWidth = _panelWidth(screenSize, isDesktop);
+
+    final Widget scopedContent = _PlayerSidePanelControllerScope(
+      toggle: _toggleSidePanel,
+      close: _closeSidePanel,
+      child: widget.child,
+    );
+
+    if (isDesktop) {
+      return Row(
+        children: <Widget>[
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            width: _sidePanelOpen ? panelWidth : 0,
+            child: ClipRect(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                widthFactor: _sidePanelOpen ? 1 : 0,
+                child: _sidePanel(panelWidth),
+              ),
+            ),
+          ),
+          Expanded(child: scopedContent),
+        ],
+      );
+    }
+
+    return Stack(
+      children: <Widget>[
+        scopedContent,
+        if (_sidePanelOpen)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.22),
+                ),
+              ),
+            ),
+          ),
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          top: 0,
+          bottom: 0,
+          left: _sidePanelOpen ? 0 : -panelWidth,
+          width: panelWidth,
+          child: _sidePanel(panelWidth),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlayerSidePanelControllerScope extends InheritedWidget {
+  const _PlayerSidePanelControllerScope({
+    required this.toggle,
+    required this.close,
+    required super.child,
+  });
+
+  final VoidCallback toggle;
+  final VoidCallback close;
+
+  static _PlayerSidePanelControllerScope? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_PlayerSidePanelControllerScope>();
+  }
+
+  @override
+  bool updateShouldNotify(_PlayerSidePanelControllerScope oldWidget) {
+    return toggle != oldWidget.toggle || close != oldWidget.close;
+  }
+}
+
 class PlayerSidePanelButton extends StatefulWidget {
   const PlayerSidePanelButton({
     super.key,
@@ -1491,7 +1673,15 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(18),
-                        onTap: () => Scaffold.of(context).openEndDrawer(),
+                        onTap: () {
+                          final _PlayerSidePanelControllerScope? menuScope =
+                              _PlayerSidePanelControllerScope.maybeOf(context);
+                          if (menuScope != null) {
+                            menuScope.toggle();
+                            return;
+                          }
+                          Scaffold.of(context).openEndDrawer();
+                        },
                         child: Tooltip(
                           message: 'Menu joueur',
                           child: widget.useMenuIcon

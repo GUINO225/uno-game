@@ -5780,28 +5780,25 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           },
           child: Scaffold(
             backgroundColor: PremiumColors.tableGreenDark,
-            endDrawer: PlayerSidePanel(
+            body: ResponsivePlayerSidePanelLayout(
               contextualGamePanel: _DuelSidePanelGameInfo(
                 modeLabel: _isCreditsMode ? 'PARI' : 'DUEL',
                 activeStakeCredits: _isCreditsMode ? session.activeStakeCredits : null,
                 playerStakeCredits: _isCreditsMode ? session.stakeOffer.amount : null,
               ),
               onOpenLeaderboard: () {
-                Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const LeaderboardPage()),
                 );
               },
               onOpenHistory: () {
-                Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(builder: (_) => const GameHistoryPage()),
                 );
               },
-            ),
-            body: Stack(
-              children: <Widget>[
-              TableBackground(
+              child: Stack(
+                children: <Widget>[
+                  TableBackground(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(12, topInset + 1, 12, isCompactDuelLayout ? 6 : 10),
                   child: Column(
@@ -6018,8 +6015,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                   ),
                 ),
               ),
-            ],
-          ),
+                ],
+              ),
+            ),
           ),
         );
       },

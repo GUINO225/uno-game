@@ -4028,18 +4028,15 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     return Scaffold(
       backgroundColor: GameModePalette.background,
-      endDrawer: PlayerSidePanel(
+      body: ResponsivePlayerSidePanelLayout(
         onOpenLeaderboard: () {
-          Navigator.of(context).pop();
           Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
         },
         onOpenHistory: () {
-          Navigator.of(context).pop();
           Navigator.of(context).pushNamed(GameModeRoutes.history);
         },
-      ),
-      body: Stack(
-        children: <Widget>[
+        child: Stack(
+          children: <Widget>[
           TableBackground(
             child: Padding(
               padding: EdgeInsets.fromLTRB(12, topInset + 4, 12, 12),
@@ -4108,6 +4105,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               ),
             ),
         ],
+        ),
       ),
     );
   }
