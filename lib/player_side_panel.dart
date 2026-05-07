@@ -393,12 +393,6 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                     value: _safeLabel(profile.publicDisplayName, fallback: 'Joueur'),
                   ),
                   _PlayerInfoTileData(
-                    icon: Icons.workspace_premium_rounded,
-                    label: 'Crédit',
-                    value: profile.credits.toString(),
-                    accent: true,
-                  ),
-                  _PlayerInfoTileData(
                     icon: Icons.emoji_events_outlined,
                     label: 'Victoires',
                     value: profile.wins.toString(),
@@ -712,18 +706,54 @@ class _SideMenuProfileHeader extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 4),
-                Text(
-                  'Connecte-toi pour sauvegarder ton profil et tes crédits.',
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.white.withOpacity(0.72),
-                    height: 1.3,
-                  ),
-                ),
+                if (currentProfile == null)
+                  Text(
+                    'Connecte-toi pour sauvegarder ton profil et tes crédits.',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.white.withOpacity(0.72),
+                      height: 1.3,
+                    ),
+                  )
+                else
+                  _HeaderCreditPill(credits: currentProfile.credits),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderCreditPill extends StatelessWidget {
+  const _HeaderCreditPill({required this.credits});
+
+  final int credits;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8C65D).withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE8C65D).withOpacity(0.34)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const CreditCoinsIcon(size: 15),
+          const SizedBox(width: 5),
+          Text(
+            '$credits',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFFFE8A0),
             ),
           ),
         ],
@@ -1347,6 +1377,7 @@ class PlayerSidePanelButton extends StatefulWidget {
     this.wrapInAlign = true,
     this.showCredits = true,
     this.premiumSurface = false,
+    this.useMenuIcon = false,
   });
 
   final AlignmentGeometry alignment;
@@ -1354,6 +1385,7 @@ class PlayerSidePanelButton extends StatefulWidget {
   final bool wrapInAlign;
   final bool showCredits;
   final bool premiumSurface;
+  final bool useMenuIcon;
 
   @override
   State<PlayerSidePanelButton> createState() => _PlayerSidePanelButtonState();
@@ -1433,13 +1465,23 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                         onTap: () => Scaffold.of(context).openEndDrawer(),
                         child: Tooltip(
                           message: 'Menu joueur',
-                          child: GameCardAvatar.fromSelection(
-                            size: 52,
-                            rank: profile?.selectedCardAvatar.rank ??
-                                fallbackAvatar.rank,
-                            suit: profile?.selectedCardAvatar.suit ??
-                                fallbackAvatar.suit,
-                          ),
+                          child: widget.useMenuIcon
+                              ? const SizedBox(
+                                  width: 52,
+                                  height: 52,
+                                  child: Icon(
+                                    Icons.menu_rounded,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                )
+                              : GameCardAvatar.fromSelection(
+                                  size: 52,
+                                  rank: profile?.selectedCardAvatar.rank ??
+                                      fallbackAvatar.rank,
+                                  suit: profile?.selectedCardAvatar.suit ??
+                                      fallbackAvatar.suit,
+                                ),
                         ),
                       ),
                     ),

@@ -5752,7 +5752,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         );
         final int myScore = session.scores[_controller.localPlayerId] ?? 0;
         final int opponentScore = session.scores[opponentId] ?? 0;
-        final int myCredits = _creditsOf(session, _controller.localPlayerId);
         final DuelCard localAvatarCard = _avatarCardForPlayer(
           _controller.localPlayerId,
         );
@@ -5783,12 +5782,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             backgroundColor: PremiumColors.tableGreenDark,
             endDrawer: PlayerSidePanel(
               contextualGamePanel: _DuelSidePanelGameInfo(
-                modeLabel: _isCreditsMode ? 'Paris' : 'Duel',
-                playerName: localName,
-                opponentName: opponentName,
-                playerScore: myScore,
-                opponentScore: opponentScore,
-                playerCredits: myCredits,
+                modeLabel: _isCreditsMode ? 'PARI' : 'DUEL',
                 activeStakeCredits: _isCreditsMode ? session.activeStakeCredits : null,
                 playerStakeCredits: _isCreditsMode ? session.stakeOffer.amount : null,
               ),
@@ -5827,21 +5821,17 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                           ),
                           const SizedBox(width: 2),
                           Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                const AppLogo(size: 74),
-                                const SizedBox(height: 1),
-                                Text(
-                                  _isCreditsMode ? 'Mode pari' : 'Duel',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
-                                    height: 1,
-                                  ),
+                            child: Center(
+                              child: Text(
+                                _isCreditsMode ? 'PARI' : 'DUEL',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                  height: 1,
+                                  letterSpacing: 1.2,
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                           Stack(
@@ -5868,6 +5858,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                             padding: EdgeInsets.zero,
                             wrapInAlign: false,
                             showCredits: false,
+                            useMenuIcon: true,
                           ),
                         ],
                       ),
@@ -5887,6 +5878,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         compact: isCompactDuelLayout,
                         connectionStatus: _controller.opponentConnectionStatus,
                         showStats: false,
+                        score: opponentScore,
                       ),
                       SizedBox(height: sectionGap),
                       _CenterArea(
@@ -5915,8 +5907,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
                         avatarCard: localAvatarCard,
                         showStats: false,
-                        cardScale: isCompactDuelLayout ? 0.98 : 1.04,
-                        minCardsViewportHeight: isCompactDuelLayout ? 250 : 235,
+                        score: myScore,
+                        cardScale: isCompactDuelLayout ? 1.0 : 1.06,
+                        minCardsViewportHeight: isCompactDuelLayout ? 290 : 275,
                       ),
                       SizedBox(height: isCompactDuelLayout ? 4 : 6),
                       _ActionMessageCard(
@@ -7160,21 +7153,11 @@ int getOpponentCardCount(DuelSession session, String currentUserId) {
 class _DuelSidePanelGameInfo extends StatelessWidget {
   const _DuelSidePanelGameInfo({
     required this.modeLabel,
-    required this.playerName,
-    required this.opponentName,
-    required this.playerScore,
-    required this.opponentScore,
-    required this.playerCredits,
     this.activeStakeCredits,
     this.playerStakeCredits,
   });
 
   final String modeLabel;
-  final String playerName;
-  final String opponentName;
-  final int playerScore;
-  final int opponentScore;
-  final int playerCredits;
   final int? activeStakeCredits;
   final int? playerStakeCredits;
 
@@ -7233,7 +7216,7 @@ class _DuelSidePanelGameInfo extends StatelessWidget {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      'Résumé de la partie',
+                      _hasStakeInfo ? 'Mise et coffre' : 'Menu joueur',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.64),
                         fontSize: 11,
@@ -7245,23 +7228,8 @@ class _DuelSidePanelGameInfo extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          _DuelSideInfoTile(
-            icon: Icons.person_outline_rounded,
-            label: 'Score joueur',
-            value: '$playerScore',
-            subtitle: playerName,
-            accent: true,
-          ),
-          const SizedBox(height: 8),
-          _DuelSideInfoTile(
-            icon: Icons.shield_outlined,
-            label: 'Score adversaire',
-            value: '$opponentScore',
-            subtitle: opponentName,
-          ),
           if (_hasStakeInfo) ...<Widget>[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
               children: <Widget>[
                 Expanded(
@@ -7285,13 +7253,6 @@ class _DuelSidePanelGameInfo extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 8),
-          _DuelSideInfoTile(
-            icon: Icons.account_balance_wallet_outlined,
-            label: 'Crédit / solde',
-            value: '$playerCredits',
-            accent: true,
-          ),
         ],
       ),
     );
@@ -7430,6 +7391,7 @@ class _OpponentRow extends StatefulWidget {
     required this.connectionStatus,
     this.compact = false,
     this.showStats = true,
+    this.score,
   });
 
   final String name;
@@ -7441,6 +7403,7 @@ class _OpponentRow extends StatefulWidget {
   final OpponentConnectionStatus connectionStatus;
   final bool compact;
   final bool showStats;
+  final int? score;
 
   @override
   State<_OpponentRow> createState() => _OpponentRowState();
@@ -7478,6 +7441,7 @@ class _OpponentRowState extends State<_OpponentRow> {
                 compact: true,
                 avatarCard: widget.avatarCard,
                 showStats: widget.showStats,
+                score: widget.score,
               ),
               const SizedBox(height: 4),
               _OpponentPresenceBadge(status: widget.connectionStatus),
@@ -7653,6 +7617,7 @@ class _ProfileBlock extends StatelessWidget {
     this.credits,
     this.compact = false,
     this.showStats = true,
+    this.score,
   });
 
   final String name;
@@ -7663,6 +7628,7 @@ class _ProfileBlock extends StatelessWidget {
   final DuelCard avatarCard;
   final bool compact;
   final bool showStats;
+  final int? score;
 
   @override
   Widget build(BuildContext context) {
@@ -7702,6 +7668,17 @@ class _ProfileBlock extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   'V $wins   D $losses',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                    fontSize: compact ? 10 : 11,
+                  ),
+                ),
+              ],
+              if (!showStats && score != null) ...<Widget>[
+                const SizedBox(height: 2),
+                Text(
+                  'Score $score',
                   style: TextStyle(
                     color: Colors.white70,
                     fontWeight: FontWeight.w600,
@@ -7964,6 +7941,7 @@ class _MyHandRow extends StatefulWidget {
     required this.avatarCard,
     this.cardScale = 1,
     this.minCardsViewportHeight = 190,
+    this.score,
   });
 
   final List<DuelCard> cards;
@@ -7979,6 +7957,7 @@ class _MyHandRow extends StatefulWidget {
   final DuelCard avatarCard;
   final double cardScale;
   final double minCardsViewportHeight;
+  final int? score;
   static const int _maxCardsPerRow = 6;
   static const double _cardGap = 10;
 
@@ -8027,6 +8006,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                       compact: true,
                       avatarCard: widget.avatarCard,
                       showStats: widget.showStats,
+                      score: widget.score,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -8072,7 +8052,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                               scrollDirection: Axis.vertical,
                               padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
                               child: Align(
-                                alignment: Alignment.topCenter,
+                                alignment: Alignment.center,
                                 child: SizedBox(
                                   width: wrapWidth,
                                   child: Wrap(
@@ -8105,7 +8085,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                       height: _FaceCard.height * widget.cardScale,
                                                       child: FittedBox(
                                                         fit: BoxFit.contain,
-                                                        alignment: Alignment.topCenter,
+                                                        alignment: Alignment.center,
                                                         child: _FaceCard(card: card),
                                                       ),
                                                     ),
