@@ -311,7 +311,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                       children: <Widget>[
                         const _SideMenuCloseRow(),
                         const SizedBox(height: 14),
-                        const _SideMenuProfileHeader(),
+                        _SideMenuProfileHeader(isConnected: authUid != null),
                         const SizedBox(height: 18),
                         Text(
                           'Compte connecté, mais impossible de charger les données pour le moment.',
@@ -347,14 +347,16 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                       children: <Widget>[
                         const _SideMenuCloseRow(),
                         const SizedBox(height: 14),
-                        const _SideMenuProfileHeader(),
+                        _SideMenuProfileHeader(isConnected: authUid != null),
                         if (widget.contextualGamePanel != null) ...<Widget>[
                           const SizedBox(height: 14),
                           widget.contextualGamePanel!,
                         ],
                         const SizedBox(height: 18),
                         Text(
-                          'Connectez-vous avec Google pour voir vos statistiques.',
+                          authUid == null
+                              ? 'Connectez-vous avec Google pour voir vos statistiques.'
+                              : 'Profil connecté, statistiques en cours de synchronisation.',
                           style: GoogleFonts.poppins(
                             color: Colors.white.withOpacity(0.82),
                             fontSize: 13,
@@ -362,13 +364,15 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        _SideMenuActionButton(
-                          label: 'Connexion Google',
-                          icon: Icons.g_mobiledata_rounded,
-                          onPressed: _signIn,
-                          primary: true,
-                        ),
-                        const SizedBox(height: 10),
+                        if (authUid == null) ...<Widget>[
+                          _SideMenuActionButton(
+                            label: 'Connexion Google',
+                            icon: Icons.g_mobiledata_rounded,
+                            onPressed: _signIn,
+                            primary: true,
+                          ),
+                          const SizedBox(height: 10),
+                        ],
                         _SideMenuActionButton(
                           label: 'Voir le classement',
                           icon: Icons.leaderboard_outlined,
@@ -424,7 +428,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                     children: <Widget>[
                       const _SideMenuCloseRow(),
                       const SizedBox(height: 14),
-                      _SideMenuProfileHeader(profile: profile),
+                      _SideMenuProfileHeader(profile: profile, isConnected: true),
                       if (widget.contextualGamePanel != null) ...<Widget>[
                         const SizedBox(height: 14),
                         widget.contextualGamePanel!,
@@ -643,9 +647,10 @@ class _SideMenuCloseRow extends StatelessWidget {
 }
 
 class _SideMenuProfileHeader extends StatelessWidget {
-  const _SideMenuProfileHeader({this.profile});
+  const _SideMenuProfileHeader({this.profile, this.isConnected = false});
 
   final PlayerProfile? profile;
+  final bool isConnected;
 
   @override
   Widget build(BuildContext context) {
@@ -685,13 +690,25 @@ class _SideMenuProfileHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  'Mon compte',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.white,
-                  ),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        'Mon compte',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    if (currentProfile != null) ...<Widget>[
+                      const SizedBox(width: 8),
+                      _HeaderCreditPill(credits: currentProfile.credits),
+                    ],
+                  ],
                 ),
                 if (safeName != null) ...<Widget>[
                   const SizedBox(height: 4),
@@ -705,8 +722,8 @@ class _SideMenuProfileHeader extends StatelessWidget {
                     ),
                   ),
                 ],
-                const SizedBox(height: 4),
-                if (currentProfile == null)
+                if (currentProfile == null && !isConnected) ...<Widget>[
+                  const SizedBox(height: 4),
                   Text(
                     'Connecte-toi pour sauvegarder ton profil et tes crédits.',
                     maxLines: 3,
@@ -717,9 +734,21 @@ class _SideMenuProfileHeader extends StatelessWidget {
                       color: Colors.white.withOpacity(0.72),
                       height: 1.3,
                     ),
-                  )
-                else
-                  _HeaderCreditPill(credits: currentProfile.credits),
+                  ),
+                ] else if (currentProfile == null && isConnected) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Profil connecté.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.white.withOpacity(0.72),
+                      height: 1.3,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
