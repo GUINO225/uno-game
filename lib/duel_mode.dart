@@ -3435,6 +3435,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       ValueNotifier<List<DuelChatMessage>>(const <DuelChatMessage>[]);
   final Set<String> _knownMessageIds = <String>{};
   bool _isChatOpen = false;
+  bool? _lastChatDesktopLayout;
   bool _chatBootstrapped = false;
   int _unreadChatCount = 0;
   String? _chatError;
@@ -5679,8 +5680,20 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _openChatPanel(DuelSession session) async {
-    unawaited(_sfx.playPopup());
+  Widget _buildChatPanel(DuelSession session, {required bool sidePanel}) {
+    return DuelChatPanel(
+      messagesListenable: _chatMessagesNotifier,
+      localPlayerId: _controller.localPlayerId,
+      chatEnabled: session.players.length == 2,
+      errorText: _chatError,
+      quickMessages: _quickMessages,
+      sidePanel: sidePanel,
+      onClose: sidePanel ? _markChatPanelClosed : null,
+      onSend: _handleSendChatMessage,
+    );
+  }
+
+  void _markChatPanelOpen() {
     setState(() {
       _isChatOpen = true;
       _unreadChatCount = 0;
@@ -5688,27 +5701,49 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     });
     _chatPreviewQueue.clear();
     _chatPreviewTimer?.cancel();
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return DuelChatPanel(
-          messagesListenable: _chatMessagesNotifier,
-          localPlayerId: _controller.localPlayerId,
-          chatEnabled: session.players.length == 2,
-          errorText: _chatError,
-          quickMessages: _quickMessages,
-          onSend: _handleSendChatMessage,
-        );
-      },
-    );
-    if (!mounted) {
+  }
+
+  void _markChatPanelClosed() {
+    if (!_isChatOpen) {
       return;
     }
     setState(() {
       _isChatOpen = false;
     });
+  }
+
+  Future<void> _openChatPanel(DuelSession session) async {
+    unawaited(_sfx.playPopup());
+    _markChatPanelOpen();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return _buildChatPanel(session, sidePanel: false);
+      },
+    );
+    if (!mounted) {
+      return;
+    }
+    _markChatPanelClosed();
+  }
+
+  void _toggleResponsiveChatPanel(BuildContext context, DuelSession session) {
+    final PlayerLeadingSidePanelControllerScope? chatScope =
+        PlayerLeadingSidePanelControllerScope.maybeOf(context);
+    if (chatScope == null) {
+      unawaited(_openChatPanel(session));
+      return;
+    }
+    if (chatScope.isOpen) {
+      _markChatPanelClosed();
+      chatScope.close();
+      return;
+    }
+    unawaited(_sfx.playPopup());
+    _markChatPanelOpen();
+    chatScope.open();
   }
 
   Future<void> _handleSendChatMessage(String text) async {
@@ -5769,6 +5804,18 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         final double topInset = MediaQuery.paddingOf(context).top;
         final Size screenSize = MediaQuery.sizeOf(context);
         final bool isCompactDuelLayout = screenSize.height <= 860 || screenSize.width <= 393;
+        final bool isDesktopSidePanelLayout =
+            screenSize.width >= ResponsivePlayerSidePanelLayout.desktopBreakpoint;
+        if (_lastChatDesktopLayout != isDesktopSidePanelLayout) {
+          _lastChatDesktopLayout = isDesktopSidePanelLayout;
+          _isChatOpen = isDesktopSidePanelLayout;
+          if (isDesktopSidePanelLayout) {
+            _unreadChatCount = 0;
+            _activeChatPreview = null;
+            _chatPreviewQueue.clear();
+            _chatPreviewTimer?.cancel();
+          }
+        }
         final double sectionGap = isCompactDuelLayout ? 5 : 8;
         return PopScope(
           canPop: false,
@@ -5781,6 +5828,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           child: Scaffold(
             backgroundColor: PremiumColors.tableGreenDark,
             body: ResponsivePlayerSidePanelLayout(
+              leadingPanel: _buildChatPanel(session, sidePanel: true),
               contextualGamePanel: _DuelSidePanelGameInfo(
                 modeLabel: _isCreditsMode ? 'PARI' : 'DUEL',
                 activeStakeCredits: _isCreditsMode ? session.activeStakeCredits : null,
@@ -5980,33 +6028,34 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                   ),
                 ),
               ),
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 10, bottom: 10),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: <Widget>[
-                        DuelChatButton(
-                          unreadCount: _unreadChatCount,
-                          enabled: session.players.length == 2,
-                          onPressed: () {
-                            unawaited(_sfx.playClick());
-                            _openChatPanel(session);
-                          },
-                        ),
-                        if (_activeChatPreview != null)
-                          Positioned(
-                            left: 54,
-                            bottom: 0,
-                            child: _DuelChatPreviewBubble(text: _activeChatPreview!),
+              if (!isDesktopSidePanelLayout)
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 10, bottom: 10),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: <Widget>[
+                          DuelChatButton(
+                            unreadCount: _unreadChatCount,
+                            enabled: session.players.length == 2,
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              _toggleResponsiveChatPanel(context, session);
+                            },
                           ),
-                      ],
+                          if (_activeChatPreview != null)
+                            Positioned(
+                              left: 54,
+                              bottom: 0,
+                              child: _DuelChatPreviewBubble(text: _activeChatPreview!),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
               const SafeArea(
                 child: Align(
                   alignment: Alignment.bottomRight,
@@ -6170,6 +6219,8 @@ class DuelChatPanel extends StatefulWidget {
     required this.onSend,
     required this.quickMessages,
     this.errorText,
+    this.sidePanel = false,
+    this.onClose,
   });
 
   final ValueListenable<List<DuelChatMessage>> messagesListenable;
@@ -6178,6 +6229,8 @@ class DuelChatPanel extends StatefulWidget {
   final Future<void> Function(String text) onSend;
   final List<String> quickMessages;
   final String? errorText;
+  final bool sidePanel;
+  final VoidCallback? onClose;
 
   @override
   State<DuelChatPanel> createState() => _DuelChatPanelState();
@@ -6252,6 +6305,17 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
     return ordered;
   }
 
+  void _closePanel() {
+    final PlayerLeadingSidePanelControllerScope? chatScope =
+        PlayerLeadingSidePanelControllerScope.maybeOf(context);
+    widget.onClose?.call();
+    if (chatScope != null) {
+      chatScope.close();
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final EdgeInsets keyboard = EdgeInsets.only(
@@ -6264,7 +6328,9 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
       child: SafeArea(
         top: false,
         child: Container(
-          constraints: const BoxConstraints(maxHeight: 470),
+          constraints: widget.sidePanel
+              ? const BoxConstraints.expand()
+              : const BoxConstraints(maxHeight: 470),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
@@ -6275,7 +6341,9 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
                 GinoPopupStyle.popupGreen.withOpacity(0.98),
               ],
             ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            borderRadius: widget.sidePanel
+                ? const BorderRadius.horizontal(right: Radius.circular(30))
+                : const BorderRadius.vertical(top: Radius.circular(30)),
             border: Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.36)),
             boxShadow: <BoxShadow>[
               BoxShadow(
@@ -6313,10 +6381,13 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
                       ),
                     ),
                     const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                    ),
+                    if (!widget.sidePanel ||
+                        MediaQuery.sizeOf(context).width <
+                            ResponsivePlayerSidePanelLayout.desktopBreakpoint)
+                      IconButton(
+                        onPressed: _closePanel,
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      ),
                   ],
                 ),
               ),

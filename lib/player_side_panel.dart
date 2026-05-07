@@ -1427,12 +1427,18 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
     this.onOpenLeaderboard,
     this.onOpenHistory,
     this.contextualGamePanel,
+    this.leadingPanel,
+    this.leadingPanelWidth,
   });
+
+  static const double desktopBreakpoint = 720;
 
   final Widget child;
   final VoidCallback? onOpenLeaderboard;
   final VoidCallback? onOpenHistory;
   final Widget? contextualGamePanel;
+  final Widget? leadingPanel;
+  final double? leadingPanelWidth;
 
   @override
   State<ResponsivePlayerSidePanelLayout> createState() =>
@@ -1441,18 +1447,41 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
 
 class _ResponsivePlayerSidePanelLayoutState
     extends State<ResponsivePlayerSidePanelLayout> {
-  bool _sidePanelOpen = true;
+  bool _sidePanelOpen = false;
+  bool _leadingPanelOpen = false;
+  bool? _lastIsDesktop;
 
-  static const double _desktopBreakpoint = 720;
+  void _syncPanelDefaultsForWidth() {
+    final bool isDesktop = MediaQuery.sizeOf(context).width >=
+        ResponsivePlayerSidePanelLayout.desktopBreakpoint;
+    if (_lastIsDesktop == isDesktop) {
+      return;
+    }
+    _lastIsDesktop = isDesktop;
+    _sidePanelOpen = isDesktop;
+    _leadingPanelOpen = isDesktop && widget.leadingPanel != null;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPanelDefaultsForWidth();
+  }
 
   void _toggleSidePanel() {
+    if (MediaQuery.sizeOf(context).width >=
+        ResponsivePlayerSidePanelLayout.desktopBreakpoint) {
+      return;
+    }
     setState(() {
       _sidePanelOpen = !_sidePanelOpen;
     });
   }
 
   void _closeSidePanel() {
-    if (!_sidePanelOpen) {
+    if (!_sidePanelOpen ||
+        MediaQuery.sizeOf(context).width >=
+            ResponsivePlayerSidePanelLayout.desktopBreakpoint) {
       return;
     }
     setState(() {
@@ -1460,15 +1489,51 @@ class _ResponsivePlayerSidePanelLayoutState
     });
   }
 
+  void _toggleLeadingPanel() {
+    if (widget.leadingPanel == null ||
+        MediaQuery.sizeOf(context).width >=
+            ResponsivePlayerSidePanelLayout.desktopBreakpoint) {
+      return;
+    }
+    setState(() {
+      _leadingPanelOpen = !_leadingPanelOpen;
+    });
+  }
+
+  void _openLeadingPanel() {
+    if (widget.leadingPanel == null ||
+        _leadingPanelOpen ||
+        MediaQuery.sizeOf(context).width >=
+            ResponsivePlayerSidePanelLayout.desktopBreakpoint) {
+      return;
+    }
+    setState(() {
+      _leadingPanelOpen = true;
+    });
+  }
+
+  void _closeLeadingPanel() {
+    if (!_leadingPanelOpen ||
+        MediaQuery.sizeOf(context).width >=
+            ResponsivePlayerSidePanelLayout.desktopBreakpoint) {
+      return;
+    }
+    setState(() {
+      _leadingPanelOpen = false;
+    });
+  }
+
   void _openLeaderboard() {
-    if (MediaQuery.sizeOf(context).width < _desktopBreakpoint) {
+    if (MediaQuery.sizeOf(context).width <
+        ResponsivePlayerSidePanelLayout.desktopBreakpoint) {
       _closeSidePanel();
     }
     widget.onOpenLeaderboard?.call();
   }
 
   void _openHistory() {
-    if (MediaQuery.sizeOf(context).width < _desktopBreakpoint) {
+    if (MediaQuery.sizeOf(context).width <
+        ResponsivePlayerSidePanelLayout.desktopBreakpoint) {
       _closeSidePanel();
     }
     widget.onOpenHistory?.call();
@@ -1486,11 +1551,26 @@ class _ResponsivePlayerSidePanelLayoutState
     return preferredWidth.clamp(minPanelWidth, maxPanelWidth).toDouble();
   }
 
+  double _leadingPanelWidth(Size screenSize, bool isDesktop) {
+    if (widget.leadingPanelWidth != null) {
+      return widget.leadingPanelWidth!;
+    }
+    if (isDesktop) {
+      return screenSize.width >= 1100 ? 340 : 300;
+    }
+    final double preferredWidth = screenSize.width <= 380
+        ? screenSize.width * 0.82
+        : screenSize.width * 0.86;
+    final double maxPanelWidth = screenSize.width * 0.90;
+    final double minPanelWidth = maxPanelWidth < 280 ? maxPanelWidth : 280;
+    return preferredWidth.clamp(minPanelWidth, maxPanelWidth).toDouble();
+  }
+
   Widget _sidePanel(double width) {
     return SizedBox(
       width: width,
       child: PlayerSidePanel(
-        edge: PlayerSidePanelEdge.left,
+        edge: PlayerSidePanelEdge.right,
         width: width,
         contextualGamePanel: widget.contextualGamePanel,
         onOpenLeaderboard:
@@ -1500,34 +1580,39 @@ class _ResponsivePlayerSidePanelLayoutState
     );
   }
 
+  Widget _leadingPanel(double width) {
+    return SizedBox(width: width, child: widget.leadingPanel);
+  }
+
   @override
   Widget build(BuildContext context) {
+    _syncPanelDefaultsForWidth();
     final Size screenSize = MediaQuery.sizeOf(context);
-    final bool isDesktop = screenSize.width >= _desktopBreakpoint;
+    final bool isDesktop = screenSize.width >=
+        ResponsivePlayerSidePanelLayout.desktopBreakpoint;
     final double panelWidth = _panelWidth(screenSize, isDesktop);
+    final double leadingPanelWidth = _leadingPanelWidth(screenSize, isDesktop);
+    final bool hasLeadingPanel = widget.leadingPanel != null;
 
-    final Widget scopedContent = _PlayerSidePanelControllerScope(
-      toggle: _toggleSidePanel,
-      close: _closeSidePanel,
-      child: widget.child,
+    final Widget scopedContent = PlayerLeadingSidePanelControllerScope(
+      toggle: _toggleLeadingPanel,
+      open: _openLeadingPanel,
+      close: _closeLeadingPanel,
+      isOpen: _leadingPanelOpen,
+      child: _PlayerSidePanelControllerScope(
+        toggle: _toggleSidePanel,
+        close: _closeSidePanel,
+        isDesktop: isDesktop,
+        child: widget.child,
+      ),
     );
 
     if (isDesktop) {
       return Row(
         children: <Widget>[
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 240),
-            curve: Curves.easeOutCubic,
-            width: _sidePanelOpen ? panelWidth : 0,
-            child: ClipRect(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                widthFactor: _sidePanelOpen ? 1 : 0,
-                child: _sidePanel(panelWidth),
-              ),
-            ),
-          ),
+          if (hasLeadingPanel) _leadingPanel(leadingPanelWidth),
           Expanded(child: scopedContent),
+          _sidePanel(panelWidth),
         ],
       );
     }
@@ -1535,7 +1620,7 @@ class _ResponsivePlayerSidePanelLayoutState
     return Stack(
       children: <Widget>[
         scopedContent,
-        if (_sidePanelOpen)
+        if (_sidePanelOpen || _leadingPanelOpen)
           Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -1545,12 +1630,22 @@ class _ResponsivePlayerSidePanelLayoutState
               ),
             ),
           ),
+        if (hasLeadingPanel)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            top: 0,
+            bottom: 0,
+            left: _leadingPanelOpen ? 0 : -leadingPanelWidth,
+            width: leadingPanelWidth,
+            child: _leadingPanel(leadingPanelWidth),
+          ),
         AnimatedPositioned(
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
           top: 0,
           bottom: 0,
-          left: _sidePanelOpen ? 0 : -panelWidth,
+          right: _sidePanelOpen ? 0 : -panelWidth,
           width: panelWidth,
           child: _sidePanel(panelWidth),
         ),
@@ -1563,11 +1658,13 @@ class _PlayerSidePanelControllerScope extends InheritedWidget {
   const _PlayerSidePanelControllerScope({
     required this.toggle,
     required this.close,
+    required this.isDesktop,
     required super.child,
   });
 
   final VoidCallback toggle;
   final VoidCallback close;
+  final bool isDesktop;
 
   static _PlayerSidePanelControllerScope? maybeOf(BuildContext context) {
     return context
@@ -1576,7 +1673,38 @@ class _PlayerSidePanelControllerScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(_PlayerSidePanelControllerScope oldWidget) {
-    return toggle != oldWidget.toggle || close != oldWidget.close;
+    return toggle != oldWidget.toggle ||
+        close != oldWidget.close ||
+        isDesktop != oldWidget.isDesktop;
+  }
+}
+
+class PlayerLeadingSidePanelControllerScope extends InheritedWidget {
+  const PlayerLeadingSidePanelControllerScope({
+    super.key,
+    required this.toggle,
+    required this.open,
+    required this.close,
+    required this.isOpen,
+    required super.child,
+  });
+
+  final VoidCallback toggle;
+  final VoidCallback open;
+  final VoidCallback close;
+  final bool isOpen;
+
+  static PlayerLeadingSidePanelControllerScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<
+        PlayerLeadingSidePanelControllerScope>();
+  }
+
+  @override
+  bool updateShouldNotify(PlayerLeadingSidePanelControllerScope oldWidget) {
+    return toggle != oldWidget.toggle ||
+        open != oldWidget.open ||
+        close != oldWidget.close ||
+        isOpen != oldWidget.isOpen;
   }
 }
 
@@ -1616,6 +1744,12 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
 
   @override
   Widget build(BuildContext context) {
+    final _PlayerSidePanelControllerScope? sidePanelScope =
+        _PlayerSidePanelControllerScope.maybeOf(context);
+    if (sidePanelScope?.isDesktop ?? false) {
+      return const SizedBox.shrink();
+    }
+
     final Widget button = Padding(
       padding: widget.padding,
       child: StreamBuilder<User?>(
@@ -1674,10 +1808,8 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(18),
                         onTap: () {
-                          final _PlayerSidePanelControllerScope? menuScope =
-                              _PlayerSidePanelControllerScope.maybeOf(context);
-                          if (menuScope != null) {
-                            menuScope.toggle();
+                          if (sidePanelScope != null) {
+                            sidePanelScope.toggle();
                             return;
                           }
                           Scaffold.of(context).openEndDrawer();
