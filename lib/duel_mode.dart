@@ -5806,68 +5806,54 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                   padding: EdgeInsets.fromLTRB(12, topInset + 1, 12, isCompactDuelLayout ? 6 : 10),
                   child: Column(
                     children: <Widget>[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          PremiumIconButtonShell(
-                            child: IconButton(
-                              onPressed: () {
-                                unawaited(_sfx.playClick());
-                                unawaited(_handleBackNavigation());
-                              },
-                              tooltip: 'Retour aux modes',
-                              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                _isCreditsMode ? 'PARI' : 'DUEL',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                  height: 1,
-                                  letterSpacing: 1.2,
+                      SizedBox(
+                        height: isCompactDuelLayout ? 58 : 66,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: <Widget>[
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: PremiumIconButtonShell(
+                                child: IconButton(
+                                  onPressed: () {
+                                    unawaited(_sfx.playClick());
+                                    unawaited(_handleBackNavigation());
+                                  },
+                                  tooltip: 'Retour aux modes',
+                                  icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                                 ),
                               ),
                             ),
-                          ),
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: <Widget>[
-                              DuelChatButton(
-                                unreadCount: _unreadChatCount,
-                                enabled: session.players.length == 2,
-                                onPressed: () {
-                                  unawaited(_sfx.playClick());
-                                  _openChatPanel(session);
-                                },
-                              ),
-                              if (_activeChatPreview != null)
-                                Positioned(
-                                  right: 54,
-                                  top: 0,
-                                  child: _DuelChatPreviewBubble(text: _activeChatPreview!),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                AppLogo(size: isCompactDuelLayout ? 42 : 48),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _isCreditsMode ? 'PARI' : 'DUEL',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.66),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 10,
+                                    height: 1,
+                                    letterSpacing: 1.6,
+                                  ),
                                 ),
-                            ],
-                          ),
-                          const SizedBox(width: 6),
-                          const PlayerSidePanelButton(
-                            padding: EdgeInsets.zero,
-                            wrapInAlign: false,
-                            showCredits: false,
-                            useMenuIcon: true,
-                          ),
-                        ],
+                              ],
+                            ),
+                            const Align(
+                              alignment: Alignment.centerRight,
+                              child: PlayerSidePanelButton(
+                                padding: EdgeInsets.zero,
+                                wrapInAlign: false,
+                                showCredits: false,
+                                useMenuIcon: true,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      SizedBox(height: isCompactDuelLayout ? 1 : 2),
-                      _DuelRoundBanner(
-                        round: session.round,
-                        compact: isCompactDuelLayout,
-                      ),
-                      SizedBox(height: isCompactDuelLayout ? 3 : 5),
+                      SizedBox(height: isCompactDuelLayout ? 4 : 6),
                       _OpponentRow(
                         name: opponentName,
                         count: getOpponentCardCount(session, _controller.localPlayerId),
@@ -5909,7 +5895,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         showStats: false,
                         score: myScore,
                         cardScale: isCompactDuelLayout ? 1.0 : 1.06,
-                        minCardsViewportHeight: isCompactDuelLayout ? 290 : 275,
+                        minCardsViewportHeight: isCompactDuelLayout ? 300 : 325,
                       ),
                       SizedBox(height: isCompactDuelLayout ? 4 : 6),
                       _ActionMessageCard(
@@ -5994,6 +5980,33 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                           ),
                         ),
                     ],
+                  ),
+                ),
+              ),
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 10, bottom: 10),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: <Widget>[
+                        DuelChatButton(
+                          unreadCount: _unreadChatCount,
+                          enabled: session.players.length == 2,
+                          onPressed: () {
+                            unawaited(_sfx.playClick());
+                            _openChatPanel(session);
+                          },
+                        ),
+                        if (_activeChatPreview != null)
+                          Positioned(
+                            left: 54,
+                            bottom: 0,
+                            child: _DuelChatPreviewBubble(text: _activeChatPreview!),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),

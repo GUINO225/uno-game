@@ -4068,7 +4068,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         ),
                       ),
                       Expanded(
-                        flex: compact ? 5 : 6,
+                        flex: compact ? 6 : 7,
                         child: _playerPanel(canInteract: canInteract),
                       ),
                     ],
@@ -4113,85 +4113,55 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Widget _topBar() {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double sideWidth = min(
-          constraints.maxWidth * 0.38,
-          176.0,
-        );
-
-        return SizedBox(
-          height: 112,
-          child: Stack(
-            clipBehavior: Clip.none,
+    return SizedBox(
+      height: 66,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: PremiumIconButtonShell(
+              child: IconButton(
+                onPressed: () {
+                  unawaited(_sfx.playClick());
+                  Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+                },
+                tooltip: 'Retour aux modes',
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Positioned(
-                left: 0,
-                top: 40,
-                child: AppLogo(size: 52),
-              ),
-              Align(
-                alignment: Alignment.topLeft,
-                child: PremiumIconButtonShell(
-                  child: IconButton(
-                    onPressed: () {
-                      unawaited(_sfx.playClick());
-                      Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
-                    },
-                    tooltip: 'Retour aux modes',
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                    ),
-                  ),
+              const AppLogo(size: 48),
+              const SizedBox(height: 2),
+              Text(
+                'SOLO',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.66),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10,
+                  height: 1,
+                  letterSpacing: 1.6,
                 ),
-              ),
-              Positioned(
-                top: 14,
-                right: 0,
-                child: SizedBox(
-                  width: sideWidth,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        PremiumIconButtonShell(
-                          golden: true,
-                          child: IconButton(
-                            onPressed: () {
-                              unawaited(_sfx.playClick());
-                              _startNewGame();
-                            },
-                            tooltip: 'Nouvelle manche',
-                            icon: const Icon(
-                              Icons.refresh_rounded,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const PlayerSidePanelButton(
-                          padding: EdgeInsets.zero,
-                          wrapInAlign: false,
-                          showCredits: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 64,
-                right: 64,
-                bottom: 0,
-                child: Center(child: _scoreBar()),
               ),
             ],
           ),
-        );
-      },
+          const Align(
+            alignment: Alignment.centerRight,
+            child: PlayerSidePanelButton(
+              padding: EdgeInsets.zero,
+              wrapInAlign: false,
+              showCredits: false,
+              useMenuIcon: true,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -4199,8 +4169,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     required bool isHuman,
     required String name,
     required int count,
-    required int wins,
-    required int losses,
+    required int score,
     required GameCardAvatarData avatar,
     bool showCountBadge = true,
   }) {
@@ -4219,7 +4188,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
               ),
               Text(
-                'V $wins   D $losses',
+                'Score $score',
                 style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w400, fontSize: 10.5),
               ),
             ],
@@ -4244,8 +4213,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 isHuman: true,
                 name: _humanDisplayName,
                 count: _humanHand.length,
-                wins: _humanWins,
-                losses: _humanLosses,
+                score: _humanScore,
                 avatar: _humanAvatar,
                 showCountBadge: false,
               ),
@@ -4320,8 +4288,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                   isHuman: false,
                   name: _botName,
                   count: _botHand.length,
-                  wins: 0,
-                  losses: 0,
+                  score: _botScore,
                   avatar: _botAvatar,
                   showCountBadge: false,
                 ),
