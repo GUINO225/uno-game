@@ -4271,7 +4271,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         final double wrapWidth = min(maxRowWidth, constraints.maxWidth - 4);
         return SingleChildScrollView(
           child: Align(
-            alignment: Alignment.topCenter,
+            alignment: Alignment.center,
             child: SizedBox(
               width: wrapWidth,
               child: Wrap(
