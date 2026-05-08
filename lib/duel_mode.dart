@@ -6364,9 +6364,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         final bool isCompactDuelLayout = screenSize.height <= 860 || screenSize.width <= 393;
         final bool isDesktopSidePanelLayout =
             screenSize.width >= ResponsivePlayerSidePanelLayout.desktopBreakpoint;
+        final bool premiumDesktopTable = kIsWeb && isDesktopSidePanelLayout;
         if (_lastChatDesktopLayout != isDesktopSidePanelLayout) {
           _lastChatDesktopLayout = isDesktopSidePanelLayout;
-          _isChatOpen = isDesktopSidePanelLayout;
+          _isChatOpen = false;
           if (isDesktopSidePanelLayout) {
             _unreadChatCount = 0;
             _activeChatPreview = null;
@@ -6374,7 +6375,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             _chatPreviewTimer?.cancel();
           }
         }
-        final double sectionGap = isCompactDuelLayout ? 5 : 8;
+        final double sectionGap = premiumDesktopTable ? 3 : (isCompactDuelLayout ? 5 : 8);
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (bool didPop, Object? _) {
@@ -6386,7 +6387,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           child: Scaffold(
             backgroundColor: PremiumColors.tableGreenDark,
             body: ResponsivePlayerSidePanelLayout(
-              leadingPanel: _buildChatPanel(session, sidePanel: true),
+              leadingPanel: premiumDesktopTable ? null : _buildChatPanel(session, sidePanel: true),
               contextualGamePanel: _DuelSidePanelGameInfo(
                 modeLabel: _isCreditsMode ? 'PARI' : 'DUEL',
                 activeStakeCredits: _isCreditsMode ? session.activeStakeCredits : null,
@@ -6406,7 +6407,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                 children: <Widget>[
                   TableBackground(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(12, topInset + 1, 12, isCompactDuelLayout ? 6 : 10),
+                  padding: EdgeInsets.fromLTRB(
+                    premiumDesktopTable ? 18 : 12,
+                    topInset + (premiumDesktopTable ? 4 : 1),
+                    premiumDesktopTable ? 18 : 12,
+                    premiumDesktopTable ? 8 : (isCompactDuelLayout ? 6 : 10),
+                  ),
                   child: Column(
                     children: <Widget>[
                       SizedBox(
@@ -6460,10 +6466,17 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                       Expanded(
                         child: ResizableGameTableLayout(
                           compact: isCompactDuelLayout,
+                          desktopImmersive: premiumDesktopTable,
                           sectionGap: sectionGap,
-                          minPlayerHeight: isCompactDuelLayout ? 250 : 282,
-                          maxPlayerHeight: isCompactDuelLayout ? 390 : 510,
-                          initialPlayerHeightFactor: isCompactDuelLayout ? 0.50 : 0.54,
+                          minPlayerHeight: premiumDesktopTable
+                              ? max(258.0, screenSize.height * 0.34)
+                              : (isCompactDuelLayout ? 250 : 282),
+                          maxPlayerHeight: premiumDesktopTable
+                              ? max(430.0, screenSize.height * 0.56)
+                              : (isCompactDuelLayout ? 390 : 510),
+                          initialPlayerHeightFactor: premiumDesktopTable
+                              ? 0.46
+                              : (isCompactDuelLayout ? 0.50 : 0.54),
                           opponent: _OpponentRow(
                             name: opponentName,
                             count: getOpponentCardCount(session, _controller.localPlayerId),
@@ -6475,6 +6488,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                             connectionStatus: _controller.opponentConnectionStatus,
                             showStats: false,
                             score: opponentScore,
+                            premiumDesktop: premiumDesktopTable,
                           ),
                           center: _CenterArea(
                             discardPile: board.discardPile,
@@ -6487,6 +6501,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                             requiredSuit: board.requiredSuit,
                             mustDraw: myTurn && board.pendingDraw > 0,
                             compact: isCompactDuelLayout,
+                            premiumDesktop: premiumDesktopTable,
                           ),
                           player: _MyHandRow(
                             cards: board.handOf(_controller.localPlayerId),
@@ -6502,8 +6517,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                             avatarCard: localAvatarCard,
                             showStats: false,
                             score: myScore,
-                            cardScale: isCompactDuelLayout ? 1.0 : 1.06,
-                            minCardsViewportHeight: isCompactDuelLayout ? 180 : 210,
+                            cardScale: premiumDesktopTable
+                                ? (screenSize.width >= 1680 ? 1.14 : 1.08)
+                                : (isCompactDuelLayout ? 1.0 : 1.06),
+                            minCardsViewportHeight: premiumDesktopTable
+                                ? max(230.0, screenSize.height * 0.26)
+                                : (isCompactDuelLayout ? 180 : 210),
+                            premiumDesktop: premiumDesktopTable,
                           ),
                         ),
                       ),
@@ -6593,6 +6613,24 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                   ),
                 ),
               ),
+              if (premiumDesktopTable)
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 16, bottom: 14),
+                      child: _DesktopDuelChatDock(
+                        unreadCount: _unreadChatCount,
+                        enabled: session.players.length == 2,
+                        preview: _activeChatPreview,
+                        onPressed: () {
+                          unawaited(_sfx.playClick());
+                          _toggleResponsiveChatPanel(context, session);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
               if (!isDesktopSidePanelLayout)
                 SafeArea(
                   child: Align(
@@ -6707,6 +6745,118 @@ class DuelChatButton extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _DesktopDuelChatDock extends StatelessWidget {
+  const _DesktopDuelChatDock({
+    required this.unreadCount,
+    required this.enabled,
+    required this.onPressed,
+    this.preview,
+  });
+
+  final int unreadCount;
+  final bool enabled;
+  final VoidCallback onPressed;
+  final String? preview;
+
+  @override
+  Widget build(BuildContext context) {
+    final String label = preview == null || preview!.trim().isEmpty
+        ? 'Chat duel'
+        : (preview!.length > 28 ? '${preview!.substring(0, 25)}…' : preview!);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          constraints: const BoxConstraints(minWidth: 178, maxWidth: 290),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xE6082117),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFF55F29A).withOpacity(0.34)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withOpacity(0.30),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: const Color(0xFF55F29A).withOpacity(0.12),
+                blurRadius: 18,
+              ),
+            ],
+            gradient: LinearGradient(
+              colors: <Color>[
+                Colors.white.withOpacity(0.10),
+                const Color(0xFF062719).withOpacity(0.84),
+              ],
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: Colors.white.withOpacity(enabled ? 0.94 : 0.42),
+                    size: 19,
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: -8,
+                      top: -8,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 17),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF4D5A),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white70, width: 1),
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(enabled ? 0.86 : 0.42),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.keyboard_arrow_up_rounded,
+                color: const Color(0xFF55F29A).withOpacity(enabled ? 0.88 : 0.34),
+                size: 18,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -8039,6 +8189,7 @@ class _OpponentRow extends StatefulWidget {
     this.compact = false,
     this.showStats = true,
     this.score,
+    this.premiumDesktop = false,
   });
 
   final String name;
@@ -8051,6 +8202,7 @@ class _OpponentRow extends StatefulWidget {
   final bool compact;
   final bool showStats;
   final int? score;
+  final bool premiumDesktop;
 
   @override
   State<_OpponentRow> createState() => _OpponentRowState();
@@ -8072,8 +8224,8 @@ class _OpponentRowState extends State<_OpponentRow> {
   @override
   Widget build(BuildContext context) {
     return PremiumGamePanel(
-      padding: EdgeInsets.all(widget.compact ? 10 : 12),
-      radius: 18,
+      padding: EdgeInsets.all(widget.premiumDesktop ? 11 : (widget.compact ? 10 : 12)),
+      radius: widget.premiumDesktop ? 20 : 18,
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
@@ -8093,13 +8245,14 @@ class _OpponentRowState extends State<_OpponentRow> {
               const SizedBox(height: 4),
               _OpponentPresenceBadge(status: widget.connectionStatus),
               PremiumDividerLine(verticalPadding: widget.compact ? 6 : 8),
-              SizedBox(
-                height: widget.compact ? 44 : 50,
+              Expanded(
                 child: LayoutBuilder(
                   builder: (BuildContext context, BoxConstraints constraints) {
-                    final double cardWidth = widget.compact ? 24 : 28;
-                    final double cardHeight = widget.compact ? 34 : 40;
-                    const double gap = 8;
+                    final double cardWidth = widget.premiumDesktop ? 30 : (widget.compact ? 24 : 28);
+                    final double cardHeight = widget.premiumDesktop ? 43 : (widget.compact ? 34 : 40);
+                    final double gap = widget.premiumDesktop
+                        ? (constraints.maxWidth / 52).clamp(8.0, 18.0).toDouble()
+                        : 8;
                     final double availableWidth = max(0, constraints.maxWidth - 4);
                     final int fitCount = widget.count <= 0
                         ? 1
@@ -8444,6 +8597,7 @@ class _CenterArea extends StatelessWidget {
     required this.requiredSuit,
     required this.mustDraw,
     this.compact = false,
+    this.premiumDesktop = false,
   });
 
   final List<DuelCard> discardPile;
@@ -8454,73 +8608,183 @@ class _CenterArea extends StatelessWidget {
   final String? requiredSuit;
   final bool mustDraw;
   final bool compact;
+  final bool premiumDesktop;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            GestureDetector(
-              onTap: canDraw ? onDrawTap : null,
-              child: _BlinkingDrawCard(
-                enabled: mustDraw,
-                child: Opacity(
-                  opacity: canDraw ? 1 : 0.45,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: <Widget>[
-                      Transform.translate(
-                        offset: const Offset(-2, 1),
-                        child: Transform.rotate(
-                          angle: -0.02,
-                          child: Opacity(
-                            opacity: 0.6,
-                            child: _DuelCardBack(
-                              width: compact ? 56 : 64,
-                              height: compact ? 82 : 92,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double desktopScale = premiumDesktop
+            ? (constraints.maxWidth / 760).clamp(1.04, 1.20).toDouble()
+            : 1.0;
+        final double pileGap = premiumDesktop
+            ? (constraints.maxWidth * 0.045).clamp(24.0, 46.0).toDouble()
+            : (compact ? 14 : 20);
+
+        return Center(
+          child: _FloatingCenterStage(
+            enabled: premiumDesktop,
+            child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                if (premiumDesktop)
+                  Container(
+                    width: 320 * desktopScale,
+                    height: 190 * desktopScale,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: <Color>[
+                          const Color(0xFFE8C65D).withOpacity(0.16),
+                          const Color(0xFF55F29A).withOpacity(0.12),
+                          Colors.transparent,
+                        ],
+                      ),
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: const Color(0xFF55F29A).withOpacity(0.16),
+                          blurRadius: 46,
+                          spreadRadius: 8,
+                        ),
+                      ],
+                    ),
+                  ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Transform.scale(
+                      scale: desktopScale,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          GestureDetector(
+                            onTap: canDraw ? onDrawTap : null,
+                            child: _BlinkingDrawCard(
+                              enabled: mustDraw,
+                              child: Opacity(
+                                opacity: canDraw ? 1 : 0.45,
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: <Widget>[
+                                    Transform.translate(
+                                      offset: const Offset(-2, 1),
+                                      child: Transform.rotate(
+                                        angle: -0.02,
+                                        child: Opacity(
+                                          opacity: 0.6,
+                                          child: _DuelCardBack(
+                                            width: compact ? 56 : 64,
+                                            height: compact ? 82 : 92,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    _DuelCardBack(
+                                      width: compact ? 56 : 64,
+                                      height: compact ? 82 : 92,
+                                    ),
+                                    Positioned(
+                                      top: -8,
+                                      right: -8,
+                                      child: _DrawCountBadge(count: drawCount),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
+                          SizedBox(width: pileGap / desktopScale),
+                          _DiscardPileStackView(
+                            cards: discardPile,
+                            compact: compact,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (overlay.isNotEmpty)
+                      Container(
+                        margin: EdgeInsets.only(top: compact ? 7 : 10),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 9 : 10,
+                          vertical: compact ? 5 : 6,
                         ),
+                        decoration: PremiumGameDecorations.glassPanel(
+                          radius: 10,
+                          golden: requiredSuit != null,
+                          opacity: 0.50,
+                        ),
+                        child: _SuitOverlayText(message: overlay),
                       ),
-                      _DuelCardBack(
-                        width: compact ? 56 : 64,
-                        height: compact ? 82 : 92,
-                      ),
-                      Positioned(
-                        top: -8,
-                        right: -8,
-                        child: _DrawCountBadge(count: drawCount),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: compact ? 14 : 20),
-            Column(
-              children: <Widget>[
-                _DiscardPileStackView(
-                  cards: discardPile,
-                  compact: compact,
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-        if (overlay.isNotEmpty)
-          Container(
-            margin: EdgeInsets.only(top: compact ? 7 : 10),
-            padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 10, vertical: compact ? 5 : 6),
-            decoration: PremiumGameDecorations.glassPanel(
-              radius: 10,
-              golden: requiredSuit != null,
-              opacity: 0.50,
-            ),
-            child: _SuitOverlayText(message: overlay),
           ),
-      ],
+        );
+      },
+    );
+  }
+}
+
+
+class _FloatingCenterStage extends StatefulWidget {
+  const _FloatingCenterStage({required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  State<_FloatingCenterStage> createState() => _FloatingCenterStageState();
+}
+
+class _FloatingCenterStageState extends State<_FloatingCenterStage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    );
+    if (widget.enabled) {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _FloatingCenterStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.enabled && !_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    } else if (!widget.enabled && _controller.isAnimating) {
+      _controller.stop();
+      _controller.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) {
+      return widget.child;
+    }
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (BuildContext context, Widget? child) {
+        final double floatOffset = sin(_controller.value * pi) * 3.0;
+        return Transform.translate(
+          offset: Offset(0, floatOffset),
+          child: child,
+        );
+      },
     );
   }
 }
@@ -8616,6 +8880,7 @@ class _MyHandRow extends StatefulWidget {
     this.cardScale = 1,
     this.minCardsViewportHeight = 190,
     this.score,
+    this.premiumDesktop = false,
   });
 
   final List<DuelCard> cards;
@@ -8632,6 +8897,7 @@ class _MyHandRow extends StatefulWidget {
   final double cardScale;
   final double minCardsViewportHeight;
   final int? score;
+  final bool premiumDesktop;
   static const double _cardGap = 10;
   static const Duration _resizeAnimationDuration = Duration(milliseconds: 260);
 
@@ -8687,8 +8953,8 @@ class _MyHandRowState extends State<_MyHandRow> {
   @override
   Widget build(BuildContext context) {
     return PremiumGamePanel(
-      padding: const EdgeInsets.all(10),
-      radius: 18,
+      padding: EdgeInsets.all(widget.premiumDesktop ? 12 : 10),
+      radius: widget.premiumDesktop ? 20 : 18,
       child: Stack(
           children: <Widget>[
             Column(
@@ -8731,16 +8997,19 @@ class _MyHandRowState extends State<_MyHandRow> {
 
                       final double availableWidth = max(0, constraints.maxWidth - 8);
                       final double cardWidth = _FaceCard.width * widget.cardScale;
+                      final double adaptiveGap = widget.premiumDesktop
+                          ? (constraints.maxWidth / 82).clamp(10.0, 24.0).toDouble()
+                          : _MyHandRow._cardGap;
                       final int cardsPerRow = _responsiveCardsPerRow(
                         availableWidth: availableWidth,
                         cardWidth: cardWidth,
-                        gap: _MyHandRow._cardGap,
+                        gap: adaptiveGap,
                         cardCount: cards.length,
                       );
                       final double wrapWidth = _responsiveCardsWrapWidth(
                         cardsPerRow: cardsPerRow,
                         cardWidth: cardWidth,
-                        gap: _MyHandRow._cardGap,
+                        gap: adaptiveGap,
                         maxWidth: availableWidth,
                       );
                       final double cardsMinHeight = max(
@@ -8753,7 +9022,12 @@ class _MyHandRowState extends State<_MyHandRow> {
                         children: <Widget>[
                           SingleChildScrollView(
                             scrollDirection: Axis.vertical,
-                            padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
+                            padding: EdgeInsets.fromLTRB(
+                              4,
+                              widget.premiumDesktop ? 8 : 14,
+                              4,
+                              widget.premiumDesktop ? 8 : 4,
+                            ),
                             child: ConstrainedBox(
                               constraints: BoxConstraints(
                                 minHeight: max(cardsMinHeight, constraints.maxHeight - 18),
@@ -8769,8 +9043,8 @@ class _MyHandRowState extends State<_MyHandRow> {
                                     child: Wrap(
                                       alignment: WrapAlignment.center,
                                       runAlignment: WrapAlignment.center,
-                                      spacing: _MyHandRow._cardGap,
-                                      runSpacing: _MyHandRow._cardGap,
+                                      spacing: adaptiveGap,
+                                      runSpacing: adaptiveGap,
                                       children: List<Widget>.generate(cards.length, (int index) {
                                       final DuelCard card = cards[index];
                                       final bool isPlayable = widget.playable(card);
