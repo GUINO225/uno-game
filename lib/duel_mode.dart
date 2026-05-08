@@ -2916,7 +2916,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   Future<void> _showInsufficientCreditDialog() async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
@@ -3136,6 +3136,20 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
 
+  ButtonStyle _duelLobbyPrimaryButtonStyle() {
+    return ElevatedButton.styleFrom(
+      backgroundColor: PremiumColors.accentGreen,
+      foregroundColor: PremiumColors.textDark,
+      minimumSize: const Size.fromHeight(48),
+      elevation: 10,
+      shadowColor: PremiumColors.accentGreen.withOpacity(0.26),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.white.withOpacity(0.44)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final DuelSession? session = _controller?.session;
@@ -3206,7 +3220,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    PremiumPanel(
+                    _DuelLobbyCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: <Widget>[
@@ -3234,10 +3248,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                             onPressed: busy ? null : _createGame,
                             icon: const Icon(Icons.add_circle_outline_rounded),
                             label: const Text('Créer maintenant'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: PremiumColors.accentGreen,
-                              foregroundColor: PremiumColors.textDark,
-                            ),
+                            style: _duelLobbyPrimaryButtonStyle(),
                           ),
                           if (session != null) ...<Widget>[
                             const SizedBox(height: 14),
@@ -3297,7 +3308,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    PremiumPanel(
+                    _DuelLobbyCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: <Widget>[
@@ -3330,10 +3341,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                             onPressed: busy ? null : _joinGame,
                             icon: const Icon(Icons.login_rounded),
                             label: const Text('Rejoindre'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: PremiumColors.accentGreen,
-                              foregroundColor: PremiumColors.textDark,
-                            ),
+                            style: _duelLobbyPrimaryButtonStyle(),
                           ),
                         ],
                       ),
@@ -3386,6 +3394,47 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 }
 
+class _DuelLobbyCard extends StatelessWidget {
+  const _DuelLobbyCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withOpacity(0.58)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.26),
+            blurRadius: 24,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
+            color: PremiumColors.accent.withOpacity(0.10),
+            blurRadius: 28,
+            spreadRadius: 1,
+          ),
+        ],
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFFFFFCF4),
+            Color(0xFFF5EEDC),
+            Color(0xFFEADFC6),
+          ],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: child,
+      ),
+    );
+  }
+}
+
 class DuelPage extends StatefulWidget {
   const DuelPage({
     super.key,
@@ -3425,6 +3474,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   bool _stakeSelectionDialogOpen = false;
   bool _stakeRejectedDialogOpen = false;
   bool _winDialogOpen = false;
+  bool _backNavigationBusy = false;
   String? _lastStakeOfferKey;
   String? _lastStakeRejectedKey;
   String? _lastMandatoryStakePromptKey;
@@ -4146,11 +4196,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         unawaited(
           Future<void>.delayed(const Duration(seconds: 2), () {
-            if (Navigator.of(dialogContext).canPop()) {
+            if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
               Navigator.of(dialogContext).pop();
             }
           }),
@@ -4172,11 +4222,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         unawaited(
           Future<void>.delayed(const Duration(milliseconds: 2200), () {
-            if (Navigator.of(dialogContext).canPop()) {
+            if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
               Navigator.of(dialogContext).pop();
             }
           }),
@@ -4557,7 +4607,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     final List<int> options = <int>[100, 250, 500, 1000, 2000];
     final int? selected = await showDialog<int>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       barrierColor: Colors.black.withOpacity(0.70),
       builder: (BuildContext context) {
         return StatefulBuilder(
@@ -4714,7 +4764,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _markImportantPopupOpened();
     final String? decision = await showDialog<String>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       barrierColor: Colors.transparent,
       useSafeArea: false,
       builder: (BuildContext dialogContext) {
@@ -4728,15 +4778,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       },
     );
     _stakeDialogOpen = false;
-    if (decision == null || _stakeActionBusy) {
-      if (insufficient) {
-        _showStakeRequiredMessage(
-          'Crédit insuffisant\nVotre solde est insuffisant. Veuillez contacter le service client ou l’administrateur pour recharger votre compte.',
-        );
-      }
+    if (_stakeActionBusy) {
       return;
     }
-    if (decision == 'refuse' && insufficient) {
+    final bool cancelledWithBack = decision == null;
+    if (insufficient && (decision == 'refuse' || cancelledWithBack)) {
       _showStakeRequiredMessage(
         'Crédit insuffisant\nVotre solde est insuffisant. Veuillez contacter le service client ou l’administrateur pour recharger votre compte.',
       );
@@ -4807,7 +4853,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -5049,9 +5095,36 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   }
 
   Future<void> _handleBackNavigation() async {
-    final bool leave = await _confirmLeaveGame();
-    if (!leave && mounted) {
-      unawaited(_sfx.playClick());
+    if (_backNavigationBusy) {
+      return;
+    }
+    _backNavigationBusy = true;
+    try {
+      final DuelSession? session = _controller.session;
+      if (session != null && session.status == DuelGameStatus.finished) {
+        if (session.rematchRequestBy == _controller.localPlayerId &&
+            session.rematchDecision == DuelRematchDecision.pending) {
+          await _controller.cancelRematchRequest();
+        }
+        if (mounted) {
+          Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+        }
+        return;
+      }
+      if (session != null &&
+          _isCreditsMode &&
+          (session.status == DuelGameStatus.waiting || _requiresStake(session))) {
+        await _exitPartyFlow();
+        return;
+      }
+      final bool leave = await _confirmLeaveGame();
+      if (leave && mounted) {
+        Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+      } else if (mounted) {
+        unawaited(_sfx.playClick());
+      }
+    } finally {
+      _backNavigationBusy = false;
     }
   }
 
@@ -5064,7 +5137,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _markImportantPopupOpened();
     final bool? accepted = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -5080,19 +5153,20 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       },
     );
     _rematchDialogOpen = false;
-    if (accepted == null || _rematchActionBusy) {
+    if (_rematchActionBusy) {
       return;
     }
+    final bool shouldAccept = accepted == true;
     setState(() {
       _rematchActionBusy = true;
       _rematchErrorMessage = null;
     });
     try {
-      if (accepted) {
+      if (shouldAccept) {
         await _controller.acceptRematch();
       } else {
         await _controller.declineRematch();
-        // Decliner goes back to main menu immediately
+        // Decliner or back dismissal goes back to main menu immediately.
         if (mounted) {
           Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
         }
@@ -5405,7 +5479,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   Future<void> _showCreditExhaustedDialog() async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
@@ -5442,7 +5516,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   Future<void> _showOpponentNoCreditDialog() async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
@@ -5484,7 +5558,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -5513,7 +5587,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _markImportantPopupOpened();
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,

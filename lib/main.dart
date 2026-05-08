@@ -695,7 +695,7 @@ class StartupAdPopup extends StatelessWidget {
 Future<void> showStartupAdPopup(BuildContext context) {
   return showDialog<void>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: true,
     barrierColor: Colors.black54,
     builder: (_) => const StartupAdPopup(),
   );
@@ -1223,7 +1223,7 @@ class _GameModePageState extends State<GameModePage>
         }
         await showDialog<void>(
           context: context,
-          barrierDismissible: false,
+          barrierDismissible: true,
           builder: (BuildContext dialogContext) {
             return AlertDialog(
               backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
@@ -3245,12 +3245,12 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     bool commandPopupClosed = false;
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       barrierColor: Colors.black.withOpacity(0.62),
       builder: (BuildContext dialogContext) {
         unawaited(
           Future<void>.delayed(const Duration(milliseconds: 1700), () {
-            if (!commandPopupClosed && Navigator.of(dialogContext).canPop()) {
+            if (!commandPopupClosed && dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
               commandPopupClosed = true;
               Navigator.of(dialogContext).pop();
             }
@@ -3263,7 +3263,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             playerName: _botName,
             suit: _suitSymbol(suit),
             onClose: () {
-              if (!commandPopupClosed && Navigator.of(dialogContext).canPop()) {
+              if (!commandPopupClosed && dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
                 commandPopupClosed = true;
                 Navigator.of(dialogContext).pop();
               }
@@ -3277,7 +3277,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   Future<Suit> _showSuitChooserDialog() async {
     final String? selected = await showDialog<String>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       barrierColor: Colors.black.withOpacity(0.58),
       builder: (BuildContext context) {
         return Dialog(
@@ -3729,7 +3729,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     _isImportantPopupOpen = true;
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext context) {
         final bool humanWon = winner == PlayerTurn.human;
         final bool isConnected = AuthService.instance.currentUser != null;
