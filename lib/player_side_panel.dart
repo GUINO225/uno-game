@@ -664,7 +664,14 @@ class _SideMenuCloseRow extends StatelessWidget {
               menuScope.close();
               return;
             }
-            Navigator.of(context).pop();
+            final ScaffoldState? scaffold = Scaffold.maybeOf(context);
+            if (scaffold?.isEndDrawerOpen ?? false) {
+              scaffold!.closeEndDrawer();
+              return;
+            }
+            if (scaffold?.isDrawerOpen ?? false) {
+              scaffold!.closeDrawer();
+            }
           },
           customBorder: const CircleBorder(),
           child: Container(
@@ -1598,8 +1605,27 @@ class _ResponsivePlayerSidePanelLayoutState
     );
   }
 
+  Widget _scopedSidePanel(double width, {required bool isDesktop}) {
+    return _PlayerSidePanelControllerScope(
+      toggle: _toggleSidePanel,
+      close: _closeSidePanel,
+      isDesktop: isDesktop,
+      child: _sidePanel(width),
+    );
+  }
+
   Widget _leadingPanel(double width) {
     return SizedBox(width: width, child: widget.leadingPanel);
+  }
+
+  Widget _scopedLeadingPanel(double width) {
+    return PlayerLeadingSidePanelControllerScope(
+      toggle: _toggleLeadingPanel,
+      open: _openLeadingPanel,
+      close: _closeLeadingPanel,
+      isOpen: _leadingPanelOpen,
+      child: _leadingPanel(width),
+    );
   }
 
   @override
@@ -1636,14 +1662,14 @@ class _ResponsivePlayerSidePanelLayoutState
                 bottom: 0,
                 left: 0,
                 width: leadingPanelWidth,
-                child: _leadingPanel(leadingPanelWidth),
+                child: _scopedLeadingPanel(leadingPanelWidth),
               ),
             Positioned(
               top: 0,
               bottom: 0,
               right: 0,
               width: panelWidth,
-              child: _sidePanel(panelWidth),
+              child: _scopedSidePanel(panelWidth, isDesktop: true),
             ),
           ],
         );
@@ -1651,9 +1677,9 @@ class _ResponsivePlayerSidePanelLayoutState
 
       return Row(
         children: <Widget>[
-          if (hasLeadingPanel) _leadingPanel(leadingPanelWidth),
+          if (hasLeadingPanel) _scopedLeadingPanel(leadingPanelWidth),
           Expanded(child: scopedContent),
-          _sidePanel(panelWidth),
+          _scopedSidePanel(panelWidth, isDesktop: true),
         ],
       );
     }
@@ -1679,7 +1705,7 @@ class _ResponsivePlayerSidePanelLayoutState
             bottom: 0,
             left: _leadingPanelOpen ? 0 : -leadingPanelWidth,
             width: leadingPanelWidth,
-            child: _leadingPanel(leadingPanelWidth),
+            child: _scopedLeadingPanel(leadingPanelWidth),
           ),
         AnimatedPositioned(
           duration: const Duration(milliseconds: 260),
@@ -1688,7 +1714,7 @@ class _ResponsivePlayerSidePanelLayoutState
           bottom: 0,
           right: _sidePanelOpen ? 0 : -panelWidth,
           width: panelWidth,
-          child: _sidePanel(panelWidth),
+          child: _scopedSidePanel(panelWidth, isDesktop: false),
         ),
       ],
     );
