@@ -3192,6 +3192,7 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     final DuelSession? session = _controller?.session;
@@ -8597,8 +8598,8 @@ class _MyHandRow extends StatefulWidget {
   final double cardScale;
   final double minCardsViewportHeight;
   final int? score;
-  static const int _maxCardsPerRow = 6;
   static const double _cardGap = 10;
+  static const Duration _resizeAnimationDuration = Duration(milliseconds: 260);
 
   @override
   State<_MyHandRow> createState() => _MyHandRowState();
@@ -8621,6 +8622,32 @@ class _MyHandRowState extends State<_MyHandRow> {
     final Set<String> previousIds = _previousCardIds.toSet();
     _newCardIds = currentIds.where((String id) => !previousIds.contains(id)).toSet();
     _previousCardIds = currentIds;
+  }
+
+
+
+  int _responsiveCardsPerRow({
+    required double availableWidth,
+    required double cardWidth,
+    required double gap,
+    required int cardCount,
+  }) {
+    if (cardCount <= 0 || availableWidth <= 0) {
+      return 1;
+    }
+    final int fitCount = ((availableWidth + gap) / (cardWidth + gap)).floor();
+    return fitCount.clamp(1, cardCount).toInt();
+  }
+
+  double _responsiveCardsWrapWidth({
+    required int cardsPerRow,
+    required double cardWidth,
+    required double gap,
+    required double maxWidth,
+  }) {
+    final double desiredWidth = (cardsPerRow * cardWidth) +
+        (max(0, cardsPerRow - 1) * gap);
+    return min(maxWidth, desiredWidth);
   }
 
   @override
@@ -8669,14 +8696,20 @@ class _MyHandRowState extends State<_MyHandRow> {
                       }
                       int newCardOrder = 0;
 
-                      final double maxRowWidth =
-                          (_FaceCard.width * widget.cardScale * _MyHandRow._maxCardsPerRow) +
-                          (_MyHandRow._cardGap * (_MyHandRow._maxCardsPerRow - 1));
-                      final double wrapWidth = min(
-                        constraints.maxWidth - 8,
-                        maxRowWidth,
-                      );
+                      final double availableWidth = max(0, constraints.maxWidth - 8);
                       final double cardWidth = _FaceCard.width * widget.cardScale;
+                      final int cardsPerRow = _responsiveCardsPerRow(
+                        availableWidth: availableWidth,
+                        cardWidth: cardWidth,
+                        gap: _MyHandRow._cardGap,
+                        cardCount: cards.length,
+                      );
+                      final double wrapWidth = _responsiveCardsWrapWidth(
+                        cardsPerRow: cardsPerRow,
+                        cardWidth: cardWidth,
+                        gap: _MyHandRow._cardGap,
+                        maxWidth: availableWidth,
+                      );
                       final double cardsMinHeight = max(
                         widget.minCardsViewportHeight,
                         _FaceCard.height * widget.cardScale + 8,
@@ -8692,9 +8725,13 @@ class _MyHandRowState extends State<_MyHandRow> {
                               padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
                               child: Align(
                                 alignment: Alignment.center,
-                                child: SizedBox(
-                                  width: wrapWidth,
-                                  child: Wrap(
+                                child: AnimatedSize(
+                                  duration: _MyHandRow._resizeAnimationDuration,
+                                  curve: Curves.easeOutCubic,
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox(
+                                    width: wrapWidth,
+                                    child: Wrap(
                                     alignment: WrapAlignment.center,
                                     runAlignment: WrapAlignment.center,
                                     spacing: _MyHandRow._cardGap,
@@ -8732,7 +8769,8 @@ class _MyHandRowState extends State<_MyHandRow> {
                                           ),
                                         ),
                                       );
-                                    }),
+                                      }),
+                                    ),
                                   ),
                                 ),
                               ),

@@ -2499,7 +2499,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   static const Duration _uiTransitionDuration = Duration(milliseconds: 260);
   static const double _handCardWidth = 64;
   static const double _handCardHeight = 92;
-  static const int _maxCardsPerRow = 5;
   bool _funnyMessagesEnabled = true;
   DateTime? _lastFunnyMessageAt;
   bool _isImportantPopupOpen = false;
@@ -4028,14 +4027,23 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     return Scaffold(
       backgroundColor: GameModePalette.background,
-      body: ResponsivePlayerSidePanelLayout(
-        onOpenLeaderboard: () {
-          Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
-        },
-        onOpenHistory: () {
-          Navigator.of(context).pushNamed(GameModeRoutes.history);
-        },
-        child: Stack(
+      body: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints viewportConstraints) {
+          final bool showDesktopSoloLeaderboard =
+              kIsWeb && viewportConstraints.maxWidth >= 1680;
+          return ResponsivePlayerSidePanelLayout(
+            preserveContentCenterOnDesktop: showDesktopSoloLeaderboard,
+            leadingPanel: showDesktopSoloLeaderboard
+                ? const LeaderboardSidePanel(limit: 20)
+                : null,
+            leadingPanelWidth: 320,
+            onOpenLeaderboard: () {
+              Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+            },
+            onOpenHistory: () {
+              Navigator.of(context).pushNamed(GameModeRoutes.history);
+            },
+            child: Stack(
           children: <Widget>[
           TableBackground(
             child: Padding(
@@ -4104,8 +4112,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 ),
               ),
             ),
-        ],
-        ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -4197,6 +4207,31 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     );
   }
 
+
+  int _responsiveCardsPerRow({
+    required double availableWidth,
+    required double cardWidth,
+    required double gap,
+    required int cardCount,
+  }) {
+    if (cardCount <= 0 || availableWidth <= 0) {
+      return 1;
+    }
+    final int fitCount = ((availableWidth + gap) / (cardWidth + gap)).floor();
+    return fitCount.clamp(1, cardCount).toInt();
+  }
+
+  double _responsiveCardsWrapWidth({
+    required int cardsPerRow,
+    required double cardWidth,
+    required double gap,
+    required double maxWidth,
+  }) {
+    final double desiredWidth = (cardsPerRow * cardWidth) +
+        (max(0, cardsPerRow - 1) * gap);
+    return min(maxWidth, desiredWidth);
+  }
+
   Widget _playerPanel({required bool canInteract}) {
     return PremiumGamePanel(
       padding: const EdgeInsets.all(12),
@@ -4232,20 +4267,35 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   Widget _playerHandArea({required bool canInteract}) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double maxRowWidth =
-            (_handCardWidth * _maxCardsPerRow) + (6 * (_maxCardsPerRow - 1));
-        final double wrapWidth = min(maxRowWidth, constraints.maxWidth - 4);
+        const double gap = 6;
+        final double availableWidth = max(0, constraints.maxWidth - 4);
+        final int cardsPerRow = _responsiveCardsPerRow(
+          availableWidth: availableWidth,
+          cardWidth: _handCardWidth,
+          gap: gap,
+          cardCount: _humanHand.length,
+        );
+        final double wrapWidth = _responsiveCardsWrapWidth(
+          cardsPerRow: cardsPerRow,
+          cardWidth: _handCardWidth,
+          gap: gap,
+          maxWidth: availableWidth,
+        );
         return SingleChildScrollView(
           child: Align(
             alignment: Alignment.center,
-            child: SizedBox(
-              width: wrapWidth,
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                runAlignment: WrapAlignment.center,
-                spacing: 6,
-                runSpacing: 6,
-                children: List<Widget>.generate(_humanHand.length, (int index) {
+            child: AnimatedSize(
+              duration: _uiTransitionDuration,
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: wrapWidth,
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  runAlignment: WrapAlignment.center,
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: List<Widget>.generate(_humanHand.length, (int index) {
                   final PlayingCard card = _humanHand[index];
                   final int cardRef = identityHashCode(card);
                   final bool isNew = _newHumanCardRefs.contains(cardRef);
@@ -4262,7 +4312,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       onTap: canInteract ? () => _onHumanTapCard(card) : null,
                     ),
                   );
-                }),
+                  }),
+                ),
               ),
             ),
           ),
@@ -4292,29 +4343,54 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 ),
                 const PremiumDividerLine(verticalPadding: 8),
                 Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    reverse: true,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List<Widget>.generate(
-                        _botHand.length,
-                        (int index) {
-                          final PlayingCard card = _botHand[index];
-                          final int cardRef = identityHashCode(card);
-                          final bool isNew = _newBotCardRefs.contains(cardRef);
-                          return Padding(
-                            padding: const EdgeInsets.only(left: 12),
-                            child: BouncyCardEntry(
-                              key: ValueKey<int>(cardRef),
-                              animate: isNew,
-                              delay: Duration(milliseconds: isNew ? index * 32 : 0),
-                              child: const CardBackView(width: 28, height: 40),
+                  child: LayoutBuilder(
+                    builder: (BuildContext context, BoxConstraints constraints) {
+                      const double backWidth = 28;
+                      const double gap = 10;
+                      final double availableWidth = max(0, constraints.maxWidth - 4);
+                      final int cardsPerRow = _responsiveCardsPerRow(
+                        availableWidth: availableWidth,
+                        cardWidth: backWidth,
+                        gap: gap,
+                        cardCount: _botHand.length,
+                      );
+                      final double wrapWidth = _responsiveCardsWrapWidth(
+                        cardsPerRow: cardsPerRow,
+                        cardWidth: backWidth,
+                        gap: gap,
+                        maxWidth: availableWidth,
+                      );
+                      return SingleChildScrollView(
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: AnimatedSize(
+                            duration: _uiTransitionDuration,
+                            curve: Curves.easeOutCubic,
+                            alignment: Alignment.topCenter,
+                            child: SizedBox(
+                              width: wrapWidth,
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                runAlignment: WrapAlignment.center,
+                                spacing: gap,
+                                runSpacing: 6,
+                                children: List<Widget>.generate(_botHand.length, (int index) {
+                                  final PlayingCard card = _botHand[index];
+                                  final int cardRef = identityHashCode(card);
+                                  final bool isNew = _newBotCardRefs.contains(cardRef);
+                                  return BouncyCardEntry(
+                                    key: ValueKey<int>(cardRef),
+                                    animate: isNew,
+                                    delay: Duration(milliseconds: isNew ? index * 32 : 0),
+                                    child: const CardBackView(width: backWidth, height: 40),
+                                  );
+                                }),
+                              ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],

@@ -139,6 +139,132 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   }
 }
 
+class LeaderboardSidePanel extends StatefulWidget {
+  const LeaderboardSidePanel({super.key, this.limit = 20});
+
+  final int limit;
+
+  @override
+  State<LeaderboardSidePanel> createState() => _LeaderboardSidePanelState();
+}
+
+class _LeaderboardSidePanelState extends State<LeaderboardSidePanel> {
+  final LeaderboardService _leaderboardService = LeaderboardService.instance;
+  late Future<List<PlayerProfile>> _leaderboardFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: widget.limit);
+  }
+
+  @override
+  void didUpdateWidget(covariant LeaderboardSidePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.limit != widget.limit) {
+      _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: widget.limit);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? currentUid = FirebaseAuth.instance.currentUser?.uid;
+    return _LeaderboardBackground(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+          child: DecoratedBox(
+            decoration: PremiumGameDecorations.glassPanel(
+              radius: 24,
+              opacity: 0.72,
+              borderColor: PremiumColors.accentGreen.withOpacity(0.22),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: FutureBuilder<List<PlayerProfile>>(
+                future: _leaderboardFuture,
+                builder: (
+                  BuildContext context,
+                  AsyncSnapshot<List<PlayerProfile>> snapshot,
+                ) {
+                  final List<PlayerProfile> players =
+                      snapshot.data ?? const <PlayerProfile>[];
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Icon(
+                            Icons.leaderboard_rounded,
+                            color: PremiumColors.accent.withOpacity(0.92),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Classement',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const _LeaderboardHeader(),
+                      if (snapshot.connectionState == ConnectionState.waiting)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: LinearProgressIndicator(minHeight: 2),
+                        ),
+                      if (snapshot.hasError)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Text(
+                            'Classement indisponible.',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      if (players.isEmpty &&
+                          snapshot.connectionState == ConnectionState.done)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Text(
+                            'Aucun joueur classé.',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ...List<Widget>.generate(players.length, (int index) {
+                        final PlayerProfile player = players[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: _LeaderboardRow(
+                            player: player,
+                            rank: index + 1,
+                            isCurrentUser:
+                                currentUid != null && player.uid == currentUid,
+                          ),
+                        );
+                      }),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
 class _LeaderboardBackground extends StatelessWidget {
   const _LeaderboardBackground({required this.child});
 
