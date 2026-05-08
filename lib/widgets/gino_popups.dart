@@ -748,6 +748,16 @@ class GinoBetProposalPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    void adjustAmount(int delta) {
+      final int current = int.tryParse(amountController.text.trim()) ?? 0;
+      final int next = math.max(0, current + delta);
+      amountController.text = next.toString();
+      amountController.selection = TextSelection.collapsed(
+        offset: amountController.text.length,
+      );
+      onAmountChanged(amountController.text);
+    }
+
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.96, end: 1),
       duration: const Duration(milliseconds: 180),
@@ -797,30 +807,91 @@ class GinoBetProposalPopup extends StatelessWidget {
                   .toList(),
             ),
             const SizedBox(height: 14),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              style: GinoPopupStyle.baseText(fontSize: 16),
-              onChanged: onAmountChanged,
-              decoration: InputDecoration(
-                hintText: 'Montant du pari',
-                hintStyle: GinoPopupStyle.baseText(fontSize: 15, color: Colors.white70),
-                prefixIcon: Icon(
-                  Icons.monetization_on_rounded,
-                  color: GinoPopupStyle.casinoGold.withOpacity(0.92),
-                  size: 20,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: GinoPopupStyle.casinoGold.withOpacity(0.28),
                 ),
-                filled: true,
-                fillColor: const Color(0xFF021F15).withOpacity(0.82),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.55)),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[
+                    const Color(0xFF1F1504).withOpacity(0.92),
+                    const Color(0xFF06170F).withOpacity(0.88),
+                  ],
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.95)),
-                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: GinoPopupStyle.casinoGold.withOpacity(0.18),
+                    blurRadius: 24,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.30),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: <Widget>[
+                  _GinoStakeAdjustButton(
+                    icon: Icons.remove_rounded,
+                    onPressed: () => adjustAmount(-50),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: GinoPopupStyle.baseText(
+                        fontSize: 16,
+                        color: GinoPopupStyle.casinoGold,
+                        fontWeight: GinoPopupStyle.titleWeight,
+                      ),
+                      onChanged: onAmountChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Montant du pari',
+                        hintStyle: GinoPopupStyle.baseText(
+                          fontSize: 15,
+                          color: Colors.white70,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.monetization_on_rounded,
+                          color: GinoPopupStyle.casinoGold.withOpacity(0.92),
+                          size: 20,
+                        ),
+                        filled: true,
+                        fillColor: Colors.black.withOpacity(0.26),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide(
+                            color: GinoPopupStyle.casinoGold.withOpacity(0.42),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide(
+                            color: GinoPopupStyle.casinoGold.withOpacity(0.95),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _GinoStakeAdjustButton(
+                    icon: Icons.add_rounded,
+                    onPressed: () => adjustAmount(50),
+                  ),
+                ],
               ),
             ),
             if (validationError != null) ...<Widget>[
@@ -861,6 +932,69 @@ class GinoBetProposalPopup extends StatelessWidget {
     );
   }
 }
+
+class _GinoStakeAdjustButton extends StatefulWidget {
+  const _GinoStakeAdjustButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  State<_GinoStakeAdjustButton> createState() => _GinoStakeAdjustButtonState();
+}
+
+class _GinoStakeAdjustButtonState extends State<_GinoStakeAdjustButton> {
+  bool _pressed = false;
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: Listener(
+        onPointerDown: (_) => setState(() => _pressed = true),
+        onPointerUp: (_) => setState(() => _pressed = false),
+        onPointerCancel: (_) => setState(() => _pressed = false),
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 110),
+          curve: Curves.easeOutCubic,
+          scale: _pressed ? 0.92 : (_hovered ? 1.06 : 1),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[
+                  GinoPopupStyle.casinoGold.withOpacity(0.96),
+                  const Color(0xFFFF7A24),
+                ],
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: GinoPopupStyle.casinoGold.withOpacity(_hovered ? 0.42 : 0.25),
+                  blurRadius: _hovered ? 18 : 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: IconButton(
+              onPressed: widget.onPressed,
+              constraints: const BoxConstraints.tightFor(width: 42, height: 42),
+              padding: EdgeInsets.zero,
+              icon: Icon(widget.icon, color: const Color(0xFF231300), size: 22),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class GinoIncomingBetPopup extends StatelessWidget {
   const GinoIncomingBetPopup({
     super.key,

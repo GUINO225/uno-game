@@ -3136,17 +3136,47 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
 
-  ButtonStyle _duelLobbyPrimaryButtonStyle() {
+  Color get _lobbyAccentPrimary => widget.mode == DuelRoomMode.credits
+      ? const Color(0xFFFFB545)
+      : const Color(0xFF58A6FF);
+
+  Color get _lobbyAccentSecondary => widget.mode == DuelRoomMode.credits
+      ? const Color(0xFFFF6A1F)
+      : const Color(0xFF9D6CFF);
+
+  ButtonStyle _duelLobbyPrimaryButtonStyle({
+    required Color accent,
+    required Color secondaryAccent,
+  }) {
     return ElevatedButton.styleFrom(
-      backgroundColor: PremiumColors.accentGreen,
-      foregroundColor: PremiumColors.textDark,
+      foregroundColor: Colors.white,
       minimumSize: const Size.fromHeight(48),
-      elevation: 10,
-      shadowColor: PremiumColors.accentGreen.withOpacity(0.26),
+      elevation: 0,
+      shadowColor: accent.withOpacity(0.38),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withOpacity(0.44)),
+        borderRadius: BorderRadius.circular(999),
+        side: BorderSide(color: Colors.white.withOpacity(0.18)),
       ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+      backgroundColor: Colors.transparent,
+      disabledBackgroundColor: Colors.white.withOpacity(0.08),
+      disabledForegroundColor: Colors.white.withOpacity(0.35),
+    ).copyWith(
+      backgroundColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
+        if (states.contains(MaterialState.disabled)) {
+          return Colors.white.withOpacity(0.08);
+        }
+        return Colors.transparent;
+      }),
+      overlayColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
+        if (states.contains(MaterialState.pressed)) {
+          return Colors.white.withOpacity(0.16);
+        }
+        if (states.contains(MaterialState.hovered)) {
+          return Colors.white.withOpacity(0.08);
+        }
+        return null;
+      }),
     );
   }
 
@@ -3156,7 +3186,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final bool busy = _controller?.busy ?? false;
     final bool creditsMode = widget.mode == DuelRoomMode.credits;
     final String title = creditsMode ? 'Mode pari' : 'Duel simple';
+    final Color accent = _lobbyAccentPrimary;
+    final Color secondaryAccent = _lobbyAccentSecondary;
     return Scaffold(
+      backgroundColor: const Color(0xFF050507),
       endDrawer: PlayerSidePanel(
         onOpenLeaderboard: () {
           Navigator.of(context).pop();
@@ -3173,205 +3206,313 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       ),
       body: Stack(
         children: <Widget>[
-          TableBackground(
-            child: SafeArea(
-              child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Stack(
-                      children: <Widget>[
-                        Align(
-                          alignment: Alignment.topLeft,
-                          child: IconButton(
-                            onPressed: () {
-                              unawaited(_sfx.playClick());
-                              Navigator.of(context).popUntil(
-                                (Route<dynamic> route) => route.isFirst,
-                              );
-                            },
-                            tooltip: 'Retour aux modes',
-                            icon: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: Colors.white,
-                            ),
-                          ),
+          _DuelLobbyPremiumBackground(
+            accent: accent,
+            secondaryAccent: secondaryAccent,
+            casinoMode: creditsMode,
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0, end: 1),
+                    duration: const Duration(milliseconds: 520),
+                    curve: Curves.easeOutCubic,
+                    builder: (BuildContext context, double value, Widget? child) {
+                      return Opacity(
+                        opacity: value,
+                        child: Transform.translate(
+                          offset: Offset(0, 18 * (1 - value)),
+                          child: child,
                         ),
-                        Column(
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Stack(
                           children: <Widget>[
-                            const AppLogo(size: 88),
-                            const SizedBox(height: 4),
-                            Text(
-                              title,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.95),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 22,
-                                letterSpacing: 0.7,
+                            Align(
+                              alignment: Alignment.topLeft,
+                              child: _DuelLobbyIconShell(
+                                accent: accent,
+                                child: IconButton(
+                                  onPressed: () {
+                                    unawaited(_sfx.playClick());
+                                    Navigator.of(context).popUntil(
+                                      (Route<dynamic> route) => route.isFirst,
+                                    );
+                                  },
+                                  tooltip: 'Retour aux modes',
+                                  icon: const Icon(
+                                    Icons.arrow_back_rounded,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
+                            ),
+                            Column(
+                              children: <Widget>[
+                                const AppLogo(size: 88),
+                                const SizedBox(height: 8),
+                                _DuelLobbyBadge(
+                                  label: creditsMode ? 'PARI' : 'DUEL',
+                                  accent: accent,
+                                  secondaryAccent: secondaryAccent,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  title,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.95),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 22,
+                                    letterSpacing: 0.7,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    _DuelLobbyCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          const Text(
-                            'Créer une partie',
-                            style: TextStyle(
-                              color: PremiumColors.textDark,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            widget.mode == DuelRoomMode.credits
-                                ? 'Bonus crédits actifs : Joker +200 · As +100 · 2 +75 · 8 +50 (en plus de la mise).'
-                                : 'Mode duel simple · aucun transfert de crédits.',
-                            style: const TextStyle(
-                              color: PremiumColors.textDark,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ElevatedButton.icon(
-                            onPressed: busy ? null : _createGame,
-                            icon: const Icon(Icons.add_circle_outline_rounded),
-                            label: const Text('Créer maintenant'),
-                            style: _duelLobbyPrimaryButtonStyle(),
-                          ),
-                          if (session != null) ...<Widget>[
-                            const SizedBox(height: 14),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: PremiumColors.panelSoft,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        const SizedBox(height: 24),
+                        _DuelLobbyCard(
+                          accent: accent,
+                          secondaryAccent: secondaryAccent,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Row(
                                 children: <Widget>[
-                                  SelectableText(
-                                    'Code de partie: ${session.gameId}',
-                                    style: const TextStyle(
-                                      color: PremiumColors.textDark,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                  _DuelLobbySectionIcon(
+                                    icon: creditsMode
+                                        ? Icons.diamond_outlined
+                                        : Icons.bolt_rounded,
+                                    accent: accent,
                                   ),
-                                  const SizedBox(height: 8),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: OutlinedButton.icon(
-                                      onPressed: () async {
-                                        unawaited(_sfx.playClick());
-                                        await Clipboard.setData(
-                                          ClipboardData(text: session.gameId),
-                                        );
-                                        if (!mounted) {
-                                          return;
-                                        }
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Code de la partie copié'),
-                                          ),
-                                        );
-                                        unawaited(_sfx.playNotif());
-                                      },
-                                      icon: const Icon(Icons.copy_rounded, size: 18),
-                                      label: const Text('Copier le code'),
-                                      style: OutlinedButton.styleFrom(
-                                        visualDensity: VisualDensity.compact,
-                                        foregroundColor: PremiumColors.textDark,
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Text(
+                                      'Créer une partie',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Joueurs: ${session.players.length}/2',
-                                    style: const TextStyle(color: PremiumColors.textDark),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                widget.mode == DuelRoomMode.credits
+                                    ? 'Bonus crédits actifs : Joker +200 · As +100 · 2 +75 · 8 +50 (en plus de la mise).'
+                                    : 'Mode duel simple · aucun transfert de crédits.',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.72),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (creditsMode) ...<Widget>[
+                                const SizedBox(height: 14),
+                                _DuelLobbyStakeShowcase(
+                                  accent: accent,
+                                  secondaryAccent: secondaryAccent,
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              _DuelLobbyPremiumButton(
+                                onPressed: busy ? null : _createGame,
+                                icon: Icons.add_circle_outline_rounded,
+                                label: 'Créer maintenant',
+                                accent: accent,
+                                secondaryAccent: secondaryAccent,
+                                style: _duelLobbyPrimaryButtonStyle(
+                                  accent: accent,
+                                  secondaryAccent: secondaryAccent,
+                                ),
+                              ),
+                              if (session != null) ...<Widget>[
+                                const SizedBox(height: 16),
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 260),
+                                  curve: Curves.easeOutCubic,
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(22),
+                                    border: Border.all(
+                                      color: accent.withOpacity(0.32),
+                                    ),
+                                    boxShadow: <BoxShadow>[
+                                      BoxShadow(
+                                        color: accent.withOpacity(0.18),
+                                        blurRadius: 24,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      SelectableText(
+                                        'Code de partie: ${session.gameId}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () async {
+                                            unawaited(_sfx.playClick());
+                                            await Clipboard.setData(
+                                              ClipboardData(text: session.gameId),
+                                            );
+                                            if (!mounted) {
+                                              return;
+                                            }
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Code de la partie copié'),
+                                              ),
+                                            );
+                                            unawaited(_sfx.playNotif());
+                                          },
+                                          icon: const Icon(Icons.copy_rounded, size: 18),
+                                          label: const Text('Copier le code'),
+                                          style: OutlinedButton.styleFrom(
+                                            visualDensity: VisualDensity.compact,
+                                            foregroundColor: Colors.white,
+                                            side: BorderSide(color: Colors.white.withOpacity(0.24)),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(999),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Joueurs: ${session.players.length}/2',
+                                        style: TextStyle(color: Colors.white.withOpacity(0.72)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _DuelLobbyCard(
+                          accent: accent,
+                          secondaryAccent: secondaryAccent,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  _DuelLobbySectionIcon(
+                                    icon: Icons.vpn_key_outlined,
+                                    accent: accent,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Text(
+                                      'Rejoindre une partie',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _DuelLobbyCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          const Text(
-                            'Rejoindre une partie',
-                            style: TextStyle(
-                              color: PremiumColors.textDark,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _codeController,
+                                textCapitalization: TextCapitalization.characters,
+                                cursorColor: accent,
+                                style: const TextStyle(color: Colors.white),
+                                onChanged: (_) {
+                                  if (_profileError != null) {
+                                    setState(() {
+                                      _profileError = null;
+                                    });
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  hintText: 'AB12CD',
+                                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.34)),
+                                  prefixIcon: Icon(
+                                    Icons.vpn_key_outlined,
+                                    color: accent.withOpacity(0.86),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.black.withOpacity(0.28),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                    borderSide: BorderSide(
+                                      color: Colors.white.withOpacity(0.12),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(22),
+                                    borderSide: BorderSide(color: accent.withOpacity(0.82)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              _DuelLobbyPremiumButton(
+                                onPressed: busy ? null : _joinGame,
+                                icon: Icons.login_rounded,
+                                label: 'Rejoindre',
+                                accent: accent,
+                                secondaryAccent: secondaryAccent,
+                                style: _duelLobbyPrimaryButtonStyle(
+                                  accent: accent,
+                                  secondaryAccent: secondaryAccent,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 10),
-                          TextField(
-                            controller: _codeController,
-                            textCapitalization: TextCapitalization.characters,
-                            onChanged: (_) {
-                              if (_profileError != null) {
-                                setState(() {
-                                  _profileError = null;
-                                });
-                              }
-                            },
-                            decoration: const InputDecoration(
-                              hintText: 'AB12CD',
-                              prefixIcon: Icon(Icons.vpn_key_outlined),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ElevatedButton.icon(
-                            onPressed: busy ? null : _joinGame,
-                            icon: const Icon(Icons.login_rounded),
-                            label: const Text('Rejoindre'),
-                            style: _duelLobbyPrimaryButtonStyle(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_profileError != null) ...<Widget>[
-                      const SizedBox(height: 10),
-                      Text(
-                        _profileError!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFFFFD4D4),
-                          fontWeight: FontWeight.w700,
                         ),
-                      ),
-                    ],
-                    if ((_controller?.error) != null) ...<Widget>[
-                      const SizedBox(height: 10),
-                      Text(
-                        _controller!.error!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFFFFD4D4),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ],
+                        if (_profileError != null) ...<Widget>[
+                          const SizedBox(height: 10),
+                          Text(
+                            _profileError!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Color(0xFFFFD4D4),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                        if ((_controller?.error) != null) ...<Widget>[
+                          const SizedBox(height: 10),
+                          Text(
+                            _controller!.error!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Color(0xFFFFD4D4),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
               ),
             ),
           ),
@@ -3394,42 +3535,386 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 }
 
+class _DuelLobbyPremiumBackground extends StatelessWidget {
+  const _DuelLobbyPremiumBackground({
+    required this.accent,
+    required this.secondaryAccent,
+    required this.casinoMode,
+  });
+
+  final Color accent;
+  final Color secondaryAccent;
+  final bool casinoMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.expand(
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color(0xFF020204),
+            Color(0xFF12141A),
+            Color(0xFF050507),
+          ],
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Positioned(
+            top: -120,
+            right: -95,
+            child: _DuelLobbyGlowOrb(color: accent, size: 280, opacity: 0.28),
+          ),
+          Positioned(
+            bottom: -150,
+            left: -110,
+            child: _DuelLobbyGlowOrb(color: secondaryAccent, size: 330, opacity: 0.20),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _DuelLobbyGridPainter(
+                  color: casinoMode
+                      ? const Color(0xFFFFB545).withOpacity(0.035)
+                      : const Color(0xFF58A6FF).withOpacity(0.035),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    );
+  }
+}
+
+class _DuelLobbyGlowOrb extends StatelessWidget {
+  const _DuelLobbyGlowOrb({
+    required this.color,
+    required this.size,
+    required this.opacity,
+  });
+
+  final Color color;
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: <Color>[
+            color.withOpacity(opacity),
+            color.withOpacity(0),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DuelLobbyGridPainter extends CustomPainter {
+  const _DuelLobbyGridPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    const double spacing = 34;
+    for (double x = 0; x < size.width; x += spacing) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y < size.height; y += spacing) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DuelLobbyGridPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
 class _DuelLobbyCard extends StatelessWidget {
-  const _DuelLobbyCard({required this.child});
+  const _DuelLobbyCard({
+    required this.child,
+    required this.accent,
+    required this.secondaryAccent,
+  });
 
   final Widget child;
+  final Color accent;
+  final Color secondaryAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(32),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: Colors.white.withOpacity(0.14)),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withOpacity(0.34),
+                blurRadius: 34,
+                offset: const Offset(0, 18),
+              ),
+              BoxShadow(
+                color: accent.withOpacity(0.14),
+                blurRadius: 34,
+                spreadRadius: 1,
+              ),
+            ],
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                Colors.white.withOpacity(0.16),
+                Colors.white.withOpacity(0.08),
+                secondaryAccent.withOpacity(0.08),
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DuelLobbyBadge extends StatelessWidget {
+  const _DuelLobbyBadge({
+    required this.label,
+    required this.accent,
+    required this.secondaryAccent,
+  });
+
+  final String label;
+  final Color accent;
+  final Color secondaryAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withOpacity(0.48)),
+        gradient: LinearGradient(
+          colors: <Color>[
+            accent.withOpacity(0.22),
+            secondaryAccent.withOpacity(0.16),
+          ],
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: accent.withOpacity(0.22),
+            blurRadius: 18,
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.88),
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.8,
+        ),
+      ),
+    );
+  }
+}
+
+class _DuelLobbyIconShell extends StatelessWidget {
+  const _DuelLobbyIconShell({required this.child, required this.accent});
+
+  final Widget child;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Colors.white.withOpacity(0.58)),
+        shape: BoxShape.circle,
+        color: Colors.white.withOpacity(0.08),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
         boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(0.26),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-          BoxShadow(
-            color: PremiumColors.accent.withOpacity(0.10),
-            blurRadius: 28,
-            spreadRadius: 1,
-          ),
+          BoxShadow(color: accent.withOpacity(0.16), blurRadius: 22),
         ],
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _DuelLobbySectionIcon extends StatelessWidget {
+  const _DuelLobbySectionIcon({required this.icon, required this.accent});
+
+  final IconData icon;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: accent.withOpacity(0.14),
+        border: Border.all(color: accent.withOpacity(0.30)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(color: accent.withOpacity(0.18), blurRadius: 18),
+        ],
+      ),
+      child: Icon(icon, color: accent, size: 20),
+    );
+  }
+}
+
+class _DuelLobbyStakeShowcase extends StatelessWidget {
+  const _DuelLobbyStakeShowcase({
+    required this.accent,
+    required this.secondaryAccent,
+  });
+
+  final Color accent;
+  final Color secondaryAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: accent.withOpacity(0.26)),
+        gradient: LinearGradient(
           colors: <Color>[
-            Color(0xFFFFFCF4),
-            Color(0xFFF5EEDC),
-            Color(0xFFEADFC6),
+            accent.withOpacity(0.13),
+            Colors.black.withOpacity(0.18),
+            secondaryAccent.withOpacity(0.10),
           ],
         ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: accent.withOpacity(0.18),
+            blurRadius: 26,
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: child,
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.local_fire_department_rounded, color: accent, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Mise sécurisée à définir une fois les 2 joueurs connectés.',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.78),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DuelLobbyPremiumButton extends StatefulWidget {
+  const _DuelLobbyPremiumButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.accent,
+    required this.secondaryAccent,
+    required this.style,
+  });
+
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String label;
+  final Color accent;
+  final Color secondaryAccent;
+  final ButtonStyle style;
+
+  @override
+  State<_DuelLobbyPremiumButton> createState() => _DuelLobbyPremiumButtonState();
+}
+
+class _DuelLobbyPremiumButtonState extends State<_DuelLobbyPremiumButton> {
+  bool _pressed = false;
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enabled = widget.onPressed != null;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: Listener(
+        onPointerDown: enabled ? (_) => setState(() => _pressed = true) : null,
+        onPointerUp: enabled ? (_) => setState(() => _pressed = false) : null,
+        onPointerCancel: enabled ? (_) => setState(() => _pressed = false) : null,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 115),
+          curve: Curves.easeOutCubic,
+          scale: _pressed ? 0.97 : (_hovered ? 1.015 : 1),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              gradient: enabled
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[widget.accent, widget.secondaryAccent],
+                    )
+                  : null,
+              boxShadow: enabled
+                  ? <BoxShadow>[
+                      BoxShadow(
+                        color: widget.accent.withOpacity(_hovered ? 0.44 : 0.30),
+                        blurRadius: _hovered ? 28 : 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: ElevatedButton.icon(
+              onPressed: widget.onPressed,
+              icon: Icon(widget.icon),
+              label: Text(widget.label),
+              style: widget.style,
+            ),
+          ),
+        ),
       ),
     );
   }
