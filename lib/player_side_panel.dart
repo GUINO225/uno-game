@@ -311,14 +311,16 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   _maybeSuggestProfileCustomization(profile);
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const ModernSideMenu(
-                    child: Center(
+                  return ModernSideMenu(
+                    edge: widget.edge,
+                    child: const Center(
                       child: CircularProgressIndicator(color: _SideMenuStyle.accentGreen),
                     ),
                   );
                 }
                 if (snapshot.hasError) {
                   return ModernSideMenu(
+                    edge: widget.edge,
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
                       children: <Widget>[
@@ -355,6 +357,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                 }
                 if (profile == null) {
                   return ModernSideMenu(
+                    edge: widget.edge,
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
                       children: <Widget>[
@@ -436,6 +439,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   ),
                 ];
                 return ModernSideMenu(
+                  edge: widget.edge,
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
                     children: <Widget>[
@@ -511,26 +515,34 @@ class ModernSideMenu extends StatelessWidget {
   const ModernSideMenu({
     super.key,
     required this.child,
+    this.edge = PlayerSidePanelEdge.right,
   });
 
   final Widget child;
+  final PlayerSidePanelEdge edge;
 
   @override
   Widget build(BuildContext context) {
+    final bool opensFromLeft = edge == PlayerSidePanelEdge.left;
+    final BorderRadius sideRadius = BorderRadius.horizontal(
+      left: opensFromLeft ? Radius.zero : const Radius.circular(28),
+      right: opensFromLeft ? const Radius.circular(28) : Radius.zero,
+    );
+
     return ClipRRect(
-      borderRadius: const BorderRadius.horizontal(left: Radius.circular(28)),
+      borderRadius: sideRadius,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: _SideMenuStyle.deepGreen,
-            borderRadius: const BorderRadius.horizontal(left: Radius.circular(28)),
+            borderRadius: sideRadius,
             border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.34)),
             boxShadow: <BoxShadow>[
               BoxShadow(
                 color: Colors.black.withOpacity(0.26),
                 blurRadius: 28,
-                offset: const Offset(-10, 0),
+                offset: Offset(opensFromLeft ? 10 : -10, 0),
               ),
             ],
           ),
@@ -637,13 +649,17 @@ class _SideMenuCloseRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final _PlayerSidePanelControllerScope? menuScope =
+        _PlayerSidePanelControllerScope.maybeOf(context);
+    if (menuScope?.isDesktop ?? false) {
+      return const SizedBox.shrink();
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: <Widget>[
         InkWell(
           onTap: () {
-            final _PlayerSidePanelControllerScope? menuScope =
-                _PlayerSidePanelControllerScope.maybeOf(context);
             if (menuScope != null) {
               menuScope.close();
               return;
@@ -1431,7 +1447,7 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
     this.leadingPanelWidth,
   });
 
-  static const double desktopBreakpoint = 720;
+  static const double desktopBreakpoint = 1100;
 
   final Widget child;
   final VoidCallback? onOpenLeaderboard;
