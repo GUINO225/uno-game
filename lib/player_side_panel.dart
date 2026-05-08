@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -406,38 +407,6 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                     ),
                   );
                 }
-                final List<_PlayerInfoTileData> accountTiles = <_PlayerInfoTileData>[
-                  _PlayerInfoTileData(
-                    icon: Icons.account_circle_outlined,
-                    label: 'Pseudo',
-                    value: _safeLabel(profile.publicDisplayName, fallback: 'Joueur'),
-                  ),
-                  _PlayerInfoTileData(
-                    icon: Icons.emoji_events_outlined,
-                    label: 'Victoires',
-                    value: profile.wins.toString(),
-                  ),
-                  _PlayerInfoTileData(
-                    icon: Icons.cancel_outlined,
-                    label: 'Défaites',
-                    value: profile.losses.toString(),
-                  ),
-                  _PlayerInfoTileData(
-                    icon: Icons.sports_esports_outlined,
-                    label: 'Parties',
-                    value: profile.totalGames.toString(),
-                  ),
-                  _PlayerInfoTileData(
-                    icon: Icons.leaderboard_outlined,
-                    label: 'Classement',
-                    value: rank == null ? '-' : '#$rank',
-                  ),
-                  const _PlayerInfoTileData(
-                    icon: Icons.verified_user_outlined,
-                    label: 'Connexion',
-                    value: 'Compte Google connecté',
-                  ),
-                ];
                 return ModernSideMenu(
                   edge: widget.edge,
                   child: ListView(
@@ -451,18 +420,7 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                         widget.contextualGamePanel!,
                       ],
                       const SizedBox(height: 14),
-                      _SideMenuStatsPanel(
-                        children: List<Widget>.generate(accountTiles.length, (int index) {
-                          final _PlayerInfoTileData tile = accountTiles[index];
-                          return _PlayerInfoTile(
-                            icon: tile.icon,
-                            label: tile.label,
-                            value: tile.value,
-                            accent: tile.accent,
-                            isLast: index == accountTiles.length - 1,
-                          );
-                        }),
-                      ),
+                      _PremiumRankingPanel(profile: profile, rank: rank),
                       const SizedBox(height: 12),
                       _SideMenuActionButton(
                         label: 'Modifier mon profil',
@@ -827,6 +785,211 @@ class _HeaderCreditPill extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: const Color(0xFFFFE8A0),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _PremiumRankingPanel extends StatelessWidget {
+  const _PremiumRankingPanel({required this.profile, required this.rank});
+
+  final PlayerProfile profile;
+  final int? rank;
+
+  @override
+  Widget build(BuildContext context) {
+    final int totalGames = profile.totalGames;
+    final int winRate = totalGames == 0 ? 0 : (profile.winRatio * 100).round();
+    final int score = profile.score < 0 ? 0 : profile.score;
+    final int nextTier = ((score ~/ 100) + 1) * 100;
+    final double progress = nextTier == 0 ? 0.0 : (score / nextTier).clamp(0.0, 1.0).toDouble();
+    final String streak = totalGames == 0 ? '0' : '+${max(0, profile.wins - profile.losses)}';
+
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.066),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.26)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: _SideMenuStyle.accentGreen.withOpacity(0.08),
+            blurRadius: 20,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            _SideMenuStyle.accentGreen.withOpacity(0.12),
+            const Color(0xFF061D13).withOpacity(0.76),
+            const Color(0xFFE8C65D).withOpacity(0.08),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              TweenAnimationBuilder<double>(
+                duration: const Duration(milliseconds: 850),
+                tween: Tween<double>(begin: 0.92, end: 1),
+                curve: Curves.elasticOut,
+                builder: (BuildContext context, double value, Widget? child) {
+                  return Transform.scale(scale: value, child: child);
+                },
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFE8C65D).withOpacity(0.15),
+                    border: Border.all(color: const Color(0xFFE8C65D).withOpacity(0.52)),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFFE8C65D).withOpacity(0.16),
+                        blurRadius: 16,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.workspace_premium_rounded,
+                    color: Color(0xFFFFE8A0),
+                    size: 22,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      rank == null ? 'Classement en cours' : 'Position #$rank',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'Badge premium GINO',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white.withOpacity(0.62),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 7,
+              value: progress,
+              backgroundColor: Colors.white.withOpacity(0.08),
+              valueColor: AlwaysStoppedAnimation<Color>(_SideMenuStyle.accentGreen),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Trophées $score / $nextTier',
+            style: GoogleFonts.poppins(
+              color: Colors.white.withOpacity(0.64),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              _PremiumMetricChip(icon: Icons.leaderboard_rounded, label: 'Rang', value: rank == null ? '-' : '#$rank'),
+              _PremiumMetricChip(icon: Icons.account_balance_wallet_rounded, label: 'Crédits', value: '${profile.credits}', gold: true),
+              _PremiumMetricChip(icon: Icons.local_fire_department_rounded, label: 'Série', value: streak),
+              _PremiumMetricChip(icon: Icons.percent_rounded, label: 'Win rate', value: '$winRate%'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumMetricChip extends StatelessWidget {
+  const _PremiumMetricChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.gold = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool gold;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = gold ? const Color(0xFFFFE8A0) : _SideMenuStyle.accentGreen;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 126),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.065),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withOpacity(0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 16, color: accent.withOpacity(0.88)),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white.withOpacity(0.56),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white.withOpacity(0.94),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

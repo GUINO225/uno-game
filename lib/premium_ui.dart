@@ -300,6 +300,11 @@ class TableBackground extends StatelessWidget {
               ),
             ),
           ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(painter: _PremiumTableTexturePainter()),
+            ),
+          ),
           child,
         ],
       ),
@@ -444,6 +449,7 @@ class ResizableGameTableLayout extends StatefulWidget {
     this.maxPlayerHeight = 440,
     this.initialPlayerHeightFactor = 0.46,
     this.compact = false,
+    this.desktopImmersive = false,
   });
 
   final Widget opponent;
@@ -455,6 +461,7 @@ class ResizableGameTableLayout extends StatefulWidget {
   final double maxPlayerHeight;
   final double initialPlayerHeightFactor;
   final bool compact;
+  final bool desktopImmersive;
 
   @override
   State<ResizableGameTableLayout> createState() =>
@@ -511,6 +518,69 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
             )
             .toDouble();
 
+        final bool immersive = widget.desktopImmersive;
+        final double opponentFlex = immersive ? 1.08 : 0.72;
+        final double centerFlex = immersive ? 1.0 : 1.0;
+        final double playerFlex = immersive ? 2.02 : 1.0;
+
+        Widget centerStage = Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Padding(
+              padding: EdgeInsets.symmetric(
+                vertical: immersive ? max(2.0, widget.sectionGap * 0.45) : widget.sectionGap,
+              ),
+              child: Center(child: widget.center),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: _TableResizeHandle(
+                height: _handleHeight,
+                compact: widget.compact,
+                onDoubleTap: _resetHeight,
+                onVerticalDragUpdate: (DragUpdateDetails details) {
+                  setState(() {
+                    final double nextPlayerHeight = playerHeight - details.delta.dy;
+                    _manualPlayerHeight = nextPlayerHeight
+                        .clamp(
+                          widget.minPlayerHeight,
+                          safeMaxHeight,
+                        )
+                        .toDouble();
+                  });
+                },
+              ),
+            ),
+          ],
+        );
+
+        if (immersive) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Flexible(
+                flex: (opponentFlex * 100).round(),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: widget.opponent,
+                ),
+              ),
+              Flexible(
+                flex: (centerFlex * 100).round(),
+                child: centerStage,
+              ),
+              Flexible(
+                flex: (playerFlex * 100).round(),
+                child: widget.player,
+              ),
+              if (widget.footer != null) ...<Widget>[
+                SizedBox(height: widget.sectionGap),
+                widget.footer!,
+              ],
+            ],
+          );
+        }
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -518,39 +588,7 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
               alignment: Alignment.topCenter,
               child: widget.opponent,
             ),
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      vertical: widget.sectionGap,
-                    ),
-                    child: Center(child: widget.center),
-                  ),
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: _TableResizeHandle(
-                      height: _handleHeight,
-                      compact: widget.compact,
-                      onDoubleTap: _resetHeight,
-                      onVerticalDragUpdate: (DragUpdateDetails details) {
-                        setState(() {
-                          final double nextPlayerHeight =
-                              playerHeight - details.delta.dy;
-                          _manualPlayerHeight = nextPlayerHeight
-                              .clamp(
-                                widget.minPlayerHeight,
-                                safeMaxHeight,
-                              )
-                              .toDouble();
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            Expanded(child: centerStage),
             AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
@@ -619,4 +657,32 @@ class _TableResizeHandle extends StatelessWidget {
       ),
     );
   }
+}
+
+
+class _PremiumTableTexturePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint felt = Paint()
+      ..color = Colors.white.withOpacity(0.018)
+      ..strokeWidth = 0.7;
+    for (double y = 0; y < size.height; y += 18) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y + 9), felt);
+    }
+    final Paint vignette = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 0.78,
+        colors: <Color>[
+          const Color(0xFF7CF7A9).withOpacity(0.055),
+          Colors.transparent,
+          Colors.black.withOpacity(0.18),
+        ],
+        stops: const <double>[0, 0.48, 1],
+      ).createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, vignette);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
