@@ -6775,87 +6775,89 @@ class _DesktopDuelChatDock extends StatelessWidget {
       child: InkWell(
         onTap: enabled ? onPressed : null,
         borderRadius: BorderRadius.circular(18),
-        child: Ink(
+        child: ConstrainedBox(
           constraints: const BoxConstraints(minWidth: 178, maxWidth: 290),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xE6082117),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFF55F29A).withOpacity(0.34)),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withOpacity(0.30),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-              BoxShadow(
-                color: const Color(0xFF55F29A).withOpacity(0.12),
-                blurRadius: 18,
-              ),
-            ],
-            gradient: LinearGradient(
-              colors: <Color>[
-                Colors.white.withOpacity(0.10),
-                const Color(0xFF062719).withOpacity(0.84),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xE6082117),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFF55F29A).withOpacity(0.34)),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.30),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF55F29A).withOpacity(0.12),
+                  blurRadius: 18,
+                ),
               ],
+              gradient: LinearGradient(
+                colors: <Color>[
+                  Colors.white.withOpacity(0.10),
+                  const Color(0xFF062719).withOpacity(0.84),
+                ],
+              ),
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Stack(
-                clipBehavior: Clip.none,
-                children: <Widget>[
-                  Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    color: Colors.white.withOpacity(enabled ? 0.94 : 0.42),
-                    size: 19,
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: -8,
-                      top: -8,
-                      child: Container(
-                        constraints: const BoxConstraints(minWidth: 17),
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF4D5A),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: Colors.white70, width: 1),
-                        ),
-                        child: Text(
-                          unreadCount > 99 ? '99+' : '$unreadCount',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: Colors.white.withOpacity(enabled ? 0.94 : 0.42),
+                      size: 19,
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -8,
+                        top: -8,
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 17),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF4D5A),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: Colors.white70, width: 1),
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
+                  ],
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(enabled ? 0.86 : 0.42),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
-                ],
-              ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(enabled ? 0.86 : 0.42),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.keyboard_arrow_up_rounded,
-                color: const Color(0xFF55F29A).withOpacity(enabled ? 0.88 : 0.34),
-                size: 18,
-              ),
-            ],
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.keyboard_arrow_up_rounded,
+                  color: const Color(0xFF55F29A).withOpacity(enabled ? 0.88 : 0.34),
+                  size: 18,
+                ),
+              ],
+            ),
           ),
         ),
       ),
