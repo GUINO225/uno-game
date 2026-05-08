@@ -4059,22 +4059,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       _statusBanner(),
                       const SizedBox(height: 6),
                       Expanded(
-                        flex: compact ? 3 : 2,
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: _botHandArea(),
+                        child: ResizableGameTableLayout(
+                          compact: compact,
+                          sectionGap: compact ? 5 : 8,
+                          minPlayerHeight: compact ? 214 : 238,
+                          maxPlayerHeight: compact ? 360 : 460,
+                          initialPlayerHeightFactor: compact ? 0.48 : 0.50,
+                          opponent: _botHandArea(),
+                          center: _centerArea(),
+                          player: _playerPanel(canInteract: canInteract),
                         ),
-                      ),
-                      Expanded(
-                        flex: compact ? 2 : 2,
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: _centerArea(),
-                        ),
-                      ),
-                      Expanded(
-                        flex: compact ? 6 : 7,
-                        child: _playerPanel(canInteract: canInteract),
                       ),
                     ],
                   ),
@@ -4282,20 +4276,22 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           maxWidth: availableWidth,
         );
         return SingleChildScrollView(
-          child: Align(
-            alignment: Alignment.center,
-            child: AnimatedSize(
-              duration: _uiTransitionDuration,
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: SizedBox(
-                width: wrapWidth,
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  runAlignment: WrapAlignment.center,
-                  spacing: gap,
-                  runSpacing: gap,
-                  children: List<Widget>.generate(_humanHand.length, (int index) {
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Align(
+              alignment: Alignment.center,
+              child: AnimatedSize(
+                duration: _uiTransitionDuration,
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: wrapWidth,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    runAlignment: WrapAlignment.center,
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: List<Widget>.generate(_humanHand.length, (int index) {
                   final PlayingCard card = _humanHand[index];
                   final int cardRef = identityHashCode(card);
                   final bool isNew = _newHumanCardRefs.contains(cardRef);
@@ -4312,7 +4308,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       onTap: canInteract ? () => _onHumanTapCard(card) : null,
                     ),
                   );
-                  }),
+                    }),
+                  ),
                 ),
               ),
             ),
@@ -4361,19 +4358,21 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                         maxWidth: availableWidth,
                       );
                       return SingleChildScrollView(
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: AnimatedSize(
-                            duration: _uiTransitionDuration,
-                            curve: Curves.easeOutCubic,
-                            alignment: Alignment.topCenter,
-                            child: SizedBox(
-                              width: wrapWidth,
-                              child: Wrap(
-                                alignment: WrapAlignment.center,
-                                runAlignment: WrapAlignment.center,
-                                spacing: gap,
-                                runSpacing: 6,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: AnimatedSize(
+                              duration: _uiTransitionDuration,
+                              curve: Curves.easeOutCubic,
+                              alignment: Alignment.center,
+                              child: SizedBox(
+                                width: wrapWidth,
+                                child: Wrap(
+                                  alignment: WrapAlignment.center,
+                                  runAlignment: WrapAlignment.center,
+                                  spacing: gap,
+                                  runSpacing: 6,
                                 children: List<Widget>.generate(_botHand.length, (int index) {
                                   final PlayingCard card = _botHand[index];
                                   final int cardRef = identityHashCode(card);
@@ -4384,7 +4383,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                                     delay: Duration(milliseconds: isNew ? index * 32 : 0),
                                     child: const CardBackView(width: backWidth, height: 40),
                                   );
-                                }),
+                                  }),
+                                ),
                               ),
                             ),
                           ),
@@ -4412,91 +4412,42 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     final bool hasDiscard = _discardPile.isNotEmpty;
 
     return SizedBox(
-      height: 168,
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          const double drawPileWidth = 64;
-          const double drawPileHeight = 92;
-          const double horizontalMargin = 12;
-          const double topMargin = 4;
-          const double idealHorizontalOffset = 82;
-          const double idealVerticalOffset = 30;
-          final double maxHorizontalOffset = max(
-            0,
-            (constraints.maxWidth / 2) -
-                (drawPileWidth / 2) -
-                horizontalMargin,
-          );
-          final double maxVerticalOffset = max(
-            0,
-            (constraints.maxHeight / 2) -
-                (drawPileHeight / 2) -
-                topMargin,
-          );
-          final double drawHorizontalOffset = min(
-            idealHorizontalOffset,
-            maxHorizontalOffset,
-          );
-          final double drawVerticalOffset = min(
-            idealVerticalOffset,
-            maxVerticalOffset,
-          );
-
-          return Stack(
-            alignment: Alignment.center,
-            children: <Widget>[
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const SizedBox(height: 8),
-                    if (hasDiscard)
-                      Transform.scale(
-                        scale: 1.0,
-                        child: _DiscardPileView(
-                          key: _discardPileKey,
-                          cards: _discardPile,
-                        ),
-                      )
-                    else
-                      Transform.scale(
-                        scale: 1.0,
-                        child: const _EmptyCardSlot(label: 'Vide'),
-                      ),
-                  ],
-                ),
+      height: 148,
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            GestureDetector(
+              onTap: canDraw ? _onHumanDraw : null,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  _drawPile.isNotEmpty
+                      ? _DrawPileView(
+                          highlight: shouldHighlightDraw,
+                          count: _drawPile.length,
+                        )
+                      : const _EmptyCardSlot(label: '0'),
+                  Positioned(
+                    right: -8,
+                    top: -10,
+                    child: _CountBadge(count: _drawPile.length),
+                  ),
+                ],
               ),
-              Transform.translate(
-                offset: Offset(-drawHorizontalOffset, -drawVerticalOffset),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: canDraw ? _onHumanDraw : null,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: <Widget>[
-                          _drawPile.isNotEmpty
-                              ? _DrawPileView(
-                                  highlight: shouldHighlightDraw,
-                                  count: _drawPile.length,
-                                )
-                              : const _EmptyCardSlot(label: '0'),
-                          Positioned(
-                            right: -8,
-                            top: -10,
-                            child: _CountBadge(count: _drawPile.length),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
+            ),
+            const SizedBox(width: 26),
+            if (hasDiscard)
+              _DiscardPileView(
+                key: _discardPileKey,
+                cards: _discardPile,
+              )
+            else
+              const _EmptyCardSlot(label: 'Vide'),
+          ],
+        ),
       ),
     );
   }

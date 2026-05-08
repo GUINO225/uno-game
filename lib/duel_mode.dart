@@ -6457,48 +6457,55 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                         ),
                       ),
                       SizedBox(height: isCompactDuelLayout ? 4 : 6),
-                      _OpponentRow(
-                        name: opponentName,
-                        count: getOpponentCardCount(session, _controller.localPlayerId),
-                        wins: opponentScore,
-                        losses: myScore,
-                        fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
-                        avatarCard: opponentAvatarCard,
-                        compact: isCompactDuelLayout,
-                        connectionStatus: _controller.opponentConnectionStatus,
-                        showStats: false,
-                        score: opponentScore,
-                      ),
-                      SizedBox(height: sectionGap),
-                      _CenterArea(
-                        discardPile: board.discardPile,
-                        drawCount: board.drawPile.length,
-                        canDraw: myTurn &&
-                            board.canDraw(_controller.localPlayerId) &&
-                            !_isDrawingActionBusy,
-                        onDrawTap: _onDrawTap,
-                        overlay: texts.overlay,
-                        requiredSuit: board.requiredSuit,
-                        mustDraw: myTurn && board.pendingDraw > 0,
-                        compact: isCompactDuelLayout,
-                      ),
-                      SizedBox(height: sectionGap),
-                      _MyHandRow(
-                        cards: board.handOf(_controller.localPlayerId),
-                        canInteract: myTurn && !(myTurn && board.pendingDraw > 0),
-                        onCardTap: _onCardTap,
-                        playable: (DuelCard card) =>
-                            myTurn && board.canPlay(_controller.localPlayerId, card),
-                        profileName: localName,
-                        wins: myScore,
-                        losses: opponentScore,
-                        credits: null,
-                        fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
-                        avatarCard: localAvatarCard,
-                        showStats: false,
-                        score: myScore,
-                        cardScale: isCompactDuelLayout ? 1.0 : 1.06,
-                        minCardsViewportHeight: isCompactDuelLayout ? 300 : 325,
+                      Expanded(
+                        child: ResizableGameTableLayout(
+                          compact: isCompactDuelLayout,
+                          sectionGap: sectionGap,
+                          minPlayerHeight: isCompactDuelLayout ? 250 : 282,
+                          maxPlayerHeight: isCompactDuelLayout ? 390 : 510,
+                          initialPlayerHeightFactor: isCompactDuelLayout ? 0.50 : 0.54,
+                          opponent: _OpponentRow(
+                            name: opponentName,
+                            count: getOpponentCardCount(session, _controller.localPlayerId),
+                            wins: opponentScore,
+                            losses: myScore,
+                            fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
+                            avatarCard: opponentAvatarCard,
+                            compact: isCompactDuelLayout,
+                            connectionStatus: _controller.opponentConnectionStatus,
+                            showStats: false,
+                            score: opponentScore,
+                          ),
+                          center: _CenterArea(
+                            discardPile: board.discardPile,
+                            drawCount: board.drawPile.length,
+                            canDraw: myTurn &&
+                                board.canDraw(_controller.localPlayerId) &&
+                                !_isDrawingActionBusy,
+                            onDrawTap: _onDrawTap,
+                            overlay: texts.overlay,
+                            requiredSuit: board.requiredSuit,
+                            mustDraw: myTurn && board.pendingDraw > 0,
+                            compact: isCompactDuelLayout,
+                          ),
+                          player: _MyHandRow(
+                            cards: board.handOf(_controller.localPlayerId),
+                            canInteract: myTurn && !(myTurn && board.pendingDraw > 0),
+                            onCardTap: _onCardTap,
+                            playable: (DuelCard card) =>
+                                myTurn && board.canPlay(_controller.localPlayerId, card),
+                            profileName: localName,
+                            wins: myScore,
+                            losses: opponentScore,
+                            credits: null,
+                            fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
+                            avatarCard: localAvatarCard,
+                            showStats: false,
+                            score: myScore,
+                            cardScale: isCompactDuelLayout ? 1.0 : 1.06,
+                            minCardsViewportHeight: isCompactDuelLayout ? 180 : 210,
+                          ),
+                        ),
                       ),
                       SizedBox(height: isCompactDuelLayout ? 4 : 6),
                       _ActionMessageCard(
@@ -8087,32 +8094,59 @@ class _OpponentRowState extends State<_OpponentRow> {
               _OpponentPresenceBadge(status: widget.connectionStatus),
               PremiumDividerLine(verticalPadding: widget.compact ? 6 : 8),
               SizedBox(
-                height: widget.compact ? 36 : 42,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  reverse: true,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List<Widget>.generate(
-                      widget.count,
-                      (int index) {
-                        final bool isNewCard = _animatedStartIndex >= 0 && index >= _animatedStartIndex;
-                        final int staggerStep = isNewCard ? index - _animatedStartIndex : 0;
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 12),
-                          child: BouncyCardEntry(
-                            key: ValueKey<String>('duel-opponent-$index'),
-                            animate: isNewCard,
-                            delay: Duration(milliseconds: isNewCard ? staggerStep * 34 : 0),
-                            child: _DuelCardBack(
-                              width: widget.compact ? 24 : 28,
-                              height: widget.compact ? 34 : 40,
+                height: widget.compact ? 44 : 50,
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    final double cardWidth = widget.compact ? 24 : 28;
+                    final double cardHeight = widget.compact ? 34 : 40;
+                    const double gap = 8;
+                    final double availableWidth = max(0, constraints.maxWidth - 4);
+                    final int fitCount = widget.count <= 0
+                        ? 1
+                        : ((availableWidth + gap) / (cardWidth + gap))
+                            .floor()
+                            .clamp(1, widget.count)
+                            .toInt();
+                    final double wrapWidth = min(
+                      availableWidth,
+                      (fitCount * cardWidth) + (max(0, fitCount - 1) * gap),
+                    );
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: SizedBox(
+                            width: wrapWidth,
+                            child: Wrap(
+                              alignment: WrapAlignment.center,
+                              runAlignment: WrapAlignment.center,
+                              spacing: gap,
+                              runSpacing: 6,
+                              children: List<Widget>.generate(
+                                widget.count,
+                                (int index) {
+                                  final bool isNewCard =
+                                      _animatedStartIndex >= 0 && index >= _animatedStartIndex;
+                                  final int staggerStep =
+                                      isNewCard ? index - _animatedStartIndex : 0;
+                                  return BouncyCardEntry(
+                                    key: ValueKey<String>('duel-opponent-$index'),
+                                    animate: isNewCard,
+                                    delay: Duration(milliseconds: isNewCard ? staggerStep * 34 : 0),
+                                    child: _DuelCardBack(
+                                      width: cardWidth,
+                                      height: cardHeight,
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -8652,11 +8686,10 @@ class _MyHandRowState extends State<_MyHandRow> {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: PremiumGamePanel(
-        padding: const EdgeInsets.all(10),
-        radius: 18,
-        child: Stack(
+    return PremiumGamePanel(
+      padding: const EdgeInsets.all(10),
+      radius: 18,
+      child: Stack(
           children: <Widget>[
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -8718,25 +8751,27 @@ class _MyHandRowState extends State<_MyHandRow> {
                       return Stack(
                         clipBehavior: Clip.none,
                         children: <Widget>[
-                          ConstrainedBox(
-                            constraints: BoxConstraints(minHeight: cardsMinHeight),
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.vertical,
-                              padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.vertical,
+                            padding: const EdgeInsets.fromLTRB(4, 14, 4, 4),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: max(cardsMinHeight, constraints.maxHeight - 18),
+                              ),
                               child: Align(
                                 alignment: Alignment.center,
                                 child: AnimatedSize(
                                   duration: _MyHandRow._resizeAnimationDuration,
                                   curve: Curves.easeOutCubic,
-                                  alignment: Alignment.topCenter,
+                                  alignment: Alignment.center,
                                   child: SizedBox(
                                     width: wrapWidth,
                                     child: Wrap(
-                                    alignment: WrapAlignment.center,
-                                    runAlignment: WrapAlignment.center,
-                                    spacing: _MyHandRow._cardGap,
-                                    runSpacing: _MyHandRow._cardGap,
-                                    children: List<Widget>.generate(cards.length, (int index) {
+                                      alignment: WrapAlignment.center,
+                                      runAlignment: WrapAlignment.center,
+                                      spacing: _MyHandRow._cardGap,
+                                      runSpacing: _MyHandRow._cardGap,
+                                      children: List<Widget>.generate(cards.length, (int index) {
                                       final DuelCard card = cards[index];
                                       final bool isPlayable = widget.playable(card);
                                       final bool isNew = _newCardIds.contains(card.id);
@@ -8790,8 +8825,7 @@ class _MyHandRowState extends State<_MyHandRow> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 
