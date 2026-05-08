@@ -518,25 +518,38 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
               alignment: Alignment.topCenter,
               child: widget.opponent,
             ),
-            SizedBox(height: widget.sectionGap),
             Expanded(
-              child: Center(child: widget.center),
-            ),
-            SizedBox(height: max<double>(0, widget.sectionGap - 2)),
-            _TableResizeHandle(
-              height: _handleHeight,
-              compact: widget.compact,
-              onDoubleTap: _resetHeight,
-              onVerticalDragUpdate: (DragUpdateDetails details) {
-                setState(() {
-                  _manualPlayerHeight = (playerHeight - details.delta.dy)
-                      .clamp(
-                        widget.minPlayerHeight,
-                        safeMaxHeight,
-                      )
-                      .toDouble();
-                });
-              },
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: widget.sectionGap,
+                    ),
+                    child: Center(child: widget.center),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: _TableResizeHandle(
+                      height: _handleHeight,
+                      compact: widget.compact,
+                      onDoubleTap: _resetHeight,
+                      onVerticalDragUpdate: (DragUpdateDetails details) {
+                        setState(() {
+                          final double nextPlayerHeight =
+                              playerHeight - details.delta.dy;
+                          _manualPlayerHeight = nextPlayerHeight
+                              .clamp(
+                                widget.minPlayerHeight,
+                                safeMaxHeight,
+                              )
+                              .toDouble();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
             AnimatedContainer(
               duration: const Duration(milliseconds: 180),
