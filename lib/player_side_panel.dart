@@ -1445,6 +1445,7 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
     this.contextualGamePanel,
     this.leadingPanel,
     this.leadingPanelWidth,
+    this.preserveContentCenterOnDesktop = false,
   });
 
   static const double desktopBreakpoint = 1100;
@@ -1455,6 +1456,7 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
   final Widget? contextualGamePanel;
   final Widget? leadingPanel;
   final double? leadingPanelWidth;
+  final bool preserveContentCenterOnDesktop;
 
   @override
   State<ResponsivePlayerSidePanelLayout> createState() =>
@@ -1624,6 +1626,29 @@ class _ResponsivePlayerSidePanelLayoutState
     );
 
     if (isDesktop) {
+      if (widget.preserveContentCenterOnDesktop) {
+        return Stack(
+          children: <Widget>[
+            Positioned.fill(child: scopedContent),
+            if (hasLeadingPanel)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width: leadingPanelWidth,
+                child: _leadingPanel(leadingPanelWidth),
+              ),
+            Positioned(
+              top: 0,
+              bottom: 0,
+              right: 0,
+              width: panelWidth,
+              child: _sidePanel(panelWidth),
+            ),
+          ],
+        );
+      }
+
       return Row(
         children: <Widget>[
           if (hasLeadingPanel) _leadingPanel(leadingPanelWidth),
