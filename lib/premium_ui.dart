@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'app_sfx_service.dart';
 
@@ -426,6 +428,182 @@ class GlobalMusicToggleButton extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class ResizableGameTableLayout extends StatefulWidget {
+  const ResizableGameTableLayout({
+    super.key,
+    required this.opponent,
+    required this.center,
+    required this.player,
+    this.footer,
+    this.sectionGap = 8,
+    this.minPlayerHeight = 220,
+    this.maxPlayerHeight = 440,
+    this.initialPlayerHeightFactor = 0.46,
+    this.compact = false,
+  });
+
+  final Widget opponent;
+  final Widget center;
+  final Widget player;
+  final Widget? footer;
+  final double sectionGap;
+  final double minPlayerHeight;
+  final double maxPlayerHeight;
+  final double initialPlayerHeightFactor;
+  final bool compact;
+
+  @override
+  State<ResizableGameTableLayout> createState() =>
+      _ResizableGameTableLayoutState();
+}
+
+class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
+  double? _manualPlayerHeight;
+
+  static const double _handleHeight = 18;
+
+  @override
+  void didUpdateWidget(covariant ResizableGameTableLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_manualPlayerHeight != null &&
+        (oldWidget.minPlayerHeight != widget.minPlayerHeight ||
+            oldWidget.maxPlayerHeight != widget.maxPlayerHeight)) {
+      _manualPlayerHeight = _manualPlayerHeight!.clamp(
+        widget.minPlayerHeight,
+        widget.maxPlayerHeight,
+      ).toDouble();
+    }
+  }
+
+  void _resetHeight() {
+    if (_manualPlayerHeight == null) {
+      return;
+    }
+    setState(() => _manualPlayerHeight = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double availableHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : MediaQuery.sizeOf(context).height;
+        final double safeMaxHeight = min(
+          widget.maxPlayerHeight,
+          max(widget.minPlayerHeight, availableHeight * 0.62),
+        );
+        final double automaticHeight =
+            (availableHeight * widget.initialPlayerHeightFactor)
+                .clamp(
+                  widget.minPlayerHeight,
+                  safeMaxHeight,
+                )
+                .toDouble();
+        final double playerHeight = (_manualPlayerHeight ?? automaticHeight)
+            .clamp(
+              widget.minPlayerHeight,
+              safeMaxHeight,
+            )
+            .toDouble();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Align(
+              alignment: Alignment.topCenter,
+              child: widget.opponent,
+            ),
+            SizedBox(height: widget.sectionGap),
+            Expanded(
+              child: Center(child: widget.center),
+            ),
+            SizedBox(height: max<double>(0, widget.sectionGap - 2)),
+            _TableResizeHandle(
+              height: _handleHeight,
+              compact: widget.compact,
+              onDoubleTap: _resetHeight,
+              onVerticalDragUpdate: (DragUpdateDetails details) {
+                setState(() {
+                  _manualPlayerHeight = (playerHeight - details.delta.dy)
+                      .clamp(
+                        widget.minPlayerHeight,
+                        safeMaxHeight,
+                      )
+                      .toDouble();
+                });
+              },
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              height: playerHeight,
+              child: widget.player,
+            ),
+            if (widget.footer != null) ...<Widget>[
+              SizedBox(height: widget.sectionGap),
+              widget.footer!,
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TableResizeHandle extends StatelessWidget {
+  const _TableResizeHandle({
+    required this.height,
+    required this.compact,
+    required this.onDoubleTap,
+    required this.onVerticalDragUpdate,
+  });
+
+  final double height;
+  final bool compact;
+  final VoidCallback onDoubleTap;
+  final GestureDragUpdateCallback onVerticalDragUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeUpDown,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onDoubleTap: onDoubleTap,
+        onVerticalDragUpdate: onVerticalDragUpdate,
+        child: SizedBox(
+          height: height,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: compact ? 52 : 68,
+              height: 5,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                gradient: LinearGradient(
+                  colors: <Color>[
+                    Colors.white.withOpacity(0.18),
+                    const Color(0xFFE8C65D).withOpacity(0.58),
+                    Colors.white.withOpacity(0.18),
+                  ],
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: const Color(0xFFE8C65D).withOpacity(0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
