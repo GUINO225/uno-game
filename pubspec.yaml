@@ -52,18 +52,14 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/img/ico.png"
+  image_path: "assets/img/ICO.png"
   min_sdk_android: 21
   remove_alpha_ios: true
   web:
     generate: true
-    image_path: "assets/img/ico.png"
+    image_path: "assets/img/ICO.png"
     background_color: "#004F2C"
     theme_color: "#004F2C"
-  windows:
-    generate: true
-    image_path: "assets/img/ico.png"
-    icon_size: 256
 
 # ─── Splash screen natif (Android, iOS) ───────────────────────────────────────
 flutter_native_splash:

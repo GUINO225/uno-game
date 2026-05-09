@@ -13,6 +13,7 @@ class PlayerProfile {
     this.wins = 0,
     this.losses = 0,
     this.totalGamesValue,
+    this.gamesPlayedValue,
     this.rankScore = 0,
     this.cardAvatarRank = '',
     this.cardAvatarSuit = '',
@@ -31,6 +32,7 @@ class PlayerProfile {
   final int wins;
   final int losses;
   final int? totalGamesValue;
+  final int? gamesPlayedValue;
   final int rankScore;
   final String cardAvatarRank;
   final String cardAvatarSuit;
@@ -39,7 +41,18 @@ class PlayerProfile {
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
 
-  int get totalGames => totalGamesValue ?? (wins + losses);
+  int get totalGames {
+    int total = wins + losses;
+    final int? explicitTotal = totalGamesValue;
+    if (explicitTotal != null && explicitTotal > total) {
+      total = explicitTotal;
+    }
+    final int? played = gamesPlayedValue;
+    if (played != null && played > total) {
+      total = played;
+    }
+    return total;
+  }
   double get winRatio => totalGames == 0 ? 0 : wins / totalGames;
   String get id => uid;
   int get score => rankScore;
@@ -71,6 +84,7 @@ class PlayerProfile {
       'wins': wins,
       'losses': losses,
       'totalGames': totalGames,
+      'gamesPlayed': totalGames,
       'score': score,
       'rankScore': rankScore,
       'cardAvatarRank': cardAvatarRank,
@@ -99,6 +113,7 @@ class PlayerProfile {
       wins: (map['wins'] as num?)?.toInt() ?? 0,
       losses: (map['losses'] as num?)?.toInt() ?? 0,
       totalGamesValue: (map['totalGames'] as num?)?.toInt(),
+      gamesPlayedValue: (map['gamesPlayed'] as num?)?.toInt(),
       rankScore:
           (map['rankScore'] as num?)?.toInt() ??
           (map['score'] as num?)?.toInt() ??

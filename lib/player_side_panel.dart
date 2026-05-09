@@ -17,12 +17,16 @@ import 'widgets/gino_popups.dart';
 
 enum PlayerSidePanelEdge { left, right }
 
+typedef PlayerRankingPanelBuilder =
+    Widget Function(BuildContext context, PlayerProfile? profile, int? rank);
+
 class PlayerSidePanel extends StatefulWidget {
   const PlayerSidePanel({
     super.key,
     this.onOpenLeaderboard,
     this.onOpenHistory,
     this.contextualGamePanel,
+    this.rankingPanelBuilder,
     this.edge = PlayerSidePanelEdge.right,
     this.width,
   });
@@ -30,6 +34,7 @@ class PlayerSidePanel extends StatefulWidget {
   final VoidCallback? onOpenLeaderboard;
   final VoidCallback? onOpenHistory;
   final Widget? contextualGamePanel;
+  final PlayerRankingPanelBuilder? rankingPanelBuilder;
   final PlayerSidePanelEdge edge;
   final double? width;
 
@@ -52,7 +57,8 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     if (user == null) {
       return (null, null);
     }
-    final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
+    final PlayerProfile profile = await _profileService
+        .createOrUpdateFromGoogleUser(user);
     int? rank;
     try {
       rank = await _leaderboardService.fetchPlayerRank(user.uid);
@@ -69,7 +75,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
     }
     if (!result.isSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.errorMessage ?? 'Connexion Google impossible.')),
+        SnackBar(
+          content: Text(result.errorMessage ?? 'Connexion Google impossible.'),
+        ),
       );
       return;
     }
@@ -83,16 +91,16 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
         return;
       }
       _refreshPanelData();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Déconnexion réussie')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Déconnexion réussie')));
     } catch (e) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Déconnexion impossible: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Déconnexion impossible: $e')));
     }
   }
 
@@ -120,7 +128,10 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       return;
     }
 
-    final bool shouldPrompt = _shouldPromptProfileCustomization(profile: profile, user: user);
+    final bool shouldPrompt = _shouldPromptProfileCustomization(
+      profile: profile,
+      user: user,
+    );
     if (!shouldPrompt || _promptedUid == profile.uid) {
       return;
     }
@@ -129,16 +140,21 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       if (!mounted) {
         return;
       }
-      final bool shouldEdit = await showDialog<bool>(
+      final bool shouldEdit =
+          await showDialog<bool>(
             barrierDismissible: true,
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
                 surfaceTintColor: Colors.transparent,
-                backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+                backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(
+                  0.96,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
-                  side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+                  side: BorderSide(
+                    color: GinoPopupStyle.casinoGold.withOpacity(0.72),
+                  ),
                 ),
                 shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
                 title: Text(
@@ -167,9 +183,12 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                   ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(true),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                      backgroundColor: GinoPopupStyle.premiumNeonGreen
+                          .withOpacity(0.82),
                       foregroundColor: GinoPopupStyle.textWhite,
-                      shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
+                      shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(
+                        0.28,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -185,7 +204,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
         return;
       }
       if (!shouldEdit) {
-        await _profileService.dismissProfileCustomizationPrompt(uid: profile.uid);
+        await _profileService.dismissProfileCustomizationPrompt(
+          uid: profile.uid,
+        );
         _refreshPanelData();
         return;
       }
@@ -220,7 +241,8 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
       user.displayName ?? '',
       maxLength: 18,
     );
-    if (googleName.isNotEmpty && currentPublicName.toLowerCase() == googleName.toLowerCase()) {
+    if (googleName.isNotEmpty &&
+        currentPublicName.toLowerCase() == googleName.toLowerCase()) {
       return true;
     }
     final String emailLocalPart = _profileService.sanitizeDisplayName(
@@ -270,7 +292,8 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
   Widget build(BuildContext context) {
     final Size screenSize = MediaQuery.sizeOf(context);
     final double mobileWidth = screenSize.width * 0.82;
-    final double drawerWidth = widget.width ??
+    final double drawerWidth =
+        widget.width ??
         (screenSize.width >= 600
             ? mobileWidth.clamp(0, 410).toDouble()
             : mobileWidth.clamp(0, screenSize.width * 0.85).toDouble());
@@ -305,154 +328,178 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
             return FutureBuilder<(PlayerProfile?, int?)>(
               future: _panelDataForCurrentUser(),
               builder:
-                  (BuildContext context, AsyncSnapshot<(PlayerProfile?, int?)> snapshot) {
-                final PlayerProfile? profile = snapshot.data?.$1;
-                final int? rank = snapshot.data?.$2;
-                if (profile != null) {
-                  _maybeSuggestProfileCustomization(profile);
-                }
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return ModernSideMenu(
-                    edge: widget.edge,
-                    child: const Center(
-                      child: CircularProgressIndicator(color: _SideMenuStyle.accentGreen),
-                    ),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return ModernSideMenu(
-                    edge: widget.edge,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
-                      children: <Widget>[
-                        const _SideMenuCloseRow(),
-                        const SizedBox(height: 14),
-                        _SideMenuProfileHeader(isConnected: authUid != null),
-                        const SizedBox(height: 18),
-                        Text(
-                          'Compte connecté, mais impossible de charger les données pour le moment.',
-                          style: GoogleFonts.poppins(
-                            color: Colors.white.withOpacity(0.82),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<(PlayerProfile?, int?)> snapshot,
+                  ) {
+                    final PlayerProfile? profile = snapshot.data?.$1;
+                    final int? rank = snapshot.data?.$2;
+                    if (profile != null) {
+                      _maybeSuggestProfileCustomization(profile);
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return ModernSideMenu(
+                        edge: widget.edge,
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            color: _SideMenuStyle.accentGreen,
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          '${snapshot.error}',
-                          style: GoogleFonts.poppins(
-                            color: Colors.white.withOpacity(0.55),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w400,
-                          ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return ModernSideMenu(
+                        edge: widget.edge,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+                          children: <Widget>[
+                            const _SideMenuCloseRow(),
+                            const SizedBox(height: 14),
+                            _SideMenuProfileHeader(
+                              isConnected: authUid != null,
+                            ),
+                            const SizedBox(height: 18),
+                            Text(
+                              'Compte connecté, mais impossible de charger les données pour le moment.',
+                              style: GoogleFonts.poppins(
+                                color: Colors.white.withOpacity(0.82),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              '${snapshot.error}',
+                              style: GoogleFonts.poppins(
+                                color: Colors.white.withOpacity(0.55),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            _SideMenuActionButton(
+                              label: 'Réessayer',
+                              icon: Icons.refresh_rounded,
+                              onPressed: _refreshPanelData,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 18),
-                        _SideMenuActionButton(
-                          label: 'Réessayer',
-                          icon: Icons.refresh_rounded,
-                          onPressed: _refreshPanelData,
+                      );
+                    }
+                    if (profile == null) {
+                      return ModernSideMenu(
+                        edge: widget.edge,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+                          children: <Widget>[
+                            const _SideMenuCloseRow(),
+                            const SizedBox(height: 14),
+                            _SideMenuProfileHeader(
+                              isConnected: authUid != null,
+                            ),
+                            if (widget.contextualGamePanel != null) ...<Widget>[
+                              const SizedBox(height: 14),
+                              widget.contextualGamePanel!,
+                            ],
+                            if (widget.rankingPanelBuilder != null) ...<Widget>[
+                              const SizedBox(height: 14),
+                              widget.rankingPanelBuilder!(context, null, null),
+                            ],
+                            const SizedBox(height: 18),
+                            Text(
+                              authUid == null
+                                  ? 'Connectez-vous avec Google pour voir vos statistiques.'
+                                  : 'Profil connecté, statistiques en cours de synchronisation.',
+                              style: GoogleFonts.poppins(
+                                color: Colors.white.withOpacity(0.82),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            if (authUid == null) ...<Widget>[
+                              _SideMenuActionButton(
+                                label: 'Connexion Google',
+                                icon: Icons.g_mobiledata_rounded,
+                                onPressed: _signIn,
+                                primary: true,
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                            _SideMenuActionButton(
+                              label: 'Voir le classement',
+                              icon: Icons.leaderboard_outlined,
+                              onPressed: widget.onOpenLeaderboard,
+                            ),
+                            if (widget.onOpenHistory != null) ...<Widget>[
+                              const SizedBox(height: 10),
+                              _SideMenuActionButton(
+                                label: 'Historique des parties',
+                                icon: Icons.history_rounded,
+                                onPressed: widget.onOpenHistory,
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                }
-                if (profile == null) {
-                  return ModernSideMenu(
-                    edge: widget.edge,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
-                      children: <Widget>[
-                        const _SideMenuCloseRow(),
-                        const SizedBox(height: 14),
-                        _SideMenuProfileHeader(isConnected: authUid != null),
-                        if (widget.contextualGamePanel != null) ...<Widget>[
+                      );
+                    }
+                    return ModernSideMenu(
+                      edge: widget.edge,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+                        children: <Widget>[
+                          const _SideMenuCloseRow(),
                           const SizedBox(height: 14),
-                          widget.contextualGamePanel!,
-                        ],
-                        const SizedBox(height: 18),
-                        Text(
-                          authUid == null
-                              ? 'Connectez-vous avec Google pour voir vos statistiques.'
-                              : 'Profil connecté, statistiques en cours de synchronisation.',
-                          style: GoogleFonts.poppins(
-                            color: Colors.white.withOpacity(0.82),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
+                          _SideMenuProfileHeader(
+                            profile: profile,
+                            isConnected: true,
                           ),
-                        ),
-                        const SizedBox(height: 18),
-                        if (authUid == null) ...<Widget>[
+                          if (widget.contextualGamePanel != null) ...<Widget>[
+                            const SizedBox(height: 14),
+                            widget.contextualGamePanel!,
+                          ],
+                          const SizedBox(height: 14),
+                          widget.rankingPanelBuilder?.call(
+                                context,
+                                profile,
+                                rank,
+                              ) ??
+                              _PremiumRankingPanel(
+                                profile: profile,
+                                rank: rank,
+                              ),
+                          const SizedBox(height: 12),
                           _SideMenuActionButton(
-                            label: 'Connexion Google',
-                            icon: Icons.g_mobiledata_rounded,
-                            onPressed: _signIn,
+                            label: 'Modifier mon profil',
+                            icon: Icons.edit_outlined,
+                            onPressed: () => _openProfileEditor(profile),
                             primary: true,
+                            trailingIcon: Icons.edit_outlined,
                           ),
-                          const SizedBox(height: 10),
-                        ],
-                        _SideMenuActionButton(
-                          label: 'Voir le classement',
-                          icon: Icons.leaderboard_outlined,
-                          onPressed: widget.onOpenLeaderboard,
-                        ),
-                        if (widget.onOpenHistory != null) ...<Widget>[
                           const SizedBox(height: 10),
                           _SideMenuActionButton(
-                            label: 'Historique des parties',
-                            icon: Icons.history_rounded,
-                            onPressed: widget.onOpenHistory,
+                            label: 'Voir le classement',
+                            icon: Icons.leaderboard_outlined,
+                            onPressed: widget.onOpenLeaderboard,
+                          ),
+                          if (widget.onOpenHistory != null) ...<Widget>[
+                            const SizedBox(height: 10),
+                            _SideMenuActionButton(
+                              label: 'Historique des parties',
+                              icon: Icons.history_rounded,
+                              onPressed: widget.onOpenHistory,
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          _SideMenuActionButton(
+                            label: 'Déconnexion',
+                            icon: Icons.logout_rounded,
+                            onPressed: _signOut,
                           ),
                         ],
-                      ],
-                    ),
-                  );
-                }
-                return ModernSideMenu(
-                  edge: widget.edge,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
-                    children: <Widget>[
-                      const _SideMenuCloseRow(),
-                      const SizedBox(height: 14),
-                      _SideMenuProfileHeader(profile: profile, isConnected: true),
-                      if (widget.contextualGamePanel != null) ...<Widget>[
-                        const SizedBox(height: 14),
-                        widget.contextualGamePanel!,
-                      ],
-                      const SizedBox(height: 14),
-                      _PremiumRankingPanel(profile: profile, rank: rank),
-                      const SizedBox(height: 12),
-                      _SideMenuActionButton(
-                        label: 'Modifier mon profil',
-                        icon: Icons.edit_outlined,
-                        onPressed: () => _openProfileEditor(profile),
-                        primary: true,
-                        trailingIcon: Icons.edit_outlined,
                       ),
-                      const SizedBox(height: 10),
-                      _SideMenuActionButton(
-                        label: 'Voir le classement',
-                        icon: Icons.leaderboard_outlined,
-                        onPressed: widget.onOpenLeaderboard,
-                      ),
-                      if (widget.onOpenHistory != null) ...<Widget>[
-                        const SizedBox(height: 10),
-                        _SideMenuActionButton(
-                          label: 'Historique des parties',
-                          icon: Icons.history_rounded,
-                          onPressed: widget.onOpenHistory,
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      _SideMenuActionButton(
-                        label: 'Déconnexion',
-                        icon: Icons.logout_rounded,
-                        onPressed: _signOut,
-                      ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
             );
           },
         ),
@@ -495,7 +542,9 @@ class ModernSideMenu extends StatelessWidget {
           decoration: BoxDecoration(
             color: _SideMenuStyle.deepGreen,
             borderRadius: sideRadius,
-            border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.34)),
+            border: Border.all(
+              color: _SideMenuStyle.accentGreen.withOpacity(0.34),
+            ),
             boxShadow: <BoxShadow>[
               BoxShadow(
                 color: Colors.black.withOpacity(0.26),
@@ -536,12 +585,18 @@ class ModernSideMenu extends StatelessWidget {
               Positioned(
                 top: 210,
                 left: -36,
-                child: _BlurredCircle(size: 118, color: _SideMenuStyle.accentGreen),
+                child: _BlurredCircle(
+                  size: 118,
+                  color: _SideMenuStyle.accentGreen,
+                ),
               ),
               Positioned(
                 bottom: 112,
                 right: -44,
-                child: _BlurredCircle(size: 136, color: _SideMenuStyle.softGreen),
+                child: _BlurredCircle(
+                  size: 136,
+                  color: _SideMenuStyle.softGreen,
+                ),
               ),
               child,
             ],
@@ -638,9 +693,15 @@ class _SideMenuCloseRow extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: _SideMenuStyle.accentGreen.withOpacity(0.08),
-              border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.34)),
+              border: Border.all(
+                color: _SideMenuStyle.accentGreen.withOpacity(0.34),
+              ),
             ),
-            child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+            child: const Icon(
+              Icons.close_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
         ),
       ],
@@ -678,7 +739,9 @@ class _SideMenuProfileHeader extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _SideMenuStyle.accentGreen.withOpacity(0.12),
-                    border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.36)),
+                    border: Border.all(
+                      color: _SideMenuStyle.accentGreen.withOpacity(0.36),
+                    ),
                   ),
                   child: const Icon(
                     Icons.person_outline_rounded,
@@ -793,7 +856,6 @@ class _HeaderCreditPill extends StatelessWidget {
   }
 }
 
-
 class _PremiumRankingPanel extends StatelessWidget {
   const _PremiumRankingPanel({required this.profile, required this.rank});
 
@@ -806,8 +868,12 @@ class _PremiumRankingPanel extends StatelessWidget {
     final int winRate = totalGames == 0 ? 0 : (profile.winRatio * 100).round();
     final int score = profile.score < 0 ? 0 : profile.score;
     final int nextTier = ((score ~/ 100) + 1) * 100;
-    final double progress = nextTier == 0 ? 0.0 : (score / nextTier).clamp(0.0, 1.0).toDouble();
-    final String streak = totalGames == 0 ? '0' : '+${max(0, profile.wins - profile.losses)}';
+    final double progress = nextTier == 0
+        ? 0.0
+        : (score / nextTier).clamp(0.0, 1.0).toDouble();
+    final String streak = totalGames == 0
+        ? '0'
+        : '+${max(0, profile.wins - profile.losses)}';
 
     return Container(
       padding: const EdgeInsets.all(13),
@@ -854,7 +920,9 @@ class _PremiumRankingPanel extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFFE8C65D).withOpacity(0.15),
-                    border: Border.all(color: const Color(0xFFE8C65D).withOpacity(0.52)),
+                    border: Border.all(
+                      color: const Color(0xFFE8C65D).withOpacity(0.52),
+                    ),
                     boxShadow: <BoxShadow>[
                       BoxShadow(
                         color: const Color(0xFFE8C65D).withOpacity(0.16),
@@ -906,7 +974,9 @@ class _PremiumRankingPanel extends StatelessWidget {
               minHeight: 7,
               value: progress,
               backgroundColor: Colors.white.withOpacity(0.08),
-              valueColor: AlwaysStoppedAnimation<Color>(_SideMenuStyle.accentGreen),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _SideMenuStyle.accentGreen,
+              ),
             ),
           ),
           const SizedBox(height: 6),
@@ -923,10 +993,27 @@ class _PremiumRankingPanel extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
-              _PremiumMetricChip(icon: Icons.leaderboard_rounded, label: 'Rang', value: rank == null ? '-' : '#$rank'),
-              _PremiumMetricChip(icon: Icons.account_balance_wallet_rounded, label: 'Crédits', value: '${profile.credits}', gold: true),
-              _PremiumMetricChip(icon: Icons.local_fire_department_rounded, label: 'Série', value: streak),
-              _PremiumMetricChip(icon: Icons.percent_rounded, label: 'Win rate', value: '$winRate%'),
+              _PremiumMetricChip(
+                icon: Icons.leaderboard_rounded,
+                label: 'Rang',
+                value: rank == null ? '-' : '#$rank',
+              ),
+              _PremiumMetricChip(
+                icon: Icons.account_balance_wallet_rounded,
+                label: 'Crédits',
+                value: '${profile.credits}',
+                gold: true,
+              ),
+              _PremiumMetricChip(
+                icon: Icons.local_fire_department_rounded,
+                label: 'Série',
+                value: streak,
+              ),
+              _PremiumMetricChip(
+                icon: Icons.percent_rounded,
+                label: 'Win rate',
+                value: '$winRate%',
+              ),
             ],
           ),
         ],
@@ -950,7 +1037,9 @@ class _PremiumMetricChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color accent = gold ? const Color(0xFFFFE8A0) : _SideMenuStyle.accentGreen;
+    final Color accent = gold
+        ? const Color(0xFFFFE8A0)
+        : _SideMenuStyle.accentGreen;
     return Container(
       constraints: const BoxConstraints(minWidth: 126),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
@@ -1040,7 +1129,9 @@ class _SideMenuActionButton extends StatelessWidget {
         : Colors.white.withOpacity(onPressed == null ? 0.035 : 0.055);
     final Color border = primary
         ? _SideMenuStyle.accentGreen.withOpacity(0.72)
-        : _SideMenuStyle.accentGreen.withOpacity(onPressed == null ? 0.14 : 0.34);
+        : _SideMenuStyle.accentGreen.withOpacity(
+            onPressed == null ? 0.14 : 0.34,
+          );
 
     return Material(
       color: Colors.transparent,
@@ -1211,10 +1302,7 @@ class _PlayerInfoTile extends StatelessWidget {
 }
 
 class _PanelAvatar extends StatelessWidget {
-  const _PanelAvatar({
-    required this.profile,
-    required this.size,
-  });
+  const _PanelAvatar({required this.profile, required this.size});
 
   final PlayerProfile profile;
   final double size;
@@ -1236,10 +1324,12 @@ class _PublicProfileEditorSheet extends StatefulWidget {
   });
 
   final PlayerProfile initialProfile;
-  final Future<void> Function(String displayName, String rank, String suit) onSave;
+  final Future<void> Function(String displayName, String rank, String suit)
+  onSave;
 
   @override
-  State<_PublicProfileEditorSheet> createState() => _PublicProfileEditorSheetState();
+  State<_PublicProfileEditorSheet> createState() =>
+      _PublicProfileEditorSheetState();
 }
 
 class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
@@ -1251,7 +1341,9 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
   @override
   void initState() {
     super.initState();
-    _displayNameController = TextEditingController(text: widget.initialProfile.publicDisplayName);
+    _displayNameController = TextEditingController(
+      text: widget.initialProfile.publicDisplayName,
+    );
     _selectedRank = widget.initialProfile.selectedCardAvatar.rank;
     _selectedSuit = widget.initialProfile.selectedCardAvatar.suit;
   }
@@ -1265,9 +1357,9 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
   Future<void> _submit() async {
     final String name = _displayNameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choisis ton pseudo.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Choisis ton pseudo.')));
       return;
     }
     setState(() {
@@ -1283,9 +1375,9 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Impossible de mettre à jour le profil: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Impossible de mettre à jour le profil: $e')),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -1300,7 +1392,9 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
     final MediaQueryData mediaQuery = MediaQuery.of(context);
     final EdgeInsets viewInsets = mediaQuery.viewInsets;
     final Size screenSize = mediaQuery.size;
-    final double dialogWidth = (screenSize.width * 0.92).clamp(0, 520).toDouble();
+    final double dialogWidth = (screenSize.width * 0.92)
+        .clamp(0, 520)
+        .toDouble();
     final double maxDialogHeight = screenSize.height - viewInsets.bottom - 32;
 
     return Padding(
@@ -1312,7 +1406,9 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: dialogWidth,
-            maxHeight: maxDialogHeight < 320 ? screenSize.height * 0.88 : maxDialogHeight,
+            maxHeight: maxDialogHeight < 320
+                ? screenSize.height * 0.88
+                : maxDialogHeight,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(30),
@@ -1322,7 +1418,9 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
                 decoration: BoxDecoration(
                   color: const Color(0xE60A2418),
                   borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: const Color(0xFF7CF7A9).withOpacity(0.28)),
+                  border: Border.all(
+                    color: const Color(0xFF7CF7A9).withOpacity(0.28),
+                  ),
                   boxShadow: <BoxShadow>[
                     BoxShadow(
                       color: Colors.black.withOpacity(0.32),
@@ -1355,16 +1453,22 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
                             ),
                           ),
                           InkWell(
-                            onTap: _saving ? null : () => Navigator.of(context).pop(false),
+                            onTap: _saving
+                                ? null
+                                : () => Navigator.of(context).pop(false),
                             borderRadius: BorderRadius.circular(18),
                             child: Container(
                               width: 34,
                               height: 34,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF5CFF94).withOpacity(0.12),
+                                color: const Color(
+                                  0xFF5CFF94,
+                                ).withOpacity(0.12),
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: const Color(0xFF7CF7A9).withOpacity(0.28),
+                                  color: const Color(
+                                    0xFF7CF7A9,
+                                  ).withOpacity(0.28),
                                 ),
                               ),
                               child: const Icon(
@@ -1416,7 +1520,10 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFF74F29C), width: 1.5),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF74F29C),
+                              width: 1.5,
+                            ),
                           ),
                         ),
                       ),
@@ -1440,7 +1547,9 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
                             ),
                             boxShadow: <BoxShadow>[
                               BoxShadow(
-                                color: const Color(0xFF65F794).withOpacity(0.23),
+                                color: const Color(
+                                  0xFF65F794,
+                                ).withOpacity(0.23),
                                 blurRadius: 24,
                                 spreadRadius: 2,
                               ),
@@ -1457,14 +1566,16 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
                       _AvatarSelectorGrid<String>(
                         values: GameCardAvatarPalette.ranks,
                         selected: _selectedRank,
-                        onSelected: (String rank) => setState(() => _selectedRank = rank),
+                        onSelected: (String rank) =>
+                            setState(() => _selectedRank = rank),
                         labelBuilder: (String rank) => rank,
                       ),
                       const SizedBox(height: 12),
                       _AvatarSelectorGrid<String>(
                         values: GameCardAvatarPalette.suits,
                         selected: _selectedSuit,
-                        onSelected: (String suit) => setState(() => _selectedSuit = suit),
+                        onSelected: (String suit) =>
+                            setState(() => _selectedSuit = suit),
                         labelBuilder: _suitLabel,
                         textColorBuilder: _suitColor,
                       ),
@@ -1473,15 +1584,21 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
                         children: <Widget>[
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+                              onPressed: _saving
+                                  ? null
+                                  : () => Navigator.of(context).pop(false),
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size.fromHeight(46),
                                 foregroundColor: const Color(0xFFEFFFF3),
                                 side: BorderSide(
-                                  color: const Color(0xFF7CF7A9).withOpacity(0.68),
+                                  color: const Color(
+                                    0xFF7CF7A9,
+                                  ).withOpacity(0.68),
                                   width: 1.2,
                                 ),
-                                textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                                textStyle: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w500,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -1498,14 +1615,18 @@ class _PublicProfileEditorSheetState extends State<_PublicProfileEditorSheet> {
                                 backgroundColor: const Color(0xFF16A34A),
                                 foregroundColor: Colors.white,
                                 elevation: 0,
-                                textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                                textStyle: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w500,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
-                                child: Text(_saving ? 'Enregistrement...' : 'Enregistrer'),
+                                child: Text(
+                                  _saving ? 'Enregistrement...' : 'Enregistrer',
+                                ),
                               ),
                             ),
                           ),
@@ -1560,51 +1681,58 @@ class _AvatarSelectorGrid<T> extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: values.map((T value) {
-        final bool isSelected = value == selected;
-        final Color baseTextColor = textColorBuilder?.call(value) ?? const Color(0xFFEFFFF3);
-        return InkWell(
-          onTap: () => onSelected(value),
-          borderRadius: BorderRadius.circular(18),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFF16A34A)
-                  : const Color(0xFF0D2B1E).withOpacity(0.58),
+      children: values
+          .map((T value) {
+            final bool isSelected = value == selected;
+            final Color baseTextColor =
+                textColorBuilder?.call(value) ?? const Color(0xFFEFFFF3);
+            return InkWell(
+              onTap: () => onSelected(value),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: isSelected
-                    ? const Color(0xFF89F7AD)
-                    : const Color(0xFF7CF7A9).withOpacity(0.24),
-                width: isSelected ? 1.4 : 1,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOut,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 13,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFF0D2B1E).withOpacity(0.58),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF89F7AD)
+                        : const Color(0xFF7CF7A9).withOpacity(0.24),
+                    width: isSelected ? 1.4 : 1,
+                  ),
+                  boxShadow: isSelected
+                      ? <BoxShadow>[
+                          BoxShadow(
+                            color: const Color(0xFF55F58D).withOpacity(0.20),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Text(
+                  labelBuilder(value),
+                  style: GoogleFonts.poppins(
+                    color: isSelected && textColorBuilder == null
+                        ? Colors.white
+                        : baseTextColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-              boxShadow: isSelected
-                  ? <BoxShadow>[
-                      BoxShadow(
-                        color: const Color(0xFF55F58D).withOpacity(0.20),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Text(
-              labelBuilder(value),
-              style: GoogleFonts.poppins(
-                color: isSelected && textColorBuilder == null ? Colors.white : baseTextColor,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        );
-      }).toList(growable: false),
+            );
+          })
+          .toList(growable: false),
     );
   }
 }
-
 
 class ResponsivePlayerSidePanelLayout extends StatefulWidget {
   const ResponsivePlayerSidePanelLayout({
@@ -1613,6 +1741,7 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
     this.onOpenLeaderboard,
     this.onOpenHistory,
     this.contextualGamePanel,
+    this.rankingPanelBuilder,
     this.leadingPanel,
     this.leadingPanelWidth,
     this.preserveContentCenterOnDesktop = false,
@@ -1624,6 +1753,7 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
   final VoidCallback? onOpenLeaderboard;
   final VoidCallback? onOpenHistory;
   final Widget? contextualGamePanel;
+  final PlayerRankingPanelBuilder? rankingPanelBuilder;
   final Widget? leadingPanel;
   final double? leadingPanelWidth;
   final bool preserveContentCenterOnDesktop;
@@ -1640,7 +1770,8 @@ class _ResponsivePlayerSidePanelLayoutState
   bool? _lastIsDesktop;
 
   void _syncPanelDefaultsForWidth() {
-    final bool isDesktop = MediaQuery.sizeOf(context).width >=
+    final bool isDesktop =
+        MediaQuery.sizeOf(context).width >=
         ResponsivePlayerSidePanelLayout.desktopBreakpoint;
     if (_lastIsDesktop == isDesktop) {
       return;
@@ -1761,8 +1892,10 @@ class _ResponsivePlayerSidePanelLayoutState
         edge: PlayerSidePanelEdge.right,
         width: width,
         contextualGamePanel: widget.contextualGamePanel,
-        onOpenLeaderboard:
-            widget.onOpenLeaderboard == null ? null : _openLeaderboard,
+        rankingPanelBuilder: widget.rankingPanelBuilder,
+        onOpenLeaderboard: widget.onOpenLeaderboard == null
+            ? null
+            : _openLeaderboard,
         onOpenHistory: widget.onOpenHistory == null ? null : _openHistory,
       ),
     );
@@ -1795,8 +1928,8 @@ class _ResponsivePlayerSidePanelLayoutState
   Widget build(BuildContext context) {
     _syncPanelDefaultsForWidth();
     final Size screenSize = MediaQuery.sizeOf(context);
-    final bool isDesktop = screenSize.width >=
-        ResponsivePlayerSidePanelLayout.desktopBreakpoint;
+    final bool isDesktop =
+        screenSize.width >= ResponsivePlayerSidePanelLayout.desktopBreakpoint;
     final double panelWidth = _panelWidth(screenSize, isDesktop);
     final double leadingPanelWidth = _leadingPanelWidth(screenSize, isDesktop);
     final bool hasLeadingPanel = widget.leadingPanel != null;
@@ -1925,8 +2058,10 @@ class PlayerLeadingSidePanelControllerScope extends InheritedWidget {
   final bool isOpen;
 
   static PlayerLeadingSidePanelControllerScope? maybeOf(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<
-        PlayerLeadingSidePanelControllerScope>();
+    return context
+        .dependOnInheritedWidgetOfExactType<
+          PlayerLeadingSidePanelControllerScope
+        >();
   }
 
   @override
@@ -1989,87 +2124,92 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
           final User? user = authSnapshot.data;
           return FutureBuilder<PlayerProfile?>(
             future: _loadProfile(),
-            builder: (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
-              final PlayerProfile? profile = snapshot.data;
-              final GameCardAvatarData fallbackAvatar =
-                  GameCardAvatarPalette.fromSeed(
-                user?.uid ?? 'menu_guest',
-                salt: 5,
-              );
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  if (widget.showCredits && user != null) ...<Widget>[
-                    _LiveCreditBadge(
-                      uid: user.uid,
-                      fallbackCredits: profile?.credits,
-                      premiumSurface: widget.premiumSurface,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      border: widget.premiumSurface
-                          ? Border.all(
-                              color: const Color(0xFFE4B853)
-                                  .withOpacity(0.36),
-                              width: 1,
-                            )
-                          : null,
-                      boxShadow: widget.premiumSurface
-                          ? <BoxShadow>[
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.26),
-                                blurRadius: 18,
-                                offset: const Offset(0, 9),
-                              ),
-                              BoxShadow(
-                                color: const Color(0xFF7CFF9B)
-                                    .withOpacity(0.10),
-                                blurRadius: 14,
-                                spreadRadius: 1,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(18),
-                        onTap: () {
-                          if (sidePanelScope != null) {
-                            sidePanelScope.toggle();
-                            return;
-                          }
-                          Scaffold.of(context).openEndDrawer();
-                        },
-                        child: Tooltip(
-                          message: 'Menu joueur',
-                          child: widget.useMenuIcon
-                              ? const SizedBox(
-                                  width: 52,
-                                  height: 52,
-                                  child: Icon(
-                                    Icons.menu_rounded,
-                                    color: Colors.white,
-                                    size: 30,
-                                  ),
+            builder:
+                (BuildContext context, AsyncSnapshot<PlayerProfile?> snapshot) {
+                  final PlayerProfile? profile = snapshot.data;
+                  final GameCardAvatarData fallbackAvatar =
+                      GameCardAvatarPalette.fromSeed(
+                        user?.uid ?? 'menu_guest',
+                        salt: 5,
+                      );
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (widget.showCredits && user != null) ...<Widget>[
+                        _LiveCreditBadge(
+                          uid: user.uid,
+                          fallbackCredits: profile?.credits,
+                          premiumSurface: widget.premiumSurface,
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: widget.premiumSurface
+                              ? Border.all(
+                                  color: const Color(
+                                    0xFFE4B853,
+                                  ).withOpacity(0.36),
+                                  width: 1,
                                 )
-                              : GameCardAvatar.fromSelection(
-                                  size: 52,
-                                  rank: profile?.selectedCardAvatar.rank ??
-                                      fallbackAvatar.rank,
-                                  suit: profile?.selectedCardAvatar.suit ??
-                                      fallbackAvatar.suit,
-                                ),
+                              : null,
+                          boxShadow: widget.premiumSurface
+                              ? <BoxShadow>[
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.26),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 9),
+                                  ),
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF7CFF9B,
+                                    ).withOpacity(0.10),
+                                    blurRadius: 14,
+                                    spreadRadius: 1,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () {
+                              if (sidePanelScope != null) {
+                                sidePanelScope.toggle();
+                                return;
+                              }
+                              Scaffold.of(context).openEndDrawer();
+                            },
+                            child: Tooltip(
+                              message: 'Menu joueur',
+                              child: widget.useMenuIcon
+                                  ? const SizedBox(
+                                      width: 52,
+                                      height: 52,
+                                      child: Icon(
+                                        Icons.menu_rounded,
+                                        color: Colors.white,
+                                        size: 30,
+                                      ),
+                                    )
+                                  : GameCardAvatar.fromSelection(
+                                      size: 52,
+                                      rank:
+                                          profile?.selectedCardAvatar.rank ??
+                                          fallbackAvatar.rank,
+                                      suit:
+                                          profile?.selectedCardAvatar.suit ??
+                                          fallbackAvatar.suit,
+                                    ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              );
-            },
+                    ],
+                  );
+                },
           );
         },
       ),
@@ -2079,10 +2219,7 @@ class _PlayerSidePanelButtonState extends State<PlayerSidePanelButton> {
       return button;
     }
 
-    return Align(
-      alignment: widget.alignment,
-      child: button,
-    );
+    return Align(alignment: widget.alignment, child: button);
   }
 }
 
@@ -2104,21 +2241,23 @@ class _LiveCreditBadge extends StatelessWidget {
           .collection('user_profiles')
           .doc(uid)
           .snapshots(),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
-      ) {
-        final Map<String, dynamic>? data = snapshot.data?.data();
-        final int? liveCredits = (data?['credits'] as num?)?.toInt();
-        final String creditsLabel = snapshot.connectionState == ConnectionState.waiting &&
-                fallbackCredits == null
-            ? '...'
-            : '${liveCredits ?? fallbackCredits ?? 0}';
-        return _CreditBadge(
-          value: creditsLabel,
-          premiumSurface: premiumSurface,
-        );
-      },
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot,
+          ) {
+            final Map<String, dynamic>? data = snapshot.data?.data();
+            final int? liveCredits = (data?['credits'] as num?)?.toInt();
+            final String creditsLabel =
+                snapshot.connectionState == ConnectionState.waiting &&
+                    fallbackCredits == null
+                ? '...'
+                : '${liveCredits ?? fallbackCredits ?? 0}';
+            return _CreditBadge(
+              value: creditsLabel,
+              premiumSurface: premiumSurface,
+            );
+          },
     );
   }
 }

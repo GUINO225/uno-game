@@ -64,7 +64,9 @@ Future<void> _initializeFirebaseIfConfigured() async {
         '[Firebase] initialized: app=${app.name}, projectId=${app.options.projectId}, appId=${app.options.appId}',
       );
     } else {
-      debugPrint('[Firebase] skipped initialization: missing options for platform.');
+      debugPrint(
+        '[Firebase] skipped initialization: missing options for platform.',
+      );
     }
   } catch (e, stackTrace) {
     debugPrint('[Firebase] initialization failed: $e');
@@ -139,7 +141,9 @@ class MyApp extends StatelessWidget {
             unawaited(AudioService.instance.preloadGameSounds());
             final Object? args = ModalRoute.of(context)?.settings.arguments;
             return CrazyEightsPage(
-              launchOptions: args is GameLaunchOptions ? args : const GameLaunchOptions(),
+              launchOptions: args is GameLaunchOptions
+                  ? args
+                  : const GameLaunchOptions(),
             );
           },
           GameModeRoutes.duel: (BuildContext context) {
@@ -310,8 +314,12 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
                       ListenableBuilder(
                         listenable: AudioService.instance,
                         builder: (BuildContext context, _) {
-                          final double progress = AudioService.instance.initializationProgress;
-                          final int percent = (progress * 100).round().clamp(0, 100);
+                          final double progress =
+                              AudioService.instance.initializationProgress;
+                          final int percent = (progress * 100).round().clamp(
+                            0,
+                            100,
+                          );
                           return Column(
                             children: <Widget>[
                               AnimatedSwitcher(
@@ -319,16 +327,23 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
                                 switchInCurve: Curves.easeOutCubic,
                                 switchOutCurve: Curves.easeInCubic,
                                 transitionBuilder:
-                                    (Widget child, Animation<double> animation) {
+                                    (
+                                      Widget child,
+                                      Animation<double> animation,
+                                    ) {
                                       return FadeTransition(
                                         opacity: animation,
                                         child: ScaleTransition(
-                                          scale: Tween<double>(begin: 0.9, end: 1).animate(
-                                            CurvedAnimation(
-                                              parent: animation,
-                                              curve: Curves.easeOutCubic,
-                                            ),
-                                          ),
+                                          scale:
+                                              Tween<double>(
+                                                begin: 0.9,
+                                                end: 1,
+                                              ).animate(
+                                                CurvedAnimation(
+                                                  parent: animation,
+                                                  curve: Curves.easeOutCubic,
+                                                ),
+                                              ),
                                           child: child,
                                         ),
                                       );
@@ -351,14 +366,19 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
                                   tween: Tween<double>(begin: 0, end: progress),
                                   duration: const Duration(milliseconds: 120),
                                   curve: Curves.easeOutCubic,
-                                  builder: (BuildContext context, double animatedValue, _) {
-                                    return LinearProgressIndicator(
-                                      minHeight: 8,
-                                      value: animatedValue,
-                                      color: GameModePalette.accentGreen,
-                                      backgroundColor: Colors.white24,
-                                    );
-                                  },
+                                  builder:
+                                      (
+                                        BuildContext context,
+                                        double animatedValue,
+                                        _,
+                                      ) {
+                                        return LinearProgressIndicator(
+                                          minHeight: 8,
+                                          value: animatedValue,
+                                          color: GameModePalette.accentGreen,
+                                          backgroundColor: Colors.white24,
+                                        );
+                                      },
                                 ),
                               ),
                               const SizedBox(height: 10),
@@ -386,8 +406,6 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
   }
 }
 
-
-
 enum GameMode { solo, duel, credits }
 
 class GameModeRoutes {
@@ -407,10 +425,7 @@ class GameLaunchOptions {
 }
 
 class SpecialFinishBonus {
-  const SpecialFinishBonus({
-    required this.cardName,
-    required this.amount,
-  });
+  const SpecialFinishBonus({required this.cardName, required this.amount});
 
   final String cardName;
   final int amount;
@@ -418,7 +433,6 @@ class SpecialFinishBonus {
   String get winnerLine => 'Bonus $cardName : +$amount';
   String get loserLine => 'Malus adverse : −$amount';
 }
-
 
 class GameModePalette {
   static const Color background = Color(0xFF004F2C);
@@ -451,7 +465,10 @@ class _IntroLandingPageState extends State<IntroLandingPage>
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 4600),
-    )..repeat(reverse: true);
+    );
+    if (kIsWeb) {
+      _ambientController.repeat(reverse: true);
+    }
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_showStartupDialogs());
@@ -470,7 +487,8 @@ class _IntroLandingPageState extends State<IntroLandingPage>
       return;
     }
     _hasAskedStartupLogin = true;
-    final bool shouldLogin = await showDialog<bool>(
+    final bool shouldLogin =
+        await showDialog<bool>(
           context: context,
           barrierDismissible: true,
           builder: (BuildContext context) {
@@ -490,7 +508,9 @@ class _IntroLandingPageState extends State<IntroLandingPage>
     }
     if (!result.isSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.errorMessage ?? 'Connexion Google impossible.')),
+        SnackBar(
+          content: Text(result.errorMessage ?? 'Connexion Google impossible.'),
+        ),
       );
       return;
     }
@@ -516,7 +536,14 @@ class _IntroLandingPageState extends State<IntroLandingPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (kIsWeb && !_ambientController.isAnimating) {
+        _ambientController.repeat(reverse: true);
+      }
       setState(() {});
+      return;
+    }
+    if (kIsWeb && _ambientController.isAnimating) {
+      _ambientController.stop();
     }
   }
 
@@ -554,7 +581,10 @@ class _IntroLandingPageState extends State<IntroLandingPage>
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 22,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: <Widget>[
@@ -597,8 +627,12 @@ class StartupAdPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Size screenSize = MediaQuery.of(context).size;
-    final double maxPopupWidth = (screenSize.width * 0.9).clamp(260, 560).toDouble();
-    final double maxPopupHeight = (screenSize.height * 0.8).clamp(220, 680).toDouble();
+    final double maxPopupWidth = (screenSize.width * 0.9)
+        .clamp(260, 560)
+        .toDouble();
+    final double maxPopupHeight = (screenSize.height * 0.8)
+        .clamp(220, 680)
+        .toDouble();
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -641,10 +675,7 @@ class StartupAdPopup extends StatelessWidget {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(17),
-                child: Image.asset(
-                  _adAssetPath,
-                  fit: BoxFit.contain,
-                ),
+                child: Image.asset(_adAssetPath, fit: BoxFit.contain),
               ),
             ),
           ),
@@ -677,11 +708,7 @@ class StartupAdPopup extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.close,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 20),
                 ),
               ),
             ),
@@ -709,7 +736,7 @@ class GameModePage extends StatefulWidget {
 }
 
 class _GameModePageState extends State<GameModePage>
-    with TickerProviderStateMixin {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final AuthService _authService = AuthService.instance;
   final UserProfileService _profileService = UserProfileService.instance;
   static const double _designWidth = 393;
@@ -743,6 +770,7 @@ class _GameModePageState extends State<GameModePage>
   late final SelectionCardModel _duelBackCard;
   GameMode? _selectedMode;
   bool _specialBonusesEnabled = true;
+  bool _didPrecacheImages = false;
 
   @override
   void initState() {
@@ -753,7 +781,10 @@ class _GameModePageState extends State<GameModePage>
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 5200),
-    )..repeat(reverse: true);
+    );
+    if (kIsWeb) {
+      _ambientController.repeat(reverse: true);
+    }
     _introController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -762,25 +793,21 @@ class _GameModePageState extends State<GameModePage>
       parent: _introController,
       curve: Curves.easeOutCubic,
     );
-    _slideUp = Tween<Offset>(
-      begin: const Offset(0, 0.05),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic),
-    );
+    _slideUp = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _introController, curve: Curves.easeOutCubic),
+        );
     _soloFade = CurvedAnimation(
       parent: _introController,
       curve: const Interval(0.18, 0.74, curve: Curves.easeOut),
     );
-    _soloSlideUp = Tween<Offset>(
-      begin: const Offset(0, 0.09),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _introController,
-        curve: const Interval(0.18, 0.74, curve: Curves.easeOutCubic),
-      ),
-    );
+    _soloSlideUp = Tween<Offset>(begin: const Offset(0, 0.09), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _introController,
+            curve: const Interval(0.18, 0.74, curve: Curves.easeOutCubic),
+          ),
+        );
     _soloScale = Tween<double>(begin: 0.96, end: 1).animate(
       CurvedAnimation(
         parent: _introController,
@@ -791,15 +818,13 @@ class _GameModePageState extends State<GameModePage>
       parent: _introController,
       curve: const Interval(0.3, 0.9, curve: Curves.easeOut),
     );
-    _duelSlideUp = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _introController,
-        curve: const Interval(0.3, 0.9, curve: Curves.easeOutCubic),
-      ),
-    );
+    _duelSlideUp = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _introController,
+            curve: const Interval(0.3, 0.9, curve: Curves.easeOutCubic),
+          ),
+        );
     _duelScale = Tween<double>(begin: 0.96, end: 1).animate(
       CurvedAnimation(
         parent: _introController,
@@ -810,15 +835,13 @@ class _GameModePageState extends State<GameModePage>
       parent: _introController,
       curve: const Interval(0.42, 1, curve: Curves.easeOut),
     );
-    _creditsSlideUp = Tween<Offset>(
-      begin: const Offset(0, 0.11),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _introController,
-        curve: const Interval(0.42, 1, curve: Curves.easeOutCubic),
-      ),
-    );
+    _creditsSlideUp =
+        Tween<Offset>(begin: const Offset(0, 0.11), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _introController,
+            curve: const Interval(0.42, 1, curve: Curves.easeOutCubic),
+          ),
+        );
     _creditsScale = Tween<double>(begin: 0.96, end: 1).animate(
       CurvedAnimation(
         parent: _introController,
@@ -826,13 +849,42 @@ class _GameModePageState extends State<GameModePage>
       ),
     );
     _introController.forward();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didPrecacheImages) {
+      return;
+    }
+    _didPrecacheImages = true;
+    precacheImage(const AssetImage(AppLogo.assetPath), context);
+    precacheImage(const AssetImage('assets/img/card_back.jpeg'), context);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _introController.dispose();
     _ambientController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!kIsWeb) {
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      if (!_ambientController.isAnimating) {
+        _ambientController.repeat(reverse: true);
+      }
+      return;
+    }
+    if (_ambientController.isAnimating) {
+      _ambientController.stop();
+    }
   }
 
   @override
@@ -885,7 +937,9 @@ class _GameModePageState extends State<GameModePage>
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: <Widget>[
-                                      const SizedBox(height: _modeCardsTopSpacing),
+                                      const SizedBox(
+                                        height: _modeCardsTopSpacing,
+                                      ),
                                       FittedBox(
                                         fit: BoxFit.scaleDown,
                                         alignment: Alignment.center,
@@ -908,22 +962,21 @@ class _GameModePageState extends State<GameModePage>
                                                     height: _modeCardHeight,
                                                     primaryCard:
                                                         const SelectionCardModel(
-                                                      rank: '9',
-                                                      suit: SelectionSuit.club,
-                                                    ),
+                                                          rank: '9',
+                                                          suit: SelectionSuit
+                                                              .club,
+                                                        ),
                                                     labelFontSize:
                                                         _modeLabelFontSize,
-                                                    appearDelay:
-                                                        const Duration(
-                                                          milliseconds: 60,
-                                                        ),
+                                                    appearDelay: const Duration(
+                                                      milliseconds: 60,
+                                                    ),
                                                     isSelected:
                                                         _selectedMode ==
                                                         GameMode.solo,
-                                                    onTap:
-                                                        () => _selectMode(
-                                                          GameMode.solo,
-                                                        ),
+                                                    onTap: () => _selectMode(
+                                                      GameMode.solo,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -939,23 +992,20 @@ class _GameModePageState extends State<GameModePage>
                                                     mode: _ModeCardVariant.duel,
                                                     width: _modeCardWidth,
                                                     height: _modeCardHeight,
-                                                    primaryCard:
-                                                        _duelFrontCard,
+                                                    primaryCard: _duelFrontCard,
                                                     secondaryCard:
                                                         _duelBackCard,
                                                     labelFontSize:
                                                         _modeLabelFontSize,
-                                                    appearDelay:
-                                                        const Duration(
-                                                          milliseconds: 140,
-                                                        ),
+                                                    appearDelay: const Duration(
+                                                      milliseconds: 140,
+                                                    ),
                                                     isSelected:
                                                         _selectedMode ==
                                                         GameMode.duel,
-                                                    onTap:
-                                                        () => _selectMode(
-                                                          GameMode.duel,
-                                                        ),
+                                                    onTap: () => _selectMode(
+                                                      GameMode.duel,
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -968,21 +1018,23 @@ class _GameModePageState extends State<GameModePage>
                                                 child: ScaleTransition(
                                                   scale: _creditsScale,
                                                   child: GameModeCard(
-                                                    mode: _ModeCardVariant.paris,
+                                                    mode:
+                                                        _ModeCardVariant.paris,
                                                     width: _modeCardWidth,
                                                     height: _modeCardHeight,
                                                     primaryCard:
                                                         const SelectionCardModel(
-                                                      rank: 'A',
-                                                      suit: SelectionSuit.heart,
-                                                    ),
+                                                          rank: 'A',
+                                                          suit: SelectionSuit
+                                                              .heart,
+                                                        ),
                                                     labelFontSize:
                                                         _modeLabelFontSize,
-                                                    appearDelay:
-                                                        const Duration(
-                                                          milliseconds: 220,
-                                                        ),
-                                                    isSelected: _selectedMode ==
+                                                    appearDelay: const Duration(
+                                                      milliseconds: 220,
+                                                    ),
+                                                    isSelected:
+                                                        _selectedMode ==
                                                         GameMode.credits,
                                                     onTap: () => _selectMode(
                                                       GameMode.credits,
@@ -999,40 +1051,48 @@ class _GameModePageState extends State<GameModePage>
                                         enabled: _specialBonusesEnabled,
                                         selectedMode: _selectedMode,
                                         onChanged: (bool value) {
-                                          unawaited(AppSfxService.instance.playClick());
+                                          unawaited(
+                                            AppSfxService.instance.playClick(),
+                                          );
                                           setState(() {
                                             _specialBonusesEnabled = value;
                                           });
                                         },
                                       ),
-                                      const SizedBox(height: _controlsTopSpacing),
+                                      const SizedBox(
+                                        height: _controlsTopSpacing,
+                                      ),
                                       AnimatedSwitcher(
                                         duration: const Duration(
                                           milliseconds: 280,
                                         ),
                                         switchInCurve: Curves.easeOutCubic,
                                         switchOutCurve: Curves.easeInCubic,
-                                        transitionBuilder: (
-                                          Widget child,
-                                          Animation<double> animation,
-                                        ) {
-                                          return FadeTransition(
-                                            opacity: animation,
-                                            child: SlideTransition(
-                                              position: Tween<Offset>(
-                                                begin: const Offset(0, 0.18),
-                                                end: Offset.zero,
-                                              ).animate(animation),
-                                              child: ScaleTransition(
-                                                scale: Tween<double>(
-                                                  begin: 0.96,
-                                                  end: 1,
-                                                ).animate(animation),
-                                                child: child,
-                                              ),
-                                            ),
-                                          );
-                                        },
+                                        transitionBuilder:
+                                            (
+                                              Widget child,
+                                              Animation<double> animation,
+                                            ) {
+                                              return FadeTransition(
+                                                opacity: animation,
+                                                child: SlideTransition(
+                                                  position: Tween<Offset>(
+                                                    begin: const Offset(
+                                                      0,
+                                                      0.18,
+                                                    ),
+                                                    end: Offset.zero,
+                                                  ).animate(animation),
+                                                  child: ScaleTransition(
+                                                    scale: Tween<double>(
+                                                      begin: 0.96,
+                                                      end: 1,
+                                                    ).animate(animation),
+                                                    child: child,
+                                                  ),
+                                                ),
+                                              );
+                                            },
                                         child: _selectedMode == null
                                             ? const SizedBox.shrink(
                                                 key: ValueKey<String>(
@@ -1112,7 +1172,10 @@ class _GameModePageState extends State<GameModePage>
                     unawaited(AppSfxService.instance.playClick());
                     Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
                   },
-                  icon: const Icon(Icons.leaderboard_rounded, color: Colors.white),
+                  icon: const Icon(
+                    Icons.leaderboard_rounded,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -1133,7 +1196,10 @@ class _GameModePageState extends State<GameModePage>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: const Color(0xFF003B22).withOpacity(0.85),
-                      border: Border.all(color: const Color(0x667CC79A), width: 1),
+                      border: Border.all(
+                        color: const Color(0x667CC79A),
+                        width: 1,
+                      ),
                     ),
                     child: const Icon(
                       Icons.shield_outlined,
@@ -1169,8 +1235,10 @@ class _GameModePageState extends State<GameModePage>
     if (mode == null) {
       return;
     }
-    if ((mode == GameMode.duel || mode == GameMode.credits) && _authService.currentUser == null) {
-      final bool shouldLogin = await showDialog<bool>(
+    if ((mode == GameMode.duel || mode == GameMode.credits) &&
+        _authService.currentUser == null) {
+      final bool shouldLogin =
+          await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
               return Dialog(
@@ -1215,8 +1283,12 @@ class _GameModePageState extends State<GameModePage>
         return;
       }
       final DocumentSnapshot<Map<String, dynamic>> profileSnap =
-          await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
-      final int credits = (profileSnap.data()?['credits'] as num?)?.toInt() ?? 0;
+          await FirebaseFirestore.instance
+              .collection('user_profiles')
+              .doc(uid)
+              .get();
+      final int credits =
+          (profileSnap.data()?['credits'] as num?)?.toInt() ?? 0;
       if (credits <= 0) {
         if (!mounted) {
           return;
@@ -1226,27 +1298,40 @@ class _GameModePageState extends State<GameModePage>
           barrierDismissible: true,
           builder: (BuildContext dialogContext) {
             return AlertDialog(
-              backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
+              backgroundColor: GinoPopupStyle.premiumDeepGreen.withOpacity(
+                0.96,
+              ),
               surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),
-                side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+                side: BorderSide(
+                  color: GinoPopupStyle.casinoGold.withOpacity(0.72),
+                ),
               ),
               shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
               title: const Text(
                 'Crédit insuffisant',
-                style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
+                style: TextStyle(
+                  color: GinoPopupStyle.textWhite,
+                  fontWeight: FontWeight.w300,
+                ),
               ),
               content: const Text(
                 'Votre solde est insuffisant pour accéder au mode Pari. Veuillez contacter le service client ou l’administrateur afin de recharger votre compte.',
-                style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
+                style: TextStyle(
+                  color: GinoPopupStyle.textWhite,
+                  fontWeight: FontWeight.w300,
+                ),
               ),
               actions: <Widget>[
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                    backgroundColor: GinoPopupStyle.premiumNeonGreen
+                        .withOpacity(0.82),
                     foregroundColor: GinoPopupStyle.textWhite,
-                    shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
+                    shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(
+                      0.28,
+                    ),
                   ),
                   onPressed: () => Navigator.of(dialogContext).pop(),
                   child: const Text('Retour à l’accueil'),
@@ -1266,12 +1351,13 @@ class _GameModePageState extends State<GameModePage>
         GameMode.credits => GameModeRoutes.credits,
       },
       arguments: GameLaunchOptions(
-        specialBonusesEnabled: mode == GameMode.credits ? false : _specialBonusesEnabled,
+        specialBonusesEnabled: mode == GameMode.credits
+            ? false
+            : _specialBonusesEnabled,
       ),
     );
   }
 }
-
 
 class _SpecialBonusOptionCard extends StatelessWidget {
   const _SpecialBonusOptionCard({
@@ -1323,13 +1409,15 @@ class _SpecialBonusOptionCard extends StatelessWidget {
             BoxShadow(
               color: const Color(0xFF72FF9E).withOpacity(0.10),
               blurRadius: 16,
-              ),
+            ),
           ],
         ),
         child: Row(
           children: <Widget>[
             Icon(
-              displayedEnabled ? Icons.auto_awesome_rounded : Icons.block_rounded,
+              displayedEnabled
+                  ? Icons.auto_awesome_rounded
+                  : Icons.block_rounded,
               color: displayedEnabled
                   ? const Color(0xFFE8C45A)
                   : Colors.white.withOpacity(0.62),
@@ -1367,14 +1455,13 @@ class _SpecialBonusOptionCard extends StatelessWidget {
               activeTrackColor: const Color(0xFF0E6F3B),
               inactiveThumbColor: const Color(0xFFDCECDF),
               inactiveTrackColor: Colors.white.withOpacity(0.16),
-              ),
+            ),
           ],
         ),
       ),
     );
   }
 }
-
 
 class PremiumHomeLogoGlow extends StatelessWidget {
   const PremiumHomeLogoGlow({
@@ -1417,10 +1504,7 @@ class PremiumHomeLogoGlow extends StatelessWidget {
 }
 
 class PremiumHomeBackgroundDecoration extends StatelessWidget {
-  const PremiumHomeBackgroundDecoration({
-    super.key,
-    required this.animation,
-  });
+  const PremiumHomeBackgroundDecoration({super.key, required this.animation});
 
   final Animation<double> animation;
 
@@ -1570,8 +1654,7 @@ class _PremiumHomeParticlePainter extends CustomPainter {
         (base.dx * size.width) + drift,
         (base.dy * size.height) - (phase * 9) + (i.isEven ? 4 : -4),
       );
-      final double sparkle =
-          0.38 + (sin((phase * pi * 2) + (i * 0.9)) * 0.18);
+      final double sparkle = 0.38 + (sin((phase * pi * 2) + (i * 0.9)) * 0.18);
       final Paint paint = Paint()
         ..color = (i.isEven ? const Color(0xFFE8C45A) : const Color(0xFF72FF9E))
             .withOpacity(0.10 + (sparkle * 0.08));
@@ -1633,7 +1716,7 @@ class BackgroundDecoration extends StatelessWidget {
                   height: 1,
                 ),
               ),
-              ),
+            ),
           ],
         ),
       ),
@@ -1657,14 +1740,12 @@ enum _ModeCardVariant { solo, duel, paris }
 enum SelectionSuit { spade, heart, diamond, club }
 
 class SelectionCardModel {
-  const SelectionCardModel({
-    required this.rank,
-    required this.suit,
-  });
+  const SelectionCardModel({required this.rank, required this.suit});
 
   final String rank;
   final SelectionSuit suit;
-  bool get isRedSuit => suit == SelectionSuit.heart || suit == SelectionSuit.diamond;
+  bool get isRedSuit =>
+      suit == SelectionSuit.heart || suit == SelectionSuit.diamond;
 
   String get suitSymbol => switch (suit) {
     SelectionSuit.spade => '♠',
@@ -1677,7 +1758,15 @@ class SelectionCardModel {
 class SelectionCardGenerator {
   SelectionCardGenerator._();
 
-  static const List<String> _ranks = <String>['A', 'K', 'Q', 'J', '10', '9', '8'];
+  static const List<String> _ranks = <String>[
+    'A',
+    'K',
+    'Q',
+    'J',
+    '10',
+    '9',
+    '8',
+  ];
 
   static SelectionCardModel randomCard(Random random) {
     return SelectionCardModel(
@@ -1753,7 +1842,9 @@ class _GameModeCardFace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final SelectionCardModel fallback = SelectionCardGenerator.randomCard(Random(99));
+    final SelectionCardModel fallback = SelectionCardGenerator.randomCard(
+      Random(99),
+    );
     return switch (mode) {
       _ModeCardVariant.solo => SelectionPlayingCard(
         model: primaryCard ?? fallback,
@@ -1817,7 +1908,7 @@ class SelectionPlayingCard extends StatelessWidget {
             BoxShadow(
               color: const Color(0xFF6CFF99).withOpacity(0.12),
               blurRadius: 16,
-              ),
+            ),
           ],
         ),
         child: ClipRRect(
@@ -1929,8 +2020,8 @@ class DuelSelectionCard extends StatelessWidget {
                 height: height * 0.74,
               ),
             ),
-            ),
-            Positioned(
+          ),
+          Positioned(
             right: 3,
             bottom: 6,
             child: Transform.rotate(
@@ -2065,7 +2156,11 @@ class _PressableModeCardState extends State<_PressableModeCard>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
-    )..repeat(reverse: true);
+      value: 0.5,
+    );
+    if (kIsWeb) {
+      _pulseController.repeat(reverse: true);
+    }
   }
 
   @override
@@ -2088,7 +2183,11 @@ class _PressableModeCardState extends State<_PressableModeCard>
           onTapCancel: () => setState(() => _isPressed = false),
           onTap: widget.onTap,
           child: AnimatedScale(
-            scale: _isPressed ? 0.962 : emphasized ? 1.018 : 1,
+            scale: _isPressed
+                ? 0.962
+                : emphasized
+                ? 1.018
+                : 1,
             duration: const Duration(milliseconds: 140),
             curve: Curves.easeOut,
             child: AnimatedBuilder(
@@ -2126,14 +2225,16 @@ class _PressableModeCardState extends State<_PressableModeCard>
                         offset: const Offset(0, 18),
                       ),
                       BoxShadow(
-                        color: const Color(0xFF60FF92)
-                            .withOpacity(emphasized ? 0.18 : 0.08),
+                        color: const Color(
+                          0xFF60FF92,
+                        ).withOpacity(emphasized ? 0.18 : 0.08),
                         blurRadius: emphasized ? 26 : 18,
                         spreadRadius: emphasized ? 1 : 0,
                       ),
                       BoxShadow(
-                        color: const Color(0xFFE2B857)
-                            .withOpacity(emphasized ? 0.08 : 0.035),
+                        color: const Color(
+                          0xFFE2B857,
+                        ).withOpacity(emphasized ? 0.08 : 0.035),
                         blurRadius: 18,
                       ),
                     ],
@@ -2225,10 +2326,7 @@ class _PlayModeButtonState extends State<_PlayModeButton> {
               gradient: const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: <Color>[
-                  Color(0xFF96F8A6),
-                  Color(0xFF5DD978),
-                ],
+                colors: <Color>[Color(0xFF96F8A6), Color(0xFF5DD978)],
               ),
               boxShadow: <BoxShadow>[
                 BoxShadow(
@@ -2274,7 +2372,11 @@ class _IntroPlayButtonState extends State<_IntroPlayButton>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
+      value: 0.5,
+    );
+    if (kIsWeb) {
+      _pulseController.repeat(reverse: true);
+    }
   }
 
   @override
@@ -2361,14 +2463,15 @@ enum JokerKind { red, black }
 
 enum PlayerTurn { human, bot }
 
+enum SoloHandLayoutMode { normal, fan, manual }
+
 class PlayingCard {
   const PlayingCard._({this.suit, this.rank, this.jokerKind});
 
   const PlayingCard.normal({required Suit suit, required int rank})
-      : this._(suit: suit, rank: rank);
+    : this._(suit: suit, rank: rank);
 
-  const PlayingCard.joker({required JokerKind kind})
-      : this._(jokerKind: kind);
+  const PlayingCard.joker({required JokerKind kind}) : this._(jokerKind: kind);
 
   final Suit? suit;
   final int? rank;
@@ -2458,10 +2561,10 @@ class CrazyEightsPage extends StatefulWidget {
   State<CrazyEightsPage> createState() => _CrazyEightsPageState();
 }
 
-class _CrazyEightsPageState extends State<CrazyEightsPage>
-{
+class _CrazyEightsPageState extends State<CrazyEightsPage> {
   static const String _botName = 'Ordi';
   static const String _botNameLower = 'l’ordi';
+  static const int _soloExitPenaltyCredits = 100;
   final Random _random = Random();
   final AppSfxService _sfx = AppSfxService.instance;
   final AuthService _authService = AuthService.instance;
@@ -2475,6 +2578,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   List<int> _previousBotCardRefs = <int>[];
   Set<int> _newHumanCardRefs = <int>{};
   Set<int> _newBotCardRefs = <int>{};
+  final Map<int, Offset> _manualHandPositions = <int, Offset>{};
+  int? _manualDraggingCardRef;
 
   PlayerTurn _turn = PlayerTurn.human;
   String _status = '';
@@ -2482,6 +2587,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   bool _isResolvingTurn = false;
   bool _isInitialDealRunning = false;
   bool _isBotTurnRunning = false;
+  bool _soloExitBusy = false;
 
   int _forcedDrawCount = 0;
   PlayerTurn? _forcedDrawTarget;
@@ -2507,14 +2613,31 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   String _humanDisplayName = 'Vous';
   int _humanWins = 0;
   int _humanLosses = 0;
-  GameCardAvatarData _humanAvatar = GameCardAvatarPalette.fromSeed('solo-human');
-  final GameCardAvatarData _botAvatar = GameCardAvatarPalette.fromSelection(rank: 'K', suit: 'spades');
+  GameCardAvatarData _humanAvatar = GameCardAvatarPalette.fromSeed(
+    'solo-human',
+  );
+  final GameCardAvatarData _botAvatar = GameCardAvatarPalette.fromSelection(
+    rank: 'K',
+    suit: 'spades',
+  );
+  bool _didPrecacheImages = false;
+  SoloHandLayoutMode _handLayoutMode = SoloHandLayoutMode.normal;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadHumanProfile());
     _startNewGame();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didPrecacheImages) {
+      return;
+    }
+    _didPrecacheImages = true;
+    precacheImage(const AssetImage('assets/img/card_back.jpeg'), context);
   }
 
   Future<void> _loadHumanProfile() async {
@@ -2540,8 +2663,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
   void _startNewGame() {
     unawaited(_sfx.playShuffle());
-    final PlayerTurn dealer =
-        _random.nextBool() ? PlayerTurn.human : PlayerTurn.bot;
+    final PlayerTurn dealer = _random.nextBool()
+        ? PlayerTurn.human
+        : PlayerTurn.bot;
     final PlayerTurn startingPlayer = _opponentOf(dealer);
 
     _drawPile = _createDeck();
@@ -2572,6 +2696,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _activeSuitConstraint = null;
       _humanDidVoluntaryDrawThisTurn = false;
       _forcedDrawWitchPlayed = false;
+      _manualHandPositions.clear();
+      _manualDraggingCardRef = null;
       _humanHand.addAll(humanInitialCards);
       _botHand.addAll(botInitialCards);
     });
@@ -2615,9 +2741,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     return player == PlayerTurn.human ? PlayerTurn.bot : PlayerTurn.human;
   }
 
-  String _turnLabel(PlayerTurn turn) => turn == PlayerTurn.human ? 'Vous' : _botName;
+  String _turnLabel(PlayerTurn turn) =>
+      turn == PlayerTurn.human ? 'Vous' : _botName;
 
-  String _turnStartText(PlayerTurn turn) => turn == PlayerTurn.human ? 'À votre tour' : 'Tour de l’ordi';
+  String _turnStartText(PlayerTurn turn) =>
+      turn == PlayerTurn.human ? 'À votre tour' : 'Tour de l’ordi';
 
   List<PlayingCard> _dealCards(List<PlayingCard> deck, int count) {
     final List<PlayingCard> dealt = <PlayingCard>[];
@@ -2639,8 +2767,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
     }
 
-    const PlayingCard fallback =
-    PlayingCard.normal(suit: Suit.spades, rank: 3);
+    const PlayingCard fallback = PlayingCard.normal(suit: Suit.spades, rank: 3);
     _discardPile.add(fallback);
     return fallback;
   }
@@ -2648,16 +2775,17 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   PlayingCard get _topDiscard => _discardPile.last;
 
   void _applyOpeningCardPenaltyIfNeeded(
-      PlayingCard openingCard, {
-        required PlayerTurn startingPlayer,
-        required PlayerTurn dealer,
-      }) {
+    PlayingCard openingCard, {
+    required PlayerTurn startingPlayer,
+    required PlayerTurn dealer,
+  }) {
     if (openingCard.rank == 2) {
       _setForcedDraw(
         target: startingPlayer,
         source: dealer,
         count: 2,
-        announcement: '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un 2.',
+        announcement:
+            '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un 2.',
       );
       return;
     }
@@ -2667,13 +2795,21 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         target: startingPlayer,
         source: dealer,
         count: 9,
-        announcement: '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un joker.',
+        announcement:
+            '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un joker.',
       );
     }
   }
 
   bool _sameColor(PlayingCard a, PlayingCard b) {
     return a.isRed == b.isRed;
+  }
+
+  bool _isEightResponse(PlayingCard card) {
+    return _discardPile.isNotEmpty &&
+        !card.isJoker &&
+        card.rank == 8 &&
+        _topDiscard.rank == 8;
   }
 
   bool _isCardPlayableForHand(PlayingCard card, List<PlayingCard> hand) {
@@ -2721,13 +2857,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     }
 
     if (_forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.human) {
-      return (
-        canPlay: false,
-        rejectionMessage: 'Vous devez d’abord piocher.',
-      );
+      return (canPlay: false, rejectionMessage: 'Vous devez d’abord piocher.');
     }
 
     if (_activeSuitConstraint != null &&
+        !_isEightResponse(card) &&
         (card.isJoker || card.suit != _activeSuitConstraint)) {
       return (
         canPlay: false,
@@ -2741,10 +2875,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       final String colorMessage = _topDiscard.isRed
           ? 'Vous devez jouer une carte rouge.'
           : 'Vous devez jouer une carte noire.';
-      return (
-        canPlay: false,
-        rejectionMessage: colorMessage,
-      );
+      return (canPlay: false, rejectionMessage: colorMessage);
     }
 
     if (!_isCardPlayableForHand(card, _humanHand)) {
@@ -2826,7 +2957,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     final ({bool canPlay, String? rejectionMessage}) playability =
         _evaluateHumanCardPlayability(card);
     if (!playability.canPlay) {
-      _showShortHumanMessage(playability.rejectionMessage ?? 'Carte non jouable.');
+      _showShortHumanMessage(
+        playability.rejectionMessage ?? 'Carte non jouable.',
+      );
       return;
     }
 
@@ -2870,11 +3003,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     setState(() {
       _humanDidVoluntaryDrawThisTurn = false;
     });
-    await _playCard(
-      hand: _humanHand,
-      card: card,
-      playerName: 'Vous',
-    );
+    await _playCard(hand: _humanHand, card: card, playerName: 'Vous');
 
     final _PlayResolution result = await _applyCardEffects(
       card: card,
@@ -2940,9 +3069,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       setState(() {
         _humanMustAnswerAce = false;
         _humanDidVoluntaryDrawThisTurn = false;
-        _status = drawn > 0
-            ? 'Vous piochez.'
-            : 'Pioche vide';
+        _status = drawn > 0 ? 'Vous piochez.' : 'Pioche vide';
       });
       if (drawn > 0) {
         _playDrawnCardSfx(_humanHand.last);
@@ -3059,10 +3186,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           _botMustAnswerAce = true;
           _status = '$_botName doit répondre à l’As.';
         });
-        return const _PlayResolution(
-          extraTurn: false,
-          skipTurnSwitch: false,
-        );
+        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
 
       setState(() {
@@ -3070,10 +3194,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         _status = 'Vous devez répondre à l’As';
       });
 
-      return const _PlayResolution(
-        extraTurn: false,
-        skipTurnSwitch: false,
-      );
+      return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
 
     if (card.rank == 2) {
@@ -3085,10 +3206,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           announcement: 'Ordi pioche 2 cartes',
         );
         await _runForcedDrawForBot();
-        return const _PlayResolution(
-          extraTurn: true,
-          skipTurnSwitch: false,
-        );
+        return const _PlayResolution(extraTurn: true, skipTurnSwitch: false);
       } else {
         _setForcedDraw(
           target: PlayerTurn.human,
@@ -3096,11 +3214,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           count: 2,
           announcement: '$_botName joue un 2.',
         );
-        _showFunnyGameMessage(playerName: 'Vous', message: 'Petit cadeau du quartier.');
-        return const _PlayResolution(
-          extraTurn: false,
-          skipTurnSwitch: false,
+        _showFunnyGameMessage(
+          playerName: 'Vous',
+          message: 'Petit cadeau du quartier.',
         );
+        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
     }
 
@@ -3113,10 +3231,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           announcement: 'Ordi pioche 9 cartes',
         );
         await _runForcedDrawForBot();
-        return const _PlayResolution(
-          extraTurn: true,
-          skipTurnSwitch: false,
-        );
+        return const _PlayResolution(extraTurn: true, skipTurnSwitch: false);
       } else {
         _setForcedDraw(
           target: PlayerTurn.human,
@@ -3126,20 +3241,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         );
         unawaited(_sfx.playJokerEffect());
         _showFunnyGameMessage(playerName: 'Vous', message: 'Le joker a parlé.');
-        return const _PlayResolution(
-          extraTurn: false,
-          skipTurnSwitch: false,
-        );
+        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
     }
 
     if (card.rank == 8) {
       final Suit askedSuit = await _getAskedSuit(currentTurn);
       if (_gameOver || !mounted) {
-        return const _PlayResolution(
-          extraTurn: false,
-          skipTurnSwitch: false,
-        );
+        return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
 
       final String demander = currentTurn == PlayerTurn.human
@@ -3155,27 +3264,20 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         message: 'Commande lancée.',
       );
 
-      return const _PlayResolution(
-        extraTurn: false,
-        skipTurnSwitch: false,
-      );
+      return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
     }
 
     if (card.rank == 10 || card.rank == 11) {
       setState(() {
-        _status = currentTurn == PlayerTurn.human ? 'Vous rejouez' : 'Tour de l’ordi';
+        _status = currentTurn == PlayerTurn.human
+            ? 'Vous rejouez'
+            : 'Tour de l’ordi';
       });
 
-      return const _PlayResolution(
-        extraTurn: true,
-        skipTurnSwitch: false,
-      );
+      return const _PlayResolution(extraTurn: true, skipTurnSwitch: false);
     }
 
-    return const _PlayResolution(
-      extraTurn: false,
-      skipTurnSwitch: false,
-    );
+    return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
   }
 
   void _finishForcedDrawIfNeeded() {
@@ -3249,7 +3351,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       builder: (BuildContext dialogContext) {
         unawaited(
           Future<void>.delayed(const Duration(milliseconds: 1700), () {
-            if (!commandPopupClosed && dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+            if (!commandPopupClosed &&
+                dialogContext.mounted &&
+                Navigator.of(dialogContext).canPop()) {
               commandPopupClosed = true;
               Navigator.of(dialogContext).pop();
             }
@@ -3257,12 +3361,17 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         );
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 16,
+          ),
           child: GinoOpponentCommandPopup(
             playerName: _botName,
             suit: _suitSymbol(suit),
             onClose: () {
-              if (!commandPopupClosed && dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+              if (!commandPopupClosed &&
+                  dialogContext.mounted &&
+                  Navigator.of(dialogContext).canPop()) {
                 commandPopupClosed = true;
                 Navigator.of(dialogContext).pop();
               }
@@ -3300,13 +3409,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Suit _chooseRequestedSuitForBot(List<PlayingCard> hand) {
-    final Map<Suit, int> counts = <Suit, int>{for (final Suit suit in Suit.values) suit: 0};
+    final Map<Suit, int> counts = <Suit, int>{
+      for (final Suit suit in Suit.values) suit: 0,
+    };
     for (final PlayingCard card in hand) {
       if (!card.isJoker && card.suit != null) {
         counts[card.suit!] = (counts[card.suit!] ?? 0) + 1;
       }
     }
-    final List<Suit> available = counts.entries.where((MapEntry<Suit, int> e) => e.value > 0).map((e) => e.key).toList();
+    final List<Suit> available = counts.entries
+        .where((MapEntry<Suit, int> e) => e.value > 0)
+        .map((e) => e.key)
+        .toList();
     if (available.isEmpty) {
       return Suit.hearts;
     }
@@ -3315,13 +3429,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       int playableNow = 0;
       for (final PlayingCard card in hand) {
         if (card.isJoker) continue;
-        if (card.suit == suit || card.rank == _topDiscard.rank || card.rank == 8) {
+        if (card.suit == suit ||
+            card.rank == _topDiscard.rank ||
+            card.rank == 8) {
           playableNow++;
         }
       }
       return (baseCount * 100) + playableNow;
     }
-    available.sort((Suit a, Suit b) => scoreForSuit(b).compareTo(scoreForSuit(a)));
+
+    available.sort(
+      (Suit a, Suit b) => scoreForSuit(b).compareTo(scoreForSuit(a)),
+    );
     return available.first;
   }
 
@@ -3338,7 +3457,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
     unawaited(_ensureBotTurnProgress());
   }
-
 
   Future<void> _scheduleBotTurn() async {
     if (_isBotTurnRunning ||
@@ -3419,7 +3537,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         Duration(milliseconds: 900 + _random.nextInt(1200)),
       );
 
-      if (!mounted || _gameOver || _turn != PlayerTurn.bot || _isInitialDealRunning) {
+      if (!mounted ||
+          _gameOver ||
+          _turn != PlayerTurn.bot ||
+          _isInitialDealRunning) {
         return;
       }
 
@@ -3433,8 +3554,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       }
 
       if (_botMustAnswerAce) {
-        final List<PlayingCard> aceResponses =
-            _botHand.where(_isValidAceResponse).toList();
+        final List<PlayingCard> aceResponses = _botHand
+            .where(_isValidAceResponse)
+            .toList();
         debugPrint('[SoloBot] playable cards=${aceResponses.length}');
 
         final bool chooseToDraw = aceResponses.isEmpty;
@@ -3447,9 +3569,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           }
           setState(() {
             _botMustAnswerAce = false;
-            _status = drawn > 0
-                ? 'Ordi pioche'
-                : 'Pioche vide';
+            _status = drawn > 0 ? 'Ordi pioche' : 'Pioche vide';
           });
           _switchToHuman();
           debugPrint('[SoloBot] action completed');
@@ -3459,11 +3579,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         final PlayingCard botAce = aceResponses.first;
         debugPrint('[SoloBot] plays card=$botAce');
         unawaited(_sfx.playCard());
-        await _playCard(
-          hand: _botHand,
-          card: botAce,
-          playerName: _botName,
-        );
+        await _playCard(hand: _botHand, card: botAce, playerName: _botName);
         _playBotOneCardLeftSfxIfNeeded();
 
         final bool wasAceResponse = _botMustAnswerAce;
@@ -3540,11 +3656,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 
       debugPrint('[SoloBot] plays card=$chosen');
       unawaited(_sfx.playCard());
-      await _playCard(
-        hand: _botHand,
-        card: chosen,
-        playerName: _botName,
-      );
+      await _playCard(hand: _botHand, card: chosen, playerName: _botName);
       _playBotOneCardLeftSfxIfNeeded();
 
       final _PlayResolution outcome = await _applyCardEffects(
@@ -3616,19 +3728,111 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   Future<void> _applyRoundCredits(int delta) async {
-    final user = AuthService.instance.currentUser;
-    if (user == null) return;
+    final user = _authService.currentUser;
+    if (user == null) {
+      return;
+    }
     try {
+      await _profileService.createOrUpdateFromGoogleUser(user);
       await FirebaseFirestore.instance
           .collection('user_profiles')
           .doc(user.uid)
-          .update(<String, dynamic>{
-        'credits': FieldValue.increment(delta),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+          .set(<String, dynamic>{
+            'uid': user.uid,
+            'credits': FieldValue.increment(delta),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[Solo] credit update failed: $e');
     }
+  }
+
+  Future<void> _recordSoloRoundOutcome({
+    required PlayerTurn winner,
+    required int creditDelta,
+  }) async {
+    final user = _authService.currentUser;
+    if (user == null) {
+      return;
+    }
+    final bool humanWon = winner == PlayerTurn.human;
+    try {
+      await _profileService.createOrUpdateFromGoogleUser(user);
+      await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(user.uid)
+          .set(<String, dynamic>{
+            'uid': user.uid,
+            'credits': FieldValue.increment(creditDelta),
+            if (humanWon)
+              'wins': FieldValue.increment(1)
+            else
+              'losses': FieldValue.increment(1),
+            'totalGames': FieldValue.increment(1),
+            'gamesPlayed': FieldValue.increment(1),
+            'score': FieldValue.increment(humanWon ? 3 : -1),
+            'rankScore': FieldValue.increment(humanWon ? 3 : -1),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Solo] round result update failed: $e');
+    }
+  }
+
+  Future<bool> _confirmSoloExitPenalty() async {
+    final bool? shouldQuit = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: GinoDecisionPopup(
+            title: 'Quitter la partie ?',
+            message:
+                'Si vous quittez maintenant, la manche sera abandonnée et vous perdez $_soloExitPenaltyCredits crédits.',
+            primaryLabel: 'Quitter -$_soloExitPenaltyCredits',
+            secondaryLabel: 'Rester',
+            onPrimary: () => Navigator.of(dialogContext).pop(true),
+            onSecondary: () => Navigator.of(dialogContext).pop(false),
+          ),
+        );
+      },
+    );
+    return shouldQuit == true;
+  }
+
+  Future<void> _handleSoloExit() async {
+    if (_soloExitBusy) {
+      return;
+    }
+    _soloExitBusy = true;
+    try {
+      unawaited(_sfx.playClick());
+      if (_gameOver) {
+        _returnToModeMenu();
+        return;
+      }
+      final bool shouldQuit = await _confirmSoloExitPenalty();
+      if (!mounted) {
+        return;
+      }
+      if (!shouldQuit) {
+        unawaited(_sfx.playClick());
+        return;
+      }
+      await _applyRoundCredits(-_soloExitPenaltyCredits);
+      if (mounted) {
+        _returnToModeMenu();
+      }
+    } finally {
+      _soloExitBusy = false;
+    }
+  }
+
+  void _returnToModeMenu() {
+    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
   }
 
   PlayingCard _chooseBestBotCard(List<PlayingCard> playable) {
@@ -3642,13 +3846,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       if (card.rank == 11) value += 110;
       if (card.rank == 8) value += handSize <= 3 ? 300 : -120;
       if (!card.isJoker && card.suit != null) {
-        final int sameSuit = _botHand.where((PlayingCard c) => !c.isJoker && c.suit == card.suit).length;
+        final int sameSuit = _botHand
+            .where((PlayingCard c) => !c.isJoker && c.suit == card.suit)
+            .length;
         value += sameSuit * 35;
       }
       if (card.rank == _topDiscard.rank) value += 55;
       return value;
     }
-    playable.sort((PlayingCard a, PlayingCard b) => score(b).compareTo(score(a)));
+
+    playable.sort(
+      (PlayingCard a, PlayingCard b) => score(b).compareTo(score(a)),
+    );
     return playable.first;
   }
 
@@ -3669,21 +3878,31 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       winner: winner,
       lastPlayed: lastPlayed,
     );
-    unawaited(_applyRoundCredits(creditDelta));
+    unawaited(
+      _recordSoloRoundOutcome(winner: winner, creditDelta: creditDelta),
+    );
 
     setState(() {
       if (winner == PlayerTurn.human) {
         _humanScore++;
+        _humanWins++;
         unawaited(_sfx.playWin());
       } else {
         _botScore++;
+        _humanLosses++;
         unawaited(_sfx.playLose());
       }
       _gameOver = true;
       _lastRoundCreditDelta = creditDelta;
       _status = '${_turnLabel(winner)} a gagné !';
     });
-    unawaited(_showRoundResultPopup(winner: winner, creditDelta: creditDelta, lastPlayed: lastPlayed));
+    unawaited(
+      _showRoundResultPopup(
+        winner: winner,
+        creditDelta: creditDelta,
+        lastPlayed: lastPlayed,
+      ),
+    );
 
     _showFunnyGameMessage(
       playerName: _turnLabel(winner),
@@ -3735,12 +3954,17 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
         final String creditLabel = creditDelta >= 0
             ? '+$creditDelta crédits'
             : '$creditDelta crédits';
-        final Color creditColor =
-            creditDelta >= 0 ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
+        final Color creditColor = creditDelta >= 0
+            ? const Color(0xFF2E7D32)
+            : const Color(0xFFC62828);
 
-        final SpecialFinishBonus? specialBonus = _specialFinishBonusFor(lastPlayed);
+        final SpecialFinishBonus? specialBonus = _specialFinishBonusFor(
+          lastPlayed,
+        );
         final bool bonusesEnabled = widget.launchOptions.specialBonusesEnabled;
-        final SpecialFinishBonus? appliedBonus = bonusesEnabled ? specialBonus : null;
+        final SpecialFinishBonus? appliedBonus = bonusesEnabled
+            ? specialBonus
+            : null;
         final bool isSpecialCard = appliedBonus != null;
         final String bonusReason = appliedBonus != null
             ? '${humanWon ? 'Victoire' : 'Défaite'} · base ${humanWon ? '+100' : '−100'}\n${appliedBonus.winnerLine} / ${appliedBonus.loserLine}'
@@ -3752,7 +3976,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
               ? 'Vous avez terminé avec un $cardName'
               : 'Votre adversaire a terminé avec un $cardName';
           final String label = lastPlayed.isJoker ? 'JOKER' : cardName;
-          final String suit = lastPlayed.isJoker ? '🃏' : _suitSymbol(lastPlayed.suit!);
+          final String suit = lastPlayed.isJoker
+              ? '🃏'
+              : _suitSymbol(lastPlayed.suit!);
           return Dialog(
             backgroundColor: Colors.transparent,
             child: GinoSpecialFinishBonusPopup(
@@ -3799,7 +4025,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 if (isConnected) ...<Widget>[
                   const SizedBox(height: 14),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
                       color: creditColor.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(12),
@@ -3886,7 +4115,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                       child: GinoPopupButton(
                         label: 'Rematch',
                         isPremium: true,
-                        onPressed: () => _closeRoundPopupAndStartRematch(context),
+                        onPressed: () =>
+                            _closeRoundPopupAndStartRematch(context),
                       ),
                     ),
                   ],
@@ -3903,7 +4133,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   void _closeRoundPopupAndExit(BuildContext dialogContext) {
     Navigator.of(dialogContext).pop();
     if (mounted) {
-      Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+      _returnToModeMenu();
     }
   }
 
@@ -3919,7 +4149,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       _humanDidVoluntaryDrawThisTurn = false;
       _turn = PlayerTurn.human;
       if (!_gameOver) {
-        _status = _isHumanForcedToDrawNow() ? _forcedDrawRemainingText() : 'À votre tour';
+        _status = _isHumanForcedToDrawNow()
+            ? _forcedDrawRemainingText()
+            : 'À votre tour';
       }
     });
   }
@@ -4002,21 +4234,38 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
   }
 
   void _refreshHandEntryAnimations() {
-    final List<int> currentHumanRefs = _humanHand.map<int>(identityHashCode).toList();
+    final List<int> currentHumanRefs = _humanHand
+        .map<int>(identityHashCode)
+        .toList();
+    final Set<int> currentHumanRefSet = currentHumanRefs.toSet();
+    _manualHandPositions.removeWhere(
+      (int cardRef, Offset _) => !currentHumanRefSet.contains(cardRef),
+    );
+    if (_manualDraggingCardRef != null &&
+        !currentHumanRefSet.contains(_manualDraggingCardRef)) {
+      _manualDraggingCardRef = null;
+    }
     final Set<int> previousHumanRefs = _previousHumanCardRefs.toSet();
-    _newHumanCardRefs = currentHumanRefs.where((int ref) => !previousHumanRefs.contains(ref)).toSet();
+    _newHumanCardRefs = currentHumanRefs
+        .where((int ref) => !previousHumanRefs.contains(ref))
+        .toSet();
     _previousHumanCardRefs = currentHumanRefs;
 
-    final List<int> currentBotRefs = _botHand.map<int>(identityHashCode).toList();
+    final List<int> currentBotRefs = _botHand
+        .map<int>(identityHashCode)
+        .toList();
     final Set<int> previousBotRefs = _previousBotCardRefs.toSet();
-    _newBotCardRefs = currentBotRefs.where((int ref) => !previousBotRefs.contains(ref)).toSet();
+    _newBotCardRefs = currentBotRefs
+        .where((int ref) => !previousBotRefs.contains(ref))
+        .toSet();
     _previousBotCardRefs = currentBotRefs;
   }
 
   @override
   Widget build(BuildContext context) {
     _refreshHandEntryAnimations();
-    final bool canInteract = _turn == PlayerTurn.human &&
+    final bool canInteract =
+        _turn == PlayerTurn.human &&
         !_gameOver &&
         !_isResolvingTurn &&
         !_isInitialDealRunning &&
@@ -4025,91 +4274,124 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     final bool compact = screenSize.height < 760;
     final double topInset = MediaQuery.paddingOf(context).top;
 
-    return Scaffold(
-      backgroundColor: GameModePalette.background,
-      body: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints viewportConstraints) {
-          final bool showDesktopSoloLeaderboard =
-              kIsWeb && viewportConstraints.maxWidth >= 1680;
-          return ResponsivePlayerSidePanelLayout(
-            preserveContentCenterOnDesktop: showDesktopSoloLeaderboard,
-            leadingPanel: showDesktopSoloLeaderboard
-                ? const LeaderboardSidePanel(limit: 20)
-                : null,
-            leadingPanelWidth: 320,
-            onOpenLeaderboard: () {
-              Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
-            },
-            onOpenHistory: () {
-              Navigator.of(context).pushNamed(GameModeRoutes.history);
-            },
-            child: Stack(
-          children: <Widget>[
-          TableBackground(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12, topInset + 4, 12, 12),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 980),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      _topBar(),
-                      const SizedBox(height: 6),
-                      _statusBanner(),
-                      const SizedBox(height: 6),
-                      Expanded(
-                        child: ResizableGameTableLayout(
-                          compact: compact,
-                          sectionGap: compact ? 5 : 8,
-                          minPlayerHeight: compact ? 214 : 238,
-                          maxPlayerHeight: compact ? 360 : 460,
-                          initialPlayerHeightFactor: compact ? 0.48 : 0.50,
-                          opponent: _botHandArea(),
-                          center: _centerArea(),
-                          player: _playerPanel(canInteract: canInteract),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? _) {
+        if (didPop) {
+          return;
+        }
+        unawaited(_handleSoloExit());
+      },
+      child: Scaffold(
+        backgroundColor: GameModePalette.background,
+        body: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints viewportConstraints) {
+            final bool showDesktopSoloLeaderboard =
+                kIsWeb && viewportConstraints.maxWidth >= 1680;
+            return ResponsivePlayerSidePanelLayout(
+              preserveContentCenterOnDesktop: showDesktopSoloLeaderboard,
+              leadingPanel: showDesktopSoloLeaderboard
+                  ? const LeaderboardSidePanel(limit: 20)
+                  : null,
+              leadingPanelWidth: 320,
+              onOpenLeaderboard: () {
+                Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
+              },
+              onOpenHistory: () {
+                Navigator.of(context).pushNamed(GameModeRoutes.history);
+              },
+              rankingPanelBuilder:
+                  (BuildContext context, PlayerProfile? profile, int? rank) {
+                    final int localTotalGames = _humanWins + _humanLosses;
+                    return _SoloSidePanelInfo(
+                      rank: rank,
+                      totalGames: max(
+                        profile?.totalGames ?? 0,
+                        localTotalGames,
+                      ),
+                      round: max(1, _roundNumber),
+                      humanScore: _humanScore,
+                      botScore: _botScore,
+                    );
+                  },
+              child: Stack(
+                children: <Widget>[
+                  TableBackground(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(12, topInset + 4, 12, 12),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 980),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              _topBar(),
+                              const SizedBox(height: 6),
+                              _statusBanner(),
+                              const SizedBox(height: 6),
+                              Expanded(
+                                child: ResizableGameTableLayout(
+                                  compact: compact,
+                                  sectionGap: compact ? 5 : 8,
+                                  minPlayerHeight: compact ? 214 : 238,
+                                  maxPlayerHeight: compact ? 360 : 460,
+                                  initialPlayerHeightFactor: compact
+                                      ? 0.48
+                                      : 0.50,
+                                  opponent: _botHandArea(),
+                                  center: _centerArea(),
+                                  player: _playerPanel(
+                                    canInteract: canInteract,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SafeArea(
-            child: Align(
-              alignment: Alignment.bottomRight,
-              child: GlobalMusicToggleButton(),
-            ),
-          ),
-          if (_isHumanForcedToDrawNow())
-            Positioned(
-              top: topInset + 118,
-              left: 22,
-              right: 22,
-              child: IgnorePointer(
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: PremiumGameDecorations.glassPanel(
-                      radius: 12,
-                      golden: true,
-                      opacity: 0.58,
-                    ),
-                    child: Text(
-                      _forcedDrawCount > 1
-                          ? 'Vous piochez • encore $_forcedDrawCount cartes'
-                          : 'Vous piochez • encore 1 carte',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
                     ),
                   ),
-                ),
+                  const SafeArea(
+                    child: Align(
+                      alignment: Alignment.bottomRight,
+                      child: GlobalMusicToggleButton(),
+                    ),
+                  ),
+                  if (_isHumanForcedToDrawNow())
+                    Positioned(
+                      top: topInset + 118,
+                      left: 22,
+                      right: 22,
+                      child: IgnorePointer(
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: PremiumGameDecorations.glassPanel(
+                              radius: 12,
+                              golden: true,
+                              opacity: 0.58,
+                            ),
+                            child: Text(
+                              _forcedDrawCount > 1
+                                  ? 'Vous piochez • encore $_forcedDrawCount cartes'
+                                  : 'Vous piochez • encore 1 carte',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-              ],
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -4125,14 +4407,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             child: PremiumIconButtonShell(
               child: IconButton(
                 onPressed: () {
-                  unawaited(_sfx.playClick());
-                  Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+                  unawaited(_handleSoloExit());
                 },
                 tooltip: 'Retour aux modes',
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
               ),
             ),
           ),
@@ -4187,11 +4465,19 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 name.isEmpty ? (isHuman ? 'Vous' : _botName) : name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
               ),
               Text(
                 'Score $score',
-                style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w400, fontSize: 10.5),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.78),
+                  fontWeight: FontWeight.w400,
+                  fontSize: 10.5,
+                ),
               ),
             ],
           ),
@@ -4200,7 +4486,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
       ],
     );
   }
-
 
   int _responsiveCardsPerRow({
     required double availableWidth,
@@ -4221,8 +4506,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
     required double gap,
     required double maxWidth,
   }) {
-    final double desiredWidth = (cardsPerRow * cardWidth) +
-        (max(0, cardsPerRow - 1) * gap);
+    final double desiredWidth =
+        (cardsPerRow * cardWidth) + (max(0, cardsPerRow - 1) * gap);
     return min(maxWidth, desiredWidth);
   }
 
@@ -4251,14 +4536,106 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           Positioned(
             top: -6,
             right: -6,
-            child: _CountBadge(count: _humanHand.length),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _handLayoutButton(),
+                const SizedBox(width: 6),
+                _CountBadge(count: _humanHand.length),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _handLayoutButton() {
+    return PremiumIconButtonShell(
+      golden: _handLayoutMode != SoloHandLayoutMode.normal,
+      child: IconButton(
+        constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        tooltip: 'Affichage ${_handLayoutName(_handLayoutMode)}',
+        onPressed: () {
+          unawaited(_sfx.playClick());
+          setState(() {
+            _handLayoutMode = _nextHandLayoutMode(_handLayoutMode);
+          });
+        },
+        icon: Icon(_handLayoutIcon(_handLayoutMode), color: Colors.white),
+      ),
+    );
+  }
+
+  SoloHandLayoutMode _nextHandLayoutMode(SoloHandLayoutMode mode) {
+    switch (mode) {
+      case SoloHandLayoutMode.normal:
+        return SoloHandLayoutMode.fan;
+      case SoloHandLayoutMode.fan:
+        return SoloHandLayoutMode.manual;
+      case SoloHandLayoutMode.manual:
+        return SoloHandLayoutMode.normal;
+    }
+  }
+
+  String _handLayoutName(SoloHandLayoutMode mode) {
+    switch (mode) {
+      case SoloHandLayoutMode.normal:
+        return 'normal';
+      case SoloHandLayoutMode.fan:
+        return 'éventail';
+      case SoloHandLayoutMode.manual:
+        return 'manuel';
+    }
+  }
+
+  IconData _handLayoutIcon(SoloHandLayoutMode mode) {
+    switch (mode) {
+      case SoloHandLayoutMode.normal:
+        return Icons.grid_view_rounded;
+      case SoloHandLayoutMode.fan:
+        return Icons.style_rounded;
+      case SoloHandLayoutMode.manual:
+        return Icons.drag_indicator_rounded;
+    }
+  }
+
+  Widget _humanCardEntry({
+    required PlayingCard card,
+    required int index,
+    required bool canInteract,
+  }) {
+    final int cardRef = identityHashCode(card);
+    final bool isNew = _newHumanCardRefs.contains(cardRef);
+    final ({bool canPlay, String? rejectionMessage}) playability =
+        _evaluateHumanCardPlayability(card);
+    return BouncyCardEntry(
+      key: ValueKey<int>(cardRef),
+      animate: isNew,
+      delay: Duration(milliseconds: isNew ? index * 36 : 0),
+      child: CardView(
+        card: card,
+        enabled: canInteract && playability.canPlay,
+        opacity: canInteract && !playability.canPlay ? 0.48 : 1,
+        onTap: canInteract ? () => _onHumanTapCard(card) : null,
+      ),
+    );
+  }
+
   Widget _playerHandArea({required bool canInteract}) {
+    switch (_handLayoutMode) {
+      case SoloHandLayoutMode.normal:
+        return _playerNormalHandArea(canInteract: canInteract);
+      case SoloHandLayoutMode.fan:
+        return _playerFanHandArea(canInteract: canInteract);
+      case SoloHandLayoutMode.manual:
+        return _playerManualHandArea(canInteract: canInteract);
+    }
+  }
+
+  Widget _playerNormalHandArea({required bool canInteract}) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         const double gap = 6;
@@ -4287,27 +4664,240 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 child: SizedBox(
                   width: wrapWidth,
                   child: Wrap(
-                    alignment: WrapAlignment.center,
-                    runAlignment: WrapAlignment.center,
+                    alignment: WrapAlignment.start,
+                    runAlignment: WrapAlignment.start,
                     spacing: gap,
                     runSpacing: gap,
-                    children: List<Widget>.generate(_humanHand.length, (int index) {
-                  final PlayingCard card = _humanHand[index];
-                  final int cardRef = identityHashCode(card);
-                  final bool isNew = _newHumanCardRefs.contains(cardRef);
-                  final ({bool canPlay, String? rejectionMessage}) playability =
-                      _evaluateHumanCardPlayability(card);
-                  return BouncyCardEntry(
-                    key: ValueKey<int>(cardRef),
-                    animate: isNew,
-                    delay: Duration(milliseconds: isNew ? index * 36 : 0),
-                    child: CardView(
-                      card: card,
-                      enabled: canInteract && playability.canPlay,
-                      opacity: canInteract && !playability.canPlay ? 0.45 : 1,
-                      onTap: canInteract ? () => _onHumanTapCard(card) : null,
+                    children: List<Widget>.generate(
+                      _humanHand.length,
+                      (int index) => _humanCardEntry(
+                        card: _humanHand[index],
+                        index: index,
+                        canInteract: canInteract,
+                      ),
                     ),
-                  );
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _playerManualHandArea({required bool canInteract}) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final int cardCount = _humanHand.length;
+        if (cardCount == 0) {
+          return const SizedBox.shrink();
+        }
+        final Size areaSize = Size(
+          constraints.maxWidth.isFinite
+              ? max(_handCardWidth, constraints.maxWidth)
+              : _handCardWidth * 5,
+          constraints.maxHeight.isFinite
+              ? max(_handCardHeight, constraints.maxHeight)
+              : _handCardHeight * 2,
+        );
+        _syncManualHandPositions(areaSize);
+        final bool canMove =
+            !_gameOver && !_isInitialDealRunning && !_isResolvingTurn;
+        final List<PlayingCard> cards = List<PlayingCard>.from(_humanHand);
+        final int? draggingRef = _manualDraggingCardRef;
+        if (draggingRef != null) {
+          final int draggingIndex = cards.indexWhere(
+            (PlayingCard card) => identityHashCode(card) == draggingRef,
+          );
+          if (draggingIndex >= 0) {
+            cards.add(cards.removeAt(draggingIndex));
+          }
+        }
+
+        return SizedBox(
+          width: areaSize.width,
+          height: areaSize.height,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: List<Widget>.generate(cards.length, (int paintIndex) {
+              final PlayingCard card = cards[paintIndex];
+              final int handIndex = _humanHand.indexOf(card);
+              final int cardRef = identityHashCode(card);
+              final Offset position =
+                  _manualHandPositions[cardRef] ?? Offset.zero;
+              final bool isDragging = cardRef == draggingRef;
+              return Positioned(
+                key: ValueKey<String>('manual-position-$cardRef'),
+                left: position.dx,
+                top: position.dy,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onPanStart: canMove
+                      ? (_) {
+                          setState(() {
+                            _manualDraggingCardRef = cardRef;
+                          });
+                        }
+                      : null,
+                  onPanUpdate: canMove
+                      ? (DragUpdateDetails details) {
+                          _moveManualCard(cardRef, details.delta, areaSize);
+                        }
+                      : null,
+                  onPanEnd: canMove
+                      ? (_) {
+                          setState(() {
+                            _manualDraggingCardRef = null;
+                          });
+                        }
+                      : null,
+                  onPanCancel: canMove
+                      ? () {
+                          setState(() {
+                            _manualDraggingCardRef = null;
+                          });
+                        }
+                      : null,
+                  child: AnimatedScale(
+                    duration: const Duration(milliseconds: 120),
+                    scale: isDragging ? 1.05 : 1,
+                    child: _humanCardEntry(
+                      card: card,
+                      index: handIndex < 0 ? paintIndex : handIndex,
+                      canInteract: canInteract,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+
+  void _syncManualHandPositions(Size areaSize) {
+    const double gap = 8;
+    final int cardCount = _humanHand.length;
+    final int cardsPerRow = _responsiveCardsPerRow(
+      availableWidth: areaSize.width,
+      cardWidth: _handCardWidth,
+      gap: gap,
+      cardCount: cardCount,
+    );
+    final int rowCount = (cardCount / cardsPerRow).ceil();
+    final double rowHeight = _handCardHeight + gap;
+    final double totalHeight =
+        (rowCount * _handCardHeight) + (max(0, rowCount - 1) * gap);
+    final double startY = max(0, (areaSize.height - totalHeight) / 2);
+
+    for (int index = 0; index < cardCount; index++) {
+      final PlayingCard card = _humanHand[index];
+      final int cardRef = identityHashCode(card);
+      if (_manualHandPositions.containsKey(cardRef)) {
+        _manualHandPositions[cardRef] = _clampManualCardPosition(
+          _manualHandPositions[cardRef]!,
+          areaSize,
+        );
+        continue;
+      }
+
+      final int row = index ~/ cardsPerRow;
+      final int column = index % cardsPerRow;
+      final int cardsInRow = min(cardsPerRow, cardCount - (row * cardsPerRow));
+      final double rowWidth =
+          (cardsInRow * _handCardWidth) + (max(0, cardsInRow - 1) * gap);
+      final double startX = max(0, (areaSize.width - rowWidth) / 2);
+      _manualHandPositions[cardRef] = _clampManualCardPosition(
+        Offset(
+          startX + (column * (_handCardWidth + gap)),
+          startY + (row * rowHeight),
+        ),
+        areaSize,
+      );
+    }
+  }
+
+  Offset _clampManualCardPosition(Offset position, Size areaSize) {
+    final double maxX = max(0, areaSize.width - _handCardWidth);
+    final double maxY = max(0, areaSize.height - _handCardHeight);
+    return Offset(
+      position.dx.clamp(0, maxX).toDouble(),
+      position.dy.clamp(0, maxY).toDouble(),
+    );
+  }
+
+  void _moveManualCard(int cardRef, Offset delta, Size areaSize) {
+    final Offset current = _manualHandPositions[cardRef] ?? Offset.zero;
+    setState(() {
+      _manualHandPositions[cardRef] = _clampManualCardPosition(
+        current + delta,
+        areaSize,
+      );
+    });
+  }
+
+  Widget _playerFanHandArea({required bool canInteract}) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final int cardCount = _humanHand.length;
+        if (cardCount == 0) {
+          return const SizedBox.shrink();
+        }
+        final double availableWidth = max(0, constraints.maxWidth - 4);
+        final double usableWidth = max(_handCardWidth, availableWidth);
+        const double minFanStep = 34;
+        final int cardsPerRow = min(
+          cardCount,
+          max(1, ((usableWidth - _handCardWidth) / minFanStep).floor() + 1),
+        );
+        final double fittedStep = cardsPerRow <= 1
+            ? 0
+            : (usableWidth - _handCardWidth) / (cardsPerRow - 1);
+        final double cardStep = cardsPerRow <= 1
+            ? 0
+            : min(_handCardWidth * 0.72, max(28.0, fittedStep));
+        final double fanWidth =
+            _handCardWidth + (max(0, cardsPerRow - 1) * cardStep);
+        final double fanHeight = _handCardHeight + 34;
+        final int rowCount = (cardCount / cardsPerRow).ceil();
+        final double rowVerticalStep = _handCardHeight * 0.58;
+        final double fanStackHeight =
+            fanHeight + (max(0, rowCount - 1) * rowVerticalStep);
+
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Align(
+              alignment: Alignment.center,
+              child: AnimatedSize(
+                duration: _uiTransitionDuration,
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: fanWidth,
+                  height: fanStackHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: List<Widget>.generate(rowCount, (int rowIndex) {
+                      final int startIndex = rowIndex * cardsPerRow;
+                      final int rowCardCount = min(
+                        cardsPerRow,
+                        cardCount - startIndex,
+                      );
+                      return Positioned(
+                        left: 0,
+                        top: rowIndex * rowVerticalStep,
+                        child: _fanHandRow(
+                          startIndex: startIndex,
+                          cardCount: rowCardCount,
+                          rowWidth: fanWidth,
+                          rowHeight: fanHeight,
+                          cardStep: cardStep,
+                          canInteract: canInteract,
+                        ),
+                      );
                     }),
                   ),
                 ),
@@ -4316,6 +4906,46 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
           ),
         );
       },
+    );
+  }
+
+  Widget _fanHandRow({
+    required int startIndex,
+    required int cardCount,
+    required double rowWidth,
+    required double rowHeight,
+    required double cardStep,
+    required bool canInteract,
+  }) {
+    final double centerIndex = (cardCount - 1) / 2;
+    final double maxAngle = min(0.42, 0.08 * max(1, cardCount - 1));
+    return SizedBox(
+      width: rowWidth,
+      height: rowHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: List<Widget>.generate(cardCount, (int localIndex) {
+          final int cardIndex = startIndex + localIndex;
+          final double normalized = centerIndex == 0
+              ? 0
+              : (localIndex - centerIndex) / centerIndex;
+          final double angle = normalized * maxAngle;
+          final double sideDrop = normalized.abs() * 16;
+          return Positioned(
+            left: localIndex * cardStep,
+            top: 8 + sideDrop,
+            child: Transform.rotate(
+              angle: angle,
+              alignment: Alignment.bottomCenter,
+              child: _humanCardEntry(
+                card: _humanHand[cardIndex],
+                index: cardIndex,
+                canInteract: canInteract,
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 
@@ -4341,56 +4971,76 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
                 const PremiumDividerLine(verticalPadding: 8),
                 Expanded(
                   child: LayoutBuilder(
-                    builder: (BuildContext context, BoxConstraints constraints) {
-                      const double backWidth = 28;
-                      const double gap = 10;
-                      final double availableWidth = max(0, constraints.maxWidth - 4);
-                      final int cardsPerRow = _responsiveCardsPerRow(
-                        availableWidth: availableWidth,
-                        cardWidth: backWidth,
-                        gap: gap,
-                        cardCount: _botHand.length,
-                      );
-                      final double wrapWidth = _responsiveCardsWrapWidth(
-                        cardsPerRow: cardsPerRow,
-                        cardWidth: backWidth,
-                        gap: gap,
-                        maxWidth: availableWidth,
-                      );
-                      return SingleChildScrollView(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                          child: Align(
-                            alignment: Alignment.center,
-                            child: AnimatedSize(
-                              duration: _uiTransitionDuration,
-                              curve: Curves.easeOutCubic,
-                              alignment: Alignment.center,
-                              child: SizedBox(
-                                width: wrapWidth,
-                                child: Wrap(
-                                  alignment: WrapAlignment.center,
-                                  runAlignment: WrapAlignment.center,
-                                  spacing: gap,
-                                  runSpacing: 6,
-                                children: List<Widget>.generate(_botHand.length, (int index) {
-                                  final PlayingCard card = _botHand[index];
-                                  final int cardRef = identityHashCode(card);
-                                  final bool isNew = _newBotCardRefs.contains(cardRef);
-                                  return BouncyCardEntry(
-                                    key: ValueKey<int>(cardRef),
-                                    animate: isNew,
-                                    delay: Duration(milliseconds: isNew ? index * 32 : 0),
-                                    child: const CardBackView(width: backWidth, height: 40),
-                                  );
-                                  }),
+                    builder:
+                        (BuildContext context, BoxConstraints constraints) {
+                          const double backWidth = 28;
+                          const double gap = 10;
+                          final double availableWidth = max(
+                            0,
+                            constraints.maxWidth - 4,
+                          );
+                          final int cardsPerRow = _responsiveCardsPerRow(
+                            availableWidth: availableWidth,
+                            cardWidth: backWidth,
+                            gap: gap,
+                            cardCount: _botHand.length,
+                          );
+                          final double wrapWidth = _responsiveCardsWrapWidth(
+                            cardsPerRow: cardsPerRow,
+                            cardWidth: backWidth,
+                            gap: gap,
+                            maxWidth: availableWidth,
+                          );
+                          return SingleChildScrollView(
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight,
+                              ),
+                              child: Align(
+                                alignment: Alignment.center,
+                                child: AnimatedSize(
+                                  duration: _uiTransitionDuration,
+                                  curve: Curves.easeOutCubic,
+                                  alignment: Alignment.center,
+                                  child: SizedBox(
+                                    width: wrapWidth,
+                                    child: Wrap(
+                                      alignment: WrapAlignment.start,
+                                      runAlignment: WrapAlignment.start,
+                                      spacing: gap,
+                                      runSpacing: 6,
+                                      children: List<Widget>.generate(
+                                        _botHand.length,
+                                        (int index) {
+                                          final PlayingCard card =
+                                              _botHand[index];
+                                          final int cardRef = identityHashCode(
+                                            card,
+                                          );
+                                          final bool isNew = _newBotCardRefs
+                                              .contains(cardRef);
+                                          return BouncyCardEntry(
+                                            key: ValueKey<int>(cardRef),
+                                            animate: isNew,
+                                            delay: Duration(
+                                              milliseconds: isNew
+                                                  ? index * 32
+                                                  : 0,
+                                            ),
+                                            child: const CardBackView(
+                                              width: backWidth,
+                                              height: 40,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                      );
-                    },
+                          );
+                        },
                   ),
                 ),
               ],
@@ -4440,10 +5090,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
             ),
             const SizedBox(width: 26),
             if (hasDiscard)
-              _DiscardPileView(
-                key: _discardPileKey,
-                cards: _discardPile,
-              )
+              _DiscardPileView(key: _discardPileKey, cards: _discardPile)
             else
               const _EmptyCardSlot(label: 'Vide'),
           ],
@@ -4530,11 +5177,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage>
 }
 
 class CardBackView extends StatelessWidget {
-  const CardBackView({
-    super.key,
-    this.width = 52,
-    this.height = 72,
-  });
+  const CardBackView({super.key, this.width = 52, this.height = 72});
 
   final double width;
   final double height;
@@ -4588,10 +5231,7 @@ class _CountBadge extends StatelessWidget {
 }
 
 class _ScorePill extends StatelessWidget {
-  const _ScorePill({
-    required this.label,
-    required this.value,
-  });
+  const _ScorePill({required this.label, required this.value});
 
   final String label;
   final int value;
@@ -4607,6 +5247,278 @@ class _ScorePill extends StatelessWidget {
           color: Colors.white,
           fontWeight: FontWeight.w500,
         ),
+      ),
+    );
+  }
+}
+
+class _SoloSidePanelInfo extends StatelessWidget {
+  const _SoloSidePanelInfo({
+    required this.rank,
+    required this.totalGames,
+    required this.round,
+    required this.humanScore,
+    required this.botScore,
+  });
+
+  final int? rank;
+  final int totalGames;
+  final int round;
+  final int humanScore;
+  final int botScore;
+
+  @override
+  Widget build(BuildContext context) {
+    final String rankText = rank == null ? '-' : '#$rank';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: const Color(0xFF73F38A).withValues(alpha: 0.28),
+        ),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            const Color(0xFF73F38A).withValues(alpha: 0.13),
+            const Color(0xFF061D13).withValues(alpha: 0.80),
+            const Color(0xFFE8C65D).withValues(alpha: 0.08),
+          ],
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Column(
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _SoloSidePanelTile(label: 'Rang', value: rankText),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SoloSidePanelTile(
+                  label: 'Jeux joués',
+                  value: '$totalGames',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _SoloSidePanelTile(label: 'Manche', value: '$round'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SoloScoreSidePanelTile(
+                  humanScore: humanScore,
+                  botScore: botScore,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SoloScoreSidePanelTile extends StatelessWidget {
+  const _SoloScoreSidePanelTile({
+    required this.humanScore,
+    required this.botScore,
+  });
+
+  final int humanScore;
+  final int botScore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 64),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8C65D).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFE8C65D).withValues(alpha: 0.22),
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: const Color(0xFFE8C65D).withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Score',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              color: const Color(0xFFE8C65D).withValues(alpha: 0.78),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: _SoloScoreBadge(
+                  icon: Icons.person_rounded,
+                  label: 'Vous',
+                  score: humanScore,
+                  accent: const Color(0xFF73F38A),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: Container(
+                  width: 1,
+                  height: 26,
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              Expanded(
+                child: _SoloScoreBadge(
+                  icon: Icons.smart_toy_rounded,
+                  label: 'Ordi',
+                  score: botScore,
+                  accent: const Color(0xFFE8C65D),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SoloScoreBadge extends StatelessWidget {
+  const _SoloScoreBadge({
+    required this.icon,
+    required this.label,
+    required this.score,
+    required this.accent,
+  });
+
+  final IconData icon;
+  final String label;
+  final int score;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+              border: Border.all(color: accent.withValues(alpha: 0.34)),
+            ),
+            child: Icon(icon, color: accent, size: 13),
+          ),
+          const SizedBox(width: 5),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                label,
+                maxLines: 1,
+                style: GoogleFonts.poppins(
+                  color: Colors.white.withValues(alpha: 0.58),
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$score',
+                maxLines: 1,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SoloSidePanelTile extends StatelessWidget {
+  const _SoloSidePanelTile({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 64),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              color: Colors.white.withValues(alpha: 0.62),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4629,24 +5541,29 @@ class _DrawPileViewState extends State<_DrawPileView>
     duration: const Duration(milliseconds: 900),
   );
 
+  bool get _shouldAnimatePulse => kIsWeb && widget.highlight;
+
   @override
   void initState() {
     super.initState();
-    if (widget.highlight) {
-      _pulseController.repeat(reverse: true);
-    }
+    _syncPulse();
   }
 
   @override
   void didUpdateWidget(covariant _DrawPileView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncPulse();
+  }
 
-    if (widget.highlight && !_pulseController.isAnimating) {
+  void _syncPulse() {
+    if (_shouldAnimatePulse && !_pulseController.isAnimating) {
       _pulseController.repeat(reverse: true);
-    } else if (!widget.highlight && _pulseController.isAnimating) {
-      _pulseController.stop();
-      _pulseController.value = 0;
+      return;
     }
+    if (!_shouldAnimatePulse && _pulseController.isAnimating) {
+      _pulseController.stop();
+    }
+    _pulseController.value = widget.highlight ? 1 : 0;
   }
 
   @override
@@ -4660,8 +5577,9 @@ class _DrawPileViewState extends State<_DrawPileView>
     return AnimatedBuilder(
       animation: _pulseController,
       builder: (BuildContext context, Widget? child) {
-        final double glow =
-        widget.highlight ? (0.35 + (_pulseController.value * 0.55)) : 0.0;
+        final double glow = widget.highlight
+            ? (kIsWeb ? 0.35 + (_pulseController.value * 0.55) : 0.48)
+            : 0.0;
 
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -4670,8 +5588,8 @@ class _DrawPileViewState extends State<_DrawPileView>
               if (widget.highlight)
                 BoxShadow(
                   color: Colors.amberAccent.withOpacity(glow),
-                  blurRadius: 22,
-                  spreadRadius: 1.5,
+                  blurRadius: kIsWeb ? 22 : 12,
+                  spreadRadius: kIsWeb ? 1.5 : 0.6,
                 ),
             ],
           ),
@@ -4744,19 +5662,23 @@ class CardView extends StatelessWidget {
     final Widget cardWidget = Container(
       width: _CrazyEightsPageState._handCardWidth,
       height: _CrazyEightsPageState._handCardHeight,
-      decoration: PremiumCardEffects.bevelFace(
-        borderRadius: BorderRadius.circular(6),
-        color: Colors.white,
-      ).copyWith(
-        border: Border.all(color: PremiumColors.accent.withOpacity(0.28), width: 1),
-        boxShadow: <BoxShadow>[
-          ...PremiumCardEffects.bevelShadow,
-          BoxShadow(
-            color: PremiumColors.accent.withOpacity(0.08),
-            blurRadius: 10,
+      decoration:
+          PremiumCardEffects.bevelFace(
+            borderRadius: BorderRadius.circular(6),
+            color: Colors.white,
+          ).copyWith(
+            border: Border.all(
+              color: PremiumColors.accent.withOpacity(0.28),
+              width: 1,
+            ),
+            boxShadow: <BoxShadow>[
+              ...PremiumCardEffects.bevelShadow,
+              BoxShadow(
+                color: PremiumColors.accent.withOpacity(0.08),
+                blurRadius: 10,
+              ),
+            ],
           ),
-        ],
-      ),
       padding: const EdgeInsets.all(7),
       child: card.isJoker
           ? Center(
@@ -4774,36 +5696,67 @@ class CardView extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(rank, style: TextStyle(color: ink, fontWeight: FontWeight.w500, fontSize: 16, height: 1)),
-                Text(card.suitSymbol, style: TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w500, height: 1)),
+                Text(
+                  rank,
+                  style: TextStyle(
+                    color: ink,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                    height: 1,
+                  ),
+                ),
+                Text(
+                  card.suitSymbol,
+                  style: TextStyle(
+                    color: ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    height: 1,
+                  ),
+                ),
                 const Spacer(),
                 Center(
                   child: Text(
                     card.suitSymbol,
-                    style: TextStyle(color: ink, fontSize: 32, fontWeight: FontWeight.w500, height: 1),
+                    style: TextStyle(
+                      color: ink,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w500,
+                      height: 1,
+                    ),
                   ),
                 ),
               ],
             ),
     );
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Opacity(
-        opacity: opacity,
-        child: cardWidget,
-      ),
-    );
+    final double dimAlpha = ((1 - opacity) * 0.76).clamp(0, 0.55).toDouble();
+    final Widget visibleCard = dimAlpha <= 0
+        ? cardWidget
+        : Stack(
+            children: <Widget>[
+              cardWidget,
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: dimAlpha),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+
+    return GestureDetector(onTap: onTap, child: visibleCard);
   }
 }
 
-
-
 class _DiscardPileView extends StatelessWidget {
-  const _DiscardPileView({
-    super.key,
-    required this.cards,
-  });
+  const _DiscardPileView({super.key, required this.cards});
 
   final List<PlayingCard> cards;
 
@@ -4814,8 +5767,8 @@ class _DiscardPileView extends StatelessWidget {
     final List<PlayingCard> underCards = cardCount <= 1
         ? const <PlayingCard>[]
         : cardCount == 2
-            ? <PlayingCard>[cards[cardCount - 2]]
-            : <PlayingCard>[cards[cardCount - 3], cards[cardCount - 2]];
+        ? <PlayingCard>[cards[cardCount - 2]]
+        : <PlayingCard>[cards[cardCount - 3], cards[cardCount - 2]];
 
     return SizedBox(
       width: 86,
@@ -4863,10 +5816,7 @@ class _DiscardPileView extends StatelessWidget {
 }
 
 class _SuitChoiceTile extends StatelessWidget {
-  const _SuitChoiceTile({
-    required this.suit,
-    required this.onTap,
-  });
+  const _SuitChoiceTile({required this.suit, required this.onTap});
 
   final Suit suit;
   final VoidCallback onTap;
@@ -4916,16 +5866,14 @@ class _SuitChoiceTile extends StatelessWidget {
       child: Container(
         width: 156,
         height: 124,
-        decoration: PremiumCardEffects.bevelFace(
-          borderRadius: BorderRadius.circular(14),
-          color: Colors.white,
-          borderColor: _color.withOpacity(0.45),
-        ).copyWith(
-          border: Border.all(
-            color: _color.withOpacity(0.55),
-            width: 1.8,
-          ),
-        ),
+        decoration:
+            PremiumCardEffects.bevelFace(
+              borderRadius: BorderRadius.circular(14),
+              color: Colors.white,
+              borderColor: _color.withOpacity(0.45),
+            ).copyWith(
+              border: Border.all(color: _color.withOpacity(0.55), width: 1.8),
+            ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
@@ -4938,10 +5886,7 @@ class _SuitChoiceTile extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              _name,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
+            Text(_name, style: const TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -4987,9 +5932,7 @@ class _EightSuitCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         color: Colors.white,
         borderColor: Colors.blueGrey,
-      ).copyWith(
-        border: Border.all(color: Colors.blueGrey, width: 1.6),
-      ),
+      ).copyWith(border: Border.all(color: Colors.blueGrey, width: 1.6)),
       padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

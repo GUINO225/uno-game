@@ -72,11 +72,13 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   bool get isBackgroundMusicEnabled => _backgroundMusicEnabled;
   bool get isBackgroundMusicPlaying => _isBackgroundPlaying;
   bool get isBackgroundMusicPaused => _isBackgroundPaused;
-  bool get isBackgroundMusicActive => _backgroundMusicEnabled && _isBackgroundPlaying;
+  bool get isBackgroundMusicActive =>
+      _backgroundMusicEnabled && _isBackgroundPlaying;
   bool get isBackgroundMusicUnlocked => _backgroundMusicUnlocked;
   bool get isTransitioningToNextTrack => _isTransitioningToNextTrack;
   String? get currentBackgroundTrack => _currentBackgroundTrack;
-  List<String> get backgroundTracks => List<String>.unmodifiable(_backgroundTracks);
+  List<String> get backgroundTracks =>
+      List<String>.unmodifiable(_backgroundTracks);
   PlayerState? get playerState => _backgroundPlayerState;
 
   set isEnabled(bool value) {
@@ -157,17 +159,23 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
           .where((String key) => key.startsWith(_assetRoot))
           .toSet();
       if (fromManifest.isNotEmpty) {
-        _log('AssetManifest(listAssets) found ${fromManifest.length} sfx assets.');
+        _log(
+          'AssetManifest(listAssets) found ${fromManifest.length} sfx assets.',
+        );
         return fromManifest;
       }
-      _log('AssetManifest(listAssets) returned no sfx assets, trying JSON fallback.');
+      _log(
+        'AssetManifest(listAssets) returned no sfx assets, trying JSON fallback.',
+      );
     } catch (error, stackTrace) {
       _log('AssetManifest(listAssets) load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
 
     try {
-      final String manifestRaw = await rootBundle.loadString('AssetManifest.json');
+      final String manifestRaw = await rootBundle.loadString(
+        'AssetManifest.json',
+      );
       final Map<String, dynamic> manifest =
           jsonDecode(manifestRaw) as Map<String, dynamic>;
       final Set<String> fromJson = manifest.keys
@@ -254,7 +262,9 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     );
 
     _eventToAsset.removeWhere((AppSfxEvent _, String path) => path.isEmpty);
-    _log('Mapped ${_eventToAsset.length}/${AppSfxEvent.values.length} SFX events to assets.');
+    _log(
+      'Mapped ${_eventToAsset.length}/${AppSfxEvent.values.length} SFX events to assets.',
+    );
   }
 
   String _pickAsset({
@@ -420,7 +430,9 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     _backgroundCompleteSubscription = player.onPlayerComplete.listen((_) {
       unawaited(_handleBackgroundTrackCompleted());
     });
-    _backgroundStateSubscription = player.onPlayerStateChanged.listen((PlayerState state) {
+    _backgroundStateSubscription = player.onPlayerStateChanged.listen((
+      PlayerState state,
+    ) {
       _backgroundPlayerState = state;
       _log('playerState changed => $state');
       if (state == PlayerState.playing) {
@@ -429,7 +441,8 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
       } else if (state == PlayerState.paused) {
         _isBackgroundPlaying = false;
         _isBackgroundPaused = true;
-      } else if (state == PlayerState.stopped || state == PlayerState.completed) {
+      } else if (state == PlayerState.stopped ||
+          state == PlayerState.completed) {
         _isBackgroundPlaying = false;
         _isBackgroundPaused = false;
       }
@@ -490,7 +503,9 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get _canPlayBackgroundMusic => !kIsWeb || _backgroundMusicUnlocked;
 
-  Future<void> playDefaultBackgroundMusic({bool fromUserGesture = false}) async {
+  Future<void> playDefaultBackgroundMusic({
+    bool fromUserGesture = false,
+  }) async {
     if (!_initialized) {
       await initialize();
     }
@@ -514,13 +529,15 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   List<String> _backgroundCandidates() {
-    final List<String> allBackgroundTracks = _availableAssets
-        .where(
-          (String path) =>
-              _basenameWithoutExtension(path).startsWith('sound_background'),
-        )
-        .toList()
-      ..sort();
+    final List<String> allBackgroundTracks =
+        _availableAssets
+            .where(
+              (String path) => _basenameWithoutExtension(
+                path,
+              ).startsWith('sound_background'),
+            )
+            .toList()
+          ..sort();
     if (allBackgroundTracks.isEmpty) {
       return const <String>[];
     }
@@ -539,7 +556,9 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final bool beforeEnabled = _backgroundMusicEnabled;
       final PlayerState? beforeState = _backgroundPlayerState;
-      _log('musicEnabled before=$beforeEnabled, playerState before=$beforeState');
+      _log(
+        'musicEnabled before=$beforeEnabled, playerState before=$beforeState',
+      );
 
       if (_backgroundMusicEnabled) {
         _backgroundMusicEnabled = false;
@@ -555,7 +574,7 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
         }
         await playDefaultBackgroundMusic();
       }
-      _log('playerState after=${_backgroundPlayerState}');
+      _log('playerState after=$_backgroundPlayerState');
     } catch (error, stackTrace) {
       _log('toggleMusic error: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -571,7 +590,9 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     await toggleBackgroundMusic();
   }
 
-  @Deprecated('Use playDefaultBackgroundMusic() for deterministic background music.')
+  @Deprecated(
+    'Use playDefaultBackgroundMusic() for deterministic background music.',
+  )
   Future<void> playRandomBackgroundTrack() => playDefaultBackgroundMusic();
 
   Future<void> stopBackgroundMusic() async {
@@ -661,11 +682,13 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     final String? previousTrack = _currentBackgroundTrack;
-    String selectedTrack = _backgroundTracks[_random.nextInt(_backgroundTracks.length)];
+    String selectedTrack =
+        _backgroundTracks[_random.nextInt(_backgroundTracks.length)];
     if (_backgroundTracks.length > 1 && previousTrack != null) {
       int attempts = 0;
       while (selectedTrack == previousTrack && attempts < 6) {
-        selectedTrack = _backgroundTracks[_random.nextInt(_backgroundTracks.length)];
+        selectedTrack =
+            _backgroundTracks[_random.nextInt(_backgroundTracks.length)];
         attempts += 1;
       }
     }
@@ -702,35 +725,63 @@ class AudioService extends ChangeNotifier with WidgetsBindingObserver {
     }
     _progressivePreloadStarted = true;
     await initialize();
-    unawaited(_preloadEvents(const <AppSfxEvent>[
-      AppSfxEvent.click,
-      AppSfxEvent.notif,
-      AppSfxEvent.playCard,
-      AppSfxEvent.draw,
-    ]));
+    unawaited(
+      _preloadEvents(const <AppSfxEvent>[
+        AppSfxEvent.click,
+        AppSfxEvent.notif,
+        AppSfxEvent.playCard,
+        AppSfxEvent.draw,
+      ]),
+    );
     Future<void>.delayed(const Duration(milliseconds: 600), () {
-      unawaited(_preloadEvents(const <AppSfxEvent>[
-        AppSfxEvent.win,
-        AppSfxEvent.lose,
-        AppSfxEvent.popup,
-        AppSfxEvent.chat,
-      ]));
+      unawaited(
+        _preloadEvents(const <AppSfxEvent>[
+          AppSfxEvent.win,
+          AppSfxEvent.lose,
+          AppSfxEvent.popup,
+          AppSfxEvent.chat,
+        ]),
+      );
     });
   }
 
   Future<void> preloadGameSounds() async {
     await initialize();
-    unawaited(_preloadEvents(const <AppSfxEvent>[
-      AppSfxEvent.playCard,
-      AppSfxEvent.draw,
-      AppSfxEvent.win,
-      AppSfxEvent.lose,
-      AppSfxEvent.shuffle,
-      AppSfxEvent.jokerEffect,
-      AppSfxEvent.jokerDrawn,
-      AppSfxEvent.heavyDraw,
-      AppSfxEvent.oneCardLeft,
-    ]));
+    unawaited(
+      _preloadEvents(const <AppSfxEvent>[
+        AppSfxEvent.playCard,
+        AppSfxEvent.draw,
+        AppSfxEvent.win,
+        AppSfxEvent.lose,
+        AppSfxEvent.shuffle,
+        AppSfxEvent.jokerEffect,
+        AppSfxEvent.jokerDrawn,
+        AppSfxEvent.heavyDraw,
+        AppSfxEvent.oneCardLeft,
+      ]),
+    );
+  }
+
+  @override
+  void dispose() {
+    if (_lifecycleBound) {
+      WidgetsBinding.instance.removeObserver(this);
+      _lifecycleBound = false;
+    }
+    unawaited(_backgroundCompleteSubscription?.cancel());
+    unawaited(_backgroundStateSubscription?.cancel());
+    _backgroundCompleteSubscription = null;
+    _backgroundStateSubscription = null;
+    for (final AudioPlayer player in _players.values) {
+      unawaited(player.dispose());
+    }
+    _players.clear();
+    final AudioPlayer? backgroundPlayer = _backgroundPlayer;
+    if (backgroundPlayer != null) {
+      unawaited(backgroundPlayer.dispose());
+      _backgroundPlayer = null;
+    }
+    super.dispose();
   }
 
   Future<void> _preloadEvents(List<AppSfxEvent> events) async {
@@ -773,7 +824,8 @@ class AppSfxService {
   String? get currentBackgroundTrack => _audio.currentBackgroundTrack;
   List<String> get backgroundTracks => _audio.backgroundTracks;
 
-  Future<void> initialize({bool strict = false}) => _audio.initialize(strict: strict);
+  Future<void> initialize({bool strict = false}) =>
+      _audio.initialize(strict: strict);
   void registerUserGesture() => _audio.registerUserGesture();
 
   Future<void> playClick() => _audio.playClick();
@@ -799,7 +851,8 @@ class AppSfxService {
   Future<void> toggleBackgroundMusic() => _audio.toggleBackgroundMusic();
   Future<void> toggleBackgroundMusicFromUserGesture() =>
       _audio.toggleBackgroundMusicFromUserGesture();
-  Future<void> playRandomBackgroundTrack() => _audio.playRandomBackgroundTrack();
+  Future<void> playRandomBackgroundTrack() =>
+      _audio.playRandomBackgroundTrack();
   Future<void> stopBackgroundMusic() => _audio.stopBackgroundMusic();
   Future<void> startProgressivePreload() => _audio.startProgressivePreload();
   Future<void> preloadGameSounds() => _audio.preloadGameSounds();

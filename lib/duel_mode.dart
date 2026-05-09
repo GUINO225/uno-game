@@ -41,7 +41,14 @@ const Duration _connectionWarningTimeout = Duration(seconds: 25);
 const Duration _abandonTimeout = Duration(seconds: 45);
 const Duration _presenceHeartbeatInterval = Duration(seconds: 8);
 
-enum DuelStakeStatus { none, pending, accepted, declined, resolved, insufficientFunds }
+enum DuelStakeStatus {
+  none,
+  pending,
+  accepted,
+  declined,
+  resolved,
+  insufficientFunds,
+}
 
 enum DuelBetFlowState {
   idle,
@@ -86,10 +93,13 @@ enum ComicMessageTrigger {
 enum OpponentConnectionStatus {
   /// Heartbeat récent, l'adversaire est sur l'écran de jeu.
   online,
+
   /// Heartbeat absent depuis 25s ou connexion dégradée.
   unstable,
+
   /// L'adversaire a volontairement quitté l'écran de jeu.
   away,
+
   /// Heartbeat absent depuis 45s ou état explicitement offline.
   disconnected,
 }
@@ -167,7 +177,9 @@ class DuelStakeOffer {
       'acceptedBy': acceptedBy,
       'amount': amount,
       'status': status.name,
-      'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
+      'createdAt': createdAt == null
+          ? null
+          : Timestamp.fromDate(createdAt!.toUtc()),
     };
   }
 
@@ -181,7 +193,8 @@ class DuelStakeOffer {
       amount: (map['amount'] as num?)?.toInt() ?? 0,
       status: DuelStakeStatus.values.firstWhere(
         (DuelStakeStatus value) =>
-            value.name == (map['status'] as String? ?? DuelStakeStatus.none.name),
+            value.name ==
+            (map['status'] as String? ?? DuelStakeStatus.none.name),
         orElse: () => DuelStakeStatus.none,
       ),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
@@ -219,7 +232,9 @@ class DuelAction {
       ),
       actorId: json['actorId'] as String,
       createdAt: (json['createdAt'] as Timestamp).toDate(),
-      payload: Map<String, dynamic>.from(json['payload'] as Map? ?? <String, dynamic>{}),
+      payload: Map<String, dynamic>.from(
+        json['payload'] as Map? ?? <String, dynamic>{},
+      ),
     );
   }
 }
@@ -441,7 +456,9 @@ class DuelSession {
       'playerNames': playerNames,
       'currentTurn': currentTurn,
       'status': status.name,
-      'roundStatus': status == DuelGameStatus.inProgress ? 'playing' : 'roundFinished',
+      'roundStatus': status == DuelGameStatus.inProgress
+          ? 'playing'
+          : 'roundFinished',
       'scores': scores,
       'round': round,
       'mode': mode.name,
@@ -466,7 +483,9 @@ class DuelSession {
       'exitBothPlayers': exitBothPlayers,
       'payoutWinnerId': payoutWinnerId,
       'payoutAmount': payoutAmount,
-      'payoutAt': payoutAt == null ? null : Timestamp.fromDate(payoutAt!.toUtc()),
+      'payoutAt': payoutAt == null
+          ? null
+          : Timestamp.fromDate(payoutAt!.toUtc()),
       'player1Hand': player1Hand,
       'player2Hand': player2Hand,
       'drawPile': drawPile,
@@ -486,25 +505,26 @@ class DuelSession {
       'requiredSuit': requiredSuit,
       'requiredColorAfterJoker': requiredColorAfterJoker,
       'aceColorRequired': aceColorRequired,
-      'gameStartedAt': gameStartedAt == null ? null : Timestamp.fromDate(gameStartedAt!.toUtc()),
-      'roundStartedAt':
-          roundStartedAt == null ? null : Timestamp.fromDate(roundStartedAt!.toUtc()),
+      'gameStartedAt': gameStartedAt == null
+          ? null
+          : Timestamp.fromDate(gameStartedAt!.toUtc()),
+      'roundStartedAt': roundStartedAt == null
+          ? null
+          : Timestamp.fromDate(roundStartedAt!.toUtc()),
       'presenceGraceUntil': presenceGraceUntil == null
           ? null
           : Timestamp.fromDate(presenceGraceUntil!.toUtc()),
       'presence': presence.map(
-        (String playerId, DuelPlayerPresence value) => MapEntry(
-          playerId,
-          <String, dynamic>{
-            'state': value.state,
-            'lastSeenAt': value.lastSeenAt == null
-                ? null
-                : Timestamp.fromDate(value.lastSeenAt!.toUtc()),
-            'leftAt': value.leftAt == null
-                ? null
-                : Timestamp.fromDate(value.leftAt!.toUtc()),
-          },
-        ),
+        (String playerId, DuelPlayerPresence value) =>
+            MapEntry(playerId, <String, dynamic>{
+              'state': value.state,
+              'lastSeenAt': value.lastSeenAt == null
+                  ? null
+                  : Timestamp.fromDate(value.lastSeenAt!.toUtc()),
+              'leftAt': value.leftAt == null
+                  ? null
+                  : Timestamp.fromDate(value.leftAt!.toUtc()),
+            }),
       ),
       'roomStatus': roomStatus,
       'closeReason': closeReason,
@@ -525,14 +545,14 @@ class DuelSession {
       ),
       currentTurn: json['currentTurn'] as String? ?? '',
       status: DuelGameStatus.values.firstWhere(
-        (DuelGameStatus s) => s.name == (json['status'] as String? ?? DuelGameStatus.waiting.name),
+        (DuelGameStatus s) =>
+            s.name ==
+            (json['status'] as String? ?? DuelGameStatus.waiting.name),
       ),
       scores: Map<String, int>.from(
         (json['scores'] as Map? ?? const <String, int>{}).map(
-          (Object? key, Object? value) => MapEntry(
-            key.toString(),
-            (value as num?)?.toInt() ?? 0,
-          ),
+          (Object? key, Object? value) =>
+              MapEntry(key.toString(), (value as num?)?.toInt() ?? 0),
         ),
       ),
       round: (json['round'] as num?)?.toInt() ?? 1,
@@ -544,10 +564,8 @@ class DuelSession {
       specialBonusesEnabled: json['specialBonusesEnabled'] as bool? ?? true,
       playerCredits: Map<String, int>.from(
         (json['playerCredits'] as Map? ?? const <String, int>{}).map(
-          (Object? key, Object? value) => MapEntry(
-            key.toString(),
-            (value as num?)?.toInt() ?? 0,
-          ),
+          (Object? key, Object? value) =>
+              MapEntry(key.toString(), (value as num?)?.toInt() ?? 0),
         ),
       ),
       activeStakeCredits: (json['activeStakeCredits'] as num?)?.toInt() ?? 0,
@@ -556,33 +574,47 @@ class DuelSession {
       ),
       lastAction: json['lastAction'] == null
           ? null
-          : DuelAction.fromMap(Map<String, dynamic>.from(json['lastAction'] as Map)),
+          : DuelAction.fromMap(
+              Map<String, dynamic>.from(json['lastAction'] as Map),
+            ),
       rematchRequestBy: json['rematchRequestBy'] as String?,
       rematchRequestedAt: (json['rematchRequestedAt'] as Timestamp?)?.toDate(),
       rematchDecision: DuelRematchDecision.values.firstWhere(
         (DuelRematchDecision d) =>
-            d.name == (json['rematchDecision'] as String? ?? DuelRematchDecision.pending.name),
+            d.name ==
+            (json['rematchDecision'] as String? ??
+                DuelRematchDecision.pending.name),
         orElse: () => DuelRematchDecision.pending,
       ),
       rematchDecisionBy: json['rematchDecisionBy'] as String?,
       betFlowState: DuelBetFlowState.values.firstWhere(
         (DuelBetFlowState state) =>
-            state.name == (json['betFlowState'] as String? ?? DuelBetFlowState.idle.name),
+            state.name ==
+            (json['betFlowState'] as String? ?? DuelBetFlowState.idle.name),
         orElse: () => DuelBetFlowState.idle,
       ),
       invitedRefusalCount: (json['invitedRefusalCount'] as num?)?.toInt() ?? 0,
       exitedBy: json['exitedBy'] as String?,
-      lastInsufficientFundsPlayerId: json['lastInsufficientFundsPlayerId'] as String?,
+      lastInsufficientFundsPlayerId:
+          json['lastInsufficientFundsPlayerId'] as String?,
       payoutDone: json['payoutDone'] as bool? ?? false,
       abandonedBy: json['abandonedBy'] as String?,
       exitBothPlayers: json['exitBothPlayers'] as bool? ?? false,
       payoutWinnerId: json['payoutWinnerId'] as String?,
       payoutAmount: (json['payoutAmount'] as num?)?.toInt() ?? 0,
       payoutAt: (json['payoutAt'] as Timestamp?)?.toDate(),
-      player1Hand: List<String>.from(json['player1Hand'] as List? ?? const <String>[]),
-      player2Hand: List<String>.from(json['player2Hand'] as List? ?? const <String>[]),
-      drawPile: List<String>.from(json['drawPile'] as List? ?? const <String>[]),
-      discardPile: List<String>.from(json['discardPile'] as List? ?? const <String>[]),
+      player1Hand: List<String>.from(
+        json['player1Hand'] as List? ?? const <String>[],
+      ),
+      player2Hand: List<String>.from(
+        json['player2Hand'] as List? ?? const <String>[],
+      ),
+      drawPile: List<String>.from(
+        json['drawPile'] as List? ?? const <String>[],
+      ),
+      discardPile: List<String>.from(
+        json['discardPile'] as List? ?? const <String>[],
+      ),
       topDiscard: json['topDiscard'] as String?,
       player1CardCount: (json['player1CardCount'] as num?)?.toInt() ?? 0,
       player2CardCount: (json['player2CardCount'] as num?)?.toInt() ?? 0,
@@ -621,7 +653,8 @@ class GameService {
 
   final FirebaseFirestore? _firestore;
 
-  DateTime _presenceGraceDeadline() => DateTime.now().toUtc().add(_presenceGracePeriod);
+  DateTime _presenceGraceDeadline() =>
+      DateTime.now().toUtc().add(_presenceGracePeriod);
 
   Future<int> _readCreditsFromProfileTx({
     required Transaction tx,
@@ -629,12 +662,18 @@ class GameService {
     required String playerId,
     String? displayName,
   }) async {
-    final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
-    final DocumentSnapshot<Map<String, dynamic>> profileSnap = await tx.get(profileRef);
+    final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(
+      db,
+      playerId,
+    );
+    final DocumentSnapshot<Map<String, dynamic>> profileSnap = await tx.get(
+      profileRef,
+    );
     if (!profileSnap.exists) {
       tx.set(profileRef, <String, dynamic>{
         'uid': playerId,
-        if (displayName != null && displayName.trim().isNotEmpty) 'displayName': displayName,
+        if (displayName != null && displayName.trim().isNotEmpty)
+          'displayName': displayName,
         'credits': 1000,
         'wins': 0,
         'losses': 0,
@@ -678,7 +717,8 @@ class GameService {
       'presence.$playerId.state': state,
       'presence.$playerId.lastSeenAt': FieldValue.serverTimestamp(),
       if (state != 'offline') 'presence.$playerId.leftAt': null,
-      if (state == 'offline') 'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
+      if (state == 'offline')
+        'presence.$playerId.leftAt': FieldValue.serverTimestamp(),
     };
   }
 
@@ -706,9 +746,7 @@ class GameService {
             '[GameService] Firebase initialized in duel mode: projectId=${options.projectId}, appId=${options.appId}',
           );
         } else {
-          throw StateError(
-            'FirebaseOptions manquantes pour cette plateforme.',
-          );
+          throw StateError('FirebaseOptions manquantes pour cette plateforme.');
         }
       } catch (e) {
         throw StateError(
@@ -734,7 +772,10 @@ class GameService {
   String _generateCode() {
     const String chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final Random random = Random.secure();
-    return List<String>.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
+    return List<String>.generate(
+      6,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 
   String _buildDeckSeed(String gameId, int round) => '$gameId-$round';
@@ -768,7 +809,8 @@ class GameService {
     int initialCredits = 1000;
     if (mode == DuelRoomMode.credits) {
       final FirebaseFirestore db = await _resolveDb();
-      final DocumentReference<Map<String, dynamic>> profileRef = _userProfileRef(db, playerId);
+      final DocumentReference<Map<String, dynamic>> profileRef =
+          _userProfileRef(db, playerId);
       await db.runTransaction((Transaction tx) async {
         initialCredits = await _readCreditsFromProfileTx(
           tx: tx,
@@ -781,33 +823,38 @@ class GameService {
         throw StateError('Crédit insuffisant pour accéder au mode Pari.');
       }
     }
-    debugPrint('[GameService] createGame requested by $playerId in mode=${mode.name}.');
-    await games.doc(code).set(
-      DuelSession(
-        gameId: code,
-        hostId: playerId,
-        players: <String>[playerId],
-        playerNames: <String, String>{playerId: playerName},
-        currentTurn: playerId,
-        status: DuelGameStatus.waiting,
-        scores: <String, int>{playerId: 0},
-        round: 1,
-        mode: mode,
-        specialBonusesEnabled: mode == DuelRoomMode.credits ? false : specialBonusesEnabled,
-        playerCredits: mode == DuelRoomMode.credits
-            ? <String, int>{playerId: initialCredits}
-            : const <String, int>{},
-        betFlowState: mode == DuelRoomMode.credits
-            ? DuelBetFlowState.initialStakeProposed
-            : DuelBetFlowState.idle,
-        presence: <String, DuelPlayerPresence>{
-          playerId: const DuelPlayerPresence(state: 'online'),
-        },
-        presenceGraceUntil: _presenceGraceDeadline(),
-        roomStatus: 'open',
-      ).toMap()
-        ..addAll(_presenceOnlinePatch(playerId)),
+    debugPrint(
+      '[GameService] createGame requested by $playerId in mode=${mode.name}.',
     );
+    await games
+        .doc(code)
+        .set(
+          DuelSession(
+            gameId: code,
+            hostId: playerId,
+            players: <String>[playerId],
+            playerNames: <String, String>{playerId: playerName},
+            currentTurn: playerId,
+            status: DuelGameStatus.waiting,
+            scores: <String, int>{playerId: 0},
+            round: 1,
+            mode: mode,
+            specialBonusesEnabled: mode == DuelRoomMode.credits
+                ? false
+                : specialBonusesEnabled,
+            playerCredits: mode == DuelRoomMode.credits
+                ? <String, int>{playerId: initialCredits}
+                : const <String, int>{},
+            betFlowState: mode == DuelRoomMode.credits
+                ? DuelBetFlowState.initialStakeProposed
+                : DuelBetFlowState.idle,
+            presence: <String, DuelPlayerPresence>{
+              playerId: const DuelPlayerPresence(state: 'online'),
+            },
+            presenceGraceUntil: _presenceGraceDeadline(),
+            roomStatus: 'open',
+          ).toMap()..addAll(_presenceOnlinePatch(playerId)),
+        );
     return code;
   }
 
@@ -818,9 +865,12 @@ class GameService {
     DuelRoomMode? expectedMode,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
-    debugPrint('[GameService] joinGame requested by $playerId for game=$gameId.');
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
+    debugPrint(
+      '[GameService] joinGame requested by $playerId for game=$gameId.',
+    );
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -833,7 +883,10 @@ class GameService {
       if (session.players.length >= 2 && !session.players.contains(playerId)) {
         throw StateError('Partie déjà complète');
       }
-      final List<String> players = <String>{...session.players, playerId}.toList();
+      final List<String> players = <String>{
+        ...session.players,
+        playerId,
+      }.toList();
       final bool activatesNow = players.length == 2 && !session.isCreditsMode;
       int joiningPlayerCredits = session.playerCredits[playerId] ?? 1000;
       if (session.isCreditsMode) {
@@ -855,8 +908,8 @@ class GameService {
           'playerCredits.$playerId': joiningPlayerCredits,
         'status': players.length == 2
             ? (session.isCreditsMode
-                ? DuelGameStatus.waiting.name
-                : DuelGameStatus.inProgress.name)
+                  ? DuelGameStatus.waiting.name
+                  : DuelGameStatus.inProgress.name)
             : DuelGameStatus.waiting.name,
         if (activatesNow && !session.deckInitialized)
           ..._boardInitPatch(
@@ -867,17 +920,22 @@ class GameService {
         if (players.length == 2 && session.gameStartedAt == null)
           'gameStartedAt': FieldValue.serverTimestamp(),
         if (players.length == 2) 'roundStartedAt': FieldValue.serverTimestamp(),
-        if (players.length == 2) 'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
-        if (activatesNow && !session.deckInitialized) 'revision': session.revision + 1,
+        if (players.length == 2)
+          'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
+        if (activatesNow && !session.deckInitialized)
+          'revision': session.revision + 1,
         ..._presenceOnlinePatch(playerId),
         ...players
             .where((String id) => id != playerId)
-            .fold<Map<String, dynamic>>(<String, dynamic>{}, (Map<String, dynamic> acc, String id) {
-          acc['presence.$id.state'] = 'online';
-          acc['presence.$id.lastSeenAt'] = FieldValue.serverTimestamp();
-          acc['presence.$id.leftAt'] = null;
-          return acc;
-        }),
+            .fold<Map<String, dynamic>>(<String, dynamic>{}, (
+              Map<String, dynamic> acc,
+              String id,
+            ) {
+              acc['presence.$id.state'] = 'online';
+              acc['presence.$id.lastSeenAt'] = FieldValue.serverTimestamp();
+              acc['presence.$id.leftAt'] = null;
+              return acc;
+            }),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });
@@ -925,8 +983,9 @@ class GameService {
     required String requestedBy,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -936,14 +995,17 @@ class GameService {
       if (session.hostId != requestedBy || !session.deckInitialized) {
         return;
       }
-      final DuelGameStateValidationResult validation = validateGameState(session);
+      final DuelGameStateValidationResult validation = validateGameState(
+        session,
+      );
       if (validation.isValid) {
         return;
       }
       final DateTime now = DateTime.now().toUtc();
       final Timestamp? lockAtTs = session.repairLock?['lockedAt'] as Timestamp?;
       final DateTime? lockAt = lockAtTs?.toDate().toUtc();
-      final bool lockExpired = lockAt == null || now.difference(lockAt).inSeconds > 15;
+      final bool lockExpired =
+          lockAt == null || now.difference(lockAt).inSeconds > 15;
       final String? lockBy = session.repairLock?['lockedBy'] as String?;
       if (!lockExpired && lockBy != requestedBy) {
         return;
@@ -975,7 +1037,6 @@ class GameService {
     });
   }
 
-
   Stream<List<DuelAction>> watchActions(String gameId) async* {
     final CollectionReference<Map<String, dynamic>> games = await _games();
     yield* games
@@ -1003,7 +1064,9 @@ class GameService {
         .map(
           (QuerySnapshot<Map<String, dynamic>> snap) => snap.docs
               .map(DuelChatMessage.fromDoc)
-              .where((DuelChatMessage message) => message.text.trim().isNotEmpty)
+              .where(
+                (DuelChatMessage message) => message.text.trim().isNotEmpty,
+              )
               .toList(),
         );
   }
@@ -1023,15 +1086,18 @@ class GameService {
         ? cleaned.substring(0, _maxChatLength)
         : cleaned;
     final CollectionReference<Map<String, dynamic>> games = await _games();
-    await games.doc(gameId).collection('chat_messages').add(
-      DuelChatMessage(
-        id: '',
-        senderId: senderId,
-        senderName: senderName,
-        text: safeText,
-        createdAt: DateTime.now(),
-      ).toMap(),
-    );
+    await games
+        .doc(gameId)
+        .collection('chat_messages')
+        .add(
+          DuelChatMessage(
+            id: '',
+            senderId: senderId,
+            senderName: senderName,
+            text: safeText,
+            createdAt: DateTime.now(),
+          ).toMap(),
+        );
   }
 
   Future<void> pushAction({
@@ -1042,8 +1108,9 @@ class GameService {
     Map<String, dynamic> sessionPatch = const <String, dynamic>{},
   }) async {
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> gameRef =
-        db.collection('duel_games').doc(gameId);
+    final DocumentReference<Map<String, dynamic>> gameRef = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(gameRef);
       if (!snap.exists) {
@@ -1062,7 +1129,9 @@ class GameService {
       if (!session.deckInitialized) {
         throw StateError('Deck non initialisé.');
       }
-      final DuelGameStateValidationResult preValidation = validateGameState(session);
+      final DuelGameStateValidationResult preValidation = validateGameState(
+        session,
+      );
       if (preValidation.integrityError != null) {
         tx.update(gameRef, <String, dynamic>{
           'status': DuelGameStatus.finished.name,
@@ -1091,7 +1160,8 @@ class GameService {
         throw StateError('Action non supportée.');
       }
       if (!move.accepted || move.nextTurn == null) {
-        if (move.rejectionMessage != null && move.rejectionMessage!.trim().isNotEmpty) {
+        if (move.rejectionMessage != null &&
+            move.rejectionMessage!.trim().isNotEmpty) {
           throw StateError(move.rejectionMessage!);
         }
         throw StateError('Action refusée par la logique de jeu.');
@@ -1102,7 +1172,9 @@ class GameService {
         createdAt: action.createdAt,
         payload: move.payload,
       );
-      final DuelBoardState nextBoard = board.applyValidatedAction(validatedAction);
+      final DuelBoardState nextBoard = board.applyValidatedAction(
+        validatedAction,
+      );
       final DuelGameStatus nextStatus = move.payload.containsKey('winnerId')
           ? DuelGameStatus.finished
           : status;
@@ -1113,14 +1185,19 @@ class GameService {
         'lastActionId': actionId,
         'lastActionBy': action.actorId,
         'status': nextStatus.name,
-        'roundStatus': move.payload.containsKey('winnerId') ? 'roundFinished' : 'playing',
+        'roundStatus': move.payload.containsKey('winnerId')
+            ? 'roundFinished'
+            : 'playing',
         if (move.payload.containsKey('winnerId')) 'rematchStatus': 'none',
         'revision': session.revision + 1,
         ...nextBoard.toFirestoreFields(),
         'updatedAt': FieldValue.serverTimestamp(),
         ...sessionPatch,
       });
-      tx.set(gameRef.collection('actions').doc(actionId), validatedAction.toMap());
+      tx.set(
+        gameRef.collection('actions').doc(actionId),
+        validatedAction.toMap(),
+      );
     });
   }
 
@@ -1141,8 +1218,12 @@ class GameService {
     required String reportedBy,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref = db.collection('duel_games').doc(gameId);
-    debugPrint('[Forfeit] requested abandonedBy=$abandonedBy reportedBy=$reportedBy');
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
+    debugPrint(
+      '[Forfeit] requested abandonedBy=$abandonedBy reportedBy=$reportedBy',
+    );
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1152,7 +1233,8 @@ class GameService {
       if (session.status == DuelGameStatus.finished) {
         return;
       }
-      if (!session.players.contains(abandonedBy) || !session.players.contains(reportedBy)) {
+      if (!session.players.contains(abandonedBy) ||
+          !session.players.contains(reportedBy)) {
         throw StateError('Joueur invalide pour cet abandon.');
       }
       final String winnerId = session.players.firstWhere(
@@ -1176,7 +1258,8 @@ class GameService {
           throw StateError('Période de grâce active.');
         }
         final DateTime? gameStartedAt = session.gameStartedAt?.toUtc();
-        if (gameStartedAt == null || now.difference(gameStartedAt) < _presenceGracePeriod) {
+        if (gameStartedAt == null ||
+            now.difference(gameStartedAt) < _presenceGracePeriod) {
           debugPrint('[Presence] abandon check skipped: grace period');
           throw StateError('Partie trop récente pour valider un abandon.');
         }
@@ -1190,11 +1273,15 @@ class GameService {
         final bool heartbeatExpired =
             lastSeen == null || now.difference(lastSeen) >= _abandonTimeout;
         if (abandonedPresence.state == 'online') {
-          debugPrint('[Presence] abandon check skipped: heartbeat still recent');
+          debugPrint(
+            '[Presence] abandon check skipped: heartbeat still recent',
+          );
           throw StateError('L’adversaire est encore connecté.');
         }
         if (!heartbeatExpired) {
-          debugPrint('[Presence] abandon check skipped: heartbeat still recent');
+          debugPrint(
+            '[Presence] abandon check skipped: heartbeat still recent',
+          );
           throw StateError('L’adversaire est encore connecté.');
         }
       }
@@ -1287,8 +1374,9 @@ class GameService {
     required String requestedBy,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(current.gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(current.gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1309,7 +1397,9 @@ class GameService {
         },
       );
       tx.update(ref, <String, dynamic>{
-        'status': session.isCreditsMode ? DuelGameStatus.waiting.name : DuelGameStatus.inProgress.name,
+        'status': session.isCreditsMode
+            ? DuelGameStatus.waiting.name
+            : DuelGameStatus.inProgress.name,
         'roundStatus': session.isCreditsMode ? 'roundFinished' : 'playing',
         'round': nextRound,
         'currentTurn': starter,
@@ -1358,15 +1448,17 @@ class GameService {
   }) async {
     debugPrint('[RematchParis] loser requested rematch: $requestedBy');
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
         throw StateError('Partie introuvable');
       }
       final DuelSession session = DuelSession.fromDoc(snap);
-      final String? winnerId = session.lastAction?.payload['winnerId'] as String?;
+      final String? winnerId =
+          session.lastAction?.payload['winnerId'] as String?;
       final String loserId = session.players.firstWhere(
         (String id) => id != winnerId,
         orElse: () => '',
@@ -1405,8 +1497,9 @@ class GameService {
     required String requestedBy,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1441,8 +1534,9 @@ class GameService {
     required String playerId,
   }) async {
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) return;
@@ -1475,10 +1569,13 @@ class GameService {
     required String gameId,
     required String acceptedBy,
   }) async {
-    debugPrint('[RematchParis] rematch request accepted by opponent: $acceptedBy');
+    debugPrint(
+      '[RematchParis] rematch request accepted by opponent: $acceptedBy',
+    );
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1504,8 +1601,9 @@ class GameService {
           playerId: acceptedBy,
         );
         if (requesterCredits <= 0 || accepterCredits <= 0) {
-          final String insufficientPlayerId =
-              requesterCredits <= 0 ? requesterId : acceptedBy;
+          final String insufficientPlayerId = requesterCredits <= 0
+              ? requesterId
+              : acceptedBy;
           tx.update(ref, <String, dynamic>{
             'playerCredits.$requesterId': requesterCredits,
             'playerCredits.$acceptedBy': accepterCredits,
@@ -1535,7 +1633,8 @@ class GameService {
           'rematchDecision': DuelRematchDecision.pending.name,
           'rematchDecisionBy': acceptedBy,
           'rematchStatus': 'accepted',
-          'betFlowState': DuelBetFlowState.rematchStakePendingWinnerResponse.name,
+          'betFlowState':
+              DuelBetFlowState.rematchStakePendingWinnerResponse.name,
           'activeStakeCredits': 0,
           'presenceGraceUntil': Timestamp.fromDate(_presenceGraceDeadline()),
           'updatedAt': FieldValue.serverTimestamp(),
@@ -1562,7 +1661,9 @@ class GameService {
         'lastAction': action.toMap(),
         'lastActionBy': acceptedBy,
         'lastActionId': '${DateTime.now().microsecondsSinceEpoch}',
-        'activeStakeCredits': session.isCreditsMode ? session.activeStakeCredits : 0,
+        'activeStakeCredits': session.isCreditsMode
+            ? session.activeStakeCredits
+            : 0,
         'stakeOffer': session.isCreditsMode
             ? session.stakeOffer.toMap()
             : const DuelStakeOffer().toMap(),
@@ -1607,8 +1708,9 @@ class GameService {
   }) async {
     debugPrint('[RematchParis] decline requested by=$declinedBy game=$gameId');
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1635,12 +1737,11 @@ class GameService {
     });
   }
 
-  Future<void> cleanupExpiredRematchRequest({
-    required String gameId,
-  }) async {
+  Future<void> cleanupExpiredRematchRequest({required String gameId}) async {
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1673,8 +1774,9 @@ class GameService {
       return;
     }
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(current.gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(current.gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1687,10 +1789,13 @@ class GameService {
         return;
       }
       final bool isInitialStakeFlow =
-          session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
-      final bool isRematchStakeFlow = session.status == DuelGameStatus.finished &&
+          session.status == DuelGameStatus.waiting &&
+          session.rematchRequestBy == null;
+      final bool isRematchStakeFlow =
+          session.status == DuelGameStatus.finished &&
           session.rematchRequestBy != null &&
-          session.betFlowState == DuelBetFlowState.rematchStakePendingWinnerResponse;
+          session.betFlowState ==
+              DuelBetFlowState.rematchStakePendingWinnerResponse;
       if (!isInitialStakeFlow && !isRematchStakeFlow) {
         return;
       }
@@ -1716,7 +1821,9 @@ class GameService {
         throw StateError('Une proposition est déjà en attente.');
       }
       if (amount <= 0 || amount > _kMaxStakeAmount) {
-        throw StateError('Mise invalide (entre 1 et $_kMaxStakeAmount crédits).');
+        throw StateError(
+          'Mise invalide (entre 1 et $_kMaxStakeAmount crédits).',
+        );
       }
       final int balance = session.playerCredits[proposedBy] ?? 0;
       final int proposerCredits = await _readCreditsFromProfileTx(
@@ -1724,7 +1831,9 @@ class GameService {
         db: db,
         playerId: proposedBy,
       );
-      if (proposerCredits <= 0 || amount > proposerCredits || amount > balance) {
+      if (proposerCredits <= 0 ||
+          amount > proposerCredits ||
+          amount > balance) {
         throw StateError('Solde insuffisant pour cette proposition.');
       }
       final String opponentId = session.players.firstWhere(
@@ -1739,14 +1848,15 @@ class GameService {
           db: db,
           playerId: opponentId,
         );
-        if (opponentCredits <= 0 || amount > opponentCredits || amount > opponentBalance) {
+        if (opponentCredits <= 0 ||
+            amount > opponentCredits ||
+            amount > opponentBalance) {
           throw StateError('Mise refusée: crédit adverse insuffisant.');
         }
       }
       tx.update(ref, <String, dynamic>{
         'playerCredits.$proposedBy': proposerCredits,
-        if (opponentId.isNotEmpty)
-          'playerCredits.$opponentId': opponentCredits,
+        if (opponentId.isNotEmpty) 'playerCredits.$opponentId': opponentCredits,
         'stakeOffer': DuelStakeOffer(
           proposedBy: proposedBy,
           amount: amount,
@@ -1756,8 +1866,8 @@ class GameService {
         'betFlowState': isRematchStakeFlow
             ? DuelBetFlowState.rematchStakePendingWinnerResponse.name
             : (session.invitedRefusalCount >= 2 && proposedBy != session.hostId
-                ? DuelBetFlowState.counterStakePendingResponse.name
-                : DuelBetFlowState.initialStakePendingResponse.name),
+                  ? DuelBetFlowState.counterStakePendingResponse.name
+                  : DuelBetFlowState.initialStakePendingResponse.name),
         'lastInsufficientFundsPlayerId': null,
         'updatedAt': FieldValue.serverTimestamp(),
         'revision': session.revision + 1,
@@ -1778,8 +1888,9 @@ class GameService {
       return;
     }
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(current.gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(current.gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -1798,7 +1909,8 @@ class GameService {
           (String id) => id != session.hostId,
           orElse: () => '',
         );
-        final bool invitedDeclinedHostInitial = session.rematchRequestBy == null &&
+        final bool invitedDeclinedHostInitial =
+            session.rematchRequestBy == null &&
             offer.proposedBy == session.hostId &&
             responderId == invitedId;
         final int nextRefusalCount = invitedDeclinedHostInitial
@@ -1819,9 +1931,11 @@ class GameService {
           'betFlowState': insufficientFunds
               ? DuelBetFlowState.awaitingFundsValidation.name
               : (nextRefusalCount >= 2
-                  ? DuelBetFlowState.invitedPlayerCanCounterPropose.name
-                  : DuelBetFlowState.initialStakeRejected.name),
-          'lastInsufficientFundsPlayerId': insufficientFunds ? responderId : null,
+                    ? DuelBetFlowState.invitedPlayerCanCounterPropose.name
+                    : DuelBetFlowState.initialStakeRejected.name),
+          'lastInsufficientFundsPlayerId': insufficientFunds
+              ? responderId
+              : null,
           if (session.status == DuelGameStatus.finished) ...<String, dynamic>{
             'rematchDecision': DuelRematchDecision.declined.name,
             'rematchDecisionBy': responderId,
@@ -1876,11 +1990,13 @@ class GameService {
         createdAt: offer.createdAt ?? DateTime.now(),
       );
       if (session.status == DuelGameStatus.finished) {
-        if (session.rematchRequestBy == null || responderId == session.rematchRequestBy) {
+        if (session.rematchRequestBy == null ||
+            responderId == session.rematchRequestBy) {
           throw StateError('Réponse de mise invalide pour la revanche.');
         }
         final int nextRound = session.round + 1;
-        final String starter = session.players.contains(session.rematchRequestBy)
+        final String starter =
+            session.players.contains(session.rematchRequestBy)
             ? session.rematchRequestBy!
             : (offer.proposedBy ?? session.hostId);
         final DuelAction action = DuelAction(
@@ -1893,7 +2009,8 @@ class GameService {
           },
         );
         tx.update(ref, <String, dynamic>{
-          'playerCredits.${offer.proposedBy!}': latestProposerCredits - offer.amount,
+          'playerCredits.${offer.proposedBy!}':
+              latestProposerCredits - offer.amount,
           'playerCredits.$responderId': latestResponderCredits - offer.amount,
           'activeStakeCredits': offer.amount * 2,
           'status': DuelGameStatus.inProgress.name,
@@ -1947,7 +2064,8 @@ class GameService {
         return;
       }
       tx.update(ref, <String, dynamic>{
-        'playerCredits.${offer.proposedBy!}': latestProposerCredits - offer.amount,
+        'playerCredits.${offer.proposedBy!}':
+            latestProposerCredits - offer.amount,
         'playerCredits.$responderId': latestResponderCredits - offer.amount,
         'activeStakeCredits': offer.amount * 2,
         'status': DuelGameStatus.inProgress.name,
@@ -1993,8 +2111,9 @@ class GameService {
       return;
     }
     final FirebaseFirestore db = await _resolveDb();
-    final DocumentReference<Map<String, dynamic>> ref =
-        db.collection('duel_games').doc(current.gameId);
+    final DocumentReference<Map<String, dynamic>> ref = db
+        .collection('duel_games')
+        .doc(current.gameId);
     await db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(ref);
       if (!snap.exists) {
@@ -2078,22 +2197,28 @@ class GameService {
     );
     if (loserId.isEmpty) return;
     final int cardBonus = _duelCardBonus(winnerCard);
-    final int gain = 100 + cardBonus;   // winner: base + bonus
-    final int loss = 100 + cardBonus;   // loser:  base + bonus (symmetric)
+    final int gain = 100 + cardBonus; // winner: base + bonus
+    final int loss = 100 + cardBonus; // loser:  base + bonus (symmetric)
     final FirebaseFirestore db = await _resolveDb();
     try {
-      await db.collection('user_profiles').doc(winnerId).update(<String, dynamic>{
-        'credits': FieldValue.increment(gain),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await db
+          .collection('user_profiles')
+          .doc(winnerId)
+          .update(<String, dynamic>{
+            'credits': FieldValue.increment(gain),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
     } catch (e) {
       debugPrint('[Duel] winner card bonus update failed: $e');
     }
     try {
-      await db.collection('user_profiles').doc(loserId).update(<String, dynamic>{
-        'credits': FieldValue.increment(-loss),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await db
+          .collection('user_profiles')
+          .doc(loserId)
+          .update(<String, dynamic>{
+            'credits': FieldValue.increment(-loss),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
     } catch (e) {
       debugPrint('[Duel] loser card bonus update failed: $e');
     }
@@ -2181,7 +2306,8 @@ class DuelController extends ChangeNotifier {
         return;
       }
       session = value;
-      final String graceCheckpoint = '${value.gameId}_${value.round}_${value.status.name}';
+      final String graceCheckpoint =
+          '${value.gameId}_${value.round}_${value.status.name}';
       if (_lastGraceCheckpointKey != graceCheckpoint) {
         _lastGraceCheckpointKey = graceCheckpoint;
         startPresenceGracePeriod();
@@ -2216,18 +2342,27 @@ class DuelController extends ChangeNotifier {
       if (latest == null || !_isActiveSession(latest)) {
         return;
       }
-      unawaited(service.updatePresenceHeartbeat(
-        gameId: latest.gameId,
-        playerId: localPlayerId,
-      ));
+      unawaited(
+        service.updatePresenceHeartbeat(
+          gameId: latest.gameId,
+          playerId: localPlayerId,
+        ),
+      );
     });
     if (startedHeartbeat) {
-      debugPrint('[Presence] heartbeat started player=$localPlayerId game=${current.gameId}');
+      debugPrint(
+        '[Presence] heartbeat started player=$localPlayerId game=${current.gameId}',
+      );
     }
     _presenceWatchdogTimer ??= Timer.periodic(const Duration(seconds: 6), (_) {
       unawaited(_reportOfflineOpponentIfNeeded());
     });
-    unawaited(service.updatePresenceHeartbeat(gameId: current.gameId, playerId: localPlayerId));
+    unawaited(
+      service.updatePresenceHeartbeat(
+        gameId: current.gameId,
+        playerId: localPlayerId,
+      ),
+    );
   }
 
   void startPresenceGracePeriod({Duration duration = _presenceGracePeriod}) {
@@ -2252,7 +2387,8 @@ class DuelController extends ChangeNotifier {
     final DuelPlayerPresence opponentPresence =
         current.presence[opponentId] ?? const DuelPlayerPresence();
     final DateTime now = DateTime.now().toUtc();
-    if (_localPresenceGraceUntil != null && now.isBefore(_localPresenceGraceUntil!)) {
+    if (_localPresenceGraceUntil != null &&
+        now.isBefore(_localPresenceGraceUntil!)) {
       debugPrint('[Presence] abandon check skipped: grace period');
       return;
     }
@@ -2262,8 +2398,12 @@ class DuelController extends ChangeNotifier {
       return;
     }
     final DateTime? lastSeen = opponentPresence.lastSeenAt?.toUtc();
-    final Duration elapsed = lastSeen == null ? _abandonTimeout : now.difference(lastSeen);
-    if (elapsed >= _connectionWarningTimeout && elapsed < _abandonTimeout && !_connectionWarningLogged) {
+    final Duration elapsed = lastSeen == null
+        ? _abandonTimeout
+        : now.difference(lastSeen);
+    if (elapsed >= _connectionWarningTimeout &&
+        elapsed < _abandonTimeout &&
+        !_connectionWarningLogged) {
       _connectionWarningLogged = true;
       debugPrint('[Presence] warning: Connexion de l’adversaire instable');
     }
@@ -2294,7 +2434,9 @@ class DuelController extends ChangeNotifier {
   }
 
   void _maybeRepairSessionIntegrity(DuelSession value) {
-    if (_repairInFlight || value.hostId != localPlayerId || !value.deckInitialized) {
+    if (_repairInFlight ||
+        value.hostId != localPlayerId ||
+        !value.deckInitialized) {
       return;
     }
     final DuelGameStateValidationResult validation = validateGameState(value);
@@ -2303,7 +2445,10 @@ class DuelController extends ChangeNotifier {
     }
     _repairInFlight = true;
     service
-        .repairGameStateIfNeeded(gameId: value.gameId, requestedBy: localPlayerId)
+        .repairGameStateIfNeeded(
+          gameId: value.gameId,
+          requestedBy: localPlayerId,
+        )
         .whenComplete(() {
           _repairInFlight = false;
         });
@@ -2331,15 +2476,18 @@ class DuelController extends ChangeNotifier {
     if (presence.state == 'away') return OpponentConnectionStatus.away;
 
     // Explicitement offline
-    if (presence.state == 'offline') return OpponentConnectionStatus.disconnected;
+    if (presence.state == 'offline')
+      return OpponentConnectionStatus.disconnected;
 
     // Calcul basé sur l'âge du dernier heartbeat
     final DateTime? lastSeen = presence.lastSeenAt?.toUtc();
     final DateTime now = DateTime.now().toUtc();
-    final Duration elapsed =
-        lastSeen == null ? _abandonTimeout : now.difference(lastSeen);
+    final Duration elapsed = lastSeen == null
+        ? _abandonTimeout
+        : now.difference(lastSeen);
 
-    if (elapsed >= _abandonTimeout) return OpponentConnectionStatus.disconnected;
+    if (elapsed >= _abandonTimeout)
+      return OpponentConnectionStatus.disconnected;
     if (elapsed >= _connectionWarningTimeout ||
         presence.state == 'background' ||
         presence.state == 'maybeOffline') {
@@ -2430,7 +2578,10 @@ class DuelController extends ChangeNotifier {
     if (current == null) {
       return;
     }
-    await service.acceptRematch(gameId: current.gameId, acceptedBy: localPlayerId);
+    await service.acceptRematch(
+      gameId: current.gameId,
+      acceptedBy: localPlayerId,
+    );
   }
 
   Future<void> declineRematch() async {
@@ -2438,7 +2589,10 @@ class DuelController extends ChangeNotifier {
     if (current == null) {
       return;
     }
-    await service.declineRematch(gameId: current.gameId, declinedBy: localPlayerId);
+    await service.declineRematch(
+      gameId: current.gameId,
+      declinedBy: localPlayerId,
+    );
   }
 
   Future<void> cleanupExpiredRematchRequest() async {
@@ -2474,7 +2628,10 @@ class DuelController extends ChangeNotifier {
     );
   }
 
-  Future<void> respondToStake(bool accept, {bool insufficientFunds = false}) async {
+  Future<void> respondToStake(
+    bool accept, {
+    bool insufficientFunds = false,
+  }) async {
     final DuelSession? current = session;
     if (current == null) {
       return;
@@ -2620,7 +2777,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   void _onControllerChange() {
     final DuelSession? session = _controller?.session;
-    if (!_openedDuel && session != null && session.players.length == 2 && mounted) {
+    if (!_openedDuel &&
+        session != null &&
+        session.players.length == 2 &&
+        mounted) {
       _openedDuel = true;
       Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -2670,7 +2830,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<void> _upsertProfileFromGoogle(User user) async {
-    final PlayerProfile profile = await _profileService.createOrUpdateFromGoogleUser(user);
+    final PlayerProfile profile = await _profileService
+        .createOrUpdateFromGoogleUser(user);
     if (!mounted) {
       return;
     }
@@ -2698,7 +2859,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
     final String localProfilePseudo = _playerProfile?.displayName.trim() ?? '';
     if (_isUsablePseudo(localProfilePseudo)) {
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint(
+        '[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}',
+      );
       debugPrint('[DUEL_AUTH] pseudo utilisé: $localProfilePseudo');
       debugPrint('[DUEL_AUTH] source du pseudo: local_state');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
@@ -2719,7 +2882,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           _playerProfile = profile;
         });
       }
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint(
+        '[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}',
+      );
       debugPrint('[DUEL_AUTH] pseudo utilisé: $firestorePseudo');
       debugPrint('[DUEL_AUTH] source du pseudo: firestore');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
@@ -2734,7 +2899,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
     final String authDisplayName = user.displayName?.trim() ?? '';
     if (_isUsablePseudo(authDisplayName)) {
-      debugPrint('[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}');
+      debugPrint(
+        '[DUEL_AUTH] user connecté ou invité: connecté uid=${user.uid}',
+      );
       debugPrint('[DUEL_AUTH] pseudo utilisé: $authDisplayName');
       debugPrint('[DUEL_AUTH] source du pseudo: auth_state');
       debugPrint('[DUEL_AUTH] accès Duel autorisé');
@@ -2826,7 +2993,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           case AuthFailureReason.unavailable:
           case AuthFailureReason.unknown:
           case null:
-            _profileError = result.errorMessage ?? 'Connexion Google impossible.';
+            _profileError =
+                result.errorMessage ?? 'Connexion Google impossible.';
             break;
         }
       });
@@ -2843,8 +3011,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
 
   Future<void> _ensureLobbyAccess() async {
     if (!mounted || _authService.currentUser != null) {
-      if (widget.mode == DuelRoomMode.credits && _authenticatedPlayerId != null) {
-        final bool hasCredit = await _hasPositiveCredit(_authenticatedPlayerId!);
+      if (widget.mode == DuelRoomMode.credits &&
+          _authenticatedPlayerId != null) {
+        final bool hasCredit = await _hasPositiveCredit(
+          _authenticatedPlayerId!,
+        );
         if (!mounted) {
           return;
         }
@@ -2857,7 +3028,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       }
       return;
     }
-    final bool shouldLogin = await showDialog<bool>(
+    final bool shouldLogin =
+        await showDialog<bool>(
           context: context,
           barrierDismissible: true,
           builder: (BuildContext context) {
@@ -2907,8 +3079,11 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
   }
 
   Future<bool> _hasPositiveCredit(String uid) async {
-    final DocumentSnapshot<Map<String, dynamic>> snap =
-        await FirebaseFirestore.instance.collection('user_profiles').doc(uid).get();
+    final DocumentSnapshot<Map<String, dynamic>> snap = await FirebaseFirestore
+        .instance
+        .collection('user_profiles')
+        .doc(uid)
+        .get();
     final int credits = (snap.data()?['credits'] as num?)?.toInt() ?? 0;
     return credits > 0;
   }
@@ -2923,21 +3098,31 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
-            side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+            side: BorderSide(
+              color: GinoPopupStyle.casinoGold.withOpacity(0.72),
+            ),
           ),
           shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
           title: const Text(
             'Crédit insuffisant',
-            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
+            style: TextStyle(
+              color: GinoPopupStyle.textWhite,
+              fontWeight: FontWeight.w300,
+            ),
           ),
           content: const Text(
             'Votre solde est insuffisant pour accéder au mode Pari. Veuillez contacter le service client ou l’administrateur afin de recharger votre compte.',
-            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
+            style: TextStyle(
+              color: GinoPopupStyle.textWhite,
+              fontWeight: FontWeight.w300,
+            ),
           ),
           actions: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(
+                  0.82,
+                ),
                 foregroundColor: GinoPopupStyle.textWhite,
                 shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
               ),
@@ -2989,7 +3174,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       if (profileName.isNotEmpty) {
         return profileName;
       }
-      final String authDisplayName = _authService.currentUser?.displayName?.trim() ?? '';
+      final String authDisplayName =
+          _authService.currentUser?.displayName?.trim() ?? '';
       if (authDisplayName.isNotEmpty) {
         return authDisplayName;
       }
@@ -3038,7 +3224,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final User? user = _authService.currentUser;
     if (_shouldAskPseudo && user != null && !user.isAnonymous) {
       final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
-      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      await _profileService.updateDisplayName(
+        uid: user.uid,
+        displayName: cleanedPseudo,
+      );
       _duelIdentity = DuelPlayerIdentity(
         playerId: user.uid,
         displayName: cleanedPseudo,
@@ -3055,8 +3244,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     setState(() {
       _profileError = null;
     });
-    final DuelController controller = (_controller != null &&
-            _controller!.localPlayerName == pseudo)
+    final DuelController controller =
+        (_controller != null && _controller!.localPlayerName == pseudo)
         ? _controller!
         : _buildController(pseudo);
     await controller.create();
@@ -3110,7 +3299,10 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     final User? user = _authService.currentUser;
     if (_shouldAskPseudo && user != null && !user.isAnonymous) {
       final String cleanedPseudo = _profileService.sanitizeDisplayName(pseudo);
-      await _profileService.updateDisplayName(uid: user.uid, displayName: cleanedPseudo);
+      await _profileService.updateDisplayName(
+        uid: user.uid,
+        displayName: cleanedPseudo,
+      );
       _duelIdentity = DuelPlayerIdentity(
         playerId: user.uid,
         displayName: cleanedPseudo,
@@ -3128,13 +3320,12 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     setState(() {
       _profileError = null;
     });
-    final DuelController controller = (_controller != null &&
-            _controller!.localPlayerName == pseudo)
+    final DuelController controller =
+        (_controller != null && _controller!.localPlayerName == pseudo)
         ? _controller!
         : _buildController(pseudo);
     await controller.join(code);
   }
-
 
   Color get _lobbyAccentPrimary => widget.mode == DuelRoomMode.credits
       ? const Color(0xFFFFB545)
@@ -3150,9 +3341,9 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Code copié.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Code copié.')));
     unawaited(_sfx.playNotif());
   }
 
@@ -3174,13 +3365,17 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       disabledBackgroundColor: Colors.white.withOpacity(0.08),
       disabledForegroundColor: Colors.white.withOpacity(0.35),
     ).copyWith(
-      backgroundColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
+      backgroundColor: MaterialStateProperty.resolveWith<Color?>((
+        Set<MaterialState> states,
+      ) {
         if (states.contains(MaterialState.disabled)) {
           return Colors.white.withOpacity(0.08);
         }
         return Colors.transparent;
       }),
-      overlayColor: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) {
+      overlayColor: MaterialStateProperty.resolveWith<Color?>((
+        Set<MaterialState> states,
+      ) {
         if (states.contains(MaterialState.pressed)) {
           return Colors.white.withOpacity(0.16);
         }
@@ -3191,7 +3386,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
       }),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -3234,15 +3428,16 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                     tween: Tween<double>(begin: 0, end: 1),
                     duration: const Duration(milliseconds: 520),
                     curve: Curves.easeOutCubic,
-                    builder: (BuildContext context, double value, Widget? child) {
-                      return Opacity(
-                        opacity: value,
-                        child: Transform.translate(
-                          offset: Offset(0, 18 * (1 - value)),
-                          child: child,
-                        ),
-                      );
-                    },
+                    builder:
+                        (BuildContext context, double value, Widget? child) {
+                          return Opacity(
+                            opacity: value,
+                            child: Transform.translate(
+                              offset: Offset(0, 18 * (1 - value)),
+                              child: child,
+                            ),
+                          );
+                        },
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
@@ -3373,7 +3568,8 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: _codeController,
-                                  textCapitalization: TextCapitalization.characters,
+                                  textCapitalization:
+                                      TextCapitalization.characters,
                                   cursorColor: accent,
                                   style: const TextStyle(color: Colors.white),
                                   onChanged: (_) {
@@ -3475,7 +3671,6 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
     );
   }
 }
-
 
 class _DuelLobbyCreatedCodeCard extends StatelessWidget {
   const _DuelLobbyCreatedCodeCard({
@@ -3602,43 +3797,47 @@ class _DuelLobbyPremiumBackground extends StatelessWidget {
     return SizedBox.expand(
       child: DecoratedBox(
         decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[
-            Color(0xFF020204),
-            Color(0xFF12141A),
-            Color(0xFF050507),
-          ],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[
+              Color(0xFF020204),
+              Color(0xFF12141A),
+              Color(0xFF050507),
+            ],
+          ),
         ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          Positioned(
-            top: -120,
-            right: -95,
-            child: _DuelLobbyGlowOrb(color: accent, size: 280, opacity: 0.28),
-          ),
-          Positioned(
-            bottom: -150,
-            left: -110,
-            child: _DuelLobbyGlowOrb(color: secondaryAccent, size: 330, opacity: 0.20),
-          ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(
-                painter: _DuelLobbyGridPainter(
-                  color: casinoMode
-                      ? const Color(0xFFFFB545).withOpacity(0.035)
-                      : const Color(0xFF58A6FF).withOpacity(0.035),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Positioned(
+              top: -120,
+              right: -95,
+              child: _DuelLobbyGlowOrb(color: accent, size: 280, opacity: 0.28),
+            ),
+            Positioned(
+              bottom: -150,
+              left: -110,
+              child: _DuelLobbyGlowOrb(
+                color: secondaryAccent,
+                size: 330,
+                opacity: 0.20,
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _DuelLobbyGridPainter(
+                    color: casinoMode
+                        ? const Color(0xFFFFB545).withOpacity(0.035)
+                        : const Color(0xFF58A6FF).withOpacity(0.035),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -3662,10 +3861,7 @@ class _DuelLobbyGlowOrb extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
-          colors: <Color>[
-            color.withOpacity(opacity),
-            color.withOpacity(0),
-          ],
+          colors: <Color>[color.withOpacity(opacity), color.withOpacity(0)],
         ),
       ),
     );
@@ -3742,10 +3938,7 @@ class _DuelLobbyCard extends StatelessWidget {
               ],
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: child,
-          ),
+          child: Padding(padding: const EdgeInsets.all(20), child: child),
         ),
       ),
     );
@@ -3777,10 +3970,7 @@ class _DuelLobbyBadge extends StatelessWidget {
           ],
         ),
         boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: accent.withOpacity(0.22),
-            blurRadius: 18,
-          ),
+          BoxShadow(color: accent.withOpacity(0.22), blurRadius: 18),
         ],
       ),
       child: Text(
@@ -3860,7 +4050,8 @@ class _DuelLobbyPremiumButton extends StatefulWidget {
   final ButtonStyle style;
 
   @override
-  State<_DuelLobbyPremiumButton> createState() => _DuelLobbyPremiumButtonState();
+  State<_DuelLobbyPremiumButton> createState() =>
+      _DuelLobbyPremiumButtonState();
 }
 
 class _DuelLobbyPremiumButtonState extends State<_DuelLobbyPremiumButton> {
@@ -3879,7 +4070,9 @@ class _DuelLobbyPremiumButtonState extends State<_DuelLobbyPremiumButton> {
       child: Listener(
         onPointerDown: enabled ? (_) => setState(() => _pressed = true) : null,
         onPointerUp: enabled ? (_) => setState(() => _pressed = false) : null,
-        onPointerCancel: enabled ? (_) => setState(() => _pressed = false) : null,
+        onPointerCancel: enabled
+            ? (_) => setState(() => _pressed = false)
+            : null,
         child: AnimatedScale(
           duration: const Duration(milliseconds: 115),
           curve: Curves.easeOutCubic,
@@ -3899,7 +4092,9 @@ class _DuelLobbyPremiumButtonState extends State<_DuelLobbyPremiumButton> {
               boxShadow: enabled
                   ? <BoxShadow>[
                       BoxShadow(
-                        color: widget.accent.withOpacity(_hovered ? 0.44 : 0.30),
+                        color: widget.accent.withOpacity(
+                          _hovered ? 0.44 : 0.30,
+                        ),
                         blurRadius: _hovered ? 28 : 20,
                         offset: const Offset(0, 10),
                       ),
@@ -3997,6 +4192,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   bool _creditExitHandled = false;
   bool _funnyMessagesEnabled = true;
   bool _isDrawingActionBusy = false;
+  bool _didPrecacheImages = false;
   final Duration comicMessageCooldown = const Duration(seconds: 8);
   DateTime? _lastComicMessageAt;
   DateTime? _lastImportantPopupOpenedAt;
@@ -4017,11 +4213,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   DuelController get _controller => widget.controller;
   bool get _isCreditsMode => widget.mode == DuelRoomMode.credits;
   bool _isInitialStakePhase(DuelSession session) =>
-      session.status == DuelGameStatus.waiting && session.rematchRequestBy == null;
+      session.status == DuelGameStatus.waiting &&
+      session.rematchRequestBy == null;
   bool _isRematchStakePhase(DuelSession session) =>
       session.status == DuelGameStatus.finished &&
       session.rematchRequestBy != null &&
-      session.betFlowState == DuelBetFlowState.rematchStakePendingWinnerResponse;
+      session.betFlowState ==
+          DuelBetFlowState.rematchStakePendingWinnerResponse;
   bool _canSetStake(DuelSession session) {
     if (!_isCreditsMode || session.players.length != 2) {
       return false;
@@ -4037,6 +4235,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     }
     return false;
   }
+
   bool _requiresStake(DuelSession session) =>
       _isCreditsMode &&
       session.players.length == 2 &&
@@ -4093,10 +4292,22 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (!mounted) return;
       final DuelSession? current = _controller.session;
       if (current != null && current.players.length >= 2) {
-        _maybeNotifyPresenceChange(current);
-        setState(() {});
+        final bool presenceChanged = _maybeNotifyPresenceChange(current);
+        if (presenceChanged) {
+          setState(() {});
+        }
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didPrecacheImages) {
+      return;
+    }
+    _didPrecacheImages = true;
+    precacheImage(const AssetImage('assets/img/card_back.jpeg'), context);
   }
 
   @override
@@ -4104,11 +4315,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     // Signale à l'adversaire que ce joueur a quitté l'écran de jeu.
     final DuelSession? current = _controller.session;
     if (current != null) {
-      _controller.service.markPlayerPresenceState(
-        gameId: current.gameId,
-        playerId: _controller.localPlayerId,
-        state: 'away',
-      ).ignore();
+      _controller.service
+          .markPlayerPresenceState(
+            gameId: current.gameId,
+            playerId: _controller.localPlayerId,
+            state: 'away',
+          )
+          .ignore();
     }
     _presenceStatusTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -4129,10 +4342,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _controller.startPresenceGracePeriod();
       final DuelSession? current = _controller.session;
       if (current != null) {
-        unawaited(_controller.service.updatePresenceHeartbeat(
-          gameId: current.gameId,
-          playerId: _controller.localPlayerId,
-        ));
+        unawaited(
+          _controller.service.updatePresenceHeartbeat(
+            gameId: current.gameId,
+            playerId: _controller.localPlayerId,
+          ),
+        );
       }
       return;
     }
@@ -4146,7 +4361,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   }
 
   Future<void> _handleLifecycleExitSignal(String reason) async {
-    final bool terminalSignal = reason.contains('beforeunload') || reason.contains('pagehide');
+    final bool terminalSignal =
+        reason.contains('beforeunload') || reason.contains('pagehide');
     if (terminalSignal && _lifecycleExitTriggered) {
       return;
     }
@@ -4217,16 +4433,17 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _maybeNotifyPresenceChange(session);
   }
 
-  void _maybeNotifyPresenceChange(DuelSession session) {
+  bool _maybeNotifyPresenceChange(DuelSession session) {
     if (session.players.length < 2 ||
         session.status == DuelGameStatus.finished) {
-      return;
+      return false;
     }
-    final OpponentConnectionStatus current = _controller.opponentConnectionStatus;
+    final OpponentConnectionStatus current =
+        _controller.opponentConnectionStatus;
     final OpponentConnectionStatus? last = _lastOpponentStatus;
-    if (last == current) return;
+    if (last == current) return false;
     _lastOpponentStatus = current;
-    if (last == null) return; // premier calcul, pas de notification
+    if (last == null) return true; // premier calcul, pas de notification
 
     final String opponentName = session.playerNames.entries
         .firstWhere(
@@ -4235,7 +4452,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         )
         .value;
 
-    if (!mounted) return;
+    if (!mounted) return true;
     switch (current) {
       case OpponentConnectionStatus.away:
         FunnyGameToast.show(
@@ -4270,6 +4487,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           duration: const Duration(seconds: 3),
         );
     }
+    return true;
   }
 
   double _defaultProbabilityForTrigger(ComicMessageTrigger trigger) {
@@ -4506,11 +4724,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             if (!mounted) {
               return;
             }
-            final Map<String, DuelChatMessage> dedup = <String, DuelChatMessage>{
-              for (final DuelChatMessage message in messages) message.id: message,
-            };
+            final Map<String, DuelChatMessage> dedup =
+                <String, DuelChatMessage>{
+                  for (final DuelChatMessage message in messages)
+                    message.id: message,
+                };
             final List<DuelChatMessage> ordered = dedup.values.toList()
-              ..sort((DuelChatMessage a, DuelChatMessage b) => a.createdAt.compareTo(b.createdAt));
+              ..sort(
+                (DuelChatMessage a, DuelChatMessage b) =>
+                    a.createdAt.compareTo(b.createdAt),
+              );
             int unreadDelta = 0;
             final List<String> previews = <String>[];
             for (final DuelChatMessage message in ordered) {
@@ -4528,7 +4751,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                 }
               }
             }
-            _chatMessagesNotifier.value = List<DuelChatMessage>.unmodifiable(ordered);
+            _chatMessagesNotifier.value = List<DuelChatMessage>.unmodifiable(
+              ordered,
+            );
             final bool hadError = _chatError != null;
             _chatError = null;
             if (unreadDelta > 0 || hadError) {
@@ -4568,7 +4793,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   }
 
   void _showNextChatPreviewIfIdle() {
-    if (!mounted || _activeChatPreview != null || _chatPreviewQueue.isEmpty || _isChatOpen) {
+    if (!mounted ||
+        _activeChatPreview != null ||
+        _chatPreviewQueue.isEmpty ||
+        _isChatOpen) {
       return;
     }
     final String next = _chatPreviewQueue.removeFirst();
@@ -4625,7 +4853,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       chosenSuit: chosenSuit,
     );
     if (!move.accepted) {
-      if (move.rejectionMessage != null && move.rejectionMessage!.trim().isNotEmpty) {
+      if (move.rejectionMessage != null &&
+          move.rejectionMessage!.trim().isNotEmpty) {
         _showSnackBar(move.rejectionMessage!);
       }
       return;
@@ -4649,7 +4878,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (_isCreditsMode) {
         // Paris mode: resolve the bet stake, then add card bonus on top
         await _controller.resolveStakeAfterRound(winnerId);
-        unawaited(_controller.applyCardBonusCredits(winnerId: winnerId, winnerCard: card));
+        unawaited(
+          _controller.applyCardBonusCredits(
+            winnerId: winnerId,
+            winnerCard: card,
+          ),
+        );
       }
       // Simple duel: no credit bonuses applied
     }
@@ -4666,7 +4900,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           insetPadding: const EdgeInsets.symmetric(horizontal: 20),
           child: GinoChooseSuitPopup(
             suits: const <String>['♥', '♠', '♣', '♦'],
-            onSuitSelected: (String suit) => Navigator.of(dialogContext).pop(suit),
+            onSuitSelected: (String suit) =>
+                Navigator.of(dialogContext).pop(suit),
           ),
         );
       },
@@ -4693,10 +4928,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           backgroundColor: Colors.transparent,
           elevation: 0,
           insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-          child: GinoOpponentCommandPopup(
-            playerName: actorName,
-            suit: suit,
-          ),
+          child: GinoOpponentCommandPopup(playerName: actorName, suit: suit),
         );
       },
     );
@@ -4766,7 +4998,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     if (cardId == null || !cardId.startsWith('8') || chosenSuit == null) {
       return;
     }
-    final String key = '${action.actorId}_${action.createdAt.toIso8601String()}';
+    final String key =
+        '${action.actorId}_${action.createdAt.toIso8601String()}';
     if (_lastEightPopupKey == key) {
       return;
     }
@@ -4798,7 +5031,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     final int amount = (_board?.pendingDraw ?? 0) > 0
         ? _board!.pendingDraw
         : (card.rank == '2' ? 2 : 8);
-    final String key = '${action.actorId}_${action.createdAt.toIso8601String()}_$amount';
+    final String key =
+        '${action.actorId}_${action.createdAt.toIso8601String()}_$amount';
     if (_lastForcedDrawPopupKey == key) {
       return;
     }
@@ -4834,10 +5068,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     unawaited(_sfx.playHeavyDraw());
   }
 
-  void _playOneCardLeftSfxOnce({
-    required String key,
-    required int cardCount,
-  }) {
+  void _playOneCardLeftSfxOnce({required String key, required int cardCount}) {
     if (cardCount != 1 || _lastOneCardSfxKey == key) {
       return;
     }
@@ -4876,11 +5107,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return;
     }
     final bool isForcedDraw = action.payload['forcedDraw'] == true;
-    final int forcedTotal = (action.payload['forcedTotal'] as num? ?? 0).toInt();
+    final int forcedTotal = (action.payload['forcedTotal'] as num? ?? 0)
+        .toInt();
     _playHeavyDrawSfxOnce(
       key: '${session.gameId}_${session.round}_${action.actorId}_$forcedTotal',
       total: forcedTotal,
-      sequenceStart: isForcedDraw && session.pendingDrawCount == forcedTotal - 1,
+      sequenceStart:
+          isForcedDraw && session.pendingDrawCount == forcedTotal - 1,
     );
     unawaited(_sfx.playDraw());
   }
@@ -4888,26 +5121,35 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   Future<void> _onDrawTap() async {
     final DuelSession? session = _controller.session;
     final DuelBoardState? board = _board;
-    if (session == null || board == null || !_controller.isMyTurn || _isDrawingActionBusy) {
+    if (session == null ||
+        board == null ||
+        !_controller.isMyTurn ||
+        _isDrawingActionBusy) {
       return;
     }
     if (_requiresStake(session)) {
       _showStakeRequiredMessage();
       return;
     }
-    final DuelMoveResult move = board.tryDraw(actorId: _controller.localPlayerId);
+    final DuelMoveResult move = board.tryDraw(
+      actorId: _controller.localPlayerId,
+    );
     if (!move.accepted) {
       return;
     }
     setState(() => _isDrawingActionBusy = true);
     final bool isForcedDraw = move.payload['forcedDraw'] == true;
     final int forcedTotal = (move.payload['forcedTotal'] as num? ?? 0).toInt();
-    final DuelCard? drawnCard = board.drawPile.isEmpty ? null : board.drawPile.last;
+    final DuelCard? drawnCard = board.drawPile.isEmpty
+        ? null
+        : board.drawPile.last;
     try {
       _playHeavyDrawSfxOnce(
-        key: '${session.gameId}_${session.round}_${_controller.localPlayerId}_$forcedTotal',
+        key:
+            '${session.gameId}_${session.round}_${_controller.localPlayerId}_$forcedTotal',
         total: forcedTotal,
-        sequenceStart: isForcedDraw && board.pendingDraw == board.forcedDrawInitial,
+        sequenceStart:
+            isForcedDraw && board.pendingDraw == board.forcedDrawInitial,
       );
       _playDrawnCardSfx(drawnCard);
       await _controller.sendAction(
@@ -4945,8 +5187,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     return loserId.isEmpty ? null : loserId;
   }
 
-  bool _isLocalWinner(DuelSession session) => _winnerId(session) == _controller.localPlayerId;
-  bool _isLocalLoser(DuelSession session) => _loserId(session) == _controller.localPlayerId;
+  bool _isLocalWinner(DuelSession session) =>
+      _winnerId(session) == _controller.localPlayerId;
+  bool _isLocalLoser(DuelSession session) =>
+      _loserId(session) == _controller.localPlayerId;
 
   void _maybePlayRoundOutcomeSfx(DuelSession session) {
     if (session.status != DuelGameStatus.finished) {
@@ -4972,7 +5216,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     } else {
       unawaited(_sfx.playLose());
     }
-    unawaited(_syncPersistentStats(session: session, winnerId: winnerId, key: key));
+    unawaited(
+      _syncPersistentStats(session: session, winnerId: winnerId, key: key),
+    );
   }
 
   Future<void> _syncPersistentStats({
@@ -5022,10 +5268,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     if (playerId.isEmpty) {
       return _avatarCardPool.first;
     }
-    final int index = playerId.runes.fold<int>(
-          0,
-          (int value, int rune) => value + rune,
-        ) %
+    final int index =
+        playerId.runes.fold<int>(0, (int value, int rune) => value + rune) %
         _avatarCardPool.length;
     return _avatarCardPool[index];
   }
@@ -5036,14 +5280,17 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   }) {
     final DuelCard localCard = _avatarCardForPlayer(localPlayerId);
     DuelCard opponentCard = _avatarCardForPlayer(opponentId);
-    final bool sameCard = opponentCard.rank == localCard.rank &&
+    final bool sameCard =
+        opponentCard.rank == localCard.rank &&
         opponentCard.suit == localCard.suit;
     if (sameCard) {
       final int index = _avatarCardPool.indexWhere(
         (DuelCard card) =>
             card.rank == opponentCard.rank && card.suit == opponentCard.suit,
       );
-      final int nextIndex = index < 0 ? 1 : (index + 1) % _avatarCardPool.length;
+      final int nextIndex = index < 0
+          ? 1
+          : (index + 1) % _avatarCardPool.length;
       opponentCard = _avatarCardPool[nextIndex];
     }
     return opponentCard;
@@ -5062,7 +5309,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         ? null
         : _creditsOf(session, opponentId);
     final int? selected = await _showStakeSelectionDialog(
-      opponentName: opponentId.isEmpty ? 'Adversaire' : _displayNameUpper(session, opponentId),
+      opponentName: opponentId.isEmpty
+          ? 'Adversaire'
+          : _displayNameUpper(session, opponentId),
       myCredits: myCredits,
       opponentCredits: opponentCredits,
     );
@@ -5095,65 +5344,73 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       barrierColor: Colors.black.withOpacity(0.70),
       builder: (BuildContext context) {
         return StatefulBuilder(
-          builder: (BuildContext context, void Function(void Function()) setModalState) {
-            String? validate(int? amount) => _stakeValidationError(
-              amount: amount,
-              myCredits: myCredits,
-              opponentCredits: opponentCredits,
-            );
+          builder:
+              (
+                BuildContext context,
+                void Function(void Function()) setModalState,
+              ) {
+                String? validate(int? amount) => _stakeValidationError(
+                  amount: amount,
+                  myCredits: myCredits,
+                  opponentCredits: opponentCredits,
+                );
 
-            void selectAmount(int amount) {
-              amountController.text = amount.toString();
-              setModalState(() {
-                selectedAmount = amount;
-                validationError = validate(amount);
-              });
-            }
+                void selectAmount(int amount) {
+                  amountController.text = amount.toString();
+                  setModalState(() {
+                    selectedAmount = amount;
+                    validationError = validate(amount);
+                  });
+                }
 
-            return BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
-              child: Dialog(
-                backgroundColor: Colors.transparent,
-                insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      GinoBetProposalPopup(
-                        opponentName: opponentName,
-                        presetAmounts: options,
-                        selectedAmount: selectedAmount,
-                        amountController: amountController,
-                        validationError: validationError,
-                        onAmountChanged: (String value) {
-                          final int? parsed = int.tryParse(value.trim());
-                          setModalState(() {
-                            selectedAmount = parsed;
-                            validationError = validate(parsed);
-                          });
-                        },
-                        onSelectAmount: selectAmount,
-                        onCancel: () => Navigator.of(context).pop(),
-                        onValidate: () {
-                          final int? parsed = int.tryParse(amountController.text.trim());
-                          final String? error = validate(parsed);
-                          if (error != null) {
-                            setModalState(() {
-                              selectedAmount = parsed;
-                              validationError = error;
-                            });
-                            return;
-                          }
-                          Navigator.of(context).pop(parsed);
-                        },
+                return BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+                  child: Dialog(
+                    backgroundColor: Colors.transparent,
+                    insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: MediaQuery.viewInsetsOf(context).bottom,
                       ),
-                    ],
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          GinoBetProposalPopup(
+                            opponentName: opponentName,
+                            presetAmounts: options,
+                            selectedAmount: selectedAmount,
+                            amountController: amountController,
+                            validationError: validationError,
+                            onAmountChanged: (String value) {
+                              final int? parsed = int.tryParse(value.trim());
+                              setModalState(() {
+                                selectedAmount = parsed;
+                                validationError = validate(parsed);
+                              });
+                            },
+                            onSelectAmount: selectAmount,
+                            onCancel: () => Navigator.of(context).pop(),
+                            onValidate: () {
+                              final int? parsed = int.tryParse(
+                                amountController.text.trim(),
+                              );
+                              final String? error = validate(parsed);
+                              if (error != null) {
+                                setModalState(() {
+                                  selectedAmount = parsed;
+                                  validationError = error;
+                                });
+                                return;
+                              }
+                              Navigator.of(context).pop(parsed);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            );
-          },
+                );
+              },
         );
       },
     );
@@ -5180,9 +5437,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       opponentCredits: opponentCredits,
     );
     if (validationError != null) {
-      _showStakeRequiredMessage(
-        validationError,
-      );
+      _showStakeRequiredMessage(validationError);
       return false;
     }
     setState(() {
@@ -5216,7 +5471,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return;
     }
     unawaited(_sfx.playError());
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String? _stakeValidationError({
@@ -5390,7 +5647,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         offer.proposedBy != _controller.localPlayerId) {
       return;
     }
-    final String insufficientId = session.lastInsufficientFundsPlayerId ?? offer.acceptedBy ?? '';
+    final String insufficientId =
+        session.lastInsufficientFundsPlayerId ?? offer.acceptedBy ?? '';
     final String key =
         '${offer.proposedBy}_${offer.amount}_${offer.createdAt?.millisecondsSinceEpoch ?? 0}_$insufficientId';
     if (_lastInsufficientFundsKey == key) {
@@ -5412,13 +5670,18 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   }
 
   void _maybePromptMandatoryStake(DuelSession session) {
-    final bool shouldPromptInInitial = session.status == DuelGameStatus.waiting &&
+    final bool shouldPromptInInitial =
+        session.status == DuelGameStatus.waiting &&
         session.activeStakeCredits <= 0 &&
         !session.stakeOffer.isPending &&
-        ((session.invitedRefusalCount < 2 && _controller.localPlayerId == session.hostId) ||
-            (session.invitedRefusalCount >= 2 && _controller.localPlayerId != session.hostId));
+        ((session.invitedRefusalCount < 2 &&
+                _controller.localPlayerId == session.hostId) ||
+            (session.invitedRefusalCount >= 2 &&
+                _controller.localPlayerId != session.hostId));
     final bool shouldPrompt =
-        shouldPromptInInitial || _requiresStake(session) || _canPromptRematchStake(session);
+        shouldPromptInInitial ||
+        _requiresStake(session) ||
+        _canPromptRematchStake(session);
     if (_isCreditsMode && !_hasEnoughCredit(session, minimum: 1)) {
       return;
     }
@@ -5428,7 +5691,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         session.stakeOffer.isPending) {
       return;
     }
-    final String promptKey = '${session.round}_${session.rematchRequestedAt?.millisecondsSinceEpoch ?? 0}';
+    final String promptKey =
+        '${session.round}_${session.rematchRequestedAt?.millisecondsSinceEpoch ?? 0}';
     if (_lastMandatoryStakePromptKey == promptKey) {
       return;
     }
@@ -5461,7 +5725,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _rematchErrorMessage = null;
     });
     try {
-      debugPrint('[RematchParis] replay tap by=${_controller.localPlayerId} game=${session.gameId}');
+      debugPrint(
+        '[RematchParis] replay tap by=${_controller.localPlayerId} game=${session.gameId}',
+      );
       if (session.rematchRequestBy != null &&
           session.rematchRequestBy != _controller.localPlayerId) {
         await _controller.acceptRematch();
@@ -5477,11 +5743,14 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _rematchUiState = DuelRematchUiState.rematchError;
-          _rematchErrorMessage = 'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.';
+          _rematchErrorMessage =
+              'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.';
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Impossible de lancer la revanche. Vérifie ta connexion et réessaie.'),
+            content: Text(
+              'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.',
+            ),
           ),
         );
       }
@@ -5499,7 +5768,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return;
     }
     final DuelSession? session = _controller.session;
-    final bool isPendingRequester = session != null &&
+    final bool isPendingRequester =
+        session != null &&
         session.status == DuelGameStatus.finished &&
         session.rematchRequestBy == _controller.localPlayerId &&
         session.rematchDecision == DuelRematchDecision.pending;
@@ -5516,7 +5786,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Impossible de lancer la revanche. Vérifie ta connexion et réessaie.'),
+            content: Text(
+              'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.',
+            ),
           ),
         );
       }
@@ -5534,7 +5806,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     if (session == null) {
       return;
     }
-    if (session.status == DuelGameStatus.inProgress && session.players.length == 2) {
+    if (session.status == DuelGameStatus.inProgress &&
+        session.players.length == 2) {
       await _controller.forfeitMatch();
     } else if (_isCreditsMode) {
       await _controller.exitBetParty();
@@ -5591,13 +5864,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           await _controller.cancelRematchRequest();
         }
         if (mounted) {
-          Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+          Navigator.of(
+            context,
+          ).popUntil((Route<dynamic> route) => route.isFirst);
         }
         return;
       }
       if (session != null &&
           _isCreditsMode &&
-          (session.status == DuelGameStatus.waiting || _requiresStake(session))) {
+          (session.status == DuelGameStatus.waiting ||
+              _requiresStake(session))) {
         await _exitPartyFlow();
         return;
       }
@@ -5652,7 +5928,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         await _controller.declineRematch();
         // Decliner or back dismissal goes back to main menu immediately.
         if (mounted) {
-          Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+          Navigator.of(
+            context,
+          ).popUntil((Route<dynamic> route) => route.isFirst);
         }
         return;
       }
@@ -5661,11 +5939,14 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _rematchUiState = DuelRematchUiState.rematchError;
-          _rematchErrorMessage = 'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.';
+          _rematchErrorMessage =
+              'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.';
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Impossible de lancer la revanche. Vérifie ta connexion et réessaie.'),
+            content: Text(
+              'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.',
+            ),
           ),
         );
       }
@@ -5691,7 +5972,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Votre adversaire a refusé la revanche.')),
+          const SnackBar(
+            content: Text('Votre adversaire a refusé la revanche.'),
+          ),
         );
       });
       return;
@@ -5704,7 +5987,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         _isBlockingDialogOpen()) {
       return;
     }
-    final String requestKey = '${requesterId}_${session.rematchRequestedAt?.millisecondsSinceEpoch ?? 0}';
+    final String requestKey =
+        '${requesterId}_${session.rematchRequestedAt?.millisecondsSinceEpoch ?? 0}';
     if (_lastRematchRequestKey == requestKey) {
       return;
     }
@@ -5720,7 +6004,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (!mounted) {
         return;
       }
-      await _showRematchConfirmDialog(session: session, requesterId: requesterId);
+      await _showRematchConfirmDialog(
+        session: session,
+        requesterId: requesterId,
+      );
     });
   }
 
@@ -5748,14 +6035,17 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         // Requester sees "declined" — navigate to home after short delay
         Future<void>.delayed(const Duration(seconds: 2), () {
           if (mounted) {
-            Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+            Navigator.of(
+              context,
+            ).popUntil((Route<dynamic> route) => route.isFirst);
           }
         });
       }
       return;
     }
     final String? requesterId = session.rematchRequestBy;
-    final bool pendingRequest = session.status == DuelGameStatus.finished &&
+    final bool pendingRequest =
+        session.status == DuelGameStatus.finished &&
         requesterId != null &&
         requesterId.isNotEmpty &&
         session.rematchDecision == DuelRematchDecision.pending;
@@ -5902,14 +6192,17 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         return;
       } else if (quitterId == _controller.localPlayerId) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vous avez quitté la partie. Manche perdue.')),
+          const SnackBar(
+            content: Text('Vous avez quitté la partie. Manche perdue.'),
+          ),
         );
       }
     });
   }
 
   void _maybeHandlePartyExit(DuelSession session) {
-    final bool shouldForceExit = session.betFlowState == DuelBetFlowState.partyExited ||
+    final bool shouldForceExit =
+        session.betFlowState == DuelBetFlowState.partyExited ||
         session.exitBothPlayers ||
         session.abandonedBy != null;
     if (!shouldForceExit) {
@@ -5935,7 +6228,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
   }
 
   void _maybeHandleNoCreditClosure(DuelSession session) {
-    if (!_isCreditsMode || session.roomStatus != 'closed' || _creditExitHandled) {
+    if (!_isCreditsMode ||
+        session.roomStatus != 'closed' ||
+        _creditExitHandled) {
       return;
     }
     final bool localNoCredit =
@@ -5970,21 +6265,31 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
-            side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+            side: BorderSide(
+              color: GinoPopupStyle.casinoGold.withOpacity(0.72),
+            ),
           ),
           shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
           title: const Text(
             'Solde épuisé',
-            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
+            style: TextStyle(
+              color: GinoPopupStyle.textWhite,
+              fontWeight: FontWeight.w300,
+            ),
           ),
           content: const Text(
             'Votre crédit est épuisé. Vous ne pouvez plus continuer en mode Pari. Veuillez contacter le service client ou l’administrateur pour recharger votre compte.',
-            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
+            style: TextStyle(
+              color: GinoPopupStyle.textWhite,
+              fontWeight: FontWeight.w300,
+            ),
           ),
           actions: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(
+                  0.82,
+                ),
                 foregroundColor: GinoPopupStyle.textWhite,
                 shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
               ),
@@ -6007,21 +6312,31 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
-            side: BorderSide(color: GinoPopupStyle.casinoGold.withOpacity(0.72)),
+            side: BorderSide(
+              color: GinoPopupStyle.casinoGold.withOpacity(0.72),
+            ),
           ),
           shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
           title: const Text(
             'Partie terminée',
-            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
+            style: TextStyle(
+              color: GinoPopupStyle.textWhite,
+              fontWeight: FontWeight.w300,
+            ),
           ),
           content: const Text(
             'Votre adversaire n’a plus de crédit disponible. La partie est terminée.',
-            style: TextStyle(color: GinoPopupStyle.textWhite, fontWeight: FontWeight.w300),
+            style: TextStyle(
+              color: GinoPopupStyle.textWhite,
+              fontWeight: FontWeight.w300,
+            ),
           ),
           actions: <Widget>[
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.82),
+                backgroundColor: GinoPopupStyle.premiumNeonGreen.withOpacity(
+                  0.82,
+                ),
                 foregroundColor: GinoPopupStyle.textWhite,
                 shadowColor: GinoPopupStyle.premiumNeonGreen.withOpacity(0.28),
               ),
@@ -6152,15 +6467,20 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     }
     if (action.type == DuelActionType.drawCard) {
       final bool isForcedDraw = action.payload['forcedDraw'] == true;
-      if (isForcedDraw && action.actorId == _controller.localPlayerId && board.pendingDraw > 0) {
+      if (isForcedDraw &&
+          action.actorId == _controller.localPlayerId &&
+          board.pendingDraw > 0) {
         final String reminder = _forcedDrawReminder(board.pendingDraw);
         return (status: reminder, overlay: reminder);
       }
       if (isForcedDraw && action.actorId != _controller.localPlayerId) {
         final String actorName = _displayNameUpper(session, action.actorId);
-        final int forcedTotal = (action.payload['forcedTotal'] as num?)?.toInt() ?? 0;
+        final int forcedTotal =
+            (action.payload['forcedTotal'] as num?)?.toInt() ?? 0;
         if (board.pendingDraw > 0) {
-          final String reminder = _forcedDrawReminder(board.pendingDraw).toLowerCase();
+          final String reminder = _forcedDrawReminder(
+            board.pendingDraw,
+          ).toLowerCase();
           final String text = '$actorName a pioché — $reminder';
           return (status: text, overlay: text);
         }
@@ -6186,8 +6506,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       final String suit = action.payload['chosenSuit'] as String? ?? '';
       return isMe
           ? (
-              status: suit.isEmpty ? 'vous avez commandé' : 'vous avez commandé $suit',
-              overlay: suit.isEmpty ? 'vous avez commandé' : 'vous avez commandé $suit',
+              status: suit.isEmpty
+                  ? 'vous avez commandé'
+                  : 'vous avez commandé $suit',
+              overlay: suit.isEmpty
+                  ? 'vous avez commandé'
+                  : 'vous avez commandé $suit',
             )
           : (
               status: suit.isEmpty
@@ -6202,14 +6526,23 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       final int forcedAmount = board.pendingDraw;
       if (_controller.isMyTurn && !isMe && forcedAmount > 0) {
         final String forcedText = _forcedDrawReminder(forcedAmount);
-        return (status: 'vous devez piocher $forcedAmount cartes', overlay: forcedText);
+        return (
+          status: 'vous devez piocher $forcedAmount cartes',
+          overlay: forcedText,
+        );
       }
     }
     if (isMe) {
-      return (status: 'vous avez joué ${card.label}', overlay: 'vous avez joué ${card.label}');
+      return (
+        status: 'vous avez joué ${card.label}',
+        overlay: 'vous avez joué ${card.label}',
+      );
     }
     final String actorName = _displayNameUpper(session, action.actorId);
-    return (status: '$actorName a joué ${card.label}', overlay: '$actorName a joué ${card.label}');
+    return (
+      status: '$actorName a joué ${card.label}',
+      overlay: '$actorName a joué ${card.label}',
+    );
   }
 
   String _forcedDrawReminder(int remaining) {
@@ -6330,7 +6663,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         final DuelSession? session = _controller.session;
         final DuelBoardState? board = _board;
         if (session == null || board == null) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         final String opponentId = session.players.firstWhere(
           (String id) => id != _controller.localPlayerId,
@@ -6355,15 +6690,21 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                 opponentId: opponentId,
               );
         final DuelStakeOffer stakeOffer = session.stakeOffer;
-        final bool myTurn = _controller.isMyTurn &&
+        final bool myTurn =
+            _controller.isMyTurn &&
             session.status == DuelGameStatus.inProgress &&
             !_requiresStake(session);
-        final ({String status, String overlay}) texts = _personalizedTexts(session, board);
+        final ({String status, String overlay}) texts = _personalizedTexts(
+          session,
+          board,
+        );
         final double topInset = MediaQuery.paddingOf(context).top;
         final Size screenSize = MediaQuery.sizeOf(context);
-        final bool isCompactDuelLayout = screenSize.height <= 860 || screenSize.width <= 393;
+        final bool isCompactDuelLayout =
+            screenSize.height <= 860 || screenSize.width <= 393;
         final bool isDesktopSidePanelLayout =
-            screenSize.width >= ResponsivePlayerSidePanelLayout.desktopBreakpoint;
+            screenSize.width >=
+            ResponsivePlayerSidePanelLayout.desktopBreakpoint;
         final bool premiumDesktopTable = kIsWeb && isDesktopSidePanelLayout;
         if (_lastChatDesktopLayout != isDesktopSidePanelLayout) {
           _lastChatDesktopLayout = isDesktopSidePanelLayout;
@@ -6375,7 +6716,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             _chatPreviewTimer?.cancel();
           }
         }
-        final double sectionGap = premiumDesktopTable ? 3 : (isCompactDuelLayout ? 5 : 8);
+        final double sectionGap = premiumDesktopTable
+            ? 3
+            : (isCompactDuelLayout ? 5 : 8);
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (bool didPop, Object? _) {
@@ -6387,286 +6730,340 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           child: Scaffold(
             backgroundColor: PremiumColors.tableGreenDark,
             body: ResponsivePlayerSidePanelLayout(
-              leadingPanel: premiumDesktopTable ? null : _buildChatPanel(session, sidePanel: true),
+              leadingPanel: premiumDesktopTable
+                  ? null
+                  : _buildChatPanel(session, sidePanel: true),
               contextualGamePanel: _DuelSidePanelGameInfo(
                 modeLabel: _isCreditsMode ? 'PARI' : 'DUEL',
-                activeStakeCredits: _isCreditsMode ? session.activeStakeCredits : null,
-                playerStakeCredits: _isCreditsMode ? session.stakeOffer.amount : null,
+                activeStakeCredits: _isCreditsMode
+                    ? session.activeStakeCredits
+                    : null,
+                playerStakeCredits: _isCreditsMode
+                    ? session.stakeOffer.amount
+                    : null,
               ),
               onOpenLeaderboard: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const LeaderboardPage()),
+                  MaterialPageRoute<void>(
+                    builder: (_) => const LeaderboardPage(),
+                  ),
                 );
               },
               onOpenHistory: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const GameHistoryPage()),
+                  MaterialPageRoute<void>(
+                    builder: (_) => const GameHistoryPage(),
+                  ),
                 );
               },
               child: Stack(
                 children: <Widget>[
                   TableBackground(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    premiumDesktopTable ? 18 : 12,
-                    topInset + (premiumDesktopTable ? 4 : 1),
-                    premiumDesktopTable ? 18 : 12,
-                    premiumDesktopTable ? 8 : (isCompactDuelLayout ? 6 : 10),
-                  ),
-                  child: Column(
-                    children: <Widget>[
-                      SizedBox(
-                        height: isCompactDuelLayout ? 58 : 66,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: <Widget>[
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: PremiumIconButtonShell(
-                                child: IconButton(
-                                  onPressed: () {
-                                    unawaited(_sfx.playClick());
-                                    unawaited(_handleBackNavigation());
-                                  },
-                                  tooltip: 'Retour aux modes',
-                                  icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        premiumDesktopTable ? 18 : 12,
+                        topInset + (premiumDesktopTable ? 4 : 1),
+                        premiumDesktopTable ? 18 : 12,
+                        premiumDesktopTable
+                            ? 8
+                            : (isCompactDuelLayout ? 6 : 10),
+                      ),
+                      child: Column(
+                        children: <Widget>[
+                          SizedBox(
+                            height: isCompactDuelLayout ? 58 : 66,
+                            child: Stack(
+                              alignment: Alignment.center,
                               children: <Widget>[
-                                AppLogo(size: isCompactDuelLayout ? 42 : 48),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _isCreditsMode ? 'PARI' : 'DUEL',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.66),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 10,
-                                    height: 1,
-                                    letterSpacing: 1.6,
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: PremiumIconButtonShell(
+                                    child: IconButton(
+                                      onPressed: () {
+                                        unawaited(_sfx.playClick());
+                                        unawaited(_handleBackNavigation());
+                                      },
+                                      tooltip: 'Retour aux modes',
+                                      icon: const Icon(
+                                        Icons.arrow_back_rounded,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    AppLogo(
+                                      size: isCompactDuelLayout ? 42 : 48,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _isCreditsMode ? 'PARI' : 'DUEL',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.66),
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 10,
+                                        height: 1,
+                                        letterSpacing: 1.6,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Align(
+                                  alignment: Alignment.centerRight,
+                                  child: PlayerSidePanelButton(
+                                    padding: EdgeInsets.zero,
+                                    wrapInAlign: false,
+                                    showCredits: false,
+                                    useMenuIcon: true,
                                   ),
                                 ),
                               ],
                             ),
-                            const Align(
-                              alignment: Alignment.centerRight,
-                              child: PlayerSidePanelButton(
-                                padding: EdgeInsets.zero,
-                                wrapInAlign: false,
-                                showCredits: false,
-                                useMenuIcon: true,
+                          ),
+                          SizedBox(height: isCompactDuelLayout ? 4 : 6),
+                          Expanded(
+                            child: ResizableGameTableLayout(
+                              compact: isCompactDuelLayout,
+                              desktopImmersive: premiumDesktopTable,
+                              sectionGap: sectionGap,
+                              minPlayerHeight: premiumDesktopTable
+                                  ? max(258.0, screenSize.height * 0.34)
+                                  : (isCompactDuelLayout ? 250 : 282),
+                              maxPlayerHeight: premiumDesktopTable
+                                  ? max(430.0, screenSize.height * 0.56)
+                                  : (isCompactDuelLayout ? 390 : 510),
+                              initialPlayerHeightFactor: premiumDesktopTable
+                                  ? 0.46
+                                  : (isCompactDuelLayout ? 0.50 : 0.54),
+                              opponent: _OpponentRow(
+                                name: opponentName,
+                                count: getOpponentCardCount(
+                                  session,
+                                  _controller.localPlayerId,
+                                ),
+                                wins: opponentScore,
+                                losses: myScore,
+                                fallbackInitial: opponentName.isNotEmpty
+                                    ? opponentName[0]
+                                    : '?',
+                                avatarCard: opponentAvatarCard,
+                                compact: isCompactDuelLayout,
+                                connectionStatus:
+                                    _controller.opponentConnectionStatus,
+                                showStats: false,
+                                score: opponentScore,
+                                premiumDesktop: premiumDesktopTable,
+                              ),
+                              center: _CenterArea(
+                                discardPile: board.discardPile,
+                                drawCount: board.drawPile.length,
+                                canDraw:
+                                    myTurn &&
+                                    board.canDraw(_controller.localPlayerId) &&
+                                    !_isDrawingActionBusy,
+                                onDrawTap: _onDrawTap,
+                                overlay: texts.overlay,
+                                requiredSuit: board.requiredSuit,
+                                mustDraw: myTurn && board.pendingDraw > 0,
+                                compact: isCompactDuelLayout,
+                                premiumDesktop: premiumDesktopTable,
+                              ),
+                              player: _MyHandRow(
+                                cards: board.handOf(_controller.localPlayerId),
+                                canInteract:
+                                    myTurn &&
+                                    !(myTurn && board.pendingDraw > 0),
+                                onCardTap: _onCardTap,
+                                playable: (DuelCard card) =>
+                                    myTurn &&
+                                    board.canPlay(
+                                      _controller.localPlayerId,
+                                      card,
+                                    ),
+                                profileName: localName,
+                                wins: myScore,
+                                losses: opponentScore,
+                                credits: null,
+                                fallbackInitial: localName.isNotEmpty
+                                    ? localName[0]
+                                    : '?',
+                                avatarCard: localAvatarCard,
+                                showStats: false,
+                                score: myScore,
+                                cardScale: premiumDesktopTable
+                                    ? (screenSize.width >= 1680 ? 1.14 : 1.08)
+                                    : (isCompactDuelLayout ? 1.0 : 1.06),
+                                minCardsViewportHeight: premiumDesktopTable
+                                    ? max(230.0, screenSize.height * 0.26)
+                                    : (isCompactDuelLayout ? 180 : 210),
+                                premiumDesktop: premiumDesktopTable,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: isCompactDuelLayout ? 4 : 6),
-                      Expanded(
-                        child: ResizableGameTableLayout(
-                          compact: isCompactDuelLayout,
-                          desktopImmersive: premiumDesktopTable,
-                          sectionGap: sectionGap,
-                          minPlayerHeight: premiumDesktopTable
-                              ? max(258.0, screenSize.height * 0.34)
-                              : (isCompactDuelLayout ? 250 : 282),
-                          maxPlayerHeight: premiumDesktopTable
-                              ? max(430.0, screenSize.height * 0.56)
-                              : (isCompactDuelLayout ? 390 : 510),
-                          initialPlayerHeightFactor: premiumDesktopTable
-                              ? 0.46
-                              : (isCompactDuelLayout ? 0.50 : 0.54),
-                          opponent: _OpponentRow(
-                            name: opponentName,
-                            count: getOpponentCardCount(session, _controller.localPlayerId),
-                            wins: opponentScore,
-                            losses: myScore,
-                            fallbackInitial: opponentName.isNotEmpty ? opponentName[0] : '?',
-                            avatarCard: opponentAvatarCard,
-                            compact: isCompactDuelLayout,
-                            connectionStatus: _controller.opponentConnectionStatus,
-                            showStats: false,
-                            score: opponentScore,
-                            premiumDesktop: premiumDesktopTable,
                           ),
-                          center: _CenterArea(
-                            discardPile: board.discardPile,
-                            drawCount: board.drawPile.length,
-                            canDraw: myTurn &&
-                                board.canDraw(_controller.localPlayerId) &&
-                                !_isDrawingActionBusy,
-                            onDrawTap: _onDrawTap,
-                            overlay: texts.overlay,
-                            requiredSuit: board.requiredSuit,
-                            mustDraw: myTurn && board.pendingDraw > 0,
-                            compact: isCompactDuelLayout,
-                            premiumDesktop: premiumDesktopTable,
+                          SizedBox(height: isCompactDuelLayout ? 4 : 6),
+                          _ActionMessageCard(
+                            session: session,
+                            localPlayerId: _controller.localPlayerId,
                           ),
-                          player: _MyHandRow(
-                            cards: board.handOf(_controller.localPlayerId),
-                            canInteract: myTurn && !(myTurn && board.pendingDraw > 0),
-                            onCardTap: _onCardTap,
-                            playable: (DuelCard card) =>
-                                myTurn && board.canPlay(_controller.localPlayerId, card),
-                            profileName: localName,
-                            wins: myScore,
-                            losses: opponentScore,
-                            credits: null,
-                            fallbackInitial: localName.isNotEmpty ? localName[0] : '?',
-                            avatarCard: localAvatarCard,
-                            showStats: false,
-                            score: myScore,
-                            cardScale: premiumDesktopTable
-                                ? (screenSize.width >= 1680 ? 1.14 : 1.08)
-                                : (isCompactDuelLayout ? 1.0 : 1.06),
-                            minCardsViewportHeight: premiumDesktopTable
-                                ? max(230.0, screenSize.height * 0.26)
-                                : (isCompactDuelLayout ? 180 : 210),
-                            premiumDesktop: premiumDesktopTable,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: isCompactDuelLayout ? 4 : 6),
-                      _ActionMessageCard(
-                        session: session,
-                        localPlayerId: _controller.localPlayerId,
-                      ),
-                      if (_isCreditsMode &&
-                          session.status == DuelGameStatus.waiting &&
-                          session.players.length == 2)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: OutlinedButton.icon(
-                            onPressed: _stakeActionBusy ||
-                                    stakeOffer.isPending ||
-                                    !_canSetStake(session)
-                                ? null
-                                : () => _openStakeProposal(session),
-                            icon: const Icon(Icons.local_offer_outlined),
-                            label: const Text('Faire un pari'),
-                          ),
-                        ),
-                      if (session.status == DuelGameStatus.finished &&
-                          session.rematchDecision != DuelRematchDecision.accepted &&
-                          (!_isCreditsMode || _hasEnoughCredit(session, minimum: 1)) &&
-                          (_isLocalLoser(session) ||
-                              (session.rematchRequestBy != null &&
-                                  session.rematchRequestBy != _controller.localPlayerId)))
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: _rematchUiState == DuelRematchUiState.waitingForOpponentResponse
-                                ? Column(
-                                    children: <Widget>[
-                                      GinoDisabledPopupButton(
-                                        label: session.stakeOffer.isPending
-                                            ? 'En attente de l’accord de l’adversaire'
-                                            : 'En attente de l’adversaire',
-                                      ),
-                                      const SizedBox(height: 8),
-                                      GinoPopupButton(
-                                        label: 'Annuler la demande',
-                                        onPressed: () {
-                                          unawaited(_sfx.playClick());
-                                          _onCancelRematchTap();
-                                        },
-                                      ),
-                                    ],
-                                  )
-                                : Column(
-                                    children: <Widget>[
-                                      GinoPopupButton(
-                                        label: session.rematchRequestBy != null &&
-                                                session.rematchRequestBy != _controller.localPlayerId
-                                            ? 'Accepter la revanche'
-                                            : 'Demander revanche',
-                                        onPressed: () {
-                                          unawaited(_sfx.playClick());
-                                          _onReplayTap();
-                                        },
-                                      ),
-                                      if (_rematchUiState == DuelRematchUiState.rematchRejected)
-                                        const Padding(
-                                          padding: EdgeInsets.only(top: 8),
-                                          child: Text(
-                                            'Revanche refusée.',
-                                            style: TextStyle(color: Colors.white70),
+                          if (_isCreditsMode &&
+                              session.status == DuelGameStatus.waiting &&
+                              session.players.length == 2)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: OutlinedButton.icon(
+                                onPressed:
+                                    _stakeActionBusy ||
+                                        stakeOffer.isPending ||
+                                        !_canSetStake(session)
+                                    ? null
+                                    : () => _openStakeProposal(session),
+                                icon: const Icon(Icons.local_offer_outlined),
+                                label: const Text('Faire un pari'),
+                              ),
+                            ),
+                          if (session.status == DuelGameStatus.finished &&
+                              session.rematchDecision !=
+                                  DuelRematchDecision.accepted &&
+                              (!_isCreditsMode ||
+                                  _hasEnoughCredit(session, minimum: 1)) &&
+                              (_isLocalLoser(session) ||
+                                  (session.rematchRequestBy != null &&
+                                      session.rematchRequestBy !=
+                                          _controller.localPlayerId)))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child:
+                                    _rematchUiState ==
+                                        DuelRematchUiState
+                                            .waitingForOpponentResponse
+                                    ? Column(
+                                        children: <Widget>[
+                                          GinoDisabledPopupButton(
+                                            label: session.stakeOffer.isPending
+                                                ? 'En attente de l’accord de l’adversaire'
+                                                : 'En attente de l’adversaire',
                                           ),
-                                        ),
-                                      if (_rematchUiState == DuelRematchUiState.rematchError)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 8),
-                                          child: Text(
-                                            _rematchErrorMessage ??
-                                                'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.',
-                                            style: const TextStyle(color: Colors.white70),
-                                            textAlign: TextAlign.center,
+                                          const SizedBox(height: 8),
+                                          GinoPopupButton(
+                                            label: 'Annuler la demande',
+                                            onPressed: () {
+                                              unawaited(_sfx.playClick());
+                                              _onCancelRematchTap();
+                                            },
                                           ),
-                                        ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              if (premiumDesktopTable)
-                SafeArea(
-                  child: Align(
-                    alignment: Alignment.bottomLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 16, bottom: 14),
-                      child: _DesktopDuelChatDock(
-                        unreadCount: _unreadChatCount,
-                        enabled: session.players.length == 2,
-                        preview: _activeChatPreview,
-                        onPressed: () {
-                          unawaited(_sfx.playClick());
-                          _toggleResponsiveChatPanel(context, session);
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              if (!isDesktopSidePanelLayout)
-                SafeArea(
-                  child: Align(
-                    alignment: Alignment.bottomLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 10, bottom: 10),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: <Widget>[
-                          DuelChatButton(
-                            unreadCount: _unreadChatCount,
-                            enabled: session.players.length == 2,
-                            onPressed: () {
-                              unawaited(_sfx.playClick());
-                              _toggleResponsiveChatPanel(context, session);
-                            },
-                          ),
-                          if (_activeChatPreview != null)
-                            Positioned(
-                              left: 54,
-                              bottom: 0,
-                              child: _DuelChatPreviewBubble(text: _activeChatPreview!),
+                                        ],
+                                      )
+                                    : Column(
+                                        children: <Widget>[
+                                          GinoPopupButton(
+                                            label:
+                                                session.rematchRequestBy !=
+                                                        null &&
+                                                    session.rematchRequestBy !=
+                                                        _controller
+                                                            .localPlayerId
+                                                ? 'Accepter la revanche'
+                                                : 'Demander revanche',
+                                            onPressed: () {
+                                              unawaited(_sfx.playClick());
+                                              _onReplayTap();
+                                            },
+                                          ),
+                                          if (_rematchUiState ==
+                                              DuelRematchUiState
+                                                  .rematchRejected)
+                                            const Padding(
+                                              padding: EdgeInsets.only(top: 8),
+                                              child: Text(
+                                                'Revanche refusée.',
+                                                style: TextStyle(
+                                                  color: Colors.white70,
+                                                ),
+                                              ),
+                                            ),
+                                          if (_rematchUiState ==
+                                              DuelRematchUiState.rematchError)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 8,
+                                              ),
+                                              child: Text(
+                                                _rematchErrorMessage ??
+                                                    'Impossible de lancer la revanche. Vérifie ta connexion et réessaie.',
+                                                style: const TextStyle(
+                                                  color: Colors.white70,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                              ),
                             ),
                         ],
                       ),
                     ),
                   ),
-                ),
-              const SafeArea(
-                child: Align(
-                  alignment: Alignment.bottomRight,
-                  child: GlobalMusicToggleButton(
-                    margin: EdgeInsets.only(right: 10, bottom: 10),
+                  if (premiumDesktopTable)
+                    SafeArea(
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 16, bottom: 14),
+                          child: _DesktopDuelChatDock(
+                            unreadCount: _unreadChatCount,
+                            enabled: session.players.length == 2,
+                            preview: _activeChatPreview,
+                            onPressed: () {
+                              unawaited(_sfx.playClick());
+                              _toggleResponsiveChatPanel(context, session);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (!isDesktopSidePanelLayout)
+                    SafeArea(
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 10, bottom: 10),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: <Widget>[
+                              DuelChatButton(
+                                unreadCount: _unreadChatCount,
+                                enabled: session.players.length == 2,
+                                onPressed: () {
+                                  unawaited(_sfx.playClick());
+                                  _toggleResponsiveChatPanel(context, session);
+                                },
+                              ),
+                              if (_activeChatPreview != null)
+                                Positioned(
+                                  left: 54,
+                                  bottom: 0,
+                                  child: _DuelChatPreviewBubble(
+                                    text: _activeChatPreview!,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SafeArea(
+                    child: Align(
+                      alignment: Alignment.bottomRight,
+                      child: GlobalMusicToggleButton(
+                        margin: EdgeInsets.only(right: 10, bottom: 10),
+                      ),
+                    ),
                   ),
-                ),
-              ),
                 ],
               ),
             ),
@@ -6726,7 +7123,10 @@ class DuelChatButton extends StatelessWidget {
                   },
                   child: Container(
                     constraints: const BoxConstraints(minWidth: 18),
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFF4D5A),
                       borderRadius: BorderRadius.circular(20),
@@ -6750,7 +7150,6 @@ class DuelChatButton extends StatelessWidget {
     );
   }
 }
-
 
 class _DesktopDuelChatDock extends StatelessWidget {
   const _DesktopDuelChatDock({
@@ -6782,7 +7181,9 @@ class _DesktopDuelChatDock extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xE6082117),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFF55F29A).withOpacity(0.34)),
+              border: Border.all(
+                color: const Color(0xFF55F29A).withOpacity(0.34),
+              ),
               boxShadow: <BoxShadow>[
                 BoxShadow(
                   color: Colors.black.withOpacity(0.30),
@@ -6818,7 +7219,10 @@ class _DesktopDuelChatDock extends StatelessWidget {
                         top: -8,
                         child: Container(
                           constraints: const BoxConstraints(minWidth: 17),
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFF4D5A),
                             borderRadius: BorderRadius.circular(999),
@@ -6853,7 +7257,9 @@ class _DesktopDuelChatDock extends StatelessWidget {
                 const SizedBox(width: 8),
                 Icon(
                   Icons.keyboard_arrow_up_rounded,
-                  color: const Color(0xFF55F29A).withOpacity(enabled ? 0.88 : 0.34),
+                  color: const Color(
+                    0xFF55F29A,
+                  ).withOpacity(enabled ? 0.88 : 0.34),
                   size: 18,
                 ),
               ],
@@ -6872,13 +7278,19 @@ class _DuelChatPreviewBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String preview = text.length > 46 ? '${text.substring(0, 43)}…' : text;
+    final String preview = text.length > 46
+        ? '${text.substring(0, 43)}…'
+        : text;
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 180),
       tween: Tween<double>(begin: 0.96, end: 1),
       curve: Curves.easeOutCubic,
       builder: (BuildContext context, double value, Widget? child) {
-        return Transform.scale(scale: value, alignment: Alignment.topRight, child: child);
+        return Transform.scale(
+          scale: value,
+          alignment: Alignment.topRight,
+          child: child,
+        );
       },
       child: Stack(
         clipBehavior: Clip.none,
@@ -6891,7 +7303,11 @@ class _DuelChatPreviewBubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.white24),
               boxShadow: const <BoxShadow>[
-                BoxShadow(color: Color(0x40000000), blurRadius: 8, offset: Offset(0, 3)),
+                BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
               ],
             ),
             child: Text(
@@ -6962,7 +7378,9 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scheduleAutoScroll(animated: false));
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scheduleAutoScroll(animated: false),
+    );
   }
 
   @override
@@ -7018,7 +7436,10 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
       for (final DuelChatMessage message in raw) message.id: message,
     };
     final List<DuelChatMessage> ordered = dedup.values.toList()
-      ..sort((DuelChatMessage a, DuelChatMessage b) => a.createdAt.compareTo(b.createdAt));
+      ..sort(
+        (DuelChatMessage a, DuelChatMessage b) =>
+            a.createdAt.compareTo(b.createdAt),
+      );
     return ordered;
   }
 
@@ -7061,7 +7482,9 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
             borderRadius: widget.sidePanel
                 ? const BorderRadius.horizontal(right: Radius.circular(30))
                 : const BorderRadius.vertical(top: Radius.circular(30)),
-            border: Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.36)),
+            border: Border.all(
+              color: GinoPopupStyle.casinoGold.withOpacity(0.36),
+            ),
             boxShadow: <BoxShadow>[
               BoxShadow(
                 color: Colors.black.withOpacity(0.36),
@@ -7103,7 +7526,10 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
                             ResponsivePlayerSidePanelLayout.desktopBreakpoint)
                       IconButton(
                         onPressed: _closePanel,
-                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white70,
+                        ),
                       ),
                   ],
                 ),
@@ -7119,30 +7545,32 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
               Expanded(
                 child: ValueListenableBuilder<List<DuelChatMessage>>(
                   valueListenable: widget.messagesListenable,
-                  builder: (
-                    BuildContext context,
-                    List<DuelChatMessage> rawMessages,
-                    Widget? _,
-                  ) {
-                    final List<DuelChatMessage> messages = _normalizeMessages(rawMessages);
-                    final int currentCount = messages.length;
-                    if (currentCount > _lastRenderedMessageCount) {
-                      _scheduleAutoScroll(animated: true);
-                    }
-                    _lastRenderedMessageCount = currentCount;
-                    return ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                      itemCount: messages.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        final DuelChatMessage message = messages[index];
-                        return ChatMessageBubble(
-                          message: message,
-                          isMine: message.senderId == widget.localPlayerId,
+                  builder:
+                      (
+                        BuildContext context,
+                        List<DuelChatMessage> rawMessages,
+                        Widget? _,
+                      ) {
+                        final List<DuelChatMessage> messages =
+                            _normalizeMessages(rawMessages);
+                        final int currentCount = messages.length;
+                        if (currentCount > _lastRenderedMessageCount) {
+                          _scheduleAutoScroll(animated: true);
+                        }
+                        _lastRenderedMessageCount = currentCount;
+                        return ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                          itemCount: messages.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final DuelChatMessage message = messages[index];
+                            return ChatMessageBubble(
+                              message: message,
+                              isMine: message.senderId == widget.localPlayerId,
+                            );
+                          },
                         );
                       },
-                    );
-                  },
                 ),
               ),
               QuickMessageBar(
@@ -7182,7 +7610,9 @@ class _DuelChatPanelState extends State<DuelChatPanel> {
                     ),
                     const SizedBox(width: 8),
                     FilledButton(
-                      onPressed: widget.chatEnabled && !_sending ? () => _sendText() : null,
+                      onPressed: widget.chatEnabled && !_sending
+                          ? () => _sendText()
+                          : null,
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF2BC991),
                         foregroundColor: const Color(0xFF093024),
@@ -7216,10 +7646,12 @@ class ChatMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final CrossAxisAlignment alignment =
-        isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-    final Color bubbleColor =
-        isMine ? const Color(0xFFBDF2D5) : Colors.white.withOpacity(0.12);
+    final CrossAxisAlignment alignment = isMine
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start;
+    final Color bubbleColor = isMine
+        ? const Color(0xFFBDF2D5)
+        : Colors.white.withOpacity(0.12);
     final Color textColor = isMine ? const Color(0xFF083729) : Colors.white;
     final String minute = message.createdAt.minute.toString().padLeft(2, '0');
     final String hour = message.createdAt.hour.toString().padLeft(2, '0');
@@ -7251,11 +7683,7 @@ class ChatMessageBubble extends StatelessWidget {
                 ),
               Text(
                 message.text,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 14,
-                  height: 1.25,
-                ),
+                style: TextStyle(color: textColor, fontSize: 14, height: 1.25),
               ),
             ],
           ),
@@ -7297,7 +7725,9 @@ class QuickMessageBar extends StatelessWidget {
             onPressed: enabled ? () => onSelect(value) : null,
             backgroundColor: Colors.white.withOpacity(0.08),
             side: BorderSide(color: Colors.white.withOpacity(0.12)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             label: Text(
               value,
               style: const TextStyle(color: Colors.white, fontSize: 12),
@@ -7337,13 +7767,17 @@ class DuelCard {
     return suit == other.suit || rank == other.rank;
   }
 
-  String get label => isJoker ? 'Joker ${isRed ? 'rouge' : 'noir'}' : '$rank$suit';
+  String get label =>
+      isJoker ? 'Joker ${isRed ? 'rouge' : 'noir'}' : '$rank$suit';
 
   static DuelCard fromId(String value) {
     if (value.startsWith('JK')) {
       return DuelCard(suit: value.substring(2), rank: 'JK');
     }
-    return DuelCard(suit: value.substring(value.length - 1), rank: value.substring(0, value.length - 1));
+    return DuelCard(
+      suit: value.substring(value.length - 1),
+      rank: value.substring(0, value.length - 1),
+    );
   }
 
   static DuelCard fromMap(Map<String, dynamic> json) {
@@ -7435,8 +7869,8 @@ class DuelBoardState {
     final DuelCard top = session.topDiscard != null
         ? DuelCard.fromId(session.topDiscard!)
         : (discardCards.isNotEmpty
-            ? discardCards.last
-            : const DuelCard(suit: '♥', rank: 'A'));
+              ? discardCards.last
+              : const DuelCard(suit: '♥', rank: 'A'));
     return DuelBoardState._(
       gameId: session.gameId,
       players: session.players,
@@ -7468,7 +7902,9 @@ class DuelBoardState {
         ? const <String>[]
         : handOf(p2).map((DuelCard c) => c.id).toList();
     final List<String> drawIds = drawPile.map((DuelCard c) => c.id).toList();
-    final List<String> discardIds = discardPile.map((DuelCard c) => c.id).toList();
+    final List<String> discardIds = discardPile
+        .map((DuelCard c) => c.id)
+        .toList();
     final DuelCard? top = discardIds.isEmpty ? null : discardPile.last;
     return <String, dynamic>{
       'player1Hand': p1Hand,
@@ -7630,10 +8066,14 @@ class DuelBoardState {
     final bool forced = pendingDraw > 0;
     final int count = 1;
     final int remainingAfterDraw = forced ? max(0, pendingDraw - count) : 0;
-    final int forcedTotal = forced ? (forcedDrawInitial > 0 ? forcedDrawInitial : pendingDraw) : 0;
+    final int forcedTotal = forced
+        ? (forcedDrawInitial > 0 ? forcedDrawInitial : pendingDraw)
+        : 0;
     return DuelMoveResult(
       accepted: true,
-      nextTurn: forced && remainingAfterDraw > 0 ? actorId : _nextPlayer(actorId),
+      nextTurn: forced && remainingAfterDraw > 0
+          ? actorId
+          : _nextPlayer(actorId),
       payload: <String, dynamic>{
         'count': count,
         if (forced) 'forcedDraw': true,
@@ -7687,7 +8127,9 @@ class DuelBoardState {
       }
       newAceRequired = false;
       if (newRequiredColorAfterJoker != null) {
-        debugPrint('[JokerRule] required color active=$newRequiredColorAfterJoker');
+        debugPrint(
+          '[JokerRule] required color active=$newRequiredColorAfterJoker',
+        );
       }
       newOverlay = '${action.actorId} pioche';
       newStatus = newPendingDraw > 0
@@ -7699,7 +8141,9 @@ class DuelBoardState {
       final DuelCard card = DuelCard.fromId(action.payload['cardId'] as String);
       final List<DuelCard>? actorCards = newHands[action.actorId];
       if (actorCards != null) {
-        final int cardIndex = actorCards.indexWhere((DuelCard c) => c.id == card.id);
+        final int cardIndex = actorCards.indexWhere(
+          (DuelCard c) => c.id == card.id,
+        );
         if (cardIndex >= 0) {
           actorCards.removeAt(cardIndex);
         }
@@ -7728,7 +8172,9 @@ class DuelBoardState {
       } else if (card.isJoker) {
         newRequiredColorAfterJoker = card.color;
         debugPrint('[JokerRule] joker played color=${card.color}');
-        debugPrint('[JokerRule] required color active=$newRequiredColorAfterJoker');
+        debugPrint(
+          '[JokerRule] required color active=$newRequiredColorAfterJoker',
+        );
         newPendingDraw += 8;
         newForcedDrawInitial = newPendingDraw;
         newOverlay = '+8';
@@ -7748,7 +8194,8 @@ class DuelBoardState {
     }
 
     if (action.type == DuelActionType.resetRound) {
-      final int nextRound = (action.payload['round'] as num?)?.toInt() ?? (round + 1);
+      final int nextRound =
+          (action.payload['round'] as num?)?.toInt() ?? (round + 1);
       return DuelBoardState.initial(
         gameId: gameId,
         players: players,
@@ -7807,11 +8254,7 @@ class DuelBoardState {
     return players[next];
   }
 
-  void _rebuildDrawPile(
-    List<DuelCard> pile,
-    List<DuelCard> discard,
-    int seed,
-  ) {
+  void _rebuildDrawPile(List<DuelCard> pile, List<DuelCard> discard, int seed) {
     if (discard.length <= 1) {
       return;
     }
@@ -7897,7 +8340,9 @@ DuelGameStateValidationResult validateGameState(DuelSession session) {
     errors.add('player2CardCount incohérent');
     patch['player2CardCount'] = computedP2;
   }
-  final String? expectedTop = session.discardPile.isEmpty ? null : session.discardPile.last;
+  final String? expectedTop = session.discardPile.isEmpty
+      ? null
+      : session.discardPile.last;
   if (session.topDiscard != expectedTop) {
     errors.add('topDiscard incohérent avec discardPile');
     patch['topDiscard'] = expectedTop;
@@ -7960,7 +8405,8 @@ class _DuelSidePanelGameInfo extends StatelessWidget {
   final int? activeStakeCredits;
   final int? playerStakeCredits;
 
-  bool get _hasStakeInfo => activeStakeCredits != null || playerStakeCredits != null;
+  bool get _hasStakeInfo =>
+      activeStakeCredits != null || playerStakeCredits != null;
 
   @override
   Widget build(BuildContext context) {
@@ -7989,7 +8435,9 @@ class _DuelSidePanelGameInfo extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: const Color(0xFFE8C65D).withOpacity(0.16),
-                  border: Border.all(color: const Color(0xFFE8C65D).withOpacity(0.62)),
+                  border: Border.all(
+                    color: const Color(0xFFE8C65D).withOpacity(0.62),
+                  ),
                 ),
                 child: const Icon(
                   Icons.query_stats_rounded,
@@ -8112,7 +8560,8 @@ class _DuelSideInfoTile extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (subtitle != null && subtitle!.trim().isNotEmpty) ...<Widget>[
+                if (subtitle != null &&
+                    subtitle!.trim().isNotEmpty) ...<Widget>[
                   const SizedBox(height: 1),
                   Text(
                     subtitle!,
@@ -8146,10 +8595,7 @@ class _DuelSideInfoTile extends StatelessWidget {
 }
 
 class _DuelRoundBanner extends StatelessWidget {
-  const _DuelRoundBanner({
-    required this.round,
-    this.compact = false,
-  });
+  const _DuelRoundBanner({required this.round, this.compact = false});
 
   final int round;
   final bool compact;
@@ -8226,7 +8672,9 @@ class _OpponentRowState extends State<_OpponentRow> {
   @override
   Widget build(BuildContext context) {
     return PremiumGamePanel(
-      padding: EdgeInsets.all(widget.premiumDesktop ? 11 : (widget.compact ? 10 : 12)),
+      padding: EdgeInsets.all(
+        widget.premiumDesktop ? 11 : (widget.compact ? 10 : 12),
+      ),
       radius: widget.premiumDesktop ? 20 : 18,
       child: Stack(
         clipBehavior: Clip.none,
@@ -8250,25 +8698,36 @@ class _OpponentRowState extends State<_OpponentRow> {
               Expanded(
                 child: LayoutBuilder(
                   builder: (BuildContext context, BoxConstraints constraints) {
-                    final double cardWidth = widget.premiumDesktop ? 30 : (widget.compact ? 24 : 28);
-                    final double cardHeight = widget.premiumDesktop ? 43 : (widget.compact ? 34 : 40);
+                    final double cardWidth = widget.premiumDesktop
+                        ? 30
+                        : (widget.compact ? 24 : 28);
+                    final double cardHeight = widget.premiumDesktop
+                        ? 43
+                        : (widget.compact ? 34 : 40);
                     final double gap = widget.premiumDesktop
-                        ? (constraints.maxWidth / 52).clamp(8.0, 18.0).toDouble()
+                        ? (constraints.maxWidth / 52)
+                              .clamp(8.0, 18.0)
+                              .toDouble()
                         : 8;
-                    final double availableWidth = max(0, constraints.maxWidth - 4);
+                    final double availableWidth = max(
+                      0,
+                      constraints.maxWidth - 4,
+                    );
                     final int fitCount = widget.count <= 0
                         ? 1
                         : ((availableWidth + gap) / (cardWidth + gap))
-                            .floor()
-                            .clamp(1, widget.count)
-                            .toInt();
+                              .floor()
+                              .clamp(1, widget.count)
+                              .toInt();
                     final double wrapWidth = min(
                       availableWidth,
                       (fitCount * cardWidth) + (max(0, fitCount - 1) * gap),
                     );
                     return SingleChildScrollView(
                       child: ConstrainedBox(
-                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
                         child: Align(
                           alignment: Alignment.center,
                           child: SizedBox(
@@ -8278,24 +8737,29 @@ class _OpponentRowState extends State<_OpponentRow> {
                               runAlignment: WrapAlignment.center,
                               spacing: gap,
                               runSpacing: 6,
-                              children: List<Widget>.generate(
-                                widget.count,
-                                (int index) {
-                                  final bool isNewCard =
-                                      _animatedStartIndex >= 0 && index >= _animatedStartIndex;
-                                  final int staggerStep =
-                                      isNewCard ? index - _animatedStartIndex : 0;
-                                  return BouncyCardEntry(
-                                    key: ValueKey<String>('duel-opponent-$index'),
-                                    animate: isNewCard,
-                                    delay: Duration(milliseconds: isNewCard ? staggerStep * 34 : 0),
-                                    child: _DuelCardBack(
-                                      width: cardWidth,
-                                      height: cardHeight,
-                                    ),
-                                  );
-                                },
-                              ),
+                              children: List<Widget>.generate(widget.count, (
+                                int index,
+                              ) {
+                                final bool isNewCard =
+                                    _animatedStartIndex >= 0 &&
+                                    index >= _animatedStartIndex;
+                                final int staggerStep = isNewCard
+                                    ? index - _animatedStartIndex
+                                    : 0;
+                                return BouncyCardEntry(
+                                  key: ValueKey<String>('duel-opponent-$index'),
+                                  animate: isNewCard,
+                                  delay: Duration(
+                                    milliseconds: isNewCard
+                                        ? staggerStep * 34
+                                        : 0,
+                                  ),
+                                  child: _DuelCardBack(
+                                    width: cardWidth,
+                                    height: cardHeight,
+                                  ),
+                                );
+                              }),
                             ),
                           ),
                         ),
@@ -8350,9 +8814,14 @@ class _OpponentPresenceBadgeState extends State<_OpponentPresenceBadge>
   }
 
   void _startOrStopPulse() {
-    if (widget.status == OpponentConnectionStatus.unstable ||
-        widget.status == OpponentConnectionStatus.disconnected) {
-      _pulse.repeat(reverse: true);
+    final bool shouldPulse =
+        kIsWeb &&
+        (widget.status == OpponentConnectionStatus.unstable ||
+            widget.status == OpponentConnectionStatus.disconnected);
+    if (shouldPulse) {
+      if (!_pulse.isAnimating) {
+        _pulse.repeat(reverse: true);
+      }
     } else {
       _pulse.stop();
       _pulse.value = 1;
@@ -8367,71 +8836,81 @@ class _OpponentPresenceBadgeState extends State<_OpponentPresenceBadge>
 
   @override
   Widget build(BuildContext context) {
-    final (Color dotColor, String label, IconData? icon) = switch (widget.status) {
+    final (
+      Color dotColor,
+      String label,
+      IconData? icon,
+    ) = switch (widget.status) {
       OpponentConnectionStatus.online => (
-          const Color(0xFF12C76A),
-          'En ligne',
-          null,
-        ),
+        const Color(0xFF12C76A),
+        'En ligne',
+        null,
+      ),
       OpponentConnectionStatus.unstable => (
-          const Color(0xFFFFA726),
-          'Connexion instable',
-          Icons.wifi_off_rounded,
-        ),
+        const Color(0xFFFFA726),
+        'Connexion instable',
+        Icons.wifi_off_rounded,
+      ),
       OpponentConnectionStatus.away => (
-          const Color(0xFF90A4AE),
-          'Sur une autre page',
-          Icons.phone_android_rounded,
-        ),
+        const Color(0xFF90A4AE),
+        'Sur une autre page',
+        Icons.phone_android_rounded,
+      ),
       OpponentConnectionStatus.disconnected => (
-          const Color(0xFFEF5350),
-          'Déconnecté',
-          Icons.signal_wifi_off_rounded,
-        ),
+        const Color(0xFFEF5350),
+        'Déconnecté',
+        Icons.signal_wifi_off_rounded,
+      ),
     };
+
+    final Widget badge = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: dotColor,
+            shape: BoxShape.circle,
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: dotColor.withOpacity(0.55),
+                blurRadius: 4,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 5),
+        if (icon != null) ...<Widget>[
+          Icon(icon, size: 11, color: dotColor),
+          const SizedBox(width: 3),
+        ],
+        Text(
+          label,
+          style: TextStyle(
+            color: dotColor,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+    final bool shouldAnimate =
+        kIsWeb &&
+        (widget.status == OpponentConnectionStatus.unstable ||
+            widget.status == OpponentConnectionStatus.disconnected);
+    if (!shouldAnimate) {
+      return badge;
+    }
 
     return AnimatedBuilder(
       animation: _pulse,
+      child: badge,
       builder: (BuildContext context, Widget? child) {
-        final double opacity = widget.status == OpponentConnectionStatus.unstable ||
-                widget.status == OpponentConnectionStatus.disconnected
-            ? 0.55 + _pulse.value * 0.45
-            : 1.0;
+        final double opacity = 0.55 + _pulse.value * 0.45;
         return Opacity(opacity: opacity, child: child);
       },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: dotColor,
-              shape: BoxShape.circle,
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: dotColor.withOpacity(0.55),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 5),
-          if (icon != null) ...<Widget>[
-            Icon(icon, size: 11, color: dotColor),
-            const SizedBox(width: 3),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: dotColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -8553,13 +9032,12 @@ class _AvatarCardCircle extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: PremiumColors.accent.withOpacity(0.68), width: 1.2),
+        border: Border.all(
+          color: PremiumColors.accent.withOpacity(0.68),
+          width: 1.2,
+        ),
         boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Colors.black38,
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black38, blurRadius: 6, offset: Offset(0, 2)),
         ],
       ),
       child: ClipOval(
@@ -8728,7 +9206,6 @@ class _CenterArea extends StatelessWidget {
   }
 }
 
-
 class _FloatingCenterStage extends StatefulWidget {
   const _FloatingCenterStage({required this.enabled, required this.child});
 
@@ -8750,7 +9227,7 @@ class _FloatingCenterStageState extends State<_FloatingCenterStage>
       vsync: this,
       duration: const Duration(milliseconds: 3200),
     );
-    if (widget.enabled) {
+    if (kIsWeb && widget.enabled) {
       _controller.repeat(reverse: true);
     }
   }
@@ -8758,9 +9235,9 @@ class _FloatingCenterStageState extends State<_FloatingCenterStage>
   @override
   void didUpdateWidget(covariant _FloatingCenterStage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.enabled && !_controller.isAnimating) {
+    if (kIsWeb && widget.enabled && !_controller.isAnimating) {
       _controller.repeat(reverse: true);
-    } else if (!widget.enabled && _controller.isAnimating) {
+    } else if ((!kIsWeb || !widget.enabled) && _controller.isAnimating) {
       _controller.stop();
       _controller.value = 0;
     }
@@ -8774,7 +9251,7 @@ class _FloatingCenterStageState extends State<_FloatingCenterStage>
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.enabled) {
+    if (!kIsWeb || !widget.enabled) {
       return widget.child;
     }
     return AnimatedBuilder(
@@ -8792,10 +9269,7 @@ class _FloatingCenterStageState extends State<_FloatingCenterStage>
 }
 
 class _DiscardPileStackView extends StatelessWidget {
-  const _DiscardPileStackView({
-    required this.cards,
-    required this.compact,
-  });
+  const _DiscardPileStackView({required this.cards, required this.compact});
 
   final List<DuelCard> cards;
   final bool compact;
@@ -8807,8 +9281,8 @@ class _DiscardPileStackView extends StatelessWidget {
     final List<DuelCard> underCards = cardCount <= 1
         ? const <DuelCard>[]
         : cardCount == 2
-            ? <DuelCard>[cards[cardCount - 2]]
-            : <DuelCard>[cards[cardCount - 3], cards[cardCount - 2]];
+        ? <DuelCard>[cards[cardCount - 2]]
+        : <DuelCard>[cards[cardCount - 3], cards[cardCount - 2]];
 
     return SizedBox(
       width: compact ? 82 : 86,
@@ -8865,7 +9339,6 @@ class _DiscardPileStackView extends StatelessWidget {
   }
 }
 
-
 class _MyHandRow extends StatefulWidget {
   const _MyHandRow({
     required this.cards,
@@ -8920,13 +9393,15 @@ class _MyHandRowState extends State<_MyHandRow> {
   @override
   void didUpdateWidget(covariant _MyHandRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final List<String> currentIds = widget.cards.map((DuelCard c) => c.id).toList();
+    final List<String> currentIds = widget.cards
+        .map((DuelCard c) => c.id)
+        .toList();
     final Set<String> previousIds = _previousCardIds.toSet();
-    _newCardIds = currentIds.where((String id) => !previousIds.contains(id)).toSet();
+    _newCardIds = currentIds
+        .where((String id) => !previousIds.contains(id))
+        .toSet();
     _previousCardIds = currentIds;
   }
-
-
 
   int _responsiveCardsPerRow({
     required double availableWidth,
@@ -8947,8 +9422,8 @@ class _MyHandRowState extends State<_MyHandRow> {
     required double gap,
     required double maxWidth,
   }) {
-    final double desiredWidth = (cardsPerRow * cardWidth) +
-        (max(0, cardsPerRow - 1) * gap);
+    final double desiredWidth =
+        (cardsPerRow * cardWidth) + (max(0, cardsPerRow - 1) * gap);
     return min(maxWidth, desiredWidth);
   }
 
@@ -8958,150 +9433,186 @@ class _MyHandRowState extends State<_MyHandRow> {
       padding: EdgeInsets.all(widget.premiumDesktop ? 12 : 10),
       radius: widget.premiumDesktop ? 20 : 18,
       child: Stack(
-          children: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    _ProfileBlock(
-                      name: widget.profileName,
-                      wins: widget.wins,
-                      losses: widget.losses,
-                      credits: widget.credits,
-                      fallbackInitial: widget.fallbackInitial,
-                      compact: true,
-                      avatarCard: widget.avatarCard,
-                      showStats: widget.showStats,
-                      score: widget.score,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: _TurnStateBadge(
-                          text: widget.canInteract ? 'À votre tour' : 'En attente',
-                          blink: widget.canInteract,
-                        ),
+        children: <Widget>[
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  _ProfileBlock(
+                    name: widget.profileName,
+                    wins: widget.wins,
+                    losses: widget.losses,
+                    credits: widget.credits,
+                    fallbackInitial: widget.fallbackInitial,
+                    compact: true,
+                    avatarCard: widget.avatarCard,
+                    showStats: widget.showStats,
+                    score: widget.score,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _TurnStateBadge(
+                        text: widget.canInteract
+                            ? 'À votre tour'
+                            : 'En attente',
+                        blink: widget.canInteract,
                       ),
                     ),
-                  ],
-                ),
-                const PremiumDividerLine(verticalPadding: 8),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (BuildContext context, BoxConstraints constraints) {
-                      final List<DuelCard> cards = widget.cards;
-                      if (cards.isEmpty) {
-                        return const SizedBox.expand();
-                      }
-                      int newCardOrder = 0;
+                  ),
+                ],
+              ),
+              const PremiumDividerLine(verticalPadding: 8),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    final List<DuelCard> cards = widget.cards;
+                    if (cards.isEmpty) {
+                      return const SizedBox.expand();
+                    }
+                    int newCardOrder = 0;
 
-                      final double availableWidth = max(0, constraints.maxWidth - 8);
-                      final double cardWidth = _FaceCard.width * widget.cardScale;
-                      final double adaptiveGap = widget.premiumDesktop
-                          ? (constraints.maxWidth / 82).clamp(10.0, 24.0).toDouble()
-                          : _MyHandRow._cardGap;
-                      final int cardsPerRow = _responsiveCardsPerRow(
-                        availableWidth: availableWidth,
-                        cardWidth: cardWidth,
-                        gap: adaptiveGap,
-                        cardCount: cards.length,
-                      );
-                      final double wrapWidth = _responsiveCardsWrapWidth(
-                        cardsPerRow: cardsPerRow,
-                        cardWidth: cardWidth,
-                        gap: adaptiveGap,
-                        maxWidth: availableWidth,
-                      );
-                      final double cardsMinHeight = max(
-                        widget.minCardsViewportHeight,
-                        _FaceCard.height * widget.cardScale + 8,
-                      );
+                    final double availableWidth = max(
+                      0,
+                      constraints.maxWidth - 8,
+                    );
+                    final double cardWidth = _FaceCard.width * widget.cardScale;
+                    final double adaptiveGap = widget.premiumDesktop
+                        ? (constraints.maxWidth / 82)
+                              .clamp(10.0, 24.0)
+                              .toDouble()
+                        : _MyHandRow._cardGap;
+                    final int cardsPerRow = _responsiveCardsPerRow(
+                      availableWidth: availableWidth,
+                      cardWidth: cardWidth,
+                      gap: adaptiveGap,
+                      cardCount: cards.length,
+                    );
+                    final double wrapWidth = _responsiveCardsWrapWidth(
+                      cardsPerRow: cardsPerRow,
+                      cardWidth: cardWidth,
+                      gap: adaptiveGap,
+                      maxWidth: availableWidth,
+                    );
+                    final double cardsMinHeight = max(
+                      widget.minCardsViewportHeight,
+                      _FaceCard.height * widget.cardScale + 8,
+                    );
 
-                      return Stack(
-                        clipBehavior: Clip.none,
-                        children: <Widget>[
-                          SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            padding: EdgeInsets.fromLTRB(
-                              4,
-                              widget.premiumDesktop ? 8 : 14,
-                              4,
-                              widget.premiumDesktop ? 8 : 4,
-                            ),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minHeight: max(cardsMinHeight, constraints.maxHeight - 18),
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: <Widget>[
+                        SingleChildScrollView(
+                          scrollDirection: Axis.vertical,
+                          padding: EdgeInsets.fromLTRB(
+                            4,
+                            widget.premiumDesktop ? 8 : 14,
+                            4,
+                            widget.premiumDesktop ? 8 : 4,
+                          ),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: max(
+                                cardsMinHeight,
+                                constraints.maxHeight - 18,
                               ),
-                              child: Align(
+                            ),
+                            child: Align(
+                              alignment: Alignment.center,
+                              child: AnimatedSize(
+                                duration: _MyHandRow._resizeAnimationDuration,
+                                curve: Curves.easeOutCubic,
                                 alignment: Alignment.center,
-                                child: AnimatedSize(
-                                  duration: _MyHandRow._resizeAnimationDuration,
-                                  curve: Curves.easeOutCubic,
-                                  alignment: Alignment.center,
-                                  child: SizedBox(
-                                    width: wrapWidth,
-                                    child: Wrap(
-                                      alignment: WrapAlignment.center,
-                                      runAlignment: WrapAlignment.center,
-                                      spacing: adaptiveGap,
-                                      runSpacing: adaptiveGap,
-                                      children: List<Widget>.generate(cards.length, (int index) {
-                                      final DuelCard card = cards[index];
-                                      final bool isPlayable = widget.playable(card);
-                                      final bool isNew = _newCardIds.contains(card.id);
-                                      final int staggerIndex = isNew ? newCardOrder++ : 0;
-                                      return SizedBox(
-                                        width: cardWidth,
-                                        child: BouncyCardEntry(
-                                          key: ValueKey<String>('duel-my-${card.id}-$index'),
-                                          animate: isNew,
-                                          delay: Duration(milliseconds: isNew ? staggerIndex * 34 : 0),
-                                          child: GestureDetector(
-                                            behavior: HitTestBehavior.opaque,
-                                            onTap: widget.canInteract && isPlayable
-                                                ? () => widget.onCardTap(card)
-                                                : null,
-                                            child: Opacity(
-                                              opacity: widget.canInteract && !isPlayable ? 0.45 : 1,
-                                              child: widget.cardScale == 1
-                                                  ? _FaceCard(card: card)
-                                                  : SizedBox(
-                                                      width: cardWidth,
-                                                      height: _FaceCard.height * widget.cardScale,
-                                                      child: FittedBox(
-                                                        fit: BoxFit.contain,
-                                                        alignment: Alignment.center,
-                                                        child: _FaceCard(card: card),
+                                child: SizedBox(
+                                  width: wrapWidth,
+                                  child: Wrap(
+                                    alignment: WrapAlignment.center,
+                                    runAlignment: WrapAlignment.center,
+                                    spacing: adaptiveGap,
+                                    runSpacing: adaptiveGap,
+                                    children: List<Widget>.generate(
+                                      cards.length,
+                                      (int index) {
+                                        final DuelCard card = cards[index];
+                                        final bool isPlayable = widget.playable(
+                                          card,
+                                        );
+                                        final bool isNew = _newCardIds.contains(
+                                          card.id,
+                                        );
+                                        final int staggerIndex = isNew
+                                            ? newCardOrder++
+                                            : 0;
+                                        return SizedBox(
+                                          width: cardWidth,
+                                          child: BouncyCardEntry(
+                                            key: ValueKey<String>(
+                                              'duel-my-${card.id}-$index',
+                                            ),
+                                            animate: isNew,
+                                            delay: Duration(
+                                              milliseconds: isNew
+                                                  ? staggerIndex * 34
+                                                  : 0,
+                                            ),
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap:
+                                                  widget.canInteract &&
+                                                      isPlayable
+                                                  ? () => widget.onCardTap(card)
+                                                  : null,
+                                              child: Opacity(
+                                                opacity:
+                                                    widget.canInteract &&
+                                                        !isPlayable
+                                                    ? 0.45
+                                                    : 1,
+                                                child: widget.cardScale == 1
+                                                    ? _FaceCard(card: card)
+                                                    : SizedBox(
+                                                        width: cardWidth,
+                                                        height:
+                                                            _FaceCard.height *
+                                                            widget.cardScale,
+                                                        child: FittedBox(
+                                                          fit: BoxFit.contain,
+                                                          alignment:
+                                                              Alignment.center,
+                                                          child: _FaceCard(
+                                                            card: card,
+                                                          ),
+                                                        ),
                                                       ),
-                                                    ),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      );
-                                      }),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                          Positioned(
-                            top: 0,
-                            right: 6,
-                            child: _DrawCountBadge(count: widget.cards.length),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          right: 6,
+                          child: _DrawCountBadge(count: widget.cards.length),
+                        ),
+                      ],
+                    );
+                  },
                 ),
-              ],
-            ),
-          ],
-        ),
-      );
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -9121,7 +9632,8 @@ class _ActionMessageCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final Map<String, dynamic>? rawCard = (action.payload['card'] as Map?)?.cast<String, dynamic>();
+    final Map<String, dynamic>? rawCard = (action.payload['card'] as Map?)
+        ?.cast<String, dynamic>();
     if (rawCard == null) {
       return const SizedBox.shrink();
     }
@@ -9150,7 +9662,10 @@ class _ActionMessageCard extends StatelessWidget {
                   if (isMe)
                     const TextSpan(text: 'Vous avez joué')
                   else ...<TextSpan>[
-                    TextSpan(text: actorName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    TextSpan(
+                      text: actorName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     const TextSpan(text: ' a joué'),
                   ],
                 ],
@@ -9277,7 +9792,10 @@ class _DrawCountBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFD50000),
         shape: BoxShape.circle,
-        border: Border.all(color: PremiumColors.accent.withOpacity(0.85), width: 1.4),
+        border: Border.all(
+          color: PremiumColors.accent.withOpacity(0.85),
+          width: 1.4,
+        ),
         boxShadow: const <BoxShadow>[
           BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
         ],
@@ -9326,8 +9844,10 @@ class _BlinkingDrawCardState extends State<_BlinkingDrawCard>
   }
 
   void _syncBlink() {
-    if (widget.enabled) {
-      _controller.repeat(reverse: true);
+    if (kIsWeb && widget.enabled) {
+      if (!_controller.isAnimating) {
+        _controller.repeat(reverse: true);
+      }
       return;
     }
     _controller.stop();
@@ -9343,6 +9863,9 @@ class _BlinkingDrawCardState extends State<_BlinkingDrawCard>
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) {
+      return widget.child;
+    }
+    if (!kIsWeb) {
       return widget.child;
     }
     return FadeTransition(
@@ -9380,7 +9903,11 @@ class _FaceCard extends StatelessWidget {
               ? Center(
                   child: Text(
                     'JOKER',
-                    style: TextStyle(color: ink, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                    style: TextStyle(
+                      color: ink,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 )
               : Stack(
@@ -9391,7 +9918,15 @@ class _FaceCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(rank, style: TextStyle(color: ink, fontWeight: FontWeight.w700, fontSize: 16, height: 1)),
+                          Text(
+                            rank,
+                            style: TextStyle(
+                              color: ink,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              height: 1,
+                            ),
+                          ),
                           _SuitGlyph(suit: suit, color: ink, size: 14),
                         ],
                       ),
@@ -9466,7 +10001,6 @@ class _SuitGlyph extends StatelessWidget {
   }
 }
 
-
 class _SuitOverlayText extends StatelessWidget {
   const _SuitOverlayText({required this.message});
 
@@ -9481,15 +10015,14 @@ class _SuitOverlayText extends StatelessWidget {
     if (!const <String>{'♣', '♦', '♥', '♠'}.contains(lastChar)) {
       return Text(message, style: const TextStyle(color: Colors.white));
     }
-    final String text = message.substring(0, message.length - lastChar.length).trimRight();
+    final String text = message
+        .substring(0, message.length - lastChar.length)
+        .trimRight();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Flexible(
-          child: Text(
-            text,
-            style: const TextStyle(color: Colors.white),
-          ),
+          child: Text(text, style: const TextStyle(color: Colors.white)),
         ),
         const SizedBox(width: 6),
         Text(
