@@ -4058,20 +4058,34 @@ class _DuelLobbyPremiumButtonState extends State<_DuelLobbyPremiumButton> {
   bool _pressed = false;
   bool _hovered = false;
 
+  void _safeSetState(VoidCallback updater) {
+    if (!mounted) return;
+    final SchedulerPhase phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(updater);
+      });
+      return;
+    }
+    setState(updater);
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool enabled = widget.onPressed != null;
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
+      onEnter: (_) => _safeSetState(() => _hovered = true),
+      onExit: (_) => _safeSetState(() {
         _hovered = false;
         _pressed = false;
       }),
       child: Listener(
-        onPointerDown: enabled ? (_) => setState(() => _pressed = true) : null,
-        onPointerUp: enabled ? (_) => setState(() => _pressed = false) : null,
+        onPointerDown: enabled ? (_) => _safeSetState(() => _pressed = true) : null,
+        onPointerUp: enabled ? (_) => _safeSetState(() => _pressed = false) : null,
         onPointerCancel: enabled
-            ? (_) => setState(() => _pressed = false)
+            ? (_) => _safeSetState(() => _pressed = false)
             : null,
         child: AnimatedScale(
           duration: const Duration(milliseconds: 115),
