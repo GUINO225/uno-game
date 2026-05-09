@@ -1982,7 +1982,7 @@ class _ResponsivePlayerSidePanelLayoutState
 
     return Stack(
       children: <Widget>[
-        scopedContent,
+        Positioned.fill(child: scopedContent),
         if (_sidePanelOpen || _leadingPanelOpen)
           Positioned.fill(
             child: IgnorePointer(
