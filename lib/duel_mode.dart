@@ -6717,6 +6717,26 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         final Size screenSize = MediaQuery.sizeOf(context);
         final bool isCompactDuelLayout =
             screenSize.height <= 860 || screenSize.width <= 393;
+        final double duelMinPlayerHeight = isCompactDuelLayout
+            ? (screenSize.height * 0.24).clamp(156.0, 214.0).toDouble()
+            : (screenSize.height * 0.26).clamp(214.0, 282.0).toDouble();
+        final double duelMaxPlayerHeight = isCompactDuelLayout
+            ? (screenSize.height * 0.44).clamp(250.0, 340.0).toDouble()
+            : (screenSize.height * 0.50).clamp(320.0, 510.0).toDouble();
+        final double duelCardsViewportMinHeight = isCompactDuelLayout
+            ? (screenSize.height * 0.20).clamp(140.0, 188.0).toDouble()
+            : (screenSize.height * 0.23).clamp(182.0, 230.0).toDouble();
+        assert(() {
+          debugPrint(
+            '[DuelLayout] mode=${_isCreditsMode ? 'PARI' : 'DUEL'} '
+            'w=${screenSize.width.toStringAsFixed(1)} '
+            'h=${screenSize.height.toStringAsFixed(1)} '
+            'compact=$isCompactDuelLayout '
+            'minH=${duelMinPlayerHeight.toStringAsFixed(1)} '
+            'maxH=${duelMaxPlayerHeight.toStringAsFixed(1)}',
+          );
+          return true;
+        }());
         final bool isDesktopSidePanelLayout =
             screenSize.width >=
             ResponsivePlayerSidePanelLayout.desktopBreakpoint;
@@ -6845,10 +6865,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                               sectionGap: sectionGap,
                               minPlayerHeight: premiumDesktopTable
                                   ? max(258.0, screenSize.height * 0.34)
-                                  : (isCompactDuelLayout ? 250 : 282),
+                                  : duelMinPlayerHeight,
                               maxPlayerHeight: premiumDesktopTable
                                   ? max(430.0, screenSize.height * 0.56)
-                                  : (isCompactDuelLayout ? 390 : 510),
+                                  : duelMaxPlayerHeight,
                               initialPlayerHeightFactor: premiumDesktopTable
                                   ? 0.46
                                   : (isCompactDuelLayout ? 0.50 : 0.54),
@@ -6912,7 +6932,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                                     : (isCompactDuelLayout ? 1.0 : 1.06),
                                 minCardsViewportHeight: premiumDesktopTable
                                     ? max(230.0, screenSize.height * 0.26)
-                                    : (isCompactDuelLayout ? 180 : 210),
+                                    : duelCardsViewportMinHeight,
                                 premiumDesktop: premiumDesktopTable,
                               ),
                             ),
