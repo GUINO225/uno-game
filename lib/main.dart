@@ -2150,6 +2150,20 @@ class _PressableModeCardState extends State<_PressableModeCard>
   bool _isHovered = false;
   late final AnimationController _pulseController;
 
+  void _safeSetState(VoidCallback updater) {
+    if (!mounted) return;
+    final SchedulerPhase phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(updater);
+      });
+      return;
+    }
+    setState(updater);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2175,12 +2189,12 @@ class _PressableModeCardState extends State<_PressableModeCard>
     return _CardAppearWrapper(
       delay: widget.appearDelay,
       child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
+        onEnter: (_) => _safeSetState(() => _isHovered = true),
+        onExit: (_) => _safeSetState(() => _isHovered = false),
         child: GestureDetector(
-          onTapDown: (_) => setState(() => _isPressed = true),
-          onTapUp: (_) => setState(() => _isPressed = false),
-          onTapCancel: () => setState(() => _isPressed = false),
+          onTapDown: (_) => _safeSetState(() => _isPressed = true),
+          onTapUp: (_) => _safeSetState(() => _isPressed = false),
+          onTapCancel: () => _safeSetState(() => _isPressed = false),
           onTap: widget.onTap,
           child: AnimatedScale(
             scale: _isPressed
@@ -2309,9 +2323,9 @@ class _PlayModeButtonState extends State<_PlayModeButton> {
   Widget build(BuildContext context) {
     return Align(
       child: GestureDetector(
-        onTapDown: (_) => setState(() => _isPressed = true),
-        onTapUp: (_) => setState(() => _isPressed = false),
-        onTapCancel: () => setState(() => _isPressed = false),
+        onTapDown: (_) => _safeSetState(() => _isPressed = true),
+        onTapUp: (_) => _safeSetState(() => _isPressed = false),
+        onTapCancel: () => _safeSetState(() => _isPressed = false),
         onTap: widget.onTap,
         child: AnimatedScale(
           duration: const Duration(milliseconds: 120),
@@ -2388,9 +2402,9 @@ class _IntroPlayButtonState extends State<_IntroPlayButton>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
+      onTapDown: (_) => _safeSetState(() => _isPressed = true),
+      onTapUp: (_) => _safeSetState(() => _isPressed = false),
+      onTapCancel: () => _safeSetState(() => _isPressed = false),
       onTap: widget.onTap,
       child: AnimatedBuilder(
         animation: _pulseController,
