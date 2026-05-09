@@ -539,7 +539,6 @@ class _IntroLandingPageState extends State<IntroLandingPage>
       if (kIsWeb && !_ambientController.isAnimating) {
         _ambientController.repeat(reverse: true);
       }
-      setState(() {});
       return;
     }
     if (kIsWeb && _ambientController.isAnimating) {
@@ -2175,8 +2174,16 @@ class _PressableModeCardState extends State<_PressableModeCard>
     return _CardAppearWrapper(
       delay: widget.appearDelay,
       child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
+        onEnter: (_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _isHovered = true);
+          });
+        },
+        onExit: (_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _isHovered = false);
+          });
+        },
         child: GestureDetector(
           onTapDown: (_) => setState(() => _isPressed = true),
           onTapUp: (_) => setState(() => _isPressed = false),

@@ -2782,13 +2782,20 @@ class _DuelLobbyPageState extends State<DuelLobbyPage> {
         session.players.length == 2 &&
         mounted) {
       _openedDuel = true;
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => DuelPage(controller: _controller!, mode: widget.mode),
-        ),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => DuelPage(controller: _controller!, mode: widget.mode),
+          ),
+        );
+      });
     }
-    setState(() {});
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   String? _validatePseudo() {
@@ -4062,11 +4069,19 @@ class _DuelLobbyPremiumButtonState extends State<_DuelLobbyPremiumButton> {
   Widget build(BuildContext context) {
     final bool enabled = widget.onPressed != null;
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
+      onEnter: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _hovered = true);
+        });
+      },
+      onExit: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {
+            _hovered = false;
+            _pressed = false;
+          });
+        });
+      },
       child: Listener(
         onPointerDown: enabled ? (_) => setState(() => _pressed = true) : null,
         onPointerUp: enabled ? (_) => setState(() => _pressed = false) : null,
@@ -4294,7 +4309,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (current != null && current.players.length >= 2) {
         final bool presenceChanged = _maybeNotifyPresenceChange(current);
         if (presenceChanged) {
-          setState(() {});
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() {});
+          });
         }
       }
     });
@@ -4399,8 +4416,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
 
     final DuelBoardState snapshotBoard = DuelBoardState.fromSession(session);
     if (_board != snapshotBoard) {
-      setState(() {
-        _board = snapshotBoard;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _board = snapshotBoard);
       });
     }
     if (session.status == DuelGameStatus.inProgress &&
@@ -4757,12 +4774,14 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             final bool hadError = _chatError != null;
             _chatError = null;
             if (unreadDelta > 0 || hadError) {
-              setState(() {
-                _unreadChatCount += unreadDelta;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() => _unreadChatCount += unreadDelta);
               });
             }
             if (previews.isNotEmpty) {
-              _enqueueChatPreview(previews);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _enqueueChatPreview(previews);
+              });
             }
             if (!_chatBootstrapped) {
               _chatBootstrapped = true;
@@ -4772,8 +4791,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
             if (!mounted) {
               return;
             }
-            setState(() {
-              _chatError = _localizeUserError(errorValue);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _chatError = _localizeUserError(errorValue));
             });
           },
         );
@@ -4800,8 +4819,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       return;
     }
     final String next = _chatPreviewQueue.removeFirst();
-    setState(() {
-      _activeChatPreview = next;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _activeChatPreview = next;
+      });
     });
     unawaited(_sfx.playChat());
     _chatPreviewTimer?.cancel();
@@ -4809,10 +4831,13 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _activeChatPreview = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _activeChatPreview = null;
+        });
+        _showNextChatPreviewIfIdle();
       });
-      _showNextChatPreviewIfIdle();
     });
   }
 
@@ -6017,9 +6042,11 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _rematchTimeoutTimer = null;
       _rematchTimeoutRequestKey = null;
       if (_rematchUiState != DuelRematchUiState.idle) {
-        setState(() {
-          _rematchUiState = DuelRematchUiState.rematchAcceptedStarting;
-          _rematchErrorMessage = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {
+            _rematchUiState = DuelRematchUiState.rematchAcceptedStarting;
+            _rematchErrorMessage = null;
+          });
         });
       }
       return;
@@ -6029,16 +6056,21 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _rematchTimeoutTimer = null;
       _rematchTimeoutRequestKey = null;
       if (_rematchUiState != DuelRematchUiState.rematchRejected) {
-        setState(() {
-          _rematchUiState = DuelRematchUiState.rematchRejected;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {
+            _rematchUiState = DuelRematchUiState.rematchRejected;
+          });
         });
         // Requester sees "declined" — navigate to home after short delay
         Future<void>.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            Navigator.of(
-              context,
-            ).popUntil((Route<dynamic> route) => route.isFirst);
-          }
+          if (!mounted) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(
+                context,
+              ).popUntil((Route<dynamic> route) => route.isFirst);
+            }
+          });
         });
       }
       return;
@@ -6055,16 +6087,20 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
       _rematchTimeoutRequestKey = null;
       if (_rematchUiState != DuelRematchUiState.idle &&
           _rematchUiState != DuelRematchUiState.rematchError) {
-        setState(() {
-          _rematchUiState = DuelRematchUiState.idle;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {
+            _rematchUiState = DuelRematchUiState.idle;
+          });
         });
       }
       return;
     }
     if (requesterId == _controller.localPlayerId) {
       if (_rematchUiState != DuelRematchUiState.waitingForOpponentResponse) {
-        setState(() {
-          _rematchUiState = DuelRematchUiState.waitingForOpponentResponse;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {
+            _rematchUiState = DuelRematchUiState.waitingForOpponentResponse;
+          });
         });
       }
       if (session.stakeOffer.isPending) {
@@ -6078,8 +6114,10 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
     _rematchTimeoutTimer = null;
     _rematchTimeoutRequestKey = null;
     if (_rematchUiState != DuelRematchUiState.rematchRequestReceived) {
-      setState(() {
-        _rematchUiState = DuelRematchUiState.rematchRequestReceived;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {
+          _rematchUiState = DuelRematchUiState.rematchRequestReceived;
+        });
       });
     }
   }
@@ -6111,14 +6149,17 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           latest.status != DuelGameStatus.finished) {
         return;
       }
-      setState(() {
-        _rematchUiState = DuelRematchUiState.rematchError;
-        _rematchErrorMessage = 'L’adversaire n’a pas répondu.';
-        _rematchActionBusy = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _rematchUiState = DuelRematchUiState.rematchError;
+          _rematchErrorMessage = 'L’adversaire n’a pas répondu.';
+          _rematchActionBusy = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('L’adversaire n’a pas répondu.')),
+        );
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('L’adversaire n’a pas répondu.')),
-      );
       try {
         await _controller.cleanupExpiredRematchRequest();
       } catch (error) {
@@ -6155,14 +6196,17 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
           latest.status != DuelGameStatus.finished) {
         return;
       }
-      setState(() {
-        _rematchUiState = DuelRematchUiState.rematchError;
-        _rematchErrorMessage = 'L’adversaire n’a pas répondu.';
-        _rematchActionBusy = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _rematchUiState = DuelRematchUiState.rematchError;
+          _rematchErrorMessage = 'L’adversaire n’a pas répondu.';
+          _rematchActionBusy = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('L’adversaire n’a pas répondu.')),
+        );
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('L’adversaire n’a pas répondu.')),
-      );
       try {
         await _controller.cancelRematchRequest();
       } catch (error) {

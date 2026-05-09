@@ -335,7 +335,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                     final PlayerProfile? profile = snapshot.data?.$1;
                     final int? rank = snapshot.data?.$2;
                     if (profile != null) {
-                      _maybeSuggestProfileCustomization(profile);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _maybeSuggestProfileCustomization(profile);
+                      });
                     }
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return ModernSideMenu(
@@ -1926,7 +1928,6 @@ class _ResponsivePlayerSidePanelLayoutState
 
   @override
   Widget build(BuildContext context) {
-    _syncPanelDefaultsForWidth();
     final Size screenSize = MediaQuery.sizeOf(context);
     final bool isDesktop =
         screenSize.width >= ResponsivePlayerSidePanelLayout.desktopBreakpoint;
