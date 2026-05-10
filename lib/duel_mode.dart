@@ -9924,7 +9924,6 @@ class _MyHandRowState extends State<_MyHandRow> {
                                     ),
                                   ),
                                 ),
-                              ),
                             );
                           }).toList(),
                         ),
@@ -10093,7 +10092,6 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                       ),
                                               ),
                                             ),
-                                          ),
                                         );
                                       },
                                     ),
