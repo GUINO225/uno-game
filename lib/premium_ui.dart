@@ -576,7 +576,6 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
         final bool immersive = widget.desktopImmersive;
         final double opponentFlex = immersive ? 1.08 : 0.72;
         final double centerFlex = immersive ? 1.0 : 1.0;
-        final double playerFlex = immersive ? 2.02 : 1.0;
 
         Widget centerStage = Stack(
           fit: StackFit.expand,
@@ -610,6 +609,9 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
         );
 
         if (immersive) {
+          // En mode immersive desktop, le joueur a une hauteur fixe pilotée par le handle
+          // de redimensionnement (comme en mode mobile), et l'adversaire + centre partagent
+          // le reste en proportions Flexible.
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
@@ -624,8 +626,10 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
                 flex: (centerFlex * 100).round(),
                 child: centerStage,
               ),
-              Flexible(
-                flex: (playerFlex * 100).round(),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                height: constrainedPlayerHeight,
                 child: widget.player,
               ),
               if (widget.footer != null) ...<Widget>[
