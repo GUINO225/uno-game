@@ -6745,6 +6745,19 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
         final bool isLoading = session == null || board == null;
         final bool showOverlay = texts.overlay.trim().isNotEmpty;
         const bool showHelp = false;
+        assert(() {
+          debugPrint(
+            '[DuelDebug] mode=${_isCreditsMode ? 'PARI' : 'DUEL'} '
+            'isMobile=${!isDesktopSidePanelLayout} '
+            'isSmallScreen=$isCompactDuelLayout '
+            'w=${screenSize.width.toStringAsFixed(1)} '
+            'h=${screenSize.height.toStringAsFixed(1)} '
+            'showHelp=$showHelp showOverlay=$showOverlay '
+            'isLoading=$isLoading waitingOpponent=$waitingOpponent '
+            'rootWidget=ResponsivePlayerSidePanelLayout',
+          );
+          return true;
+        }());
         if (_lastChatDesktopLayout != isDesktopSidePanelLayout) {
           _lastChatDesktopLayout = isDesktopSidePanelLayout;
           _isChatOpen = false;
@@ -6798,19 +6811,6 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
-                  assert(() {
-                    debugPrint(
-                      '[DuelDebug] mode=${_isCreditsMode ? 'PARI' : 'DUEL'} '
-                      'isMobile=${!isDesktopSidePanelLayout} '
-                      'isSmallScreen=$isCompactDuelLayout '
-                      'w=${screenSize.width.toStringAsFixed(1)} '
-                      'h=${screenSize.height.toStringAsFixed(1)} '
-                      'showHelp=$showHelp showOverlay=$showOverlay '
-                      'isLoading=$isLoading waitingOpponent=$waitingOpponent '
-                      'rootWidget=ResponsivePlayerSidePanelLayout',
-                    );
-                    return true;
-                  }()),
                   Positioned.fill(
                     child: TableBackground(
                       child: SizedBox.expand(
