@@ -1791,6 +1791,24 @@ class _ResponsivePlayerSidePanelLayoutState
     _syncPanelDefaultsForWidth();
   }
 
+  @override
+  void didUpdateWidget(covariant ResponsivePlayerSidePanelLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final bool isDesktop =
+        MediaQuery.sizeOf(context).width >=
+        ResponsivePlayerSidePanelLayout.desktopBreakpoint;
+
+    if (isDesktop && oldWidget.leadingPanel != widget.leadingPanel) {
+      _leadingPanelOpen = widget.leadingPanel != null;
+    }
+
+    if (!isDesktop && oldWidget.leadingPanel != widget.leadingPanel) {
+      if (widget.leadingPanel == null) {
+        _leadingPanelOpen = false;
+      }
+    }
+  }
+
   void _toggleSidePanel() {
     if (MediaQuery.sizeOf(context).width >=
         ResponsivePlayerSidePanelLayout.desktopBreakpoint) {
