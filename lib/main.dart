@@ -2617,6 +2617,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   int _forcedDrawCount = 0;
   PlayerTurn? _forcedDrawTarget;
   PlayerTurn? _forcedDrawSource;
+  String? _forcedDrawPenaltyLabel;
   bool _humanMustAnswerAce = false;
   bool _botMustAnswerAce = false;
   Suit? _activeSuitConstraint;
@@ -2716,6 +2717,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       _forcedDrawCount = 0;
       _forcedDrawTarget = null;
       _forcedDrawSource = null;
+      _forcedDrawPenaltyLabel = null;
       _humanMustAnswerAce = false;
       _botMustAnswerAce = false;
       _activeSuitConstraint = null;
@@ -2809,6 +2811,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         target: startingPlayer,
         source: dealer,
         count: 2,
+        penaltyLabel: 'Carte 2',
         announcement:
             '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un 2.',
       );
@@ -2820,6 +2823,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         target: startingPlayer,
         source: dealer,
         count: 9,
+        penaltyLabel: 'Joker',
         announcement:
             '${_turnStartText(startingPlayer)}, mais la carte d’ouverture est un joker.',
       );
@@ -2923,11 +2927,13 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     required PlayerTurn source,
     required int count,
     required String announcement,
+    String? penaltyLabel,
   }) {
     setState(() {
       _forcedDrawCount = count;
       _forcedDrawTarget = target;
       _forcedDrawSource = source;
+      _forcedDrawPenaltyLabel = penaltyLabel;
       _forcedDrawWitchPlayed = false;
       _status = announcement;
     });
@@ -3076,6 +3082,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         setState(() {
           _status = 'Pioche vide';
           _forcedDrawCount = 0;
+          _forcedDrawPenaltyLabel = null;
         });
         _finishForcedDrawIfNeeded();
         return;
@@ -3232,6 +3239,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
           count: 2,
+          penaltyLabel: 'Carte 2',
           announcement: 'Ordi pioche 2 cartes',
         );
         await _runForcedDrawForBot();
@@ -3241,6 +3249,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
           count: 2,
+          penaltyLabel: 'Carte 2',
           announcement: '$_botName joue un 2.',
         );
         _showFunnyGameMessage(
@@ -3257,6 +3266,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
           count: 9,
+          penaltyLabel: 'Joker',
           announcement: 'Ordi pioche 9 cartes',
         );
         await _runForcedDrawForBot();
@@ -3266,6 +3276,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
           count: 9,
+          penaltyLabel: 'Joker',
           announcement: '$_botName joue un joker.',
         );
         unawaited(_sfx.playJokerEffect());
@@ -3320,6 +3331,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       _status = source == PlayerTurn.human ? 'À votre tour' : 'Tour de l’ordi';
       _forcedDrawTarget = null;
       _forcedDrawSource = null;
+      _forcedDrawPenaltyLabel = null;
       _turn = source;
     });
 
@@ -4425,13 +4437,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     final String base = _forcedDrawCount > 1
         ? 'Vous devez piocher encore $_forcedDrawCount cartes'
         : 'Vous devez piocher encore 1 carte';
-    if (_forcedDrawCount >= 9) {
-      return 'Joker • $base';
-    }
-    if (_forcedDrawCount >= 2) {
-      return 'Carte 2 • $base';
-    }
-    return base;
+    final String? label = _forcedDrawPenaltyLabel;
+    return (label == null || label.isEmpty) ? base : '$label • $base';
   }
 
   Widget _topBar() {
@@ -4656,7 +4663,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       child: CardView(
         card: card,
         enabled: canInteract && playability.canPlay,
-        opacity: canInteract && !playability.canPlay ? 0.48 : 1,
+        opacity: !playability.canPlay ? 0.48 : 1,
         onTap: canInteract ? () => _onHumanTapCard(card) : null,
       ),
     );
@@ -4740,8 +4747,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
               : _handCardHeight * 2,
         );
         _syncManualHandPositions(areaSize);
-        final bool canMove =
-            !_gameOver && !_isInitialDealRunning && !_isResolvingTurn;
+        final bool canMove = !_gameOver && !_isInitialDealRunning;
         final List<PlayingCard> cards = List<PlayingCard>.from(_humanHand);
         final int? draggingRef = _manualDraggingCardRef;
         if (draggingRef != null) {

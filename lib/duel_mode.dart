@@ -9611,6 +9611,7 @@ class _MyHandRowState extends State<_MyHandRow> {
     });
   }
 
+
   Widget _buildFanRow({
     required List<DuelCard> cards,
     required int startIndex,
@@ -9689,7 +9690,7 @@ class _MyHandRowState extends State<_MyHandRow> {
     required Widget cardWidget,
     required bool isPlayable,
   }) {
-    if (!widget.canInteract || isPlayable) {
+    if (isPlayable) {
       return cardWidget;
     }
     return ColorFiltered(
@@ -9887,30 +9888,16 @@ class _MyHandRowState extends State<_MyHandRow> {
                               top: pos.dy,
                               child: GestureDetector(
                                 behavior: HitTestBehavior.translucent,
-                                onPanStart: widget.canInteract
-                                    ? (_) => setState(
-                                        () => _draggingCardId = card.id,
-                                      )
-                                    : null,
-                                onPanUpdate: widget.canInteract
-                                    ? (DragUpdateDetails d) => _moveCard(
-                                        card.id,
-                                        d.delta,
-                                        areaSize,
-                                        cardWidth,
-                                        cardHeight,
-                                      )
-                                    : null,
-                                onPanEnd: widget.canInteract
-                                    ? (_) => setState(
-                                        () => _draggingCardId = null,
-                                      )
-                                    : null,
-                                onPanCancel: widget.canInteract
-                                    ? () => setState(
-                                        () => _draggingCardId = null,
-                                      )
-                                    : null,
+                                onPanStart: (_) => setState(() => _draggingCardId = card.id),
+                                onPanUpdate: (DragUpdateDetails d) => _moveCard(
+                                  card.id,
+                                  d.delta,
+                                  areaSize,
+                                  cardWidth,
+                                  cardHeight,
+                                ),
+                                onPanEnd: (_) => setState(() => _draggingCardId = null),
+                                onPanCancel: () => setState(() => _draggingCardId = null),
                                 onTap: widget.canInteract && isPlayable
                                     ? () => widget.onCardTap(card)
                                     : null,
