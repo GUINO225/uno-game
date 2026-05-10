@@ -6792,9 +6792,12 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                 );
               },
               child: Stack(
+                fit: StackFit.expand,
                 children: <Widget>[
-                  TableBackground(
-                    child: Padding(
+                  Positioned.fill(
+                    child: TableBackground(
+                      child: SizedBox.expand(
+                        child: Padding(
                       padding: EdgeInsets.fromLTRB(
                         premiumDesktopTable ? 18 : 12,
                         topInset + (premiumDesktopTable ? 4 : 1),
@@ -7040,6 +7043,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                               ),
                             ),
                         ],
+                        ),
                       ),
                     ),
                   ),
