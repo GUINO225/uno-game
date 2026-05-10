@@ -4326,14 +4326,11 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                 Navigator.of(context).pushNamed(GameModeRoutes.history);
               },
               rankingPanelBuilder:
-                  (BuildContext context, PlayerProfile? profile, int? rank) {
+                  (BuildContext context, BoxConstraints constraints) {
                     final int localTotalGames = _humanWins + _humanLosses;
                     return _SoloSidePanelInfo(
-                      rank: rank,
-                      totalGames: max(
-                        profile?.totalGames ?? 0,
-                        localTotalGames,
-                      ),
+                      rank: null,
+                      totalGames: localTotalGames,
                       round: max(1, _roundNumber),
                       humanScore: _humanScore,
                       botScore: _botScore,
