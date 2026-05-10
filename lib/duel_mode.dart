@@ -9483,11 +9483,6 @@ class _MyHandRowState extends State<_MyHandRow> {
       if (_draggingCardId != null && !currentIdSet.contains(_draggingCardId)) {
         _draggingCardId = null;
       }
-      if (oldWidget.cards.length != widget.cards.length ||
-          oldWidget.minCardsViewportHeight != widget.minCardsViewportHeight ||
-          oldWidget.cardScale != widget.cardScale) {
-        _regenerateRandomLayout('cards/viewport update');
-      }
     }
     _previousCardIds = currentIds;
   }
@@ -9657,22 +9652,10 @@ class _MyHandRowState extends State<_MyHandRow> {
                   ),
                 );
 
-          // Assombrissement au lieu de transparence pour les cartes non jouables
-          if (widget.canInteract && !isPlayable) {
-            cardWidget = Stack(
-              children: <Widget>[
-                cardWidget,
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.34),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
+          cardWidget = _decorateCardByPlayability(
+            cardWidget: cardWidget,
+            isPlayable: isPlayable,
+          );
 
           return Positioned(
             key: ValueKey<String>('duel-fan-${card.id}'),
@@ -9698,6 +9681,40 @@ class _MyHandRowState extends State<_MyHandRow> {
             ),
           );
         }),
+      ),
+    );
+  }
+
+  Widget _decorateCardByPlayability({
+    required Widget cardWidget,
+    required bool isPlayable,
+  }) {
+    if (!widget.canInteract || isPlayable) {
+      return cardWidget;
+    }
+    return ColorFiltered(
+      colorFilter: const ColorFilter.matrix(<double>[
+        0.60, 0.25, 0.15, 0, 0,
+        0.20, 0.55, 0.20, 0, 0,
+        0.20, 0.25, 0.55, 0, 0,
+        0, 0, 0, 1, 0,
+      ]),
+      child: Stack(
+        children: <Widget>[
+          cardWidget,
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFF000000).withOpacity(0.22),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Colors.black.withOpacity(0.45),
+                  width: 1.2,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -9910,7 +9927,9 @@ class _MyHandRowState extends State<_MyHandRow> {
                                           ? originalIndex * 34
                                           : 0,
                                     ),
-                                    child: widget.cardScale == 1
+                                    child: _decorateCardByPlayability(
+                                      isPlayable: isPlayable,
+                                      cardWidget: widget.cardScale == 1
                                           ? _FaceCard(card: card)
                                           : SizedBox(
                                               width: cardWidth,
@@ -9921,6 +9940,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                 child: _FaceCard(card: card),
                                               ),
                                             ),
+                                    ),
                                     ),
                                   ),
                                 ),
@@ -10074,7 +10094,10 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                   ? () =>
                                                       widget.onCardTap(card)
                                                   : null,
-                                              child: widget.cardScale == 1
+                                              child:
+                                                  _decorateCardByPlayability(
+                                                isPlayable: isPlayable,
+                                                cardWidget: widget.cardScale == 1
                                                     ? _FaceCard(card: card)
                                                     : SizedBox(
                                                         width: cardWidth,
@@ -10090,6 +10113,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                           ),
                                                         ),
                                                       ),
+                                              ),
                                               ),
                                             ),
                                         );
