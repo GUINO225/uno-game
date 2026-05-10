@@ -9357,55 +9357,53 @@ class _DiscardPileStackView extends StatelessWidget {
         ? <DuelCard>[cards[cardCount - 2]]
         : <DuelCard>[cards[cardCount - 3], cards[cardCount - 2]];
 
+    final List<Widget> stackChildren = <Widget>[
+      for (int index = 0; index < underCards.length; index++)
+        Transform.translate(
+          offset: Offset(-4.0 + (index * 4), -2.0 + (index * 3)),
+          child: Transform.rotate(
+            angle: index == 0 ? -0.087 : 0.070,
+            child: compact
+                ? Transform.scale(
+                    scale: 0.92,
+                    child: _FaceCard(card: underCards[index]),
+                  )
+                : _FaceCard(card: underCards[index]),
+          ),
+        ),
+      AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.92, end: 1).animate(animation),
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.06, 0.05),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            ),
+          );
+        },
+        child: KeyedSubtree(
+          key: ValueKey<String>('${topCard.id}-$cardCount'),
+          child: compact
+              ? Transform.scale(
+                  scale: 0.92,
+                  child: _FaceCard(card: topCard),
+                )
+              : _FaceCard(card: topCard),
+        ),
+      ),
+    ];
+
     return SizedBox(
       width: compact ? 82 : 86,
       height: compact ? 114 : 118,
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          for (int index = 0; index < underCards.length; index++)
-            Transform.translate(
-              offset: Offset(-4.0 + (index * 4), -2.0 + (index * 3)),
-              child: Transform.rotate(
-                angle: index == 0 ? -0.087 : 0.070,
-                child: compact
-                      ? Transform.scale(
-                          scale: 0.92,
-                          child: _FaceCard(card: underCards[index]),
-                        )
-                      : _FaceCard(card: underCards[index]),
-                ),
-              ),
-            ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(
-                  scale: Tween<double>(begin: 0.92, end: 1).animate(animation),
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0.06, 0.05),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  ),
-                ),
-              );
-            },
-            child: KeyedSubtree(
-              key: ValueKey<String>('${topCard.id}-$cardCount'),
-              child: compact
-                  ? Transform.scale(
-                      scale: 0.92,
-                      child: _FaceCard(card: topCard),
-                    )
-                  : _FaceCard(card: topCard),
-            ),
-          ),
-        ],
-      ),
+      child: Stack(alignment: Alignment.center, children: stackChildren),
     );
   }
 }
