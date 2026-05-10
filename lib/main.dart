@@ -2939,6 +2939,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         _turn == PlayerTurn.human;
   }
 
+  bool _shouldShowHumanForcedDrawPopup() {
+    return _forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.human;
+  }
+
   String _forcedDrawRemainingText() {
     if (_forcedDrawCount <= 0 || _forcedDrawTarget == null) {
       return '';
@@ -4379,7 +4383,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                       child: GlobalMusicToggleButton(),
                     ),
                   ),
-                  if (_isHumanForcedToDrawNow())
+                  if (_shouldShowHumanForcedDrawPopup())
                     Positioned(
                       top: topInset + 118,
                       left: 22,
