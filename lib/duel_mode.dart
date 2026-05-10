@@ -9608,11 +9608,9 @@ class _MyHandRowState extends State<_MyHandRow> {
                       constraints.maxWidth - 8,
                     );
                     final double cardWidth = _FaceCard.width * widget.cardScale;
-                    final double adaptiveGap = widget.premiumDesktop
-                        ? (constraints.maxWidth / 82)
-                              .clamp(10.0, 24.0)
-                              .toDouble()
-                        : _MyHandRow._cardGap;
+                    final double adaptiveGap = (constraints.maxWidth / 82)
+                        .clamp(widget.premiumDesktop ? 10.0 : 8.0, 24.0)
+                        .toDouble();
                     final int cardsPerRow = _responsiveCardsPerRow(
                       availableWidth: availableWidth,
                       cardWidth: cardWidth,
@@ -9674,6 +9672,24 @@ class _MyHandRowState extends State<_MyHandRow> {
                                         final int staggerIndex = isNew
                                             ? newCardOrder++
                                             : 0;
+                                        final int rowIndex = index ~/ cardsPerRow;
+                                        final int indexInRow = index % cardsPerRow;
+                                        final int lastRowLength = cards.length %
+                                                cardsPerRow ==
+                                            0
+                                            ? cardsPerRow
+                                            : cards.length % cardsPerRow;
+                                        final int cardsInThisRow =
+                                            rowIndex ==
+                                                ((cards.length - 1) ~/ cardsPerRow)
+                                            ? lastRowLength
+                                            : cardsPerRow;
+                                        final double rowCenter =
+                                            (cardsInThisRow - 1) / 2.0;
+                                        final double fanOffset =
+                                            indexInRow - rowCenter;
+                                        final double angleRadians =
+                                            fanOffset * 0.018;
                                         return SizedBox(
                                           width: cardWidth,
                                           child: BouncyCardEntry(
@@ -9686,35 +9702,41 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                   ? staggerIndex * 34
                                                   : 0,
                                             ),
-                                            child: GestureDetector(
-                                              behavior: HitTestBehavior.opaque,
-                                              onTap:
-                                                  widget.canInteract &&
-                                                      isPlayable
-                                                  ? () => widget.onCardTap(card)
-                                                  : null,
-                                              child: Opacity(
-                                                opacity:
+                                            child: Transform.rotate(
+                                              angle: angleRadians,
+                                              child: GestureDetector(
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap:
                                                     widget.canInteract &&
-                                                        !isPlayable
-                                                    ? 0.45
-                                                    : 1,
-                                                child: widget.cardScale == 1
-                                                    ? _FaceCard(card: card)
-                                                    : SizedBox(
-                                                        width: cardWidth,
-                                                        height:
-                                                            _FaceCard.height *
-                                                            widget.cardScale,
-                                                        child: FittedBox(
-                                                          fit: BoxFit.contain,
-                                                          alignment:
-                                                              Alignment.center,
-                                                          child: _FaceCard(
-                                                            card: card,
+                                                        isPlayable
+                                                    ? () =>
+                                                          widget.onCardTap(card)
+                                                    : null,
+                                                child: Opacity(
+                                                  opacity:
+                                                      widget.canInteract &&
+                                                          !isPlayable
+                                                      ? 0.45
+                                                      : 1,
+                                                  child:
+                                                      widget.cardScale == 1
+                                                      ? _FaceCard(card: card)
+                                                      : SizedBox(
+                                                          width: cardWidth,
+                                                          height:
+                                                              _FaceCard.height *
+                                                              widget.cardScale,
+                                                          child: FittedBox(
+                                                            fit: BoxFit.contain,
+                                                            alignment: Alignment
+                                                                .center,
+                                                            child: _FaceCard(
+                                                              card: card,
+                                                            ),
                                                           ),
                                                         ),
-                                                      ),
+                                                ),
                                               ),
                                             ),
                                           ),
