@@ -6798,16 +6798,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                     child: TableBackground(
                       child: SizedBox.expand(
                         child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        premiumDesktopTable ? 18 : 12,
-                        topInset + (premiumDesktopTable ? 4 : 1),
-                        premiumDesktopTable ? 18 : 12,
-                        premiumDesktopTable
-                            ? 8
-                            : (isCompactDuelLayout ? 6 : 10),
-                      ),
-                      child: Column(
-                        children: <Widget>[
+                          padding: EdgeInsets.fromLTRB(
+                            premiumDesktopTable ? 18 : 12,
+                            topInset + (premiumDesktopTable ? 4 : 1),
+                            premiumDesktopTable ? 18 : 12,
+                            premiumDesktopTable
+                                ? 8
+                                : (isCompactDuelLayout ? 6 : 10),
+                          ),
+                          child: Column(
+                            children: <Widget>[
                           SizedBox(
                             height: isCompactDuelLayout ? 58 : 66,
                             child: Stack(
@@ -7042,7 +7042,8 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                                       ),
                               ),
                             ),
-                        ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
