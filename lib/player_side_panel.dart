@@ -19,6 +19,8 @@ enum PlayerSidePanelEdge { left, right }
 
 typedef PlayerRankingPanelBuilder =
     Widget Function(BuildContext context, PlayerProfile? profile, int? rank);
+typedef ResponsiveRankingPanelBuilder =
+    Widget Function(BuildContext context, BoxConstraints constraints);
 
 class PlayerSidePanel extends StatefulWidget {
   const PlayerSidePanel({
@@ -1742,6 +1744,7 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
     this.onOpenHistory,
     this.contextualGamePanel,
     this.rankingPanelBuilder,
+    this.playerRankingPanelBuilder,
     this.leadingPanel,
     this.leadingPanelWidth,
     this.preserveContentCenterOnDesktop = false,
@@ -1753,7 +1756,8 @@ class ResponsivePlayerSidePanelLayout extends StatefulWidget {
   final VoidCallback? onOpenLeaderboard;
   final VoidCallback? onOpenHistory;
   final Widget? contextualGamePanel;
-  final PlayerRankingPanelBuilder? rankingPanelBuilder;
+  final ResponsiveRankingPanelBuilder? rankingPanelBuilder;
+  final PlayerRankingPanelBuilder? playerRankingPanelBuilder;
   final Widget? leadingPanel;
   final double? leadingPanelWidth;
   final bool preserveContentCenterOnDesktop;
@@ -1892,7 +1896,21 @@ class _ResponsivePlayerSidePanelLayoutState
         edge: PlayerSidePanelEdge.right,
         width: width,
         contextualGamePanel: widget.contextualGamePanel,
-        rankingPanelBuilder: widget.rankingPanelBuilder,
+        rankingPanelBuilder:
+            widget.playerRankingPanelBuilder ??
+            (widget.rankingPanelBuilder == null
+                ? null
+                : (BuildContext context, PlayerProfile? _, int? __) {
+                    return LayoutBuilder(
+                      builder:
+                          (BuildContext context, BoxConstraints constraints) {
+                            return widget.rankingPanelBuilder!(
+                              context,
+                              constraints,
+                            );
+                          },
+                    );
+                  }),
         onOpenLeaderboard: widget.onOpenLeaderboard == null
             ? null
             : _openLeaderboard,
