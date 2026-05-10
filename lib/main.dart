@@ -5086,41 +5086,57 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     final bool canDraw = _canHumanDrawNow();
     final bool hasDiscard = _discardPile.isNotEmpty;
 
-    return SizedBox(
-      height: 148,
-      child: Center(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            GestureDetector(
-              onTap: canDraw ? _onHumanDraw : null,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: <Widget>[
-                  _drawPile.isNotEmpty
-                      ? _DrawPileView(
-                          highlight: shouldHighlightDraw,
-                          count: _drawPile.length,
-                        )
-                      : const _EmptyCardSlot(label: '0'),
-                  Positioned(
-                    right: -8,
-                    top: -10,
-                    child: _CountBadge(count: _drawPile.length),
-                  ),
-                ],
-              ),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double availableWidth = constraints.maxWidth;
+        final double availableHeight = constraints.maxHeight;
+        final double centerGap = (availableWidth * 0.08).clamp(14.0, 34.0);
+        final bool compactCenter = availableHeight < 150 || availableWidth < 340;
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: 106,
+              maxHeight: max(106, availableHeight - 8),
             ),
-            const SizedBox(width: 26),
-            if (hasDiscard)
-              _DiscardPileView(key: _discardPileKey, cards: _discardPile)
-            else
-              const _EmptyCardSlot(label: 'Vide'),
-          ],
-        ),
-      ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                GestureDetector(
+                  onTap: canDraw ? _onHumanDraw : null,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: <Widget>[
+                      _drawPile.isNotEmpty
+                          ? _DrawPileView(
+                              highlight: shouldHighlightDraw,
+                              count: _drawPile.length,
+                              compact: compactCenter,
+                            )
+                          : _EmptyCardSlot(label: '0', compact: compactCenter),
+                      Positioned(
+                        right: compactCenter ? -6 : -8,
+                        top: compactCenter ? -8 : -10,
+                        child: _CountBadge(count: _drawPile.length),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: centerGap),
+                if (hasDiscard)
+                  _DiscardPileView(
+                    key: _discardPileKey,
+                    cards: _discardPile,
+                    compact: compactCenter,
+                  )
+                else
+                  _EmptyCardSlot(label: 'Vide', compact: compactCenter),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -5550,10 +5566,15 @@ class _SoloSidePanelTile extends StatelessWidget {
 }
 
 class _DrawPileView extends StatefulWidget {
-  const _DrawPileView({required this.highlight, required this.count});
+  const _DrawPileView({
+    required this.highlight,
+    required this.count,
+    this.compact = false,
+  });
 
   final bool highlight;
   final int count;
+  final bool compact;
 
   @override
   State<_DrawPileView> createState() => _DrawPileViewState();
@@ -5631,11 +5652,17 @@ class _DrawPileViewState extends State<_DrawPileView>
                 angle: -0.02,
                 child: Opacity(
                   opacity: 0.6,
-                  child: const CardBackView(width: 64, height: 92),
+                  child: CardBackView(
+                    width: widget.compact ? 56 : 64,
+                    height: widget.compact ? 82 : 92,
+                  ),
                 ),
               ),
             ),
-          const CardBackView(width: 64, height: 92),
+          CardBackView(
+            width: widget.compact ? 56 : 64,
+            height: widget.compact ? 82 : 92,
+          ),
         ],
       ),
     );
@@ -5643,15 +5670,16 @@ class _DrawPileViewState extends State<_DrawPileView>
 }
 
 class _EmptyCardSlot extends StatelessWidget {
-  const _EmptyCardSlot({required this.label});
+  const _EmptyCardSlot({required this.label, this.compact = false});
 
   final String label;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 64,
-      height: 92,
+      width: compact ? 56 : 64,
+      height: compact ? 82 : 92,
       decoration: PremiumGameDecorations.glassPanel(radius: 12, opacity: 0.28),
       child: Center(
         child: Text(
@@ -5781,9 +5809,14 @@ class CardView extends StatelessWidget {
 }
 
 class _DiscardPileView extends StatelessWidget {
-  const _DiscardPileView({super.key, required this.cards});
+  const _DiscardPileView({
+    super.key,
+    required this.cards,
+    this.compact = false,
+  });
 
   final List<PlayingCard> cards;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -5796,8 +5829,8 @@ class _DiscardPileView extends StatelessWidget {
         : <PlayingCard>[cards[cardCount - 3], cards[cardCount - 2]];
 
     return SizedBox(
-      width: 86,
-      height: 118,
+      width: compact ? 74 : 86,
+      height: compact ? 104 : 118,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[

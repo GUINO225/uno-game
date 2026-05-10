@@ -9227,6 +9227,14 @@ class _CenterArea extends StatelessWidget {
         final double pileGap = premiumDesktop
             ? (constraints.maxWidth * 0.045).clamp(24.0, 46.0).toDouble()
             : (compact ? 14 : 20);
+        final bool constrainedCenter =
+            constraints.maxHeight < 156 || constraints.maxWidth < 340;
+        final double pileWidth = constrainedCenter
+            ? (compact ? 50 : 54)
+            : (compact ? 56 : 64);
+        final double pileHeight = constrainedCenter
+            ? (compact ? 74 : 80)
+            : (compact ? 82 : 92);
 
         return Center(
           child: _FloatingCenterStage(
@@ -9280,15 +9288,15 @@ class _CenterArea extends StatelessWidget {
                                         child: Opacity(
                                           opacity: 0.6,
                                           child: _DuelCardBack(
-                                            width: compact ? 56 : 64,
-                                            height: compact ? 82 : 92,
+                                            width: pileWidth,
+                                            height: pileHeight,
                                           ),
                                         ),
                                       ),
                                     ),
                                     _DuelCardBack(
-                                      width: compact ? 56 : 64,
-                                      height: compact ? 82 : 92,
+                                      width: pileWidth,
+                                      height: pileHeight,
                                     ),
                                     Positioned(
                                       top: -8,

@@ -450,6 +450,11 @@ class ResizableGameTableLayout extends StatefulWidget {
     this.initialPlayerHeightFactor = 0.46,
     this.compact = false,
     this.desktopImmersive = false,
+    this.opponentHeightFactor = 0.26,
+    this.centerHeightFactor = 0.28,
+    this.playerHeightFactor = 0.46,
+    this.minCenterHeight = 120,
+    this.safetyMargin = 10,
   });
 
   final Widget opponent;
@@ -462,6 +467,11 @@ class ResizableGameTableLayout extends StatefulWidget {
   final double initialPlayerHeightFactor;
   final bool compact;
   final bool desktopImmersive;
+  final double opponentHeightFactor;
+  final double centerHeightFactor;
+  final double playerHeightFactor;
+  final double minCenterHeight;
+  final double safetyMargin;
 
   @override
   State<ResizableGameTableLayout> createState() =>
@@ -517,6 +527,36 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
               safeMaxHeight,
             )
             .toDouble();
+        final double safeGap = max(2, widget.sectionGap);
+        final double reservedFooter =
+            widget.footer == null ? 0 : (widget.sectionGap + 42);
+        final double availableForSections = max(
+          0,
+          availableHeight - reservedFooter - (safeGap * 2),
+        );
+        final double combinedFactor =
+            widget.opponentHeightFactor +
+            widget.centerHeightFactor +
+            widget.playerHeightFactor;
+        final double normalizedOpponentFactor = combinedFactor == 0
+            ? 0.26
+            : widget.opponentHeightFactor / combinedFactor;
+        final double normalizedCenterFactor = combinedFactor == 0
+            ? 0.28
+            : widget.centerHeightFactor / combinedFactor;
+        final double centerBandHeight = max(
+          widget.minCenterHeight,
+          availableForSections * normalizedCenterFactor,
+        );
+        final double maxPlayerFromBudget = max(
+          widget.minPlayerHeight,
+          availableForSections - centerBandHeight - widget.safetyMargin,
+        );
+        final double constrainedPlayerHeight = min(playerHeight, maxPlayerFromBudget);
+        final double opponentBandHeight = max(
+          90,
+          availableForSections - centerBandHeight - constrainedPlayerHeight,
+        );
 
         final bool immersive = widget.desktopImmersive;
         final double opponentFlex = immersive ? 1.08 : 0.72;
@@ -584,15 +624,23 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Align(
-              alignment: Alignment.topCenter,
-              child: widget.opponent,
+            SizedBox(
+              height: opponentBandHeight,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: widget.opponent,
+              ),
             ),
-            Expanded(child: centerStage),
+            SizedBox(height: safeGap),
+            SizedBox(
+              height: centerBandHeight,
+              child: centerStage,
+            ),
+            SizedBox(height: safeGap),
             AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
-              height: playerHeight,
+              height: constrainedPlayerHeight,
               child: widget.player,
             ),
             if (widget.footer != null) ...<Widget>[
