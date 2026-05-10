@@ -9544,6 +9544,7 @@ class _MyHandRowState extends State<_MyHandRow> {
   List<String> _previousCardIds = const <String>[];
   Set<String> _newCardIds = <String>{};
   _DuelHandLayoutMode _layoutMode = _DuelHandLayoutMode.normal;
+  int _randomLayoutSeed = 0;
 
   @override
   void initState() {
@@ -9561,7 +9562,25 @@ class _MyHandRowState extends State<_MyHandRow> {
     _newCardIds = currentIds
         .where((String id) => !previousIds.contains(id))
         .toSet();
+    if (_layoutMode == _DuelHandLayoutMode.random &&
+        (oldWidget.cards.length != widget.cards.length ||
+            oldWidget.minCardsViewportHeight != widget.minCardsViewportHeight ||
+            oldWidget.cardScale != widget.cardScale)) {
+      _regenerateRandomLayout('cards/viewport update');
+    }
     _previousCardIds = currentIds;
+  }
+
+  void _regenerateRandomLayout(String reason) {
+    setState(() {
+      _randomLayoutSeed++;
+    });
+    assert(() {
+      debugPrint(
+        '[DuelHandLayout] mode=random reason=$reason seed=$_randomLayoutSeed cards=${widget.cards.length}',
+      );
+      return true;
+    }());
   }
 
   int _responsiveCardsPerRow({
@@ -9753,7 +9772,9 @@ class _MyHandRowState extends State<_MyHandRow> {
                                             (cardsInThisRow - 1) / 2.0;
                                         final double fanOffset = indexInRow - rowCenter;
                                         final Random seededRandom = Random(
-                                          card.id.hashCode ^ (index * 97),
+                                          card.id.hashCode ^
+                                              (index * 97) ^
+                                              (_randomLayoutSeed * 1543),
                                         );
                                         final double randomDx =
                                             (seededRandom.nextDouble() - 0.5) * 12;
@@ -9819,44 +9840,64 @@ class _MyHandRowState extends State<_MyHandRow> {
                             ),
                           ),
                         ),
-                        Positioned(
-                          top: 0,
-                          right: 6,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              PremiumIconButtonShell(
-                                golden: _layoutMode != _DuelHandLayoutMode.normal,
-                                child: IconButton(
-                                  constraints: const BoxConstraints.tightFor(
-                                    width: 34,
-                                    height: 34,
-                                  ),
-                                  padding: EdgeInsets.zero,
-                                  iconSize: 18,
-                                  tooltip: 'Affichage ${_layoutName(_layoutMode)}',
-                                  onPressed: () {
-                                    setState(() {
-                                      _layoutMode = _nextLayoutMode(_layoutMode);
-                                    });
-                                  },
-                                  icon: Icon(
-                                    _layoutIcon(_layoutMode),
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              _DrawCountBadge(count: widget.cards.length),
-                            ],
-                          ),
-                        ),
                       ],
                     );
                   },
                 ),
               ),
             ],
+          ),
+          Positioned(
+            top: 0,
+            right: 6,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                PremiumIconButtonShell(
+                  golden: _layoutMode != _DuelHandLayoutMode.normal,
+                  child: IconButton(
+                    constraints: const BoxConstraints.tightFor(
+                      width: 34,
+                      height: 34,
+                    ),
+                    padding: EdgeInsets.zero,
+                    iconSize: 18,
+                    tooltip: 'Affichage ${_layoutName(_layoutMode)}',
+                    onPressed: () {
+                      setState(() {
+                        _layoutMode = _nextLayoutMode(_layoutMode);
+                      });
+                      if (_layoutMode == _DuelHandLayoutMode.random) {
+                        _regenerateRandomLayout('switch to random');
+                      }
+                    },
+                    icon: Icon(
+                      _layoutIcon(_layoutMode),
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                if (_layoutMode == _DuelHandLayoutMode.random) ...<Widget>[
+                  const SizedBox(width: 6),
+                  PremiumIconButtonShell(
+                    child: IconButton(
+                      constraints: const BoxConstraints.tightFor(
+                        width: 34,
+                        height: 34,
+                      ),
+                      padding: EdgeInsets.zero,
+                      iconSize: 18,
+                      tooltip: 'Replacer les cartes aléatoires',
+                      onPressed: () =>
+                          _regenerateRandomLayout('manual random refresh'),
+                      icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 6),
+                _DrawCountBadge(count: widget.cards.length),
+              ],
+            ),
           ),
         ],
       ),
