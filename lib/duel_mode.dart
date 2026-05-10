@@ -6890,6 +6890,9 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                                         ? max(430.0, screenSize.height * 0.56)
                                         : duelMaxPlayerHeight,
                                     initialPlayerHeightFactor: 0.46,
+                                    fixedOpponentHeight: premiumDesktopTable
+                                        ? null
+                                        : duelMinPlayerHeight,
                                     opponent: _OpponentRow(
                                       name: opponentName,
                                       count: getOpponentCardCount(
@@ -9462,6 +9465,8 @@ class _MyHandRowState extends State<_MyHandRow> {
   Set<String> _newCardIds = <String>{};
   _DuelHandLayoutMode _layoutMode = _DuelHandLayoutMode.normal;
   int _randomLayoutSeed = 0;
+  final Map<String, Offset> _manualPositions = <String, Offset>{};
+  String? _draggingCardId;
 
   @override
   void initState() {
@@ -9479,11 +9484,17 @@ class _MyHandRowState extends State<_MyHandRow> {
     _newCardIds = currentIds
         .where((String id) => !previousIds.contains(id))
         .toSet();
-    if (_layoutMode == _DuelHandLayoutMode.random &&
-        (oldWidget.cards.length != widget.cards.length ||
-            oldWidget.minCardsViewportHeight != widget.minCardsViewportHeight ||
-            oldWidget.cardScale != widget.cardScale)) {
-      _regenerateRandomLayout('cards/viewport update');
+    if (_layoutMode == _DuelHandLayoutMode.random) {
+      final Set<String> currentIdSet = currentIds.toSet();
+      _manualPositions.removeWhere((String k, Offset _) => !currentIdSet.contains(k));
+      if (_draggingCardId != null && !currentIdSet.contains(_draggingCardId)) {
+        _draggingCardId = null;
+      }
+      if (oldWidget.cards.length != widget.cards.length ||
+          oldWidget.minCardsViewportHeight != widget.minCardsViewportHeight ||
+          oldWidget.cardScale != widget.cardScale) {
+        _regenerateRandomLayout('cards/viewport update');
+      }
     }
     _previousCardIds = currentIds;
   }
@@ -9491,6 +9502,7 @@ class _MyHandRowState extends State<_MyHandRow> {
   void _regenerateRandomLayout(String reason) {
     setState(() {
       _randomLayoutSeed++;
+      _manualPositions.clear();
     });
     assert(() {
       debugPrint(
@@ -9557,33 +9569,87 @@ class _MyHandRowState extends State<_MyHandRow> {
     }
   }
 
+  void _syncManualPositions(
+    Size area,
+    List<DuelCard> cards,
+    double cardW,
+    double cardH,
+  ) {
+    final Set<String> currentIds = cards.map((DuelCard c) => c.id).toSet();
+    _manualPositions.removeWhere((String k, Offset _) => !currentIds.contains(k));
+    for (int i = 0; i < cards.length; i++) {
+      final String id = cards[i].id;
+      if (_manualPositions.containsKey(id)) {
+        _manualPositions[id] = _clampCardPosition(
+          _manualPositions[id]!,
+          area,
+          cardW,
+          cardH,
+        );
+      } else {
+        final Random r = Random(
+          cards[i].id.hashCode ^ (i * 97) ^ (_randomLayoutSeed * 1543),
+        );
+        _manualPositions[id] = _clampCardPosition(
+          Offset(
+            r.nextDouble() * max(0.0, area.width - cardW),
+            r.nextDouble() * max(0.0, area.height - cardH),
+          ),
+          area,
+          cardW,
+          cardH,
+        );
+      }
+    }
+  }
+
+  Offset _clampCardPosition(Offset pos, Size area, double cardW, double cardH) {
+    return Offset(
+      pos.dx.clamp(0.0, max(0.0, area.width - cardW)).toDouble(),
+      pos.dy.clamp(0.0, max(0.0, area.height - cardH)).toDouble(),
+    );
+  }
+
+  void _moveCard(
+    String id,
+    Offset delta,
+    Size area,
+    double cardW,
+    double cardH,
+  ) {
+    final Offset cur = _manualPositions[id] ?? Offset.zero;
+    setState(() {
+      _manualPositions[id] = _clampCardPosition(cur + delta, area, cardW, cardH);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final Widget panel = PremiumGamePanel(
       padding: EdgeInsets.all(widget.premiumDesktop ? 12 : 10),
       radius: widget.premiumDesktop ? 20 : 18,
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  _ProfileBlock(
-                    name: widget.profileName,
-                    wins: widget.wins,
-                    losses: widget.losses,
-                    credits: widget.credits,
-                    fallbackInitial: widget.fallbackInitial,
-                    compact: true,
-                    avatarCard: widget.avatarCard,
-                    showStats: widget.showStats,
-                    score: widget.score,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
+              _ProfileBlock(
+                name: widget.profileName,
+                wins: widget.wins,
+                losses: widget.losses,
+                credits: widget.credits,
+                fallbackInitial: widget.fallbackInitial,
+                compact: true,
+                avatarCard: widget.avatarCard,
+                showStats: widget.showStats,
+                score: widget.score,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    Flexible(
                       child: _TurnStateBadge(
                         text: widget.canInteract
                             ? 'À votre tour'
@@ -9591,9 +9657,62 @@ class _MyHandRowState extends State<_MyHandRow> {
                         blink: widget.canInteract,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    PremiumIconButtonShell(
+                      golden: _layoutMode != _DuelHandLayoutMode.normal,
+                      child: IconButton(
+                        constraints: const BoxConstraints.tightFor(
+                          width: 34,
+                          height: 34,
+                        ),
+                        padding: EdgeInsets.zero,
+                        iconSize: 18,
+                        tooltip: 'Affichage ${_layoutName(_layoutMode)}',
+                        onPressed: () {
+                          setState(() {
+                            if (_layoutMode == _DuelHandLayoutMode.random) {
+                              _manualPositions.clear();
+                              _draggingCardId = null;
+                            }
+                            _layoutMode = _nextLayoutMode(_layoutMode);
+                          });
+                          if (_layoutMode == _DuelHandLayoutMode.random) {
+                            _regenerateRandomLayout('switch to random');
+                          }
+                        },
+                        icon: Icon(
+                          _layoutIcon(_layoutMode),
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    if (_layoutMode == _DuelHandLayoutMode.random) ...<Widget>[
+                      const SizedBox(width: 4),
+                      PremiumIconButtonShell(
+                        child: IconButton(
+                          constraints: const BoxConstraints.tightFor(
+                            width: 34,
+                            height: 34,
+                          ),
+                          padding: EdgeInsets.zero,
+                          iconSize: 18,
+                          tooltip: 'Replacer les cartes aléatoires',
+                          onPressed: () =>
+                              _regenerateRandomLayout('manual random refresh'),
+                          icon: const Icon(
+                            Icons.refresh_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    _DrawCountBadge(count: widget.cards.length),
+                  ],
+                ),
               ),
+            ],
+          ),
               const PremiumDividerLine(verticalPadding: 8),
               Expanded(
                 child: LayoutBuilder(
@@ -9629,6 +9748,115 @@ class _MyHandRowState extends State<_MyHandRow> {
                       _FaceCard.height * widget.cardScale + 8,
                     );
 
+                    // Mode aléatoire : cartes librement déplaçables (comme Solo manuel)
+                    if (_layoutMode == _DuelHandLayoutMode.random) {
+                      final double cardHeight =
+                          _FaceCard.height * widget.cardScale;
+                      final Size areaSize = Size(
+                        constraints.maxWidth,
+                        max(cardsMinHeight, constraints.maxHeight),
+                      );
+                      _syncManualPositions(
+                        areaSize,
+                        cards,
+                        cardWidth,
+                        cardHeight,
+                      );
+                      final String? draggingId = _draggingCardId;
+                      final List<DuelCard> paintOrder =
+                          List<DuelCard>.from(cards);
+                      if (draggingId != null) {
+                        final int idx = paintOrder.indexWhere(
+                          (DuelCard c) => c.id == draggingId,
+                        );
+                        if (idx >= 0) {
+                          paintOrder.add(paintOrder.removeAt(idx));
+                        }
+                      }
+                      return SizedBox(
+                        width: areaSize.width,
+                        height: areaSize.height,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: paintOrder.map((DuelCard card) {
+                            final Offset pos =
+                                _manualPositions[card.id] ?? Offset.zero;
+                            final bool isDragging = card.id == draggingId;
+                            final bool isPlayable = widget.playable(card);
+                            final bool isNew = _newCardIds.contains(card.id);
+                            final int originalIndex = cards.indexOf(card);
+                            return Positioned(
+                              key: ValueKey<String>('duel-manual-${card.id}'),
+                              left: pos.dx,
+                              top: pos.dy,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onPanStart: widget.canInteract
+                                    ? (_) => setState(
+                                        () => _draggingCardId = card.id,
+                                      )
+                                    : null,
+                                onPanUpdate: widget.canInteract
+                                    ? (DragUpdateDetails d) => _moveCard(
+                                        card.id,
+                                        d.delta,
+                                        areaSize,
+                                        cardWidth,
+                                        cardHeight,
+                                      )
+                                    : null,
+                                onPanEnd: widget.canInteract
+                                    ? (_) => setState(
+                                        () => _draggingCardId = null,
+                                      )
+                                    : null,
+                                onPanCancel: widget.canInteract
+                                    ? () => setState(
+                                        () => _draggingCardId = null,
+                                      )
+                                    : null,
+                                onTap: widget.canInteract && isPlayable
+                                    ? () => widget.onCardTap(card)
+                                    : null,
+                                child: AnimatedScale(
+                                  duration: const Duration(milliseconds: 120),
+                                  scale: isDragging ? 1.05 : 1.0,
+                                  child: BouncyCardEntry(
+                                    key: ValueKey<String>(
+                                      'duel-manual-bounce-${card.id}',
+                                    ),
+                                    animate: isNew,
+                                    delay: Duration(
+                                      milliseconds: isNew
+                                          ? originalIndex * 34
+                                          : 0,
+                                    ),
+                                    child: Opacity(
+                                      opacity: widget.canInteract && !isPlayable
+                                          ? 0.45
+                                          : 1.0,
+                                      child: widget.cardScale == 1
+                                          ? _FaceCard(card: card)
+                                          : SizedBox(
+                                              width: cardWidth,
+                                              height: cardHeight,
+                                              child: FittedBox(
+                                                fit: BoxFit.contain,
+                                                alignment: Alignment.center,
+                                                child: _FaceCard(card: card),
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      );
+                    }
+
+                    // Modes normal et éventail : layout Wrap avec scroll
                     return Stack(
                       clipBehavior: Clip.none,
                       children: <Widget>[
@@ -9673,37 +9901,29 @@ class _MyHandRowState extends State<_MyHandRow> {
                                         final int staggerIndex = isNew
                                             ? newCardOrder++
                                             : 0;
-                                        final int rowIndex = index ~/ cardsPerRow;
-                                        final int indexInRow = index % cardsPerRow;
-                                        final int lastRowLength = cards.length %
-                                                cardsPerRow ==
-                                            0
+                                        final int rowIndex =
+                                            index ~/ cardsPerRow;
+                                        final int indexInRow =
+                                            index % cardsPerRow;
+                                        final int lastRowLength =
+                                            cards.length % cardsPerRow == 0
                                             ? cardsPerRow
                                             : cards.length % cardsPerRow;
                                         final int cardsInThisRow =
                                             rowIndex ==
-                                                ((cards.length - 1) ~/ cardsPerRow)
+                                                ((cards.length - 1) ~/
+                                                    cardsPerRow)
                                             ? lastRowLength
                                             : cardsPerRow;
                                         final double rowCenter =
                                             (cardsInThisRow - 1) / 2.0;
-                                        final double fanOffset = indexInRow - rowCenter;
-                                        final Random seededRandom = Random(
-                                          card.id.hashCode ^
-                                              (index * 97) ^
-                                              (_randomLayoutSeed * 1543),
-                                        );
-                                        final double randomDx =
-                                            (seededRandom.nextDouble() - 0.5) * 12;
-                                        final double randomDy =
-                                            (seededRandom.nextDouble() - 0.5) * 10;
-                                        final double randomAngle =
-                                            (seededRandom.nextDouble() - 0.5) * 0.18;
-                                        final double angleRadians = switch (_layoutMode) {
-                                          _DuelHandLayoutMode.normal => 0,
-                                          _DuelHandLayoutMode.fan => fanOffset * 0.026,
-                                          _DuelHandLayoutMode.random => randomAngle,
-                                        };
+                                        final double fanOffset =
+                                            indexInRow - rowCenter;
+                                        final double angleRadians =
+                                            _layoutMode ==
+                                                _DuelHandLayoutMode.fan
+                                            ? fanOffset * 0.026
+                                            : 0.0;
                                         return SizedBox(
                                           width: cardWidth,
                                           child: BouncyCardEntry(
@@ -9716,34 +9936,38 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                   ? staggerIndex * 34
                                                   : 0,
                                             ),
-                                            child: Transform.translate(
-                                              offset: _layoutMode ==
-                                                      _DuelHandLayoutMode.random
-                                                  ? Offset(randomDx, randomDy)
-                                                  : Offset.zero,
-                                              child: Transform.rotate(
-                                                angle: angleRadians,
-                                                child: GestureDetector(
-                                                  behavior: HitTestBehavior.opaque,
-                                                  onTap: widget.canInteract && isPlayable
-                                                      ? () => widget.onCardTap(card)
-                                                      : null,
-                                                  child: Opacity(
-                                                    opacity: widget.canInteract && !isPlayable
-                                                        ? 0.45
-                                                        : 1,
-                                                    child: widget.cardScale == 1
-                                                        ? _FaceCard(card: card)
-                                                        : SizedBox(
-                                                            width: cardWidth,
-                                                            height: _FaceCard.height * widget.cardScale,
-                                                            child: FittedBox(
-                                                              fit: BoxFit.contain,
-                                                              alignment: Alignment.center,
-                                                              child: _FaceCard(card: card),
+                                            child: Transform.rotate(
+                                              angle: angleRadians,
+                                              child: GestureDetector(
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap: widget.canInteract &&
+                                                        isPlayable
+                                                    ? () =>
+                                                        widget.onCardTap(card)
+                                                    : null,
+                                                child: Opacity(
+                                                  opacity: widget.canInteract &&
+                                                          !isPlayable
+                                                      ? 0.45
+                                                      : 1,
+                                                  child: widget.cardScale == 1
+                                                      ? _FaceCard(card: card)
+                                                      : SizedBox(
+                                                          width: cardWidth,
+                                                          height: _FaceCard
+                                                                  .height *
+                                                              widget.cardScale,
+                                                          child: FittedBox(
+                                                            fit: BoxFit.contain,
+                                                            alignment:
+                                                                Alignment
+                                                                    .center,
+                                                            child: _FaceCard(
+                                                              card: card,
                                                             ),
                                                           ),
-                                                  ),
+                                                        ),
                                                 ),
                                               ),
                                             ),
@@ -9763,58 +9987,6 @@ class _MyHandRowState extends State<_MyHandRow> {
                 ),
               ),
             ],
-          ),
-          Positioned(
-            top: 0,
-            right: 6,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                PremiumIconButtonShell(
-                  golden: _layoutMode != _DuelHandLayoutMode.normal,
-                  child: IconButton(
-                    constraints: const BoxConstraints.tightFor(
-                      width: 34,
-                      height: 34,
-                    ),
-                    padding: EdgeInsets.zero,
-                    iconSize: 18,
-                    tooltip: 'Affichage ${_layoutName(_layoutMode)}',
-                    onPressed: () {
-                      setState(() {
-                        _layoutMode = _nextLayoutMode(_layoutMode);
-                      });
-                      if (_layoutMode == _DuelHandLayoutMode.random) {
-                        _regenerateRandomLayout('switch to random');
-                      }
-                    },
-                    icon: Icon(
-                      _layoutIcon(_layoutMode),
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                if (_layoutMode == _DuelHandLayoutMode.random) ...<Widget>[
-                  const SizedBox(width: 6),
-                  PremiumIconButtonShell(
-                    child: IconButton(
-                      constraints: const BoxConstraints.tightFor(
-                        width: 34,
-                        height: 34,
-                      ),
-                      padding: EdgeInsets.zero,
-                      iconSize: 18,
-                      tooltip: 'Replacer les cartes aléatoires',
-                      onPressed: () =>
-                          _regenerateRandomLayout('manual random refresh'),
-                      icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                    ),
-                  ),
-                ],
-                const SizedBox(width: 6),
-                _DrawCountBadge(count: widget.cards.length),
-              ],
-            ),
           ),
         ],
       ),
@@ -10283,7 +10455,7 @@ class _DuelCardBack extends StatelessWidget {
       width: width,
       height: height,
       decoration: PremiumCardEffects.bevelBack(
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular((width * 0.07).clamp(3.0, 5.0)),
         image: const DecorationImage(
           image: AssetImage('assets/img/card_back.jpeg'),
           fit: BoxFit.cover,

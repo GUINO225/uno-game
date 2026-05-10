@@ -455,6 +455,7 @@ class ResizableGameTableLayout extends StatefulWidget {
     this.playerHeightFactor = 0.46,
     this.minCenterHeight = 120,
     this.safetyMargin = 10,
+    this.fixedOpponentHeight,
   });
 
   final Widget opponent;
@@ -472,6 +473,9 @@ class ResizableGameTableLayout extends StatefulWidget {
   final double playerHeightFactor;
   final double minCenterHeight;
   final double safetyMargin;
+  /// Quand fourni, la hauteur du bloc adverse est fixe et seul le bloc joueur
+  /// est affecté par le redimensionnement.
+  final double? fixedOpponentHeight;
 
   @override
   State<ResizableGameTableLayout> createState() =>
@@ -538,9 +542,6 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
             widget.opponentHeightFactor +
             widget.centerHeightFactor +
             widget.playerHeightFactor;
-        final double normalizedOpponentFactor = combinedFactor == 0
-            ? 0.26
-            : widget.opponentHeightFactor / combinedFactor;
         final double normalizedCenterFactor = combinedFactor == 0
             ? 0.28
             : widget.centerHeightFactor / combinedFactor;
@@ -548,15 +549,29 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
           widget.minCenterHeight,
           availableForSections * normalizedCenterFactor,
         );
+        final double opponentBandHeight;
+        final double actualCenterHeight;
+        if (widget.fixedOpponentHeight != null) {
+          opponentBandHeight = widget.fixedOpponentHeight!;
+          final double budgetForCenterAndPlayer =
+              max(0, availableForSections - opponentBandHeight);
+          actualCenterHeight = max(
+            widget.minCenterHeight,
+            budgetForCenterAndPlayer * (widget.centerHeightFactor /
+                (widget.centerHeightFactor + widget.playerHeightFactor)),
+          );
+        } else {
+          opponentBandHeight = max(
+            90,
+            availableForSections - centerBandHeight - playerHeight.clamp(widget.minPlayerHeight, max(widget.minPlayerHeight, availableForSections - centerBandHeight - widget.safetyMargin)),
+          );
+          actualCenterHeight = centerBandHeight;
+        }
         final double maxPlayerFromBudget = max(
           widget.minPlayerHeight,
-          availableForSections - centerBandHeight - widget.safetyMargin,
+          availableForSections - actualCenterHeight - opponentBandHeight - widget.safetyMargin,
         );
         final double constrainedPlayerHeight = min(playerHeight, maxPlayerFromBudget);
-        final double opponentBandHeight = max(
-          90,
-          availableForSections - centerBandHeight - constrainedPlayerHeight,
-        );
 
         final bool immersive = widget.desktopImmersive;
         final double opponentFlex = immersive ? 1.08 : 0.72;
@@ -633,7 +648,7 @@ class _ResizableGameTableLayoutState extends State<ResizableGameTableLayout> {
             ),
             SizedBox(height: safeGap),
             SizedBox(
-              height: centerBandHeight,
+              height: actualCenterHeight,
               child: centerStage,
             ),
             SizedBox(height: safeGap),
