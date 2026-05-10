@@ -6862,83 +6862,166 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                           ),
                           SizedBox(height: isCompactDuelLayout ? 4 : 6),
                           Expanded(
-                            child: ResizableGameTableLayout(
-                              compact: isCompactDuelLayout,
-                              desktopImmersive: premiumDesktopTable,
-                              sectionGap: sectionGap,
-                              minPlayerHeight: premiumDesktopTable
-                                  ? max(258.0, screenSize.height * 0.34)
-                                  : duelMinPlayerHeight,
-                              maxPlayerHeight: premiumDesktopTable
-                                  ? max(430.0, screenSize.height * 0.56)
-                                  : duelMaxPlayerHeight,
-                              initialPlayerHeightFactor: premiumDesktopTable
-                                  ? 0.46
-                                  : (isCompactDuelLayout ? 0.50 : 0.54),
-                              opponent: _OpponentRow(
-                                name: opponentName,
-                                count: getOpponentCardCount(
-                                  session,
-                                  _controller.localPlayerId,
-                                ),
-                                wins: opponentScore,
-                                losses: myScore,
-                                fallbackInitial: opponentName.isNotEmpty
-                                    ? opponentName[0]
-                                    : '?',
-                                avatarCard: opponentAvatarCard,
-                                compact: isCompactDuelLayout,
-                                connectionStatus:
-                                    _controller.opponentConnectionStatus,
-                                showStats: false,
-                                score: opponentScore,
-                                premiumDesktop: premiumDesktopTable,
-                              ),
-                              center: _CenterArea(
-                                discardPile: board.discardPile,
-                                drawCount: board.drawPile.length,
-                                canDraw:
-                                    myTurn &&
-                                    board.canDraw(_controller.localPlayerId) &&
-                                    !_isDrawingActionBusy,
-                                onDrawTap: _onDrawTap,
-                                overlay: texts.overlay,
-                                requiredSuit: board.requiredSuit,
-                                mustDraw: myTurn && board.pendingDraw > 0,
-                                compact: isCompactDuelLayout,
-                                premiumDesktop: premiumDesktopTable,
-                              ),
-                              player: _MyHandRow(
-                                cards: board.handOf(_controller.localPlayerId),
-                                canInteract:
-                                    myTurn &&
-                                    !(myTurn && board.pendingDraw > 0),
-                                onCardTap: _onCardTap,
-                                playable: (DuelCard card) =>
-                                    myTurn &&
-                                    board.canPlay(
-                                      _controller.localPlayerId,
-                                      card,
+                            child: premiumDesktopTable
+                                ? ResizableGameTableLayout(
+                                    compact: isCompactDuelLayout,
+                                    desktopImmersive: premiumDesktopTable,
+                                    sectionGap: sectionGap,
+                                    minPlayerHeight: max(
+                                      258.0,
+                                      screenSize.height * 0.34,
                                     ),
-                                profileName: localName,
-                                wins: myScore,
-                                losses: opponentScore,
-                                credits: null,
-                                fallbackInitial: localName.isNotEmpty
-                                    ? localName[0]
-                                    : '?',
-                                avatarCard: localAvatarCard,
-                                showStats: false,
-                                score: myScore,
-                                cardScale: premiumDesktopTable
-                                    ? (screenSize.width >= 1680 ? 1.14 : 1.08)
-                                    : (isCompactDuelLayout ? 1.0 : 1.06),
-                                minCardsViewportHeight: premiumDesktopTable
-                                    ? max(230.0, screenSize.height * 0.26)
-                                    : duelCardsViewportMinHeight,
-                                premiumDesktop: premiumDesktopTable,
-                              ),
-                            ),
+                                    maxPlayerHeight: max(
+                                      430.0,
+                                      screenSize.height * 0.56,
+                                    ),
+                                    initialPlayerHeightFactor: 0.46,
+                                    opponent: _OpponentRow(
+                                      name: opponentName,
+                                      count: getOpponentCardCount(
+                                        session,
+                                        _controller.localPlayerId,
+                                      ),
+                                      wins: opponentScore,
+                                      losses: myScore,
+                                      fallbackInitial: opponentName.isNotEmpty
+                                          ? opponentName[0]
+                                          : '?',
+                                      avatarCard: opponentAvatarCard,
+                                      compact: isCompactDuelLayout,
+                                      connectionStatus:
+                                          _controller.opponentConnectionStatus,
+                                      showStats: false,
+                                      score: opponentScore,
+                                      premiumDesktop: premiumDesktopTable,
+                                    ),
+                                    center: _CenterArea(
+                                      discardPile: board.discardPile,
+                                      drawCount: board.drawPile.length,
+                                      canDraw:
+                                          myTurn &&
+                                          board.canDraw(
+                                            _controller.localPlayerId,
+                                          ) &&
+                                          !_isDrawingActionBusy,
+                                      onDrawTap: _onDrawTap,
+                                      overlay: texts.overlay,
+                                      requiredSuit: board.requiredSuit,
+                                      mustDraw: myTurn && board.pendingDraw > 0,
+                                      compact: isCompactDuelLayout,
+                                      premiumDesktop: premiumDesktopTable,
+                                    ),
+                                    player: _MyHandRow(
+                                      cards: board.handOf(
+                                        _controller.localPlayerId,
+                                      ),
+                                      canInteract:
+                                          myTurn &&
+                                          !(myTurn && board.pendingDraw > 0),
+                                      onCardTap: _onCardTap,
+                                      playable: (DuelCard card) =>
+                                          myTurn &&
+                                          board.canPlay(
+                                            _controller.localPlayerId,
+                                            card,
+                                          ),
+                                      profileName: localName,
+                                      wins: myScore,
+                                      losses: opponentScore,
+                                      credits: null,
+                                      fallbackInitial: localName.isNotEmpty
+                                          ? localName[0]
+                                          : '?',
+                                      avatarCard: localAvatarCard,
+                                      showStats: false,
+                                      score: myScore,
+                                      cardScale: screenSize.width >= 1680
+                                          ? 1.14
+                                          : 1.08,
+                                      minCardsViewportHeight: max(
+                                        230.0,
+                                        screenSize.height * 0.26,
+                                      ),
+                                      premiumDesktop: premiumDesktopTable,
+                                    ),
+                                  )
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: <Widget>[
+                                      _OpponentRow(
+                                        name: opponentName,
+                                        count: getOpponentCardCount(
+                                          session,
+                                          _controller.localPlayerId,
+                                        ),
+                                        wins: opponentScore,
+                                        losses: myScore,
+                                        fallbackInitial: opponentName.isNotEmpty
+                                            ? opponentName[0]
+                                            : '?',
+                                        avatarCard: opponentAvatarCard,
+                                        compact: isCompactDuelLayout,
+                                        connectionStatus:
+                                            _controller.opponentConnectionStatus,
+                                        showStats: false,
+                                        score: opponentScore,
+                                        premiumDesktop: false,
+                                      ),
+                                      SizedBox(height: sectionGap),
+                                      Expanded(
+                                        child: _CenterArea(
+                                          discardPile: board.discardPile,
+                                          drawCount: board.drawPile.length,
+                                          canDraw:
+                                              myTurn &&
+                                              board.canDraw(
+                                                _controller.localPlayerId,
+                                              ) &&
+                                              !_isDrawingActionBusy,
+                                          onDrawTap: _onDrawTap,
+                                          overlay: texts.overlay,
+                                          requiredSuit: board.requiredSuit,
+                                          mustDraw:
+                                              myTurn && board.pendingDraw > 0,
+                                          compact: isCompactDuelLayout,
+                                          premiumDesktop: false,
+                                        ),
+                                      ),
+                                      SizedBox(height: sectionGap),
+                                      _MyHandRow(
+                                        cards: board.handOf(
+                                          _controller.localPlayerId,
+                                        ),
+                                        canInteract:
+                                            myTurn &&
+                                            !(myTurn && board.pendingDraw > 0),
+                                        onCardTap: _onCardTap,
+                                        playable: (DuelCard card) =>
+                                            myTurn &&
+                                            board.canPlay(
+                                              _controller.localPlayerId,
+                                              card,
+                                            ),
+                                        profileName: localName,
+                                        wins: myScore,
+                                        losses: opponentScore,
+                                        credits: null,
+                                        fallbackInitial: localName.isNotEmpty
+                                            ? localName[0]
+                                            : '?',
+                                        avatarCard: localAvatarCard,
+                                        showStats: false,
+                                        score: myScore,
+                                        cardScale:
+                                            isCompactDuelLayout ? 1.0 : 1.06,
+                                        minCardsViewportHeight:
+                                            duelCardsViewportMinHeight,
+                                        premiumDesktop: false,
+                                        expand: true,
+                                      ),
+                                    ],
+                                  ),
                           ),
                           SizedBox(height: isCompactDuelLayout ? 4 : 6),
                           _ActionMessageCard(
@@ -8678,6 +8761,7 @@ class _OpponentRow extends StatefulWidget {
     this.showStats = true,
     this.score,
     this.premiumDesktop = false,
+    this.expand = false,
   });
 
   final String name;
@@ -8691,6 +8775,7 @@ class _OpponentRow extends StatefulWidget {
   final bool showStats;
   final int? score;
   final bool premiumDesktop;
+  final bool expand;
 
   @override
   State<_OpponentRow> createState() => _OpponentRowState();
@@ -9118,6 +9203,7 @@ class _CenterArea extends StatelessWidget {
     required this.mustDraw,
     this.compact = false,
     this.premiumDesktop = false,
+    this.expand = false,
   });
 
   final List<DuelCard> discardPile;
@@ -9129,6 +9215,7 @@ class _CenterArea extends StatelessWidget {
   final bool mustDraw;
   final bool compact;
   final bool premiumDesktop;
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -9396,6 +9483,7 @@ class _MyHandRow extends StatefulWidget {
     this.minCardsViewportHeight = 190,
     this.score,
     this.premiumDesktop = false,
+    this.expand = false,
   });
 
   final List<DuelCard> cards;
@@ -9413,6 +9501,7 @@ class _MyHandRow extends StatefulWidget {
   final double minCardsViewportHeight;
   final int? score;
   final bool premiumDesktop;
+  final bool expand;
   static const double _cardGap = 10;
   static const Duration _resizeAnimationDuration = Duration(milliseconds: 260);
 
@@ -9469,7 +9558,7 @@ class _MyHandRowState extends State<_MyHandRow> {
 
   @override
   Widget build(BuildContext context) {
-    return PremiumGamePanel(
+    final Widget panel = PremiumGamePanel(
       padding: EdgeInsets.all(widget.premiumDesktop ? 12 : 10),
       radius: widget.premiumDesktop ? 20 : 18,
       child: Stack(
@@ -9653,6 +9742,10 @@ class _MyHandRowState extends State<_MyHandRow> {
         ],
       ),
     );
+    if (widget.expand) {
+      return Expanded(child: panel);
+    }
+    return panel;
   }
 }
 
