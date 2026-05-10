@@ -6879,19 +6879,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                           ),
                           SizedBox(height: isCompactDuelLayout ? 4 : 6),
                           Expanded(
-                            child: premiumDesktopTable
-                                ? ResizableGameTableLayout(
+                            child: ResizableGameTableLayout(
                                     compact: isCompactDuelLayout,
                                     desktopImmersive: premiumDesktopTable,
                                     sectionGap: sectionGap,
-                                    minPlayerHeight: max(
-                                      258.0,
-                                      screenSize.height * 0.34,
-                                    ),
-                                    maxPlayerHeight: max(
-                                      430.0,
-                                      screenSize.height * 0.56,
-                                    ),
+                                    minPlayerHeight: premiumDesktopTable
+                                        ? max(258.0, screenSize.height * 0.34)
+                                        : duelMinPlayerHeight,
+                                    maxPlayerHeight: premiumDesktopTable
+                                        ? max(430.0, screenSize.height * 0.56)
+                                        : duelMaxPlayerHeight,
                                     initialPlayerHeightFactor: 0.46,
                                     opponent: _OpponentRow(
                                       name: opponentName,
@@ -6952,96 +6949,16 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                                       avatarCard: localAvatarCard,
                                       showStats: false,
                                       score: myScore,
-                                      cardScale: screenSize.width >= 1680
-                                          ? 1.14
-                                          : 1.08,
-                                      minCardsViewportHeight: max(
-                                        230.0,
-                                        screenSize.height * 0.26,
-                                      ),
+                                      cardScale: premiumDesktopTable
+                                          ? (screenSize.width >= 1680
+                                              ? 1.14
+                                              : 1.08)
+                                          : (isCompactDuelLayout ? 1.0 : 1.06),
+                                      minCardsViewportHeight: premiumDesktopTable
+                                          ? max(230.0, screenSize.height * 0.26)
+                                          : duelCardsViewportMinHeight,
                                       premiumDesktop: premiumDesktopTable,
                                     ),
-                                  )
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: <Widget>[
-                                      SizedBox(
-                                        height: duelMinPlayerHeight,
-                                        child: _OpponentRow(
-                                          name: opponentName,
-                                          count: getOpponentCardCount(
-                                            session,
-                                            _controller.localPlayerId,
-                                          ),
-                                          wins: opponentScore,
-                                          losses: myScore,
-                                          fallbackInitial:
-                                              opponentName.isNotEmpty
-                                              ? opponentName[0]
-                                              : '?',
-                                          avatarCard: opponentAvatarCard,
-                                          compact: isCompactDuelLayout,
-                                          connectionStatus: _controller
-                                              .opponentConnectionStatus,
-                                          showStats: false,
-                                          score: opponentScore,
-                                          premiumDesktop: false,
-                                        ),
-                                      ),
-                                      SizedBox(height: sectionGap),
-                                      Expanded(
-                                        child: _CenterArea(
-                                          discardPile: board.discardPile,
-                                          drawCount: board.drawPile.length,
-                                          canDraw:
-                                              myTurn &&
-                                              board.canDraw(
-                                                _controller.localPlayerId,
-                                              ) &&
-                                              !_isDrawingActionBusy,
-                                          onDrawTap: _onDrawTap,
-                                          overlay: texts.overlay,
-                                          requiredSuit: board.requiredSuit,
-                                          mustDraw:
-                                              myTurn && board.pendingDraw > 0,
-                                          compact: isCompactDuelLayout,
-                                          premiumDesktop: false,
-                                        ),
-                                      ),
-                                      SizedBox(height: sectionGap),
-                                      _MyHandRow(
-                                        cards: board.handOf(
-                                          _controller.localPlayerId,
-                                        ),
-                                        canInteract:
-                                            myTurn &&
-                                            !(myTurn && board.pendingDraw > 0),
-                                        onCardTap: _onCardTap,
-                                        playable: (DuelCard card) =>
-                                            myTurn &&
-                                            board.canPlay(
-                                              _controller.localPlayerId,
-                                              card,
-                                            ),
-                                        profileName: localName,
-                                        wins: myScore,
-                                        losses: opponentScore,
-                                        credits: null,
-                                        fallbackInitial: localName.isNotEmpty
-                                            ? localName[0]
-                                            : '?',
-                                        avatarCard: localAvatarCard,
-                                        showStats: false,
-                                        score: myScore,
-                                        cardScale:
-                                            isCompactDuelLayout ? 1.0 : 1.06,
-                                        minCardsViewportHeight:
-                                            duelCardsViewportMinHeight,
-                                        premiumDesktop: false,
-                                        expand: true,
-                                      ),
-                                    ],
                                   ),
                           ),
                           SizedBox(height: isCompactDuelLayout ? 4 : 6),
