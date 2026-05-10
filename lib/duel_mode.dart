@@ -6889,10 +6889,7 @@ class _DuelPageState extends State<DuelPage> with WidgetsBindingObserver {
                                     maxPlayerHeight: premiumDesktopTable
                                         ? max(430.0, screenSize.height * 0.56)
                                         : duelMaxPlayerHeight,
-                                    initialPlayerHeightFactor: 0.46,
-                                    fixedOpponentHeight: premiumDesktopTable
-                                        ? null
-                                        : duelMinPlayerHeight,
+                                    initialPlayerHeightFactor: 0.50,
                                     opponent: _OpponentRow(
                                       name: opponentName,
                                       count: getOpponentCardCount(
@@ -9371,9 +9368,7 @@ class _DiscardPileStackView extends StatelessWidget {
               offset: Offset(-4.0 + (index * 4), -2.0 + (index * 3)),
               child: Transform.rotate(
                 angle: index == 0 ? -0.087 : 0.070,
-                child: Opacity(
-                  opacity: 0.92 - (index * 0.15),
-                  child: compact
+                child: compact
                       ? Transform.scale(
                           scale: 0.92,
                           child: _FaceCard(card: underCards[index]),
@@ -9917,11 +9912,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                                           ? originalIndex * 34
                                           : 0,
                                     ),
-                                    child: Opacity(
-                                      opacity: widget.canInteract && !isPlayable
-                                          ? 0.48
-                                          : 1.0,
-                                      child: widget.cardScale == 1
+                                    child: widget.cardScale == 1
                                           ? _FaceCard(card: card)
                                           : SizedBox(
                                               width: cardWidth,
@@ -10086,12 +10077,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                   ? () =>
                                                       widget.onCardTap(card)
                                                   : null,
-                                              child: Opacity(
-                                                opacity: widget.canInteract &&
-                                                        !isPlayable
-                                                    ? 0.48
-                                                    : 1,
-                                                child: widget.cardScale == 1
+                                              child: widget.cardScale == 1
                                                     ? _FaceCard(card: card)
                                                     : SizedBox(
                                                         width: cardWidth,

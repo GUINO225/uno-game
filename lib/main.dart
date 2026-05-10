@@ -4397,9 +4397,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                               opacity: 0.58,
                             ),
                             child: Text(
-                              _forcedDrawCount > 1
-                                  ? 'Vous piochez • encore $_forcedDrawCount cartes'
-                                  : 'Vous piochez • encore 1 carte',
+                              _forcedDrawPopupText(),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
@@ -4416,6 +4414,20 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         ),
       ),
     );
+  }
+
+
+  String _forcedDrawPopupText() {
+    final String base = _forcedDrawCount > 1
+        ? 'Vous devez piocher encore $_forcedDrawCount cartes'
+        : 'Vous devez piocher encore 1 carte';
+    if (_forcedDrawCount >= 9) {
+      return 'Joker • $base';
+    }
+    if (_forcedDrawCount >= 2) {
+      return 'Carte 2 • $base';
+    }
+    return base;
   }
 
   Widget _topBar() {
