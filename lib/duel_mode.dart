@@ -9988,8 +9988,6 @@ class _MyHandRowState extends State<_MyHandRow> {
               ),
             ],
           ),
-        ],
-      ),
     );
     if (widget.expand) {
       return Expanded(child: panel);
