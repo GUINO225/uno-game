@@ -9623,6 +9623,92 @@ class _MyHandRowState extends State<_MyHandRow> {
     });
   }
 
+  Widget _buildFanRow({
+    required List<DuelCard> cards,
+    required int startIndex,
+    required int rowCardCount,
+    required double fanWidth,
+    required double fanRowHeight,
+    required double cardStep,
+    required double cardWidth,
+    required double cardHeight,
+  }) {
+    final double centerIndex = (rowCardCount - 1) / 2.0;
+    final double maxAngle =
+        min(0.42, 0.08 * max(1.0, (rowCardCount - 1).toDouble()));
+    return SizedBox(
+      width: fanWidth,
+      height: fanRowHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: List<Widget>.generate(rowCardCount, (int localIndex) {
+          final int cardIndex = startIndex + localIndex;
+          final DuelCard card = cards[cardIndex];
+          final double normalized = centerIndex == 0
+              ? 0.0
+              : (localIndex - centerIndex) / centerIndex;
+          final double angle = normalized * maxAngle;
+          final double sideDrop = normalized.abs() * 16;
+          final bool isPlayable = widget.playable(card);
+          final bool isNew = _newCardIds.contains(card.id);
+
+          Widget cardWidget = widget.cardScale == 1
+              ? _FaceCard(card: card)
+              : SizedBox(
+                  width: cardWidth,
+                  height: cardHeight,
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                    child: _FaceCard(card: card),
+                  ),
+                );
+
+          // Assombrissement au lieu de transparence pour les cartes non jouables
+          if (widget.canInteract && !isPlayable) {
+            cardWidget = Stack(
+              children: <Widget>[
+                cardWidget,
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.34),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return Positioned(
+            key: ValueKey<String>('duel-fan-${card.id}'),
+            left: localIndex * cardStep,
+            top: 8.0 + sideDrop,
+            child: Transform.rotate(
+              angle: angle,
+              alignment: Alignment.bottomCenter,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: widget.canInteract && isPlayable
+                    ? () => widget.onCardTap(card)
+                    : null,
+                child: BouncyCardEntry(
+                  key: ValueKey<String>('duel-fan-bounce-${card.id}'),
+                  animate: isNew,
+                  delay: Duration(
+                    milliseconds: isNew ? cardIndex * 34 : 0,
+                  ),
+                  child: cardWidget,
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Widget panel = PremiumGamePanel(
@@ -9833,7 +9919,7 @@ class _MyHandRowState extends State<_MyHandRow> {
                                     ),
                                     child: Opacity(
                                       opacity: widget.canInteract && !isPlayable
-                                          ? 0.45
+                                          ? 0.48
                                           : 1.0,
                                       child: widget.cardScale == 1
                                           ? _FaceCard(card: card)
@@ -9856,7 +9942,86 @@ class _MyHandRowState extends State<_MyHandRow> {
                       );
                     }
 
-                    // Modes normal et éventail : layout Wrap avec scroll
+                    // Mode éventail : Stack + Positioned avec chevauchement (identique au mode Solo)
+                    if (_layoutMode == _DuelHandLayoutMode.fan) {
+                      final double usableWidth = max(cardWidth, availableWidth);
+                      const double minFanStep = 34.0;
+                      final int fanCardsPerRow = min(
+                        cards.length,
+                        max(
+                          1,
+                          ((usableWidth - cardWidth) / minFanStep).floor() + 1,
+                        ),
+                      );
+                      final double fittedStep = fanCardsPerRow <= 1
+                          ? 0.0
+                          : (usableWidth - cardWidth) / (fanCardsPerRow - 1);
+                      final double cardStep = fanCardsPerRow <= 1
+                          ? 0.0
+                          : min(cardWidth * 0.72, max(28.0, fittedStep));
+                      final double fanWidth =
+                          cardWidth + max(0.0, (fanCardsPerRow - 1) * cardStep);
+                      final double cardHeight =
+                          _FaceCard.height * widget.cardScale;
+                      final double fanRowHeight = cardHeight + 34;
+                      final int fanRowCount =
+                          (cards.length / fanCardsPerRow).ceil();
+                      final double rowVerticalStep = cardHeight * 0.58;
+                      final double fanStackHeight = fanRowHeight +
+                          max(0.0, (fanRowCount - 1) * rowVerticalStep);
+                      return SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: max(
+                              cardsMinHeight,
+                              constraints.maxHeight - 18,
+                            ),
+                          ),
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: AnimatedSize(
+                              duration: _MyHandRow._resizeAnimationDuration,
+                              curve: Curves.easeOutCubic,
+                              alignment: Alignment.center,
+                              child: SizedBox(
+                                width: fanWidth,
+                                height: fanStackHeight,
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: List<Widget>.generate(
+                                    fanRowCount,
+                                    (int rowIdx) {
+                                      final int startIndex =
+                                          rowIdx * fanCardsPerRow;
+                                      final int rowCardCount = min(
+                                        fanCardsPerRow,
+                                        cards.length - startIndex,
+                                      );
+                                      return Positioned(
+                                        left: 0,
+                                        top: rowIdx * rowVerticalStep,
+                                        child: _buildFanRow(
+                                          cards: cards,
+                                          startIndex: startIndex,
+                                          rowCardCount: rowCardCount,
+                                          fanWidth: fanWidth,
+                                          fanRowHeight: fanRowHeight,
+                                          cardStep: cardStep,
+                                          cardWidth: cardWidth,
+                                          cardHeight: cardHeight,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Mode normal : layout Wrap avec scroll
                     return Stack(
                       clipBehavior: Clip.none,
                       children: <Widget>[
@@ -9901,29 +10066,6 @@ class _MyHandRowState extends State<_MyHandRow> {
                                         final int staggerIndex = isNew
                                             ? newCardOrder++
                                             : 0;
-                                        final int rowIndex =
-                                            index ~/ cardsPerRow;
-                                        final int indexInRow =
-                                            index % cardsPerRow;
-                                        final int lastRowLength =
-                                            cards.length % cardsPerRow == 0
-                                            ? cardsPerRow
-                                            : cards.length % cardsPerRow;
-                                        final int cardsInThisRow =
-                                            rowIndex ==
-                                                ((cards.length - 1) ~/
-                                                    cardsPerRow)
-                                            ? lastRowLength
-                                            : cardsPerRow;
-                                        final double rowCenter =
-                                            (cardsInThisRow - 1) / 2.0;
-                                        final double fanOffset =
-                                            indexInRow - rowCenter;
-                                        final double angleRadians =
-                                            _layoutMode ==
-                                                _DuelHandLayoutMode.fan
-                                            ? fanOffset * 0.026
-                                            : 0.0;
                                         return SizedBox(
                                           width: cardWidth,
                                           child: BouncyCardEntry(
@@ -9936,39 +10078,35 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                   ? staggerIndex * 34
                                                   : 0,
                                             ),
-                                            child: Transform.rotate(
-                                              angle: angleRadians,
-                                              child: GestureDetector(
-                                                behavior:
-                                                    HitTestBehavior.opaque,
-                                                onTap: widget.canInteract &&
-                                                        isPlayable
-                                                    ? () =>
-                                                        widget.onCardTap(card)
-                                                    : null,
-                                                child: Opacity(
-                                                  opacity: widget.canInteract &&
-                                                          !isPlayable
-                                                      ? 0.45
-                                                      : 1,
-                                                  child: widget.cardScale == 1
-                                                      ? _FaceCard(card: card)
-                                                      : SizedBox(
-                                                          width: cardWidth,
-                                                          height: _FaceCard
-                                                                  .height *
-                                                              widget.cardScale,
-                                                          child: FittedBox(
-                                                            fit: BoxFit.contain,
-                                                            alignment:
-                                                                Alignment
-                                                                    .center,
-                                                            child: _FaceCard(
-                                                              card: card,
-                                                            ),
+                                            child: GestureDetector(
+                                              behavior:
+                                                  HitTestBehavior.opaque,
+                                              onTap: widget.canInteract &&
+                                                      isPlayable
+                                                  ? () =>
+                                                      widget.onCardTap(card)
+                                                  : null,
+                                              child: Opacity(
+                                                opacity: widget.canInteract &&
+                                                        !isPlayable
+                                                    ? 0.48
+                                                    : 1,
+                                                child: widget.cardScale == 1
+                                                    ? _FaceCard(card: card)
+                                                    : SizedBox(
+                                                        width: cardWidth,
+                                                        height: _FaceCard
+                                                                .height *
+                                                            widget.cardScale,
+                                                        child: FittedBox(
+                                                          fit: BoxFit.contain,
+                                                          alignment:
+                                                              Alignment.center,
+                                                          child: _FaceCard(
+                                                            card: card,
                                                           ),
                                                         ),
-                                                ),
+                                                      ),
                                               ),
                                             ),
                                           ),
