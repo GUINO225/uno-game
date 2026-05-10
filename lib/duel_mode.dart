@@ -9538,9 +9538,12 @@ class _MyHandRow extends StatefulWidget {
   State<_MyHandRow> createState() => _MyHandRowState();
 }
 
+enum _DuelHandLayoutMode { normal, fan, random }
+
 class _MyHandRowState extends State<_MyHandRow> {
   List<String> _previousCardIds = const <String>[];
   Set<String> _newCardIds = <String>{};
+  _DuelHandLayoutMode _layoutMode = _DuelHandLayoutMode.normal;
 
   @override
   void initState() {
@@ -9583,6 +9586,39 @@ class _MyHandRowState extends State<_MyHandRow> {
     final double desiredWidth =
         (cardsPerRow * cardWidth) + (max(0, cardsPerRow - 1) * gap);
     return min(maxWidth, desiredWidth);
+  }
+
+  _DuelHandLayoutMode _nextLayoutMode(_DuelHandLayoutMode mode) {
+    switch (mode) {
+      case _DuelHandLayoutMode.normal:
+        return _DuelHandLayoutMode.fan;
+      case _DuelHandLayoutMode.fan:
+        return _DuelHandLayoutMode.random;
+      case _DuelHandLayoutMode.random:
+        return _DuelHandLayoutMode.normal;
+    }
+  }
+
+  String _layoutName(_DuelHandLayoutMode mode) {
+    switch (mode) {
+      case _DuelHandLayoutMode.normal:
+        return 'normal';
+      case _DuelHandLayoutMode.fan:
+        return 'éventail';
+      case _DuelHandLayoutMode.random:
+        return 'aléatoire';
+    }
+  }
+
+  IconData _layoutIcon(_DuelHandLayoutMode mode) {
+    switch (mode) {
+      case _DuelHandLayoutMode.normal:
+        return Icons.grid_view_rounded;
+      case _DuelHandLayoutMode.fan:
+        return Icons.style_rounded;
+      case _DuelHandLayoutMode.random:
+        return Icons.shuffle_rounded;
+    }
   }
 
   @override
@@ -9715,10 +9751,21 @@ class _MyHandRowState extends State<_MyHandRow> {
                                             : cardsPerRow;
                                         final double rowCenter =
                                             (cardsInThisRow - 1) / 2.0;
-                                        final double fanOffset =
-                                            indexInRow - rowCenter;
-                                        final double angleRadians =
-                                            fanOffset * 0.018;
+                                        final double fanOffset = indexInRow - rowCenter;
+                                        final Random seededRandom = Random(
+                                          card.id.hashCode ^ (index * 97),
+                                        );
+                                        final double randomDx =
+                                            (seededRandom.nextDouble() - 0.5) * 12;
+                                        final double randomDy =
+                                            (seededRandom.nextDouble() - 0.5) * 10;
+                                        final double randomAngle =
+                                            (seededRandom.nextDouble() - 0.5) * 0.18;
+                                        final double angleRadians = switch (_layoutMode) {
+                                          _DuelHandLayoutMode.normal => 0,
+                                          _DuelHandLayoutMode.fan => fanOffset * 0.026,
+                                          _DuelHandLayoutMode.random => randomAngle,
+                                        };
                                         return SizedBox(
                                           width: cardWidth,
                                           child: BouncyCardEntry(
@@ -9731,40 +9778,34 @@ class _MyHandRowState extends State<_MyHandRow> {
                                                   ? staggerIndex * 34
                                                   : 0,
                                             ),
-                                            child: Transform.rotate(
-                                              angle: angleRadians,
-                                              child: GestureDetector(
-                                                behavior:
-                                                    HitTestBehavior.opaque,
-                                                onTap:
-                                                    widget.canInteract &&
-                                                        isPlayable
-                                                    ? () =>
-                                                          widget.onCardTap(card)
-                                                    : null,
-                                                child: Opacity(
-                                                  opacity:
-                                                      widget.canInteract &&
-                                                          !isPlayable
-                                                      ? 0.45
-                                                      : 1,
-                                                  child:
-                                                      widget.cardScale == 1
-                                                      ? _FaceCard(card: card)
-                                                      : SizedBox(
-                                                          width: cardWidth,
-                                                          height:
-                                                              _FaceCard.height *
-                                                              widget.cardScale,
-                                                          child: FittedBox(
-                                                            fit: BoxFit.contain,
-                                                            alignment: Alignment
-                                                                .center,
-                                                            child: _FaceCard(
-                                                              card: card,
+                                            child: Transform.translate(
+                                              offset: _layoutMode ==
+                                                      _DuelHandLayoutMode.random
+                                                  ? Offset(randomDx, randomDy)
+                                                  : Offset.zero,
+                                              child: Transform.rotate(
+                                                angle: angleRadians,
+                                                child: GestureDetector(
+                                                  behavior: HitTestBehavior.opaque,
+                                                  onTap: widget.canInteract && isPlayable
+                                                      ? () => widget.onCardTap(card)
+                                                      : null,
+                                                  child: Opacity(
+                                                    opacity: widget.canInteract && !isPlayable
+                                                        ? 0.45
+                                                        : 1,
+                                                    child: widget.cardScale == 1
+                                                        ? _FaceCard(card: card)
+                                                        : SizedBox(
+                                                            width: cardWidth,
+                                                            height: _FaceCard.height * widget.cardScale,
+                                                            child: FittedBox(
+                                                              fit: BoxFit.contain,
+                                                              alignment: Alignment.center,
+                                                              child: _FaceCard(card: card),
                                                             ),
                                                           ),
-                                                        ),
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -9781,7 +9822,34 @@ class _MyHandRowState extends State<_MyHandRow> {
                         Positioned(
                           top: 0,
                           right: 6,
-                          child: _DrawCountBadge(count: widget.cards.length),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              PremiumIconButtonShell(
+                                golden: _layoutMode != _DuelHandLayoutMode.normal,
+                                child: IconButton(
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 34,
+                                    height: 34,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  iconSize: 18,
+                                  tooltip: 'Affichage ${_layoutName(_layoutMode)}',
+                                  onPressed: () {
+                                    setState(() {
+                                      _layoutMode = _nextLayoutMode(_layoutMode);
+                                    });
+                                  },
+                                  icon: Icon(
+                                    _layoutIcon(_layoutMode),
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              _DrawCountBadge(count: widget.cards.length),
+                            ],
+                          ),
                         ),
                       ],
                     );
@@ -9798,6 +9866,7 @@ class _MyHandRowState extends State<_MyHandRow> {
     }
     return panel;
   }
+
 }
 
 class _ActionMessageCard extends StatelessWidget {
