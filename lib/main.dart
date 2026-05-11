@@ -3265,9 +3265,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         _setForcedDraw(
           target: PlayerTurn.bot,
           source: PlayerTurn.human,
-          count: 9,
+          count: 8,
           penaltyLabel: 'Joker',
-          announcement: 'Ordi pioche 9 cartes',
+          announcement: 'Ordi pioche 8 cartes',
         );
         await _runForcedDrawForBot();
         return const _PlayResolution(extraTurn: true, skipTurnSwitch: false);
@@ -3275,7 +3275,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         _setForcedDraw(
           target: PlayerTurn.human,
           source: PlayerTurn.bot,
-          count: 9,
+          count: 8,
           penaltyLabel: 'Joker',
           announcement: '$_botName joue un joker.',
         );
@@ -4397,28 +4397,38 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                   ),
                   if (_shouldShowHumanForcedDrawPopup())
                     Positioned(
-                      top: topInset + 118,
+                      top: topInset + 104,
                       left: 22,
                       right: 22,
                       child: IgnorePointer(
                         child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: PremiumGameDecorations.glassPanel(
-                              radius: 12,
-                              golden: true,
-                              opacity: 0.58,
-                            ),
-                            child: Text(
-                              _forcedDrawPopupText(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              DrawPenaltyPopupPanel(
+                                drawCount: _forcedDrawCount,
+                                penaltyType: _forcedDrawPenaltyType(),
                               ),
-                            ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: PremiumGameDecorations.glassPanel(
+                                  radius: 12,
+                                  golden: true,
+                                  opacity: 0.58,
+                                ),
+                                child: Text(
+                                  _forcedDrawPopupText(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -4439,6 +4449,16 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         : 'Vous devez piocher encore 1 carte';
     final String? label = _forcedDrawPenaltyLabel;
     return (label == null || label.isEmpty) ? base : '$label • $base';
+  }
+
+  DrawPenaltyType _forcedDrawPenaltyType() {
+    if (_forcedDrawPenaltyLabel == 'Carte 2') {
+      return DrawPenaltyType.two;
+    }
+    if (_forcedDrawPenaltyLabel == 'Joker') {
+      return DrawPenaltyType.joker;
+    }
+    return DrawPenaltyType.other;
   }
 
   Widget _topBar() {
