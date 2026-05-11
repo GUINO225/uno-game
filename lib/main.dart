@@ -4405,29 +4405,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: <Widget>[
-                              DrawPenaltyPopupPanel(
-                                drawCount: _forcedDrawCount,
-                                penaltyType: _forcedDrawPenaltyType(),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: PremiumGameDecorations.glassPanel(
-                                  radius: 12,
-                                  golden: true,
-                                  opacity: 0.58,
-                                ),
-                                child: Text(
-                                  _forcedDrawPopupText(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
+                              _buildSoloForcedDrawPremiumPopup(),
                             ],
                           ),
                         ),
@@ -4441,6 +4419,21 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       ),
     );
   }
+
+  Widget _buildSoloForcedDrawPremiumPopup() {
+    final DrawPenaltyType penaltyType = _forcedDrawPenaltyType();
+    final String rank = penaltyType == DrawPenaltyType.joker ? 'JK' : '2';
+    final String suit = penaltyType == DrawPenaltyType.joker ? 'spades' : 'hearts';
+
+    return GinoDrawPenaltyPopup(
+      cardsToDraw: _forcedDrawCount,
+      rank: rank,
+      suit: suit,
+      title: _forcedDrawPopupText(),
+      showButton: false,
+    );
+  }
+
 
 
   String _forcedDrawPopupText() {
