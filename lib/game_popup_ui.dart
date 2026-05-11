@@ -327,10 +327,31 @@ class DrawPenaltyPopupPanel extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 300),
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(color: Colors.black26, blurRadius: 16, offset: Offset(0, 8)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            const Color(0xFF044B30).withOpacity(0.94),
+            GinoPopupStyle.popupGreen.withOpacity(0.96),
+            const Color(0xFF012A19).withOpacity(0.98),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: const Color(0xFF69FFB0).withOpacity(0.75),
+          width: 1.4,
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withOpacity(0.45),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: GinoPopupStyle.accentGreen.withOpacity(0.22),
+            blurRadius: 26,
+            spreadRadius: 1,
+          ),
         ],
       ),
       child: Column(
@@ -338,11 +359,11 @@ class DrawPenaltyPopupPanel extends StatelessWidget {
         children: <Widget>[
           Text(
             'Tu pioches',
-            style: GoogleFonts.poppins(
-              color: Colors.black87,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
+            style: GinoPopupStyle.baseText(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: GinoPopupStyle.titleWeight,
+              letterSpacing: 1.0,
             ),
           ),
           const SizedBox(height: 4),
@@ -350,10 +371,10 @@ class DrawPenaltyPopupPanel extends StatelessWidget {
             fit: BoxFit.scaleDown,
             child: Text(
               '$drawCount',
-              style: GoogleFonts.poppins(
-                color: Colors.black,
+              style: GinoPopupStyle.baseText(
+                color: const Color(0xFFEDFFF4),
                 fontSize: 76,
-                fontWeight: FontWeight.w800,
+                fontWeight: GinoPopupStyle.titleWeight,
                 height: 1,
               ),
             ),
@@ -366,12 +387,12 @@ class DrawPenaltyPopupPanel extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Cartes',
-            style: GoogleFonts.poppins(
-              color: Colors.black87,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
+            'CARTES',
+            style: GinoPopupStyle.baseText(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: GinoPopupStyle.titleWeight,
+              letterSpacing: 1.0,
             ),
           ),
         ],
