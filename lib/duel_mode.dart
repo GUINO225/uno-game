@@ -908,7 +908,7 @@ class GameService {
         if (session.isCreditsMode)
           'playerCredits.$playerId': joiningPlayerCredits,
         'status': players.length == 2
-            ? (session.isCreditsMode
+             ? (session.isCreditsMode
                   ? DuelGameStatus.waiting.name
                   : DuelGameStatus.inProgress.name)
             : DuelGameStatus.waiting.name,

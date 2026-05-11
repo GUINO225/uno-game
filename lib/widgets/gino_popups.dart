@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -62,10 +61,8 @@ class GinoPopupFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double resolvedWidth =
-        width ?? math.min(MediaQuery.of(context).size.width * 0.8, 330);
-    final bool shouldShowTitle =
-        showTitleTag && titleTag != null && titleTag!.trim().isNotEmpty;
+    final double resolvedWidth = width ?? math.min(MediaQuery.of(context).size.width * 0.8, 330);
+    final bool shouldShowTitle = showTitleTag && titleTag != null && titleTag!.trim().isNotEmpty;
     final double radius = isPremium ? 28 : GinoPopupStyle.popupRadius;
 
     return Center(
@@ -91,9 +88,7 @@ class GinoPopupFrame extends StatelessWidget {
                   : null,
               borderRadius: BorderRadius.circular(radius),
               border: Border.all(
-                color: isPremium
-                    ? GinoPopupStyle.premiumNeonGreen.withOpacity(0.72)
-                    : GinoPopupStyle.borderGreen,
+                color: isPremium ? GinoPopupStyle.premiumNeonGreen.withOpacity(0.72) : GinoPopupStyle.borderGreen,
                 width: isPremium ? 1.15 : 1,
               ),
               boxShadow: isPremium
@@ -104,9 +99,7 @@ class GinoPopupFrame extends StatelessWidget {
                         offset: const Offset(0, 22),
                       ),
                       BoxShadow(
-                        color: GinoPopupStyle.premiumNeonGreen.withOpacity(
-                          0.18,
-                        ),
+                        color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.18),
                         blurRadius: 30,
                         spreadRadius: 1,
                       ),
@@ -119,27 +112,17 @@ class GinoPopupFrame extends StatelessWidget {
             Positioned(
               top: -16,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 5,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                 decoration: BoxDecoration(
-                  color: isPremium
-                      ? GinoPopupStyle.premiumDeepGreen.withOpacity(0.96)
-                      : GinoPopupStyle.accentGreen,
+                  color: isPremium ? GinoPopupStyle.premiumDeepGreen.withOpacity(0.96) : GinoPopupStyle.accentGreen,
                   borderRadius: BorderRadius.circular(isPremium ? 999 : 8),
                   border: isPremium
-                      ? Border.all(
-                          color: GinoPopupStyle.casinoGold.withOpacity(0.9),
-                          width: 1,
-                        )
+                      ? Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.9), width: 1)
                       : null,
                   boxShadow: isPremium
                       ? <BoxShadow>[
                           BoxShadow(
-                            color: GinoPopupStyle.premiumNeonGreen.withOpacity(
-                              0.22,
-                            ),
+                            color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.22),
                             blurRadius: 18,
                           ),
                           BoxShadow(
@@ -201,9 +184,7 @@ class GinoPopupButton extends StatelessWidget {
               boxShadow: isPrimary
                   ? <BoxShadow>[
                       BoxShadow(
-                        color: GinoPopupStyle.premiumNeonGreen.withOpacity(
-                          0.34,
-                        ),
+                        color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.34),
                         blurRadius: 18,
                         offset: const Offset(0, 7),
                       ),
@@ -216,22 +197,18 @@ class GinoPopupButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           backgroundColor: isPremium
               ? (isPrimary
-                    ? GinoPopupStyle.premiumNeonGreen.withOpacity(0.82)
-                    : const Color(0xFF021D14).withOpacity(0.88))
+                  ? GinoPopupStyle.premiumNeonGreen.withOpacity(0.82)
+                  : const Color(0xFF021D14).withOpacity(0.88))
               : (isPrimary
-                    ? GinoPopupStyle.screenGreen.withOpacity(0.70)
-                    : GinoPopupStyle.screenGreen.withOpacity(0.45)),
+                  ? GinoPopupStyle.screenGreen.withOpacity(0.70)
+                  : GinoPopupStyle.screenGreen.withOpacity(0.45)),
           side: BorderSide(
             color: isPremium
-                ? (isPrimary
-                      ? GinoPopupStyle.casinoGold.withOpacity(0.58)
-                      : GinoPopupStyle.borderGreen.withOpacity(0.95))
+                ? (isPrimary ? GinoPopupStyle.casinoGold.withOpacity(0.58) : GinoPopupStyle.borderGreen.withOpacity(0.95))
                 : GinoPopupStyle.borderGreen,
             width: 1,
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius)),
           foregroundColor: GinoPopupStyle.textWhite,
         ),
         child: Text(
@@ -247,7 +224,10 @@ class GinoPopupButton extends StatelessWidget {
 }
 
 class GinoDisabledPopupButton extends StatelessWidget {
-  const GinoDisabledPopupButton({super.key, required this.label});
+  const GinoDisabledPopupButton({
+    super.key,
+    required this.label,
+  });
 
   final String label;
 
@@ -255,7 +235,10 @@ class GinoDisabledPopupButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Opacity(
       opacity: 0.55,
-      child: GinoPopupButton(label: label, onPressed: null),
+      child: GinoPopupButton(
+        label: label,
+        onPressed: null,
+      ),
     );
   }
 }
@@ -305,22 +288,14 @@ class GinoAmountCard extends StatelessWidget {
               angle: -0.05,
               child: Transform.translate(
                 offset: const Offset(-4, 4),
-                child: _BaseCardFace(
-                  width: width,
-                  height: height,
-                  opacity: 0.86,
-                ),
+                child: _BaseCardFace(width: width, height: height, opacity: 0.86),
               ),
             ),
             Transform.rotate(
               angle: 0.04,
               child: Transform.translate(
                 offset: const Offset(4, 3),
-                child: _BaseCardFace(
-                  width: width,
-                  height: height,
-                  opacity: 0.91,
-                ),
+                child: _BaseCardFace(width: width, height: height, opacity: 0.91),
               ),
             ),
           ],
@@ -401,9 +376,8 @@ class GinoSpecialFinishBonusPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color deltaColor = isPositive
-        ? const Color(0xFF13C76B)
-        : const Color(0xFFE16A6A);
+    final Color deltaColor =
+        isPositive ? const Color(0xFF13C76B) : const Color(0xFFE16A6A);
     return GinoPopupFrame(
       titleTag: title,
       isPremium: true,
@@ -542,17 +516,10 @@ class _BaseCardFace extends StatelessWidget {
         borderRadius: BorderRadius.circular(isPremium ? 13 : 7),
         border: selected
             ? Border.all(
-                color: isPremium
-                    ? GinoPopupStyle.casinoGold
-                    : GinoPopupStyle.accentGreen,
+                color: isPremium ? GinoPopupStyle.casinoGold : GinoPopupStyle.accentGreen,
                 width: isPremium ? 1.8 : 2,
               )
-            : (isPremium
-                  ? Border.all(
-                      color: GinoPopupStyle.casinoGold.withOpacity(0.24),
-                      width: 0.8,
-                    )
-                  : null),
+            : (isPremium ? Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.24), width: 0.8) : null),
         boxShadow: isPremium
             ? <BoxShadow>[
                 BoxShadow(
@@ -629,9 +596,7 @@ class GinoSuitCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: GinoPopupStyle.cardWhite,
         borderRadius: BorderRadius.circular(8),
-        border: selected
-            ? Border.all(color: GinoPopupStyle.accentGreen, width: 2)
-            : null,
+        border: selected ? Border.all(color: GinoPopupStyle.accentGreen, width: 2) : null,
       ),
       alignment: Alignment.center,
       child: Text(
@@ -686,7 +651,11 @@ class GinoStackedDrawCards extends StatelessWidget {
               offset: Offset(-12 + (i * 12), 5 + (i * 2)),
               child: Transform.rotate(
                 angle: -0.10 + (i * 0.11),
-                child: GinoSuitCard(suit: symbol, width: 64, height: 92),
+                child: GinoSuitCard(
+                  suit: symbol,
+                  width: 64,
+                  height: 92,
+                ),
               ),
             ),
           Positioned(
@@ -701,10 +670,7 @@ class GinoStackedDrawCards extends StatelessWidget {
                   border: Border.all(color: Colors.black12, width: 1),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   child: Column(
                     children: <Widget>[
                       Align(
@@ -1010,9 +976,7 @@ class _GinoStakeAdjustButtonState extends State<_GinoStakeAdjustButton> {
               ),
               boxShadow: <BoxShadow>[
                 BoxShadow(
-                  color: GinoPopupStyle.casinoGold.withOpacity(
-                    _hovered ? 0.42 : 0.25,
-                  ),
+                  color: GinoPopupStyle.casinoGold.withOpacity(_hovered ? 0.42 : 0.25),
                   blurRadius: _hovered ? 18 : 12,
                   offset: const Offset(0, 6),
                 ),
@@ -1076,8 +1040,7 @@ class PremiumBetProposalPopup extends StatefulWidget {
   final bool acceptEnabled;
 
   @override
-  State<PremiumBetProposalPopup> createState() =>
-      _PremiumBetProposalPopupState();
+  State<PremiumBetProposalPopup> createState() => _PremiumBetProposalPopupState();
 }
 
 class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
@@ -1096,11 +1059,7 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1750),
-      value: 0.5,
-    );
-    if (kIsWeb) {
-      _glowController.repeat(reverse: true);
-    }
+    )..repeat(reverse: true);
     _entrance = CurvedAnimation(
       parent: _entranceController,
       curve: Curves.easeOutCubic,
@@ -1136,9 +1095,7 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
               child: AnimatedBuilder(
                 animation: _glowController,
                 builder: (BuildContext context, Widget? child) {
-                  final double pulse = Curves.easeInOut.transform(
-                    _glowController.value,
-                  );
+                  final double pulse = Curves.easeInOut.transform(_glowController.value);
                   return Stack(
                     clipBehavior: Clip.none,
                     alignment: Alignment.topCenter,
@@ -1163,9 +1120,7 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
                           ),
                           borderRadius: BorderRadius.circular(32),
                           border: Border.all(
-                            color: GinoPopupStyle.premiumNeonGreen.withOpacity(
-                              0.72 + (pulse * 0.16),
-                            ),
+                            color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.72 + (pulse * 0.16)),
                             width: 1.25,
                           ),
                           boxShadow: <BoxShadow>[
@@ -1176,8 +1131,7 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
                               offset: const Offset(0, 25),
                             ),
                             BoxShadow(
-                              color: GinoPopupStyle.premiumNeonGreen
-                                  .withOpacity(0.18 + (pulse * 0.1)),
+                              color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.18 + (pulse * 0.1)),
                               blurRadius: 38,
                               spreadRadius: 2,
                             ),
@@ -1200,12 +1154,8 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
                                         shape: BoxShape.circle,
                                         gradient: RadialGradient(
                                           colors: <Color>[
-                                            GinoPopupStyle.casinoGold
-                                                .withOpacity(
-                                                  0.38 + pulse * 0.12,
-                                                ),
-                                            GinoPopupStyle.casinoGold
-                                                .withOpacity(0.12),
+                                            GinoPopupStyle.casinoGold.withOpacity(0.38 + pulse * 0.12),
+                                            GinoPopupStyle.casinoGold.withOpacity(0.12),
                                             Colors.transparent,
                                           ],
                                         ),
@@ -1214,18 +1164,12 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
                                     Positioned(
                                       top: glowSize * 0.18,
                                       right: popupWidth * 0.28,
-                                      child: _PremiumGlowDot(
-                                        size: 5,
-                                        opacity: 0.35 + pulse * 0.3,
-                                      ),
+                                      child: _PremiumGlowDot(size: 5, opacity: 0.35 + pulse * 0.3),
                                     ),
                                     Positioned(
                                       bottom: glowSize * 0.18,
                                       left: popupWidth * 0.3,
-                                      child: _PremiumGlowDot(
-                                        size: 4,
-                                        opacity: 0.28 + pulse * 0.26,
-                                      ),
+                                      child: _PremiumGlowDot(size: 4, opacity: 0.28 + pulse * 0.26),
                                     ),
                                     _PremiumAmountCard(amount: widget.amount),
                                   ],
@@ -1247,9 +1191,7 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
                                   style: GinoPopupStyle.baseText(
                                     fontSize: 17,
                                     fontWeight: GinoPopupStyle.textWeight,
-                                    color: GinoPopupStyle.textWhite.withOpacity(
-                                      0.88,
-                                    ),
+                                    color: GinoPopupStyle.textWhite.withOpacity(0.88),
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -1277,9 +1219,7 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
                                     Expanded(
                                       child: _PremiumBetActionButton(
                                         label: 'ACCEPTER',
-                                        onPressed: widget.acceptEnabled
-                                            ? widget.onAccept
-                                            : null,
+                                        onPressed: widget.acceptEnabled ? widget.onAccept : null,
                                         isAccept: true,
                                         pulse: pulse,
                                       ),
@@ -1293,9 +1233,7 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
                                   style: GinoPopupStyle.baseText(
                                     fontSize: 17,
                                     fontWeight: GinoPopupStyle.textWeight,
-                                    color: GinoPopupStyle.textWhite.withOpacity(
-                                      0.56,
-                                    ),
+                                    color: GinoPopupStyle.textWhite.withOpacity(0.56),
                                   ),
                                 ),
                               ],
@@ -1306,25 +1244,17 @@ class _PremiumBetProposalPopupState extends State<PremiumBetProposalPopup>
                       Positioned(
                         top: -17,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 5,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
                           decoration: BoxDecoration(
-                            color: GinoPopupStyle.premiumDeepGreen.withOpacity(
-                              0.96,
-                            ),
+                            color: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
-                              color: GinoPopupStyle.casinoGold.withOpacity(
-                                0.88,
-                              ),
+                              color: GinoPopupStyle.casinoGold.withOpacity(0.88),
                               width: 1,
                             ),
                             boxShadow: <BoxShadow>[
                               BoxShadow(
-                                color: GinoPopupStyle.premiumNeonGreen
-                                    .withOpacity(0.24),
+                                color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.24),
                                 blurRadius: 18,
                               ),
                               BoxShadow(
@@ -1369,10 +1299,7 @@ class _PremiumAmountCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: GinoPopupStyle.cardWhite,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: GinoPopupStyle.casinoGold.withOpacity(0.72),
-          width: 1.15,
-        ),
+        border: Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.72), width: 1.15),
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: GinoPopupStyle.casinoGold.withOpacity(0.28),
@@ -1426,9 +1353,7 @@ class _PremiumBetActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool disabled = onPressed == null;
     final Color fillColor = isAccept
-        ? GinoPopupStyle.premiumNeonGreen.withOpacity(
-            disabled ? 0.34 : 0.82 + pulse * 0.08,
-          )
+        ? GinoPopupStyle.premiumNeonGreen.withOpacity(disabled ? 0.34 : 0.82 + pulse * 0.08)
         : const Color(0xFF021D14).withOpacity(0.9);
 
     return Stack(
@@ -1444,9 +1369,7 @@ class _PremiumBetActionButton extends StatelessWidget {
             boxShadow: isAccept && !disabled
                 ? <BoxShadow>[
                     BoxShadow(
-                      color: GinoPopupStyle.premiumNeonGreen.withOpacity(
-                        0.26 + pulse * 0.18,
-                      ),
+                      color: GinoPopupStyle.premiumNeonGreen.withOpacity(0.26 + pulse * 0.18),
                       blurRadius: 18 + pulse * 8,
                       offset: const Offset(0, 7),
                     ),
@@ -1464,9 +1387,7 @@ class _PremiumBetActionButton extends StatelessWidget {
                 width: 1,
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(
-                  GinoPopupStyle.buttonRadius,
-                ),
+                borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius),
               ),
               foregroundColor: GinoPopupStyle.textWhite,
             ),
@@ -1488,15 +1409,10 @@ class _PremiumBetActionButton extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: GinoPopupStyle.premiumDeepGreen.withOpacity(0.96),
-                border: Border.all(
-                  color: GinoPopupStyle.casinoGold.withOpacity(0.78),
-                  width: 1,
-                ),
+                border: Border.all(color: GinoPopupStyle.casinoGold.withOpacity(0.78), width: 1),
                 boxShadow: <BoxShadow>[
                   BoxShadow(
-                    color: GinoPopupStyle.premiumNeonGreen.withOpacity(
-                      disabled ? 0.1 : 0.25 + pulse * 0.12,
-                    ),
+                    color: GinoPopupStyle.premiumNeonGreen.withOpacity(disabled ? 0.1 : 0.25 + pulse * 0.12),
                     blurRadius: 12,
                   ),
                 ],
@@ -1563,9 +1479,7 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String bottomLabel = cardsToDraw == 1
-        ? '1 carte'
-        : '$cardsToDraw cartes';
+    final String bottomLabel = cardsToDraw == 1 ? '1 carte' : '$cardsToDraw cartes';
 
     return GinoPopupFrame(
       width: math.min(MediaQuery.of(context).size.width * 0.78, 320),
@@ -1585,7 +1499,11 @@ class GinoDrawPenaltyPopup extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          GinoStackedDrawCards(rank: rank, suit: suit, count: cardsToDraw),
+          GinoStackedDrawCards(
+            rank: rank,
+            suit: suit,
+            count: cardsToDraw,
+          ),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1652,11 +1570,7 @@ class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2600),
-      value: 0.5,
-    );
-    if (kIsWeb) {
-      _ambientController.repeat(reverse: true);
-    }
+    )..repeat(reverse: true);
     _fadeAnimation = CurvedAnimation(
       parent: _introController,
       curve: const Interval(0.0, 0.72, curve: Curves.easeOutCubic),
@@ -1697,9 +1611,7 @@ class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
             animation: _ambientController,
             builder: (BuildContext context, Widget? child) {
               return CustomPaint(
-                painter: _PremiumDrawTwoParticlePainter(
-                  _ambientController.value,
-                ),
+                painter: _PremiumDrawTwoParticlePainter(_ambientController.value),
               );
             },
           ),
@@ -1707,13 +1619,11 @@ class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
         SafeArea(
           child: Center(
             child: AnimatedBuilder(
-              animation: Listenable.merge(<Listenable>[
-                _introController,
-                _ambientController,
-              ]),
+              animation: Listenable.merge(
+                <Listenable>[_introController, _ambientController],
+              ),
               builder: (BuildContext context, Widget? child) {
-                final double glowPulse =
-                    0.75 + (_ambientController.value * 0.25);
+                final double glowPulse = 0.75 + (_ambientController.value * 0.25);
                 return Opacity(
                   opacity: _fadeAnimation.value,
                   child: Transform.scale(
@@ -1751,9 +1661,7 @@ class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
                                   ),
                                   borderRadius: BorderRadius.circular(34),
                                   border: Border.all(
-                                    color: const Color(
-                                      0xFF69FFB0,
-                                    ).withOpacity(0.78),
+                                    color: const Color(0xFF69FFB0).withOpacity(0.78),
                                     width: 1.4,
                                   ),
                                   boxShadow: <BoxShadow>[
@@ -1763,9 +1671,9 @@ class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
                                       offset: const Offset(0, 26),
                                     ),
                                     BoxShadow(
-                                      color: const Color(
-                                        0xFF15FF8A,
-                                      ).withOpacity(0.34 * glowPulse),
+                                      color: const Color(0xFF15FF8A).withOpacity(
+                                        0.34 * glowPulse,
+                                      ),
                                       blurRadius: 48,
                                       spreadRadius: 3,
                                     ),
@@ -1782,8 +1690,7 @@ class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
                                         maxLines: 1,
                                         style: GinoPopupStyle.baseText(
                                           fontSize: 18,
-                                          fontWeight:
-                                              GinoPopupStyle.titleWeight,
+                                          fontWeight: GinoPopupStyle.titleWeight,
                                           color: GinoPopupStyle.textWhite,
                                           letterSpacing: 0.2,
                                         ),
@@ -1822,8 +1729,7 @@ class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
                                         textAlign: TextAlign.center,
                                         style: GinoPopupStyle.baseText(
                                           fontSize: 16,
-                                          fontWeight:
-                                              GinoPopupStyle.titleWeight,
+                                          fontWeight: GinoPopupStyle.titleWeight,
                                           color: const Color(0xFF61FF66),
                                           height: 1.05,
                                           letterSpacing: 1.2,
@@ -1832,22 +1738,22 @@ class _PremiumJockzrDrawPopupState extends State<PremiumJockzrDrawPopup>
                                     ),
                                     SizedBox(height: 18 * compactFactor),
                                     _PremiumDrawTwoButton(
-                                      label:
-                                          'PIOCHER $displayedCardsToDraw CARTES',
+                                      label: 'PIOCHER $displayedCardsToDraw CARTES',
                                       onPressed: widget.onDraw,
                                     ),
                                     if (widget.showTimer) ...<Widget>[
                                       SizedBox(height: 14 * compactFactor),
-                                      _PremiumDrawTwoTimer(
-                                        seconds: timerSeconds,
-                                      ),
+                                      _PremiumDrawTwoTimer(seconds: timerSeconds),
                                     ],
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                          Positioned(top: -36, child: _PremiumJockzrBadge()),
+                          Positioned(
+                            top: -36,
+                            child: _PremiumJockzrBadge(),
+                          ),
                         ],
                       ),
                     ),
@@ -1876,10 +1782,7 @@ class _PremiumJockzrBadge extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: <Color>[Color(0xFFF8FFF3), Color(0xFFB8FFD6)],
         ),
-        border: Border.all(
-          color: const Color(0xFF1BFF8E).withOpacity(0.78),
-          width: 3,
-        ),
+        border: Border.all(color: const Color(0xFF1BFF8E).withOpacity(0.78), width: 3),
         boxShadow: <BoxShadow>[
           BoxShadow(
             color: const Color(0xFF13C76B).withOpacity(0.45),
@@ -1907,10 +1810,7 @@ class _PremiumJockzrBadge extends StatelessWidget {
 }
 
 class _PremiumJockzrCardShowcase extends StatelessWidget {
-  const _PremiumJockzrCardShowcase({
-    required this.cardsToDraw,
-    required this.glowValue,
-  });
+  const _PremiumJockzrCardShowcase({required this.cardsToDraw, required this.glowValue});
 
   final int cardsToDraw;
   final double glowValue;
@@ -2078,11 +1978,7 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
     _ambientController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2600),
-      value: 0.5,
-    );
-    if (kIsWeb) {
-      _ambientController.repeat(reverse: true);
-    }
+    )..repeat(reverse: true);
     _fadeAnimation = CurvedAnimation(
       parent: _introController,
       curve: const Interval(0.0, 0.72, curve: Curves.easeOutCubic),
@@ -2090,30 +1986,17 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
     _scaleAnimation = Tween<double>(begin: 0.85, end: 1).animate(
       CurvedAnimation(parent: _introController, curve: Curves.easeOutBack),
     );
-    _shakeAnimation =
-        TweenSequence<double>(<TweenSequenceItem<double>>[
-          TweenSequenceItem<double>(
-            tween: Tween<double>(begin: 0, end: -7),
-            weight: 1,
-          ),
-          TweenSequenceItem<double>(
-            tween: Tween<double>(begin: -7, end: 6),
-            weight: 1,
-          ),
-          TweenSequenceItem<double>(
-            tween: Tween<double>(begin: 6, end: -4),
-            weight: 1,
-          ),
-          TweenSequenceItem<double>(
-            tween: Tween<double>(begin: -4, end: 0),
-            weight: 1,
-          ),
-        ]).animate(
-          CurvedAnimation(
-            parent: _introController,
-            curve: const Interval(0.0, 0.42, curve: Curves.easeOut),
-          ),
-        );
+    _shakeAnimation = TweenSequence<double>(<TweenSequenceItem<double>>[
+      TweenSequenceItem<double>(tween: Tween<double>(begin: 0, end: -7), weight: 1),
+      TweenSequenceItem<double>(tween: Tween<double>(begin: -7, end: 6), weight: 1),
+      TweenSequenceItem<double>(tween: Tween<double>(begin: 6, end: -4), weight: 1),
+      TweenSequenceItem<double>(tween: Tween<double>(begin: -4, end: 0), weight: 1),
+    ]).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.0, 0.42, curve: Curves.easeOut),
+      ),
+    );
   }
 
   @override
@@ -2145,9 +2028,7 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
             animation: _ambientController,
             builder: (BuildContext context, Widget? child) {
               return CustomPaint(
-                painter: _PremiumDrawTwoParticlePainter(
-                  _ambientController.value,
-                ),
+                painter: _PremiumDrawTwoParticlePainter(_ambientController.value),
               );
             },
           ),
@@ -2155,13 +2036,11 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
         SafeArea(
           child: Center(
             child: AnimatedBuilder(
-              animation: Listenable.merge(<Listenable>[
-                _introController,
-                _ambientController,
-              ]),
+              animation: Listenable.merge(
+                <Listenable>[_introController, _ambientController],
+              ),
               builder: (BuildContext context, Widget? child) {
-                final double glowPulse =
-                    0.75 + (_ambientController.value * 0.25);
+                final double glowPulse = 0.75 + (_ambientController.value * 0.25);
                 return Opacity(
                   opacity: _fadeAnimation.value,
                   child: Transform.translate(
@@ -2171,9 +2050,9 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
                       child: Container(
                         width: popupWidth,
                         margin: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                         child: Stack(
                           clipBehavior: Clip.none,
                           alignment: Alignment.topCenter,
@@ -2197,9 +2076,7 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
                                 ),
                                 borderRadius: BorderRadius.circular(32),
                                 border: Border.all(
-                                  color: const Color(
-                                    0xFF69FFB0,
-                                  ).withOpacity(0.72),
+                                  color: const Color(0xFF69FFB0).withOpacity(0.72),
                                   width: 1.4,
                                 ),
                                 boxShadow: <BoxShadow>[
@@ -2209,8 +2086,7 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
                                     offset: const Offset(0, 24),
                                   ),
                                   BoxShadow(
-                                    color: GinoPopupStyle.accentGreen
-                                        .withOpacity(0.30 * glowPulse),
+                                    color: GinoPopupStyle.accentGreen.withOpacity(0.30 * glowPulse),
                                     blurRadius: 42,
                                     spreadRadius: 2,
                                   ),
@@ -2219,9 +2095,7 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: <Widget>[
-                                  _PremiumDrawTwoAttackTitle(
-                                    opponentName: normalizedName,
-                                  ),
+                                  _PremiumDrawTwoAttackTitle(opponentName: normalizedName),
                                   SizedBox(height: 16 * compactFactor),
                                   _PremiumDrawTwoCardShowcase(
                                     cardsToDraw: widget.cardsToDraw,
@@ -2253,26 +2127,19 @@ class _PremiumDrawTwoPopupState extends State<PremiumDrawTwoPopup>
                                   ),
                                   SizedBox(height: 18 * compactFactor),
                                   _PremiumDrawTwoButton(
-                                    label:
-                                        'PIOCHER ${widget.cardsToDraw} CARTES',
+                                    label: 'PIOCHER ${widget.cardsToDraw} CARTES',
                                     onPressed: widget.onDraw,
                                   ),
-                                  if (widget.showTimer &&
-                                      widget.autoDrawSeconds !=
-                                          null) ...<Widget>[
+                                  if (widget.showTimer && widget.autoDrawSeconds != null) ...<Widget>[
                                     SizedBox(height: 14 * compactFactor),
-                                    _PremiumDrawTwoTimer(
-                                      seconds: widget.autoDrawSeconds!,
-                                    ),
+                                    _PremiumDrawTwoTimer(seconds: widget.autoDrawSeconds!),
                                   ],
                                 ],
                               ),
                             ),
                             Positioned(
                               top: -36,
-                              child: _PremiumDrawTwoOpponentAvatar(
-                                name: normalizedName,
-                              ),
+                              child: _PremiumDrawTwoOpponentAvatar(name: normalizedName),
                             ),
                           ],
                         ),
@@ -2319,10 +2186,7 @@ class _PremiumDrawTwoAttackTitle extends StatelessWidget {
 }
 
 class _PremiumDrawTwoCardShowcase extends StatelessWidget {
-  const _PremiumDrawTwoCardShowcase({
-    required this.cardsToDraw,
-    required this.glowValue,
-  });
+  const _PremiumDrawTwoCardShowcase({required this.cardsToDraw, required this.glowValue});
 
   final int cardsToDraw;
   final double glowValue;
@@ -2453,16 +2317,8 @@ class _PremiumDrawTwoBadge extends StatelessWidget {
         ),
         border: Border.all(color: const Color(0xFFFF8989), width: 2),
         boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(0.28),
-            blurRadius: 12,
-            offset: const Offset(0, 7),
-          ),
-          BoxShadow(
-            color: const Color(0xFFFF1E2D).withOpacity(0.32),
-            blurRadius: 18,
-            spreadRadius: 2,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 12, offset: const Offset(0, 7)),
+          BoxShadow(color: const Color(0xFFFF1E2D).withOpacity(0.32), blurRadius: 18, spreadRadius: 2),
         ],
       ),
       child: Text(
@@ -2489,10 +2345,7 @@ class _PremiumDividerText extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
         const _PremiumDividerLine(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: child,
-        ),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: child),
         const _PremiumDividerLine(),
       ],
     );
@@ -2544,21 +2397,10 @@ class _PremiumDrawTwoButton extends StatelessWidget {
               colors: <Color>[Color(0xFF22E999), Color(0xFF08A95F)],
             ),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: const Color(0xFFA9FFD1).withOpacity(0.62),
-              width: 1,
-            ),
+            border: Border.all(color: const Color(0xFFA9FFD1).withOpacity(0.62), width: 1),
             boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: const Color(0xFF13C76B).withOpacity(0.34),
-                blurRadius: 18,
-                spreadRadius: 1,
-              ),
-              BoxShadow(
-                color: Colors.black.withOpacity(0.28),
-                blurRadius: 12,
-                offset: const Offset(0, 7),
-              ),
+              BoxShadow(color: const Color(0xFF13C76B).withOpacity(0.34), blurRadius: 18, spreadRadius: 1),
+              BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 12, offset: const Offset(0, 7)),
             ],
           ),
           child: FittedBox(
@@ -2596,10 +2438,7 @@ class _PremiumDrawTwoTimer extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(
-              color: const Color(0xFF3DFF83).withOpacity(0.85),
-              width: 2,
-            ),
+            border: Border.all(color: const Color(0xFF3DFF83).withOpacity(0.85), width: 2),
             color: const Color(0xFF043C25).withOpacity(0.76),
           ),
           child: Text(
@@ -2633,9 +2472,7 @@ class _PremiumDrawTwoOpponentAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String initial = name.trim().isEmpty
-        ? '?'
-        : name.trim()[0].toUpperCase();
+    final String initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
     return Container(
       width: 74,
       height: 74,
@@ -2643,21 +2480,10 @@ class _PremiumDrawTwoOpponentAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: GinoPopupStyle.cardWhite,
-        border: Border.all(
-          color: const Color(0xFF1BFF8E).withOpacity(0.74),
-          width: 3,
-        ),
+        border: Border.all(color: const Color(0xFF1BFF8E).withOpacity(0.74), width: 3),
         boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: const Color(0xFF13C76B).withOpacity(0.42),
-            blurRadius: 22,
-            spreadRadius: 4,
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
+          BoxShadow(color: const Color(0xFF13C76B).withOpacity(0.42), blurRadius: 22, spreadRadius: 4),
+          BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 8)),
         ],
       ),
       child: Text(
@@ -2693,9 +2519,7 @@ class _PremiumDrawTwoParticlePainter extends CustomPainter {
     ];
     for (int i = 0; i < sparks.length; i++) {
       final double pulse = (math.sin((progress * math.pi * 2) + i) + 1) / 2;
-      sparkPaint.color = const Color(
-        0xFF59FF9C,
-      ).withOpacity(0.10 + (pulse * 0.16));
+      sparkPaint.color = const Color(0xFF59FF9C).withOpacity(0.10 + (pulse * 0.16));
       canvas.drawCircle(sparks[i], 1.4 + (pulse * 2.2), sparkPaint);
     }
 
@@ -2717,11 +2541,7 @@ class _PremiumDrawTwoParticlePainter extends CustomPainter {
       cardPaint.color = const Color(0xFF98FFC8).withOpacity(0.08);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: Offset.zero,
-            width: rect.width,
-            height: rect.height,
-          ),
+          Rect.fromCenter(center: Offset.zero, width: rect.width, height: rect.height),
           const Radius.circular(4),
         ),
         cardPaint,
@@ -2767,10 +2587,7 @@ class GinoVictoryPopup extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: GinoPopupStyle.baseText(
-              fontSize: 18,
-              fontWeight: GinoPopupStyle.titleWeight,
-            ),
+            style: GinoPopupStyle.baseText(fontSize: 18, fontWeight: GinoPopupStyle.titleWeight),
           ),
           if (wonAmount != null) ...<Widget>[
             const SizedBox(height: 12),
@@ -3238,10 +3055,7 @@ class GinoOpponentCommandPopup extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xE6072017),
                       borderRadius: BorderRadius.circular(30),
-                      border: Border.all(
-                        color: const Color(0xCC68E49A),
-                        width: 1,
-                      ),
+                      border: Border.all(color: const Color(0xCC68E49A), width: 1),
                       boxShadow: <BoxShadow>[
                         BoxShadow(
                           color: GinoPopupStyle.accentGreen.withOpacity(0.20),
@@ -3269,9 +3083,7 @@ class GinoOpponentCommandPopup extends StatelessWidget {
                       children: <Widget>[
                         Align(
                           alignment: Alignment.topRight,
-                          child: _OpponentCommandCloseButton(
-                            onPressed: () => _close(context),
-                          ),
+                          child: _OpponentCommandCloseButton(onPressed: () => _close(context)),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -3292,10 +3104,7 @@ class GinoOpponentCommandPopup extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        _OpponentCommandCard(
-                          symbol: symbol,
-                          suitColor: suitColor,
-                        ),
+                        _OpponentCommandCard(symbol: symbol, suitColor: suitColor),
                         const SizedBox(height: 18),
                         Text(
                           'Il joue une carte 8 et choisit la couleur.',
@@ -3331,15 +3140,8 @@ class GinoOpponentCommandPopup extends StatelessWidget {
                             style: OutlinedButton.styleFrom(
                               backgroundColor: GinoPopupStyle.accentGreen,
                               foregroundColor: GinoPopupStyle.textWhite,
-                              side: BorderSide(
-                                color: GinoPopupStyle.accentGreen.withOpacity(
-                                  0.95,
-                                ),
-                                width: 1,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
+                              side: BorderSide(color: GinoPopupStyle.accentGreen.withOpacity(0.95), width: 1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
                             child: Text(
                               'OK, j’ai compris',
@@ -3355,7 +3157,10 @@ class GinoOpponentCommandPopup extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Positioned(top: 0, child: _OpponentCommandBadge()),
+                  Positioned(
+                    top: 0,
+                    child: _OpponentCommandBadge(),
+                  ),
                 ],
               ),
             ),
@@ -3410,10 +3215,7 @@ class _OpponentCommandCloseButton extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: GinoPopupStyle.accentGreen.withOpacity(0.08),
-        border: Border.all(
-          color: GinoPopupStyle.accentGreen.withOpacity(0.56),
-          width: 1,
-        ),
+        border: Border.all(color: GinoPopupStyle.accentGreen.withOpacity(0.56), width: 1),
       ),
       child: IconButton(
         onPressed: onPressed,
@@ -3720,12 +3522,10 @@ class _GinoChooseSuitPopupState extends State<GinoChooseSuitPopup> {
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: <Color>[
-                                      GinoPopupStyle.accentGreen.withOpacity(
-                                        0.96,
-                                      ),
-                                      GinoPopupStyle.screenGreen.withOpacity(
-                                        0.84,
-                                      ),
+                                      GinoPopupStyle.accentGreen
+                                          .withOpacity(0.96),
+                                      GinoPopupStyle.screenGreen
+                                          .withOpacity(0.84),
                                     ],
                                   ),
                                   border: Border.all(
@@ -3945,9 +3745,8 @@ class _GinoSuitDialogButton extends StatelessWidget {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(GinoPopupStyle.buttonRadius),
             border: Border.all(
-              color: GinoPopupStyle.accentGreen.withOpacity(
-                isPrimary ? 0.88 : 0.72,
-              ),
+              color: GinoPopupStyle.accentGreen
+                  .withOpacity(isPrimary ? 0.88 : 0.72),
               width: 1,
             ),
             boxShadow: isPrimary
@@ -4017,10 +3816,7 @@ class _CenteredRichText extends StatelessWidget {
     return RichText(
       textAlign: TextAlign.center,
       text: TextSpan(
-        style: GinoPopupStyle.baseText(
-          fontSize: fontSize,
-          fontWeight: GinoPopupStyle.textWeight,
-        ),
+        style: GinoPopupStyle.baseText(fontSize: fontSize, fontWeight: GinoPopupStyle.textWeight),
         children: spans,
       ),
     );
