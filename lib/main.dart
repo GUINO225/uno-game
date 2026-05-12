@@ -4441,22 +4441,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
                       child: GlobalMusicToggleButton(),
                     ),
                   ),
-                  if (_shouldShowHumanForcedDrawPopup())
-                    Positioned(
-                      top: topInset + 104,
-                      left: 22,
-                      right: 22,
-                      child: IgnorePointer(
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              _buildSoloForcedDrawPremiumPopup(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             );
