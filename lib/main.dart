@@ -2946,7 +2946,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
   }
 
   bool _shouldShowHumanForcedDrawPopup() {
-    return _forcedDrawCount > 0 && _forcedDrawTarget == PlayerTurn.human;
+    return _forcedDrawCount > 0 &&
+        _forcedDrawTarget == PlayerTurn.human &&
+        _turn == PlayerTurn.human;
   }
 
   String _forcedDrawRemainingText() {
@@ -4422,27 +4424,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
 
   Widget _buildSoloForcedDrawPremiumPopup() {
     final DrawPenaltyType penaltyType = _forcedDrawPenaltyType();
-    final String rank = penaltyType == DrawPenaltyType.joker ? 'JK' : '2';
-    final String suit = penaltyType == DrawPenaltyType.joker ? 'spades' : 'hearts';
-
-    return GinoDrawPenaltyPopup(
-      cardsToDraw: _forcedDrawCount,
-      rank: rank,
-      suit: suit,
-      title: _forcedDrawPopupText(),
-      showButton: false,
+    return DrawPenaltyPopupPanel(
+      drawCount: _forcedDrawCount,
+      penaltyType: penaltyType,
+      jokerIsRed: _topDiscard.isJoker ? _topDiscard.isRed : null,
+      suitSymbol: penaltyType == DrawPenaltyType.two ? '♥' : '♠',
     );
   }
 
-
-
-  String _forcedDrawPopupText() {
-    final String base = _forcedDrawCount > 1
-        ? 'Vous devez piocher encore $_forcedDrawCount cartes'
-        : 'Vous devez piocher encore 1 carte';
-    final String? label = _forcedDrawPenaltyLabel;
-    return (label == null || label.isEmpty) ? base : '$label • $base';
-  }
 
   DrawPenaltyType _forcedDrawPenaltyType() {
     if (_forcedDrawPenaltyLabel == 'Carte 2') {
