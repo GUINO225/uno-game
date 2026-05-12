@@ -3254,6 +3254,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           penaltyLabel: 'Carte 2',
           announcement: '$_botName joue un 2.',
         );
+        unawaited(_showForcedDrawPopup(2));
         _showFunnyGameMessage(
           playerName: 'Vous',
           message: 'Petit cadeau du quartier.',
@@ -3282,6 +3283,7 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
           announcement: '$_botName joue un joker.',
         );
         unawaited(_sfx.playJokerEffect());
+        unawaited(_showForcedDrawPopup(8));
         _showFunnyGameMessage(playerName: 'Vous', message: 'Le joker a parlé.');
         return const _PlayResolution(extraTurn: false, skipTurnSwitch: false);
       }
@@ -3340,6 +3342,48 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     if (_turn == PlayerTurn.bot && !_gameOver) {
       unawaited(_ensureBotTurnProgress());
     }
+  }
+
+  Future<void> _showForcedDrawPopup(int amount) async {
+    if (!mounted) return;
+    _isImportantPopupOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        unawaited(
+          Future<void>.delayed(const Duration(milliseconds: 2200), () {
+            if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+              Navigator.of(dialogContext).pop();
+            }
+          }),
+        );
+        if (amount == 2) {
+          return PremiumDrawTwoPopup(
+            opponentName: _botName,
+            cardsToDraw: amount,
+            showTimer: false,
+            onDraw: () {
+              if (Navigator.of(dialogContext).canPop()) {
+                Navigator.of(dialogContext).pop();
+              }
+            },
+          );
+        }
+        return PremiumJockzrDrawPopup(
+          opponentName: _botName,
+          cardsToDraw: 8,
+          showTimer: true,
+          autoDrawSeconds: 10,
+          onDraw: () {
+            if (Navigator.of(dialogContext).canPop()) {
+              Navigator.of(dialogContext).pop();
+            }
+          },
+        );
+      },
+    );
+    _isImportantPopupOpen = false;
   }
 
   Future<void> _runForcedDrawForBot() async {
