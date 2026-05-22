@@ -90,8 +90,16 @@ class AuthService {
       final GoogleSignInAccount account = await _googleSignIn.authenticate();
 
       final GoogleSignInAuthentication authentication = account.authentication;
+      final String? idToken = authentication.idToken;
+      if (idToken == null) {
+        return GoogleAuthResult.failure(
+          reason: AuthFailureReason.invalidConfiguration,
+          message:
+              'Aucun idToken Google reçu. Vérifiez le serverClientId dans la configuration Firebase.',
+        );
+      }
       final OAuthCredential credential = GoogleAuthProvider.credential(
-        idToken: authentication.idToken,
+        idToken: idToken,
       );
       final UserCredential result = await auth.signInWithCredential(credential);
       final User? user = result.user;
@@ -134,7 +142,14 @@ class AuthService {
       return;
     }
 
-    await _googleSignIn.initialize();
+    // serverClientId = web OAuth client ID (type 3) from google-services.json.
+    // Required on Android for google_sign_in v7 to generate an idToken for Firebase.
+    const String serverClientId = String.fromEnvironment(
+      'GOOGLE_SERVER_CLIENT_ID',
+      defaultValue:
+          '859286280853-il1b2e9eb9asu01n54oe8509en4t5gf7.apps.googleusercontent.com',
+    );
+    await _googleSignIn.initialize(serverClientId: serverClientId);
     _isGoogleSignInInitialized = true;
   }
 

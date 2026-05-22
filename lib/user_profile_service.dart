@@ -28,7 +28,9 @@ class UserProfileService {
     if (displayName.isNotEmpty) {
       return displayName;
     }
-    final String emailName = sanitizeDisplayName((user.email ?? '').split('@').first);
+    final String emailName = sanitizeDisplayName(
+      (user.email ?? '').split('@').first,
+    );
     if (emailName.isNotEmpty) {
       return emailName;
     }
@@ -43,10 +45,14 @@ class UserProfileService {
     final String suggestedDisplayName = suggestedNameFromUser(user);
     final DateTime now = DateTime.now().toUtc();
     final DocumentReference<Map<String, dynamic>> ref = _profiles.doc(user.uid);
-    final GameCardAvatarData defaultCardAvatar = defaultCardAvatarForUid(user.uid);
+    final GameCardAvatarData defaultCardAvatar = defaultCardAvatarForUid(
+      user.uid,
+    );
     try {
       await FirebaseFirestore.instance.runTransaction((Transaction tx) async {
-        final DocumentSnapshot<Map<String, dynamic>> snapshot = await tx.get(ref);
+        final DocumentSnapshot<Map<String, dynamic>> snapshot = await tx.get(
+          ref,
+        );
         if (!snapshot.exists) {
           tx.set(ref, <String, dynamic>{
             'uid': user.uid,
@@ -70,9 +76,12 @@ class UserProfileService {
           });
           return;
         }
-        final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
-        final String existingDisplayName = (data['displayName'] as String? ?? '').trim();
-        final bool hasCustomProfile = data['hasCustomProfile'] as bool? ?? false;
+        final Map<String, dynamic> data =
+            snapshot.data() ?? <String, dynamic>{};
+        final String existingDisplayName =
+            (data['displayName'] as String? ?? '').trim();
+        final bool hasCustomProfile =
+            data['hasCustomProfile'] as bool? ?? false;
 
         tx.update(ref, <String, dynamic>{
           if (existingDisplayName.isEmpty && !hasCustomProfile)
@@ -82,8 +91,10 @@ class UserProfileService {
           if (data['totalGames'] == null) 'totalGames': 0,
           if (data['score'] == null) 'score': 0,
           if (data['rankScore'] == null) 'rankScore': data['score'] ?? 0,
-          if (data['cardAvatarRank'] == null) 'cardAvatarRank': defaultCardAvatar.rank,
-          if (data['cardAvatarSuit'] == null) 'cardAvatarSuit': defaultCardAvatar.suit,
+          if (data['cardAvatarRank'] == null)
+            'cardAvatarRank': defaultCardAvatar.rank,
+          if (data['cardAvatarSuit'] == null)
+            'cardAvatarSuit': defaultCardAvatar.suit,
           if (data['hasCustomProfile'] == null) 'hasCustomProfile': false,
           'email': user.email,
           'photoUrl': user.photoURL,
@@ -116,6 +127,7 @@ class UserProfileService {
       'cardAvatarSuit': data['cardAvatarSuit'] ?? defaultCardAvatar.suit,
       'hasCustomProfile': data['hasCustomProfile'] ?? false,
       'profilePromptDismissedAt': data['profilePromptDismissedAt'],
+      'rulesManualSeenAt': data['rulesManualSeenAt'],
       'createdAt': data['createdAt'] ?? Timestamp.fromDate(now),
       'lastLoginAt': data['lastLoginAt'] ?? Timestamp.fromDate(now),
     });
@@ -138,18 +150,15 @@ class UserProfileService {
       throw ArgumentError('Symbole de carte invalide.');
     }
 
-    await _profiles.doc(uid).set(
-      <String, dynamic>{
-        'uid': uid,
-        'displayName': cleanedName,
-        'cardAvatarRank': cardAvatarRank,
-        'cardAvatarSuit': cardAvatarSuit,
-        'hasCustomProfile': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _profiles.doc(uid).set(<String, dynamic>{
+      'uid': uid,
+      'displayName': cleanedName,
+      'cardAvatarRank': cardAvatarRank,
+      'cardAvatarSuit': cardAvatarSuit,
+      'hasCustomProfile': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'lastLoginAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> updateDisplayName({
@@ -160,31 +169,33 @@ class UserProfileService {
     if (cleanedName.isEmpty) {
       throw ArgumentError('Le pseudo ne peut pas être vide.');
     }
-    await _profiles.doc(uid).set(
-      <String, dynamic>{
-        'uid': uid,
-        'displayName': cleanedName,
-        'lastLoginAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _profiles.doc(uid).set(<String, dynamic>{
+      'uid': uid,
+      'displayName': cleanedName,
+      'lastLoginAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
-  Future<void> dismissProfileCustomizationPrompt({
-    required String uid,
-  }) async {
-    await _profiles.doc(uid).set(
-      <String, dynamic>{
-        'uid': uid,
-        'profilePromptDismissedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+  Future<void> dismissProfileCustomizationPrompt({required String uid}) async {
+    await _profiles.doc(uid).set(<String, dynamic>{
+      'uid': uid,
+      'profilePromptDismissedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> markRulesManualSeen({required String uid}) async {
+    await _profiles.doc(uid).set(<String, dynamic>{
+      'uid': uid,
+      'rulesManualSeenAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<PlayerProfile?> getProfile(String uid) async {
-    final DocumentSnapshot<Map<String, dynamic>> doc = await _profiles.doc(uid).get();
+    final DocumentSnapshot<Map<String, dynamic>> doc = await _profiles
+        .doc(uid)
+        .get();
     if (!doc.exists) {
       return null;
     }

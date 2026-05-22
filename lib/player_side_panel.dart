@@ -9,9 +9,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'auth_service.dart';
 import 'credit_coins_icon.dart';
 import 'game_card_avatar.dart';
+import 'game_loading_indicator.dart';
+import 'game_rules_manual.dart';
 import 'leaderboard_service.dart';
 import 'player_profile.dart';
 import 'premium_ui.dart';
+import 'stats_service.dart';
 import 'user_profile_service.dart';
 import 'widgets/gino_popups.dart';
 
@@ -82,6 +85,25 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
         ),
       );
       return;
+    }
+    try {
+      final PlayerProfile profile = await _profileService
+          .createOrUpdateFromGoogleUser(result.user!);
+      if (!mounted) {
+        return;
+      }
+      await showFirstLoginRulesIfNeeded(
+        context,
+        profileService: _profileService,
+        profile: profile,
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Connexion réussie, profil indisponible: $e')),
+      );
     }
     _refreshPanelData();
   }
@@ -343,8 +365,9 @@ class _PlayerSidePanelState extends State<PlayerSidePanel> {
                       return ModernSideMenu(
                         edge: widget.edge,
                         child: const Center(
-                          child: CircularProgressIndicator(
-                            color: _SideMenuStyle.accentGreen,
+                          child: CardSuitLoader(
+                            label: 'Chargement du profil',
+                            compact: true,
                           ),
                         ),
                       );
@@ -1018,6 +1041,223 @@ class _PremiumRankingPanel extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Variante du panneau de classement utilisée en mode duel.
+///
+/// On retire l'en-tête `Position #X / Badge premium GINO` ainsi que la
+/// barre de progression `Trophées X / 100`. On garde la grille de chips
+/// (Rang, Crédits, Manche, V, D pour la session en cours) et on ajoute
+/// une section « Historique vs <adversaire> » avec le nombre de parties
+/// jouées et le nombre de victoires cumulées contre ce même joueur.
+class DuelRankingSidePanel extends StatelessWidget {
+  const DuelRankingSidePanel({
+    super.key,
+    required this.profile,
+    required this.rank,
+    required this.round,
+    required this.wins,
+    required this.losses,
+    this.opponentName,
+    this.headToHead,
+  });
+
+  final PlayerProfile? profile;
+  final int? rank;
+
+  /// Numéro de la manche en cours (1-indexé côté affichage).
+  final int round;
+
+  /// Manches gagnées dans la session courante.
+  final int wins;
+
+  /// Manches perdues dans la session courante.
+  final int losses;
+
+  /// Nom d'affichage de l'adversaire (pour la section H2H). Null si pas
+  /// encore d'adversaire connecté.
+  final String? opponentName;
+
+  /// Statistiques cumulées sur toutes les parties précédentes contre le
+  /// même adversaire. Null tant que le fetch n'a pas encore résolu.
+  final HeadToHeadStats? headToHead;
+
+  @override
+  Widget build(BuildContext context) {
+    final int credits = profile?.credits ?? 0;
+    final bool hasOpponent =
+        opponentName != null && opponentName!.trim().isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.066),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _SideMenuStyle.accentGreen.withOpacity(0.26)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: _SideMenuStyle.accentGreen.withOpacity(0.08),
+            blurRadius: 20,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            _SideMenuStyle.accentGreen.withOpacity(0.12),
+            const Color(0xFF061D13).withOpacity(0.76),
+            const Color(0xFFE8C65D).withOpacity(0.08),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              _PremiumMetricChip(
+                icon: Icons.leaderboard_rounded,
+                label: 'Rang',
+                value: rank == null ? '-' : '#$rank',
+              ),
+              _PremiumMetricChip(
+                icon: Icons.account_balance_wallet_rounded,
+                label: 'Crédits',
+                value: '$credits',
+                gold: true,
+              ),
+              _PremiumMetricChip(
+                icon: Icons.flag_rounded,
+                label: 'Manche',
+                value: '$round',
+              ),
+              _PremiumMetricChip(
+                icon: Icons.emoji_events_rounded,
+                label: 'V',
+                value: '$wins',
+              ),
+              _PremiumMetricChip(
+                icon: Icons.close_rounded,
+                label: 'D',
+                value: '$losses',
+              ),
+            ],
+          ),
+          if (hasOpponent) ...<Widget>[
+            const SizedBox(height: 12),
+            _OpponentHistorySection(
+              opponentName: opponentName!,
+              headToHead: headToHead,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Petit bloc qui résume l'historique entre le joueur local et l'adversaire
+/// actuel : nombre de parties + nombre de victoires.
+class _OpponentHistorySection extends StatelessWidget {
+  const _OpponentHistorySection({
+    required this.opponentName,
+    required this.headToHead,
+  });
+
+  final String opponentName;
+  final HeadToHeadStats? headToHead;
+
+  @override
+  Widget build(BuildContext context) {
+    final HeadToHeadStats stats = headToHead ?? HeadToHeadStats.empty;
+    final bool isLoading = headToHead == null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _SideMenuStyle.accentGreen.withOpacity(0.22),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(
+                Icons.history_rounded,
+                size: 15,
+                color: _SideMenuStyle.accentGreen.withOpacity(0.88),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'Vs $opponentName',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white.withOpacity(0.78),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (isLoading)
+            Text(
+              'Chargement de l’historique…',
+              style: GoogleFonts.poppins(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                fontStyle: FontStyle.italic,
+              ),
+            )
+          else if (stats.games == 0)
+            Text(
+              'Première partie ensemble.',
+              style: GoogleFonts.poppins(
+                color: Colors.white.withOpacity(0.66),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: <Widget>[
+                _PremiumMetricChip(
+                  icon: Icons.casino_rounded,
+                  label: 'Parties',
+                  value: '${stats.games}',
+                ),
+                _PremiumMetricChip(
+                  icon: Icons.emoji_events_rounded,
+                  label: 'Mes V',
+                  value: '${stats.wins}',
+                ),
+                _PremiumMetricChip(
+                  icon: Icons.shield_outlined,
+                  label: 'Mes D',
+                  value: '${stats.losses}',
+                ),
+              ],
+            ),
         ],
       ),
     );

@@ -1,14 +1,25 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:gino/main.dart';
+import 'package:gino/game_rules_manual.dart';
 
 void main() {
-  testWidgets('L\'écran principal du jeu est visible', (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Le bouton des règles ouvre le manuel', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: Center(child: GameRulesButton())),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Huit américain'), findsOneWidget);
-    expect(find.text('Piocher'), findsOneWidget);
-    expect(find.text('Votre main'), findsOneWidget);
+    expect(find.byTooltip('Règles du jeu'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.menu_book_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Règles du jeu'), findsOneWidget);
+    expect(find.text('But du jeu'), findsOneWidget);
   });
 }

@@ -1,13 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'game_loading_indicator.dart';
 import 'widgets/gino_popups.dart';
 
 class AdminAccessConfig {
   // Injectés au build : --dart-define=ADMIN_LOGIN=xxx --dart-define=ADMIN_PASSWORD=xxx
   // Si non définis, l'accès est bloqué.
-  static const String _login = String.fromEnvironment('ADMIN_LOGIN', defaultValue: '');
-  static const String _password = String.fromEnvironment('ADMIN_PASSWORD', defaultValue: '');
+  static const String _login = String.fromEnvironment(
+    'ADMIN_LOGIN',
+    defaultValue: '',
+  );
+  static const String _password = String.fromEnvironment(
+    'ADMIN_PASSWORD',
+    defaultValue: '',
+  );
 
   static bool verify(String login, String password) {
     if (_login.isEmpty || _password.isEmpty) return false;
@@ -97,7 +104,11 @@ class _LoginAdminPageState extends State<LoginAdminPage> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: GinoPopupButton(label: 'Connexion', onPressed: _submit, isPremium: true),
+                          child: GinoPopupButton(
+                            label: 'Connexion',
+                            onPressed: _submit,
+                            isPremium: true,
+                          ),
                         ),
                       ],
                     ),
@@ -138,8 +149,8 @@ class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({super.key});
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
-  static final CollectionReference<Map<String, dynamic>> _profiles =
-      _db.collection('user_profiles');
+  static final CollectionReference<Map<String, dynamic>> _profiles = _db
+      .collection('user_profiles');
 
   Future<void> _changeCredit({
     required BuildContext context,
@@ -164,21 +175,33 @@ class AdminDashboardPage extends StatelessWidget {
                   style: GinoPopupStyle.baseText(fontSize: 16),
                   decoration: InputDecoration(
                     hintText: 'Montant',
-                    hintStyle: GinoPopupStyle.baseText(fontSize: 14, color: Colors.white70),
+                    hintStyle: GinoPopupStyle.baseText(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
                     filled: true,
                     fillColor: GinoPopupStyle.screenGreen.withOpacity(0.35),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: GinoPopupStyle.borderGreen),
+                      borderSide: const BorderSide(
+                        color: GinoPopupStyle.borderGreen,
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: GinoPopupStyle.borderGreen),
+                      borderSide: const BorderSide(
+                        color: GinoPopupStyle.borderGreen,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: GinoPopupStyle.accentGreen),
+                      borderSide: const BorderSide(
+                        color: GinoPopupStyle.accentGreen,
+                      ),
                     ),
                   ),
                 ),
@@ -232,12 +255,17 @@ class AdminDashboardPage extends StatelessWidget {
     );
   }
 
-  Future<void> adminAddCredit({required String uid, required int amount}) async {
+  Future<void> adminAddCredit({
+    required String uid,
+    required int amount,
+  }) async {
     if (amount <= 0) {
       throw StateError('Montant invalide.');
     }
     final DocumentReference<Map<String, dynamic>> userRef = _profiles.doc(uid);
-    final DocumentReference<Map<String, dynamic>> logRef = _db.collection('credit_logs').doc();
+    final DocumentReference<Map<String, dynamic>> logRef = _db
+        .collection('credit_logs')
+        .doc();
     await _db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(userRef);
       if (!snap.exists) {
@@ -261,12 +289,17 @@ class AdminDashboardPage extends StatelessWidget {
     });
   }
 
-  Future<void> adminRemoveCredit({required String uid, required int amount}) async {
+  Future<void> adminRemoveCredit({
+    required String uid,
+    required int amount,
+  }) async {
     if (amount <= 0) {
       throw StateError('Montant invalide.');
     }
     final DocumentReference<Map<String, dynamic>> userRef = _profiles.doc(uid);
-    final DocumentReference<Map<String, dynamic>> logRef = _db.collection('credit_logs').doc();
+    final DocumentReference<Map<String, dynamic>> logRef = _db
+        .collection('credit_logs')
+        .doc();
     await _db.runTransaction((Transaction tx) async {
       final DocumentSnapshot<Map<String, dynamic>> snap = await tx.get(userRef);
       if (!snap.exists) {
@@ -297,122 +330,151 @@ class AdminDashboardPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: GinoPopupStyle.popupGreen,
         foregroundColor: GinoPopupStyle.textWhite,
-        title: Text('Dashboard admin', style: GinoPopupStyle.baseText(fontSize: 20)),
+        title: Text(
+          'Dashboard admin',
+          style: GinoPopupStyle.baseText(fontSize: 20),
+        ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _profiles.orderBy('wins', descending: true).snapshots(),
-        builder: (BuildContext context, AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs = snapshot.data!.docs;
-          int totalCredits = 0;
-          int totalGames = 0;
-          String bestPlayer = '-';
-          int bestWins = -1;
-          for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in docs) {
-            final Map<String, dynamic> data = doc.data();
-            totalCredits += (data['credits'] as num?)?.toInt() ?? 0;
-            totalGames += (data['totalGames'] as num?)?.toInt() ?? 0;
-            final int wins = (data['wins'] as num?)?.toInt() ?? 0;
-            if (wins > bestWins) {
-              bestWins = wins;
-              bestPlayer = (data['displayName'] as String?)?.trim().isNotEmpty == true
-                  ? data['displayName'] as String
-                  : doc.id;
-            }
-          }
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+            ) {
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: CardSuitLoader(label: 'Chargement admin'),
+                );
+              }
+              final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                  snapshot.data!.docs;
+              int totalCredits = 0;
+              int totalGames = 0;
+              String bestPlayer = '-';
+              int bestWins = -1;
+              for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+                  in docs) {
+                final Map<String, dynamic> data = doc.data();
+                totalCredits += (data['credits'] as num?)?.toInt() ?? 0;
+                totalGames += (data['totalGames'] as num?)?.toInt() ?? 0;
+                final int wins = (data['wins'] as num?)?.toInt() ?? 0;
+                if (wins > bestWins) {
+                  bestWins = wins;
+                  bestPlayer =
+                      (data['displayName'] as String?)?.trim().isNotEmpty ==
+                          true
+                      ? data['displayName'] as String
+                      : doc.id;
+                }
+              }
 
-          return ListView(
-            padding: const EdgeInsets.all(14),
-            children: <Widget>[
-              _infoCard(
-                title: 'Résumé',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    _summaryLine('Joueurs', '${docs.length}'),
-                    _summaryLine('Crédits total', '$totalCredits'),
-                    _summaryLine('Parties total', '$totalGames'),
-                    _summaryLine('Meilleur joueur', bestPlayer),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _infoCard(
-                title: 'Classement',
-                child: Column(
-                  children: docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-                    final Map<String, dynamic> data = doc.data();
-                    final String name = (data['displayName'] as String?)?.trim().isNotEmpty == true
-                        ? data['displayName'] as String
-                        : 'Joueur';
-                    final String email = (data['email'] as String?) ?? '-';
-                    final int credits = (data['credits'] as num?)?.toInt() ?? 0;
-                    final int wins = (data['wins'] as num?)?.toInt() ?? 0;
-                    final int losses = (data['losses'] as num?)?.toInt() ?? 0;
-                    final int games = (data['totalGames'] as num?)?.toInt() ?? (wins + losses);
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: GinoPopupStyle.screenGreen.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: GinoPopupStyle.borderGreen, width: 1),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            name,
-                            style: GinoPopupStyle.baseText(
-                              fontSize: 16,
-                              fontWeight: GinoPopupStyle.titleWeight,
+              return ListView(
+                padding: const EdgeInsets.all(14),
+                children: <Widget>[
+                  _infoCard(
+                    title: 'Résumé',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _summaryLine('Joueurs', '${docs.length}'),
+                        _summaryLine('Crédits total', '$totalCredits'),
+                        _summaryLine('Parties total', '$totalGames'),
+                        _summaryLine('Meilleur joueur', bestPlayer),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _infoCard(
+                    title: 'Classement',
+                    child: Column(
+                      children: docs.map((
+                        QueryDocumentSnapshot<Map<String, dynamic>> doc,
+                      ) {
+                        final Map<String, dynamic> data = doc.data();
+                        final String name =
+                            (data['displayName'] as String?)
+                                    ?.trim()
+                                    .isNotEmpty ==
+                                true
+                            ? data['displayName'] as String
+                            : 'Joueur';
+                        final String email = (data['email'] as String?) ?? '-';
+                        final int credits =
+                            (data['credits'] as num?)?.toInt() ?? 0;
+                        final int wins = (data['wins'] as num?)?.toInt() ?? 0;
+                        final int losses =
+                            (data['losses'] as num?)?.toInt() ?? 0;
+                        final int games =
+                            (data['totalGames'] as num?)?.toInt() ??
+                            (wins + losses);
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: GinoPopupStyle.screenGreen.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: GinoPopupStyle.borderGreen,
+                              width: 1,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(email, style: GinoPopupStyle.baseText(fontSize: 12)),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Crédit: $credits • V: $wins • D: $losses • Parties: $games',
-                            style: GinoPopupStyle.baseText(fontSize: 13),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Expanded(
-                                child: GinoPopupButton(
-                                  label: '+ Crédit',
-                                  onPressed: () => _changeCredit(
-                                    context: context,
-                                    uid: doc.id,
-                                    add: true,
-                                  ),
+                              Text(
+                                name,
+                                style: GinoPopupStyle.baseText(
+                                  fontSize: 16,
+                                  fontWeight: GinoPopupStyle.titleWeight,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: GinoPopupButton(
-                                  label: '- Crédit',
-                                  isPrimary: false,
-                                  onPressed: () => _changeCredit(
-                                    context: context,
-                                    uid: doc.id,
-                                    add: false,
+                              const SizedBox(height: 2),
+                              Text(
+                                email,
+                                style: GinoPopupStyle.baseText(fontSize: 12),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Crédit: $credits • V: $wins • D: $losses • Parties: $games',
+                                style: GinoPopupStyle.baseText(fontSize: 13),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: GinoPopupButton(
+                                      label: '+ Crédit',
+                                      onPressed: () => _changeCredit(
+                                        context: context,
+                                        uid: doc.id,
+                                        add: true,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: GinoPopupButton(
+                                      label: '- Crédit',
+                                      isPrimary: false,
+                                      onPressed: () => _changeCredit(
+                                        context: context,
+                                        uid: doc.id,
+                                        add: false,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          );
-        },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              );
+            },
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'game_card_avatar.dart';
+import 'game_loading_indicator.dart';
 import 'premium_ui.dart';
 
 class GameHistoryPage extends StatefulWidget {
@@ -42,7 +43,10 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
           .get();
     } on FirebaseException {
       try {
-        snap = await collection.where('playerIds', arrayContains: user.uid).limit(150).get();
+        snap = await collection
+            .where('playerIds', arrayContains: user.uid)
+            .limit(150)
+            .get();
       } on FirebaseException {
         return const <_PlayerMatchResult>[];
       }
@@ -60,13 +64,11 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle titleStyle = (Theme.of(context).appBarTheme.titleTextStyle ??
-            Theme.of(context).textTheme.titleLarge ??
-            GoogleFonts.poppins(fontSize: 20))
-        .copyWith(
-      color: _creamText,
-      fontWeight: FontWeight.normal,
-    );
+    final TextStyle titleStyle =
+        (Theme.of(context).appBarTheme.titleTextStyle ??
+                Theme.of(context).textTheme.titleLarge ??
+                GoogleFonts.poppins(fontSize: 20))
+            .copyWith(color: _creamText, fontWeight: FontWeight.normal);
 
     return Scaffold(
       backgroundColor: PremiumColors.tableGreenDark,
@@ -97,9 +99,7 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
                   builder: (context, s) {
                     if (s.connectionState == ConnectionState.waiting) {
                       return const Center(
-                        child: CircularProgressIndicator(
-                          color: PremiumColors.accentGreen,
-                        ),
+                        child: CardSuitLoader(label: 'Chargement historique'),
                       );
                     }
                     if (s.hasError) {
@@ -122,7 +122,8 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
                         ),
                       );
                     }
-                    final List<_PlayerMatchResult> items = s.data ?? const <_PlayerMatchResult>[];
+                    final List<_PlayerMatchResult> items =
+                        s.data ?? const <_PlayerMatchResult>[];
                     if (items.isEmpty) {
                       return Center(
                         child: Padding(
@@ -145,23 +146,37 @@ class _GameHistoryPageState extends State<GameHistoryPage> {
                     }
                     return LayoutBuilder(
                       builder: (context, constraints) {
-                        final double horizontalPadding = constraints.maxWidth > 720 ? 32 : 16;
-                        final double maxWidth = constraints.maxWidth > 760 ? 720 : constraints.maxWidth;
+                        final double horizontalPadding =
+                            constraints.maxWidth > 720 ? 32 : 16;
+                        final double maxWidth = constraints.maxWidth > 760
+                            ? 720
+                            : constraints.maxWidth;
                         return Align(
                           alignment: Alignment.topCenter,
                           child: SizedBox(
                             width: maxWidth,
                             child: ListView.builder(
-                              padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 18),
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                8,
+                                horizontalPadding,
+                                18,
+                              ),
                               itemCount: items.length + 1,
                               itemBuilder: (_, i) {
                                 if (i == items.length) {
                                   return Padding(
-                                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 4),
+                                    padding: const EdgeInsets.fromLTRB(
+                                      8,
+                                      10,
+                                      8,
+                                      4,
+                                    ),
                                     child: Text(
                                       "L’historique est mis à jour en temps réel.",
                                       style: GoogleFonts.poppins(
-                                        color: PremiumColors.accentGreen.withOpacity(0.58),
+                                        color: PremiumColors.accentGreen
+                                            .withOpacity(0.58),
                                         fontSize: 12,
                                         fontWeight: FontWeight.normal,
                                       ),
@@ -213,10 +228,26 @@ class _HistoryBackground extends StatelessWidget {
       ),
       child: Stack(
         children: <Widget>[
-          const Positioned(top: 72, left: -18, child: _CardSuit('♠', size: 118)),
-          const Positioned(top: 132, right: 24, child: _CardSuit('♣', size: 88)),
-          const Positioned(bottom: 126, left: 28, child: _CardSuit('♦', size: 82)),
-          const Positioned(bottom: 44, right: -8, child: _CardSuit('♥', size: 114)),
+          const Positioned(
+            top: 72,
+            left: -18,
+            child: _CardSuit('♠', size: 118),
+          ),
+          const Positioned(
+            top: 132,
+            right: 24,
+            child: _CardSuit('♣', size: 88),
+          ),
+          const Positioned(
+            bottom: 126,
+            left: 28,
+            child: _CardSuit('♦', size: 82),
+          ),
+          const Positioned(
+            bottom: 44,
+            right: -8,
+            child: _CardSuit('♥', size: 114),
+          ),
           Positioned(
             top: -90,
             right: -80,
@@ -302,7 +333,8 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color accent = _accent;
-    final String credits = '${result.creditDelta >= 0 ? '+' : ''}${result.creditDelta} Crédits';
+    final String credits =
+        '${result.creditDelta >= 0 ? '+' : ''}${result.creditDelta} Crédits';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -355,11 +387,17 @@ class _HistoryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: accent.withOpacity(0.11),
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: accent.withOpacity(0.24), width: 0.7),
+                    border: Border.all(
+                      color: accent.withOpacity(0.24),
+                      width: 0.7,
+                    ),
                   ),
                   child: Text(
                     _statusLabel,
@@ -415,8 +453,8 @@ class _HistoryCard extends StatelessWidget {
                 color: result.creditDelta == 0
                     ? _GameHistoryPageState._softGrey
                     : (result.creditDelta > 0
-                        ? PremiumColors.accentGreen
-                        : _GameHistoryPageState._lossColor),
+                          ? PremiumColors.accentGreen
+                          : _GameHistoryPageState._lossColor),
                 fontSize: 12.5,
                 fontWeight: FontWeight.w400,
               ),
@@ -456,8 +494,12 @@ class _PlayerMatchResult {
   final DateTime createdAt;
 
   static _PlayerMatchResult? fromDoc(Map<String, dynamic> data, String uid) {
-    final Map<String, dynamic> a = (data['playerA'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-    final Map<String, dynamic> b = (data['playerB'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final Map<String, dynamic> a =
+        (data['playerA'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    final Map<String, dynamic> b =
+        (data['playerB'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
     final String aUid = (a['uid'] as String? ?? '').trim();
     final String bUid = (b['uid'] as String? ?? '').trim();
     final bool mineIsA = aUid == uid;
@@ -478,15 +520,21 @@ class _PlayerMatchResult {
           ? (other['pseudo'] as String).trim()
           : 'Joueur',
       isWin: result == 'win',
-      isDraw: result == 'draw' || result == 'tie' || result == 'egalite' || result == 'égalité',
+      isDraw:
+          result == 'draw' ||
+          result == 'tie' ||
+          result == 'egalite' ||
+          result == 'égalité',
       modeLabel: mode == 'credits' || mode == 'duel_pari'
           ? 'Duel Pari'
           : (mode == 'solo' ? 'Solo' : (mode == 'duel' ? 'Duel' : 'Partie')),
-      stakeCredits: (data['stakeCredits'] as num?)?.toInt() ??
+      stakeCredits:
+          (data['stakeCredits'] as num?)?.toInt() ??
           (data['wagerAmount'] as num?)?.toInt() ??
           0,
       creditDelta: (mine['creditDelta'] as num?)?.toInt() ?? 0,
-      dateLabel: '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
+      dateLabel:
+          '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
       createdAt: dt,
     );
   }

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'game_card_avatar.dart';
+import 'game_loading_indicator.dart';
 import 'leaderboard_service.dart';
 import 'player_profile.dart';
 import 'premium_ui.dart';
@@ -53,85 +54,93 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
         child: SafeArea(
           child: FutureBuilder<List<PlayerProfile>>(
             future: _leaderboardFuture,
-            builder: (
-              BuildContext context,
-              AsyncSnapshot<List<PlayerProfile>> snapshot,
-            ) {
-              final List<PlayerProfile> players =
-                  snapshot.data ?? const <PlayerProfile>[];
-              return RefreshIndicator(
-                onRefresh: _refresh,
-                color: PremiumColors.accentGreen,
-                backgroundColor: PremiumColors.tableGreenDark,
-                child: LayoutBuilder(
-                  builder: (BuildContext context, BoxConstraints constraints) {
-                    final double horizontalPadding =
-                        constraints.maxWidth >= 720 ? 24 : 16;
-                    final List<Widget> leaderboardItems = <Widget>[
-                      const SizedBox(height: 4),
-                      const _LeaderboardHeader(),
-                      if (snapshot.connectionState == ConnectionState.waiting)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 8),
-                          child: LinearProgressIndicator(minHeight: 2),
-                        ),
-                      if (snapshot.hasError)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 12),
-                          child: Text(
-                            'Impossible de charger le classement pour le moment.',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.white),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<PlayerProfile>> snapshot,
+                ) {
+                  final List<PlayerProfile> players =
+                      snapshot.data ?? const <PlayerProfile>[];
+                  return RefreshIndicator(
+                    onRefresh: _refresh,
+                    color: PremiumColors.accentGreen,
+                    backgroundColor: PremiumColors.tableGreenDark,
+                    child: LayoutBuilder(
+                      builder: (BuildContext context, BoxConstraints constraints) {
+                        final double horizontalPadding =
+                            constraints.maxWidth >= 720 ? 24 : 16;
+                        final List<Widget> leaderboardItems = <Widget>[
+                          const SizedBox(height: 4),
+                          const _LeaderboardHeader(),
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: CardSuitLoader(
+                                label: 'Chargement du classement',
+                                compact: true,
+                              ),
+                            ),
+                          if (snapshot.hasError)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Impossible de charger le classement pour le moment.',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          if (players.isEmpty &&
+                              snapshot.connectionState == ConnectionState.done)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Aucun joueur classé pour le moment.',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ...List<Widget>.generate(players.length, (int index) {
+                            final PlayerProfile player = players[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: _LeaderboardRow(
+                                player: player,
+                                rank: index + 1,
+                                isCurrentUser:
+                                    currentUid != null &&
+                                    player.uid == currentUid,
+                              ),
+                            );
+                          }),
+                          const _LeaderboardFooter(),
+                        ];
+                        return ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(
+                            horizontalPadding,
+                            kToolbarHeight + 12,
+                            horizontalPadding,
+                            24,
                           ),
-                        ),
-                      if (players.isEmpty &&
-                          snapshot.connectionState == ConnectionState.done)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 12),
-                          child: Text(
-                            'Aucun joueur classé pour le moment.',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ...List<Widget>.generate(players.length, (int index) {
-                        final PlayerProfile player = players[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: _LeaderboardRow(
-                            player: player,
-                            rank: index + 1,
-                            isCurrentUser:
-                                currentUid != null && player.uid == currentUid,
-                          ),
-                        );
-                      }),
-                      const _LeaderboardFooter(),
-                    ];
-                    return ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(
-                        horizontalPadding,
-                        kToolbarHeight + 12,
-                        horizontalPadding,
-                        24,
-                      ),
-                      itemCount: leaderboardItems.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        return Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 820),
-                            child: leaderboardItems[index],
-                          ),
+                          itemCount: leaderboardItems.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            return Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 820,
+                                ),
+                                child: leaderboardItems[index],
+                              ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
-              );
-            },
+                    ),
+                  );
+                },
           ),
         ),
       ),
@@ -155,14 +164,18 @@ class _LeaderboardSidePanelState extends State<LeaderboardSidePanel> {
   @override
   void initState() {
     super.initState();
-    _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: widget.limit);
+    _leaderboardFuture = _leaderboardService.fetchTopPlayers(
+      limit: widget.limit,
+    );
   }
 
   @override
   void didUpdateWidget(covariant LeaderboardSidePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.limit != widget.limit) {
-      _leaderboardFuture = _leaderboardService.fetchTopPlayers(limit: widget.limit);
+      _leaderboardFuture = _leaderboardService.fetchTopPlayers(
+        limit: widget.limit,
+      );
     }
   }
 
@@ -183,78 +196,84 @@ class _LeaderboardSidePanelState extends State<LeaderboardSidePanel> {
               borderRadius: BorderRadius.circular(24),
               child: FutureBuilder<List<PlayerProfile>>(
                 future: _leaderboardFuture,
-                builder: (
-                  BuildContext context,
-                  AsyncSnapshot<List<PlayerProfile>> snapshot,
-                ) {
-                  final List<PlayerProfile> players =
-                      snapshot.data ?? const <PlayerProfile>[];
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
-                    children: <Widget>[
-                      Row(
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<PlayerProfile>> snapshot,
+                    ) {
+                      final List<PlayerProfile> players =
+                          snapshot.data ?? const <PlayerProfile>[];
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
                         children: <Widget>[
-                          Icon(
-                            Icons.leaderboard_rounded,
-                            color: PremiumColors.accent.withOpacity(0.92),
+                          Row(
+                            children: <Widget>[
+                              Icon(
+                                Icons.leaderboard_rounded,
+                                color: PremiumColors.accent.withOpacity(0.92),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Classement',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'Classement',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                          const SizedBox(height: 12),
+                          const _LeaderboardHeader(),
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: CardSuitLoader(
+                                label: 'Chargement du classement',
+                                compact: true,
                               ),
                             ),
-                          ),
+                          if (snapshot.hasError)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Classement indisponible.',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          if (players.isEmpty &&
+                              snapshot.connectionState == ConnectionState.done)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Aucun joueur classé.',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ...List<Widget>.generate(players.length, (int index) {
+                            final PlayerProfile player = players[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: _LeaderboardRow(
+                                player: player,
+                                rank: index + 1,
+                                isCurrentUser:
+                                    currentUid != null &&
+                                    player.uid == currentUid,
+                              ),
+                            );
+                          }),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      const _LeaderboardHeader(),
-                      if (snapshot.connectionState == ConnectionState.waiting)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 8),
-                          child: LinearProgressIndicator(minHeight: 2),
-                        ),
-                      if (snapshot.hasError)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 12),
-                          child: Text(
-                            'Classement indisponible.',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      if (players.isEmpty &&
-                          snapshot.connectionState == ConnectionState.done)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 12),
-                          child: Text(
-                            'Aucun joueur classé.',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ...List<Widget>.generate(players.length, (int index) {
-                        final PlayerProfile player = players[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: _LeaderboardRow(
-                            player: player,
-                            rank: index + 1,
-                            isCurrentUser:
-                                currentUid != null && player.uid == currentUid,
-                          ),
-                        );
-                      }),
-                    ],
-                  );
-                },
+                      );
+                    },
               ),
             ),
           ),
@@ -263,7 +282,6 @@ class _LeaderboardSidePanelState extends State<LeaderboardSidePanel> {
     );
   }
 }
-
 
 class _LeaderboardBackground extends StatelessWidget {
   const _LeaderboardBackground({required this.child});
@@ -460,8 +478,9 @@ class _LeaderboardRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: (isFirst ? PremiumColors.accent : Colors.black)
-                .withOpacity(isFirst ? 0.16 : 0.14),
+            color: (isFirst ? PremiumColors.accent : Colors.black).withOpacity(
+              isFirst ? 0.16 : 0.14,
+            ),
             blurRadius: isFirst ? 24 : 14,
             spreadRadius: isFirst ? 1 : 0,
             offset: const Offset(0, 8),
@@ -485,7 +504,10 @@ class _LeaderboardRow extends StatelessWidget {
             return Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
-                SizedBox(width: rankWidth, child: _RankBadge(rank: rank)),
+                SizedBox(
+                  width: rankWidth,
+                  child: _RankBadge(rank: rank),
+                ),
                 DecoratedBox(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
@@ -529,10 +551,14 @@ class _LeaderboardRow extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: PremiumColors.accentGreen.withOpacity(0.24),
+                                color: PremiumColors.accentGreen.withOpacity(
+                                  0.24,
+                                ),
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
-                                  color: PremiumColors.accentGreen.withOpacity(0.42),
+                                  color: PremiumColors.accentGreen.withOpacity(
+                                    0.42,
+                                  ),
                                 ),
                               ),
                               child: const Text(
@@ -678,10 +704,7 @@ class _LeaderboardFooter extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.58),
-          fontSize: 12,
-        ),
+        style: TextStyle(color: Colors.white.withOpacity(0.58), fontSize: 12),
       ),
     );
   }

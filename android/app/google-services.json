@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "859286280853",
+    "firebase_url": "https://gino-f8efa-default-rtdb.firebaseio.com",
     "project_id": "gino-f8efa",
     "storage_bucket": "gino-f8efa.firebasestorage.app"
   },
@@ -19,6 +20,14 @@
           "android_info": {
             "package_name": "com.company.gino",
             "certificate_hash": "01ebe2821be0975f1911aed36713e19c1316a56a"
+          }
+        },
+        {
+          "client_id": "859286280853-fseqm81m0tua83fsne2dnbmnu0c1p0eq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.company.gino",
+            "certificate_hash": "52d3cca65135cd927132ebce75b63612b1d19fb2"
           }
         },
         {

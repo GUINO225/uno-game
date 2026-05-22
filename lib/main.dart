@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -15,12 +16,14 @@ import 'app_sfx_service.dart';
 import 'auth_service.dart';
 import 'firebase_config.dart';
 import 'duel_mode.dart';
+import 'game_loading_indicator.dart';
 import 'leaderboard_page.dart';
 import 'admin_dashboard.dart';
 import 'player_side_panel.dart';
 import 'premium_ui.dart';
 import 'player_profile.dart';
 import 'game_card_avatar.dart';
+import 'game_rules_manual.dart';
 import 'game_popup_ui.dart';
 import 'game_history_page.dart';
 import 'user_profile_service.dart';
@@ -270,30 +273,6 @@ class _AudioWarmupPage extends StatefulWidget {
 }
 
 class _AudioWarmupPageState extends State<_AudioWarmupPage> {
-  static const List<String> _loadingSuits = <String>['♦', '♥', '♠', '♣'];
-  static const Duration _symbolStep = Duration(milliseconds: 620);
-  int _symbolIndex = 0;
-  Timer? _symbolTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _symbolTimer = Timer.periodic(_symbolStep, (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _symbolIndex = (_symbolIndex + 1) % _loadingSuits.length;
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _symbolTimer?.cancel();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -317,81 +296,9 @@ class _AudioWarmupPageState extends State<_AudioWarmupPage> {
                         builder: (BuildContext context, _) {
                           final double progress =
                               AudioService.instance.initializationProgress;
-                          final int percent = (progress * 100).round().clamp(
-                            0,
-                            100,
-                          );
-                          return Column(
-                            children: <Widget>[
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 340),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                transitionBuilder:
-                                    (
-                                      Widget child,
-                                      Animation<double> animation,
-                                    ) {
-                                      return FadeTransition(
-                                        opacity: animation,
-                                        child: ScaleTransition(
-                                          scale:
-                                              Tween<double>(
-                                                begin: 0.9,
-                                                end: 1,
-                                              ).animate(
-                                                CurvedAnimation(
-                                                  parent: animation,
-                                                  curve: Curves.easeOutCubic,
-                                                ),
-                                              ),
-                                          child: child,
-                                        ),
-                                      );
-                                    },
-                                child: Text(
-                                  _loadingSuits[_symbolIndex],
-                                  key: ValueKey<int>(_symbolIndex),
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.88),
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w500,
-                                    height: 1,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(999),
-                                child: TweenAnimationBuilder<double>(
-                                  tween: Tween<double>(begin: 0, end: progress),
-                                  duration: const Duration(milliseconds: 120),
-                                  curve: Curves.easeOutCubic,
-                                  builder:
-                                      (
-                                        BuildContext context,
-                                        double animatedValue,
-                                        _,
-                                      ) {
-                                        return LinearProgressIndicator(
-                                          minHeight: 8,
-                                          value: animatedValue,
-                                          color: GameModePalette.accentGreen,
-                                          backgroundColor: Colors.white24,
-                                        );
-                                      },
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                '$percent%',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                          return CardSuitLoader(
+                            label: 'Préparation du jeu',
+                            progress: progress,
                           );
                         },
                       ),
@@ -484,7 +391,26 @@ class _IntroLandingPageState extends State<IntroLandingPage>
       _hasShownStartupAd = true;
       await showStartupAdPopup(context);
     }
-    if (!mounted || _hasAskedStartupLogin || _authService.currentUser != null) {
+    final User? currentUser = _authService.currentUser;
+    if (!mounted || _hasAskedStartupLogin) {
+      return;
+    }
+    if (currentUser != null && !currentUser.isAnonymous) {
+      _hasAskedStartupLogin = true;
+      try {
+        final PlayerProfile profile = await _profileService
+            .createOrUpdateFromGoogleUser(currentUser);
+        if (!mounted) {
+          return;
+        }
+        await showFirstLoginRulesIfNeeded(
+          context,
+          profileService: _profileService,
+          profile: profile,
+        );
+      } catch (e) {
+        debugPrint('[RulesManual] startup profile unavailable: $e');
+      }
       return;
     }
     _hasAskedStartupLogin = true;
@@ -516,7 +442,16 @@ class _IntroLandingPageState extends State<IntroLandingPage>
       return;
     }
     try {
-      await _profileService.createOrUpdateFromGoogleUser(result.user!);
+      final PlayerProfile profile = await _profileService
+          .createOrUpdateFromGoogleUser(result.user!);
+      if (!mounted) {
+        return;
+      }
+      await showFirstLoginRulesIfNeeded(
+        context,
+        profileService: _profileService,
+        profile: profile,
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -575,6 +510,15 @@ class _IntroLandingPageState extends State<IntroLandingPage>
             child: Builder(
               builder: (BuildContext context) =>
                   const PlayerSidePanelButton(premiumSurface: true),
+            ),
+          ),
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: EdgeInsets.only(top: 6, left: 10),
+                child: GameRulesButton(compact: true),
+              ),
             ),
           ),
           SafeArea(
@@ -1167,16 +1111,24 @@ class _GameModePageState extends State<GameModePage>
               alignment: Alignment.topLeft,
               child: Padding(
                 padding: const EdgeInsets.only(left: 6),
-                child: IconButton(
-                  tooltip: 'Classement',
-                  onPressed: () {
-                    unawaited(AppSfxService.instance.playClick());
-                    Navigator.of(context).pushNamed(GameModeRoutes.leaderboard);
-                  },
-                  icon: const Icon(
-                    Icons.leaderboard_rounded,
-                    color: Colors.white,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    IconButton(
+                      tooltip: 'Classement',
+                      onPressed: () {
+                        unawaited(AppSfxService.instance.playClick());
+                        Navigator.of(
+                          context,
+                        ).pushNamed(GameModeRoutes.leaderboard);
+                      },
+                      icon: const Icon(
+                        Icons.leaderboard_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const GameRulesButton(compact: true),
+                  ],
                 ),
               ),
             ),
@@ -1236,22 +1188,26 @@ class _GameModePageState extends State<GameModePage>
     if (mode == null) {
       return;
     }
+    final User? currentUser = _authService.currentUser;
+    final bool needsGoogleConnection =
+        currentUser == null || currentUser.isAnonymous;
     if ((mode == GameMode.duel || mode == GameMode.credits) &&
-        _authService.currentUser == null) {
+        needsGoogleConnection) {
       final bool shouldLogin =
           await showDialog<bool>(
             context: context,
             builder: (BuildContext context) {
-              return Dialog(
-                backgroundColor: Colors.transparent,
-                child: GinoDecisionPopup(
-                  title: 'Connexion',
-                  message: 'Connecte-toi avec Google pour continuer.',
-                  primaryLabel: 'Google',
-                  secondaryLabel: 'Annuler',
-                  onPrimary: () => Navigator.of(context).pop(true),
-                  onSecondary: () => Navigator.of(context).pop(false),
-                ),
+              final bool creditsMode = mode == GameMode.credits;
+              return GoogleConnectionPopup(
+                eyebrow: creditsMode ? 'Mode pari' : 'Duel en ligne',
+                title: 'Connexion Google',
+                message: creditsMode
+                    ? 'Connecte-toi pour protéger tes crédits et entrer en mode pari.'
+                    : 'Connecte-toi pour retrouver ton profil et rejoindre un duel.',
+                primaryLabel: 'Continuer avec Google',
+                secondaryLabel: 'Annuler',
+                onGooglePressed: () => Navigator.of(context).pop(true),
+                onSecondaryPressed: () => Navigator.of(context).pop(false),
               );
             },
           ) ??
@@ -1276,7 +1232,16 @@ class _GameModePageState extends State<GameModePage>
         );
         return;
       }
-      await _profileService.createOrUpdateFromGoogleUser(result.user!);
+      final PlayerProfile profile = await _profileService
+          .createOrUpdateFromGoogleUser(result.user!);
+      if (!mounted) {
+        return;
+      }
+      await showFirstLoginRulesIfNeeded(
+        context,
+        profileService: _profileService,
+        profile: profile,
+      );
     }
     if (mode == GameMode.credits) {
       final String? uid = _authService.currentUser?.uid;
@@ -3814,9 +3779,14 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         : baseDelta - bonus.amount;
   }
 
+  bool get _hasCreditAccount {
+    final User? user = _authService.currentUser;
+    return user != null && !user.isAnonymous;
+  }
+
   Future<void> _applyRoundCredits(int delta) async {
-    final user = _authService.currentUser;
-    if (user == null) {
+    final User? user = _authService.currentUser;
+    if (user == null || user.isAnonymous) {
       return;
     }
     try {
@@ -3839,8 +3809,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     required PlayerTurn winner,
     required int creditDelta,
   }) async {
-    final user = _authService.currentUser;
-    if (user == null) {
+    final User? user = _authService.currentUser;
+    if (user == null || user.isAnonymous) {
       return;
     }
     final bool humanWon = winner == PlayerTurn.human;
@@ -3868,21 +3838,18 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     }
   }
 
-  Future<bool> _confirmSoloExitPenalty() async {
+  Future<bool> _confirmSoloExit({required bool creditPenaltyApplies}) async {
     final bool? shouldQuit = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: Colors.transparent,
-          child: GinoDecisionPopup(
-            title: 'Quitter la partie ?',
-            message:
-                'Si vous quittez maintenant, la manche sera abandonnée et vous perdez $_soloExitPenaltyCredits crédits.',
-            primaryLabel: 'Quitter -$_soloExitPenaltyCredits',
-            secondaryLabel: 'Rester',
-            onPrimary: () => Navigator.of(dialogContext).pop(true),
-            onSecondary: () => Navigator.of(dialogContext).pop(false),
+          child: _SoloExitConfirmationPopup(
+            creditPenaltyApplies: creditPenaltyApplies,
+            penaltyCredits: _soloExitPenaltyCredits,
+            onQuit: () => Navigator.of(dialogContext).pop(true),
+            onStay: () => Navigator.of(dialogContext).pop(false),
           ),
         );
       },
@@ -3901,7 +3868,10 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         _returnToModeMenu();
         return;
       }
-      final bool shouldQuit = await _confirmSoloExitPenalty();
+      final bool creditPenaltyApplies = _hasCreditAccount;
+      final bool shouldQuit = await _confirmSoloExit(
+        creditPenaltyApplies: creditPenaltyApplies,
+      );
       if (!mounted) {
         return;
       }
@@ -3909,7 +3879,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         unawaited(_sfx.playClick());
         return;
       }
-      await _applyRoundCredits(-_soloExitPenaltyCredits);
+      if (creditPenaltyApplies) {
+        await _applyRoundCredits(-_soloExitPenaltyCredits);
+      }
       if (mounted) {
         _returnToModeMenu();
       }
@@ -4037,7 +4009,9 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         final bool humanWon = winner == PlayerTurn.human;
-        final bool isConnected = AuthService.instance.currentUser != null;
+        final User? currentUser = AuthService.instance.currentUser;
+        final bool isConnected =
+            currentUser != null && !currentUser.isAnonymous;
         final String creditLabel = creditDelta >= 0
             ? '+$creditDelta crédits'
             : '$creditDelta crédits';
@@ -4460,7 +4434,6 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
     );
   }
 
-
   DrawPenaltyType _forcedDrawPenaltyType() {
     if (_forcedDrawPenaltyLabel == 'Carte 2') {
       return DrawPenaltyType.two;
@@ -4506,13 +4479,23 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
               ),
             ],
           ),
-          const Align(
+          Align(
             alignment: Alignment.centerRight,
-            child: PlayerSidePanelButton(
-              padding: EdgeInsets.zero,
-              wrapInAlign: false,
-              showCredits: false,
-              useMenuIcon: true,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const <Widget>[
+                GameRulesButton(
+                  compact: true,
+                  initialSection: GameRulesSection.cards,
+                ),
+                SizedBox(width: 6),
+                PlayerSidePanelButton(
+                  padding: EdgeInsets.zero,
+                  wrapInAlign: false,
+                  showCredits: false,
+                  useMenuIcon: true,
+                ),
+              ],
             ),
           ),
         ],
@@ -5140,7 +5123,8 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
         final double availableWidth = constraints.maxWidth;
         final double availableHeight = constraints.maxHeight;
         final double centerGap = (availableWidth * 0.08).clamp(14.0, 34.0);
-        final bool compactCenter = availableHeight < 150 || availableWidth < 340;
+        final bool compactCenter =
+            availableHeight < 150 || availableWidth < 340;
         return Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -5261,6 +5245,195 @@ class _CrazyEightsPageState extends State<CrazyEightsPage> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SoloExitConfirmationPopup extends StatelessWidget {
+  const _SoloExitConfirmationPopup({
+    required this.creditPenaltyApplies,
+    required this.penaltyCredits,
+    required this.onQuit,
+    required this.onStay,
+  });
+
+  final bool creditPenaltyApplies;
+  final int penaltyCredits;
+  final VoidCallback onQuit;
+  final VoidCallback onStay;
+
+  @override
+  Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.sizeOf(context).width;
+    final double popupWidth = min(max(screenWidth - 28, 280), 440);
+    final Color impactColor = creditPenaltyApplies
+        ? GinoPopupStyle.casinoGold
+        : GinoPopupStyle.premiumNeonGreen;
+    final String modeLabel = creditPenaltyApplies
+        ? 'Solo connecté'
+        : 'Mode sans connexion';
+    final String impactLabel = creditPenaltyApplies
+        ? '-$penaltyCredits crédits'
+        : '0 crédit retiré';
+    final String impactDetail = creditPenaltyApplies
+        ? 'Pénalité appliquée au profil'
+        : 'Aucun solde modifié';
+    final String message = creditPenaltyApplies
+        ? 'La manche sera abandonnée et une pénalité sera appliquée à votre compte.'
+        : 'La manche sera abandonnée, mais aucun crédit ne sera retiré.';
+
+    return GinoPopupFrame(
+      width: popupWidth,
+      showTitleTag: false,
+      isPremium: true,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: GinoPopupStyle.premiumDeepGreen.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: impactColor.withValues(alpha: 0.62)),
+            ),
+            child: Text(
+              modeLabel,
+              textAlign: TextAlign.center,
+              style: GinoPopupStyle.baseText(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: impactColor,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: 62,
+            height: 62,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: <Color>[
+                  impactColor.withValues(alpha: 0.28),
+                  GinoPopupStyle.popupGreen.withValues(alpha: 0.82),
+                ],
+              ),
+              border: Border.all(color: impactColor.withValues(alpha: 0.56)),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: impactColor.withValues(alpha: 0.16),
+                  blurRadius: 22,
+                ),
+              ],
+            ),
+            child: Icon(
+              creditPenaltyApplies
+                  ? Icons.money_off_rounded
+                  : Icons.verified_user_rounded,
+              color: impactColor,
+              size: 30,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Quitter la manche ?',
+            textAlign: TextAlign.center,
+            style: GinoPopupStyle.baseText(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              height: 1.08,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GinoPopupStyle.baseText(
+              fontSize: 15,
+              color: GinoPopupStyle.textWhite.withValues(alpha: 0.88),
+              height: 1.36,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: impactColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: impactColor.withValues(alpha: 0.38)),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  creditPenaltyApplies
+                      ? Icons.account_balance_wallet_rounded
+                      : Icons.lock_open_rounded,
+                  color: impactColor,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        impactLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GinoPopupStyle.baseText(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: impactColor,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        impactDetail,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GinoPopupStyle.baseText(
+                          fontSize: 12,
+                          color: GinoPopupStyle.textWhite.withValues(
+                            alpha: 0.72,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: GinoPopupButton(
+                  label: 'Rester',
+                  onPressed: onStay,
+                  isPrimary: false,
+                  isPremium: true,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GinoPopupButton(
+                  label: creditPenaltyApplies
+                      ? 'Quitter -$penaltyCredits'
+                      : 'Quitter',
+                  onPressed: onQuit,
+                  isPremium: true,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

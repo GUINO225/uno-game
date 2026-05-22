@@ -18,6 +18,7 @@ class PlayerProfile {
     this.cardAvatarSuit = '',
     this.hasCustomProfile = false,
     this.profilePromptDismissedAt,
+    this.rulesManualSeenAt,
     this.createdAt,
     this.lastLoginAt,
   });
@@ -36,6 +37,7 @@ class PlayerProfile {
   final String cardAvatarSuit;
   final bool hasCustomProfile;
   final DateTime? profilePromptDismissedAt;
+  final DateTime? rulesManualSeenAt;
   final DateTime? createdAt;
   final DateTime? lastLoginAt;
 
@@ -79,8 +81,15 @@ class PlayerProfile {
       'profilePromptDismissedAt': profilePromptDismissedAt == null
           ? null
           : Timestamp.fromDate(profilePromptDismissedAt!.toUtc()),
-      'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!.toUtc()),
-      'lastLoginAt': lastLoginAt == null ? null : Timestamp.fromDate(lastLoginAt!.toUtc()),
+      'rulesManualSeenAt': rulesManualSeenAt == null
+          ? null
+          : Timestamp.fromDate(rulesManualSeenAt!.toUtc()),
+      'createdAt': createdAt == null
+          ? null
+          : Timestamp.fromDate(createdAt!.toUtc()),
+      'lastLoginAt': lastLoginAt == null
+          ? null
+          : Timestamp.fromDate(lastLoginAt!.toUtc()),
     };
   }
 
@@ -104,12 +113,16 @@ class PlayerProfile {
           (map['score'] as num?)?.toInt() ??
           (((map['wins'] as num?)?.toInt() ?? 0) * 3) -
               ((map['losses'] as num?)?.toInt() ?? 0),
-      cardAvatarRank:
-          GameCardAvatarPalette.ranks.contains(rank) ? rank : fallback.rank,
-      cardAvatarSuit:
-          GameCardAvatarPalette.suits.contains(suit) ? suit : fallback.suit,
+      cardAvatarRank: GameCardAvatarPalette.ranks.contains(rank)
+          ? rank
+          : fallback.rank,
+      cardAvatarSuit: GameCardAvatarPalette.suits.contains(suit)
+          ? suit
+          : fallback.suit,
       hasCustomProfile: map['hasCustomProfile'] as bool? ?? false,
-      profilePromptDismissedAt: (map['profilePromptDismissedAt'] as Timestamp?)?.toDate(),
+      profilePromptDismissedAt: (map['profilePromptDismissedAt'] as Timestamp?)
+          ?.toDate(),
+      rulesManualSeenAt: (map['rulesManualSeenAt'] as Timestamp?)?.toDate(),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       lastLoginAt: (map['lastLoginAt'] as Timestamp?)?.toDate(),
     );

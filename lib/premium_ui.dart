@@ -34,7 +34,9 @@ class PremiumCardEffects {
     return BoxDecoration(
       color: color,
       borderRadius: borderRadius,
-      border: Border.all(color: borderColor),
+      border: borderColor == Colors.transparent
+          ? null
+          : Border.all(color: borderColor),
       boxShadow: bevelShadow,
       gradient: LinearGradient(
         begin: Alignment.topLeft,
@@ -51,10 +53,13 @@ class PremiumCardEffects {
   static BoxDecoration bevelBack({
     required BorderRadius borderRadius,
     DecorationImage? image,
+    Color borderColor = Colors.white70,
   }) {
     return BoxDecoration(
       borderRadius: borderRadius,
-      border: Border.all(color: Colors.white70),
+      border: borderColor == Colors.transparent
+          ? null
+          : Border.all(color: borderColor),
       boxShadow: bevelShadow,
       image: image,
       gradient: image == null
